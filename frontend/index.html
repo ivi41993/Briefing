@@ -697,6 +697,31 @@ button, .btn, .click {
     overflow: auto;
   }
 }
+    /* --- Tablet landscape (≈980–1366px): central más ancha, laterales con clamp --- */
+@media (min-width: 980px) and (max-width: 1366px){
+  .dashboard-3col{
+    /* IZQ        CENTRO                     DER */
+    grid-template-columns:
+      clamp(230px, 22vw, 280px)
+      minmax(0, 1.7fr)
+      clamp(220px, 24vw, 300px);
+    gap: 16px;
+    padding: 16px;
+  }
+}
+
+/* --- Portátiles/“tablets grandes” (1367–1599px): derecha capada, centro manda --- */
+@media (min-width: 1367px) and (max-width: 1599px){
+  .dashboard-3col{
+    grid-template-columns:
+      clamp(260px, 21vw, 300px)
+      minmax(0, 1.6fr)
+      clamp(240px, 23vw, 340px);
+  }
+}
+
+/* Opcional: si quieres que el medio tenga siempre mínimo decente */
+.col-middle{ min-width: 0; } /* (ya lo tienes) */
   </style>
 <link rel="stylesheet" href="css/responsive.css">
 </head>
@@ -2160,6 +2185,7 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   </script>
 </body>
 </html>
+
 
 
 
