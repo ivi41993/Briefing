@@ -722,6 +722,43 @@ button, .btn, .click {
 
 /* Opcional: si quieres que el medio tenga siempre mínimo decente */
 .col-middle{ min-width: 0; } /* (ya lo tienes) */
+/* ===== iPad / tablets en horizontal: 2 columnas (der. abajo) ===== */
+@media (min-width: 980px) and (max-width: 1280px){
+  .dashboard-3col{
+    /* IZQ más contenida + CENTRO ancho */
+    grid-template-columns: clamp(260px, 28vw, 320px) minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  /* Orden claro: izquierda | centro | derecha debajo a todo el ancho */
+  .col-left   { order: 1; grid-column: 1; }
+  .col-middle { order: 2; grid-column: 2; }
+  .col-right  {
+    order: 3;
+    grid-column: 1 / -1;                 /* ocupa el ancho completo debajo */
+    display: grid;                        /* dos tarjetitas si cabe */
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+}
+
+/* ===== Móvil / tablet estrecha: 1 columna (sube breakpoint) ===== */
+@media (max-width: 960px){
+  .dashboard-3col{
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto;
+  }
+  .col-left,.col-right{ order: 2; }
+  .col-middle{ order: 1; }
+}
+
+/* Tamaños de tipografía un pelín más contenidos en tablet */
+@media (min-width: 980px) and (max-width: 1280px){
+  #kpi-costes .kpi-value.large{ font-size: clamp(1.6rem, 3.8vw, 2.6rem); }
+  header h1{ font-size: clamp(1.4rem, 0.9vw + 1rem, 1.9rem); }
+}
   </style>
 <link rel="stylesheet" href="css/responsive.css">
 </head>
@@ -2185,6 +2222,7 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   </script>
 </body>
 </html>
+
 
 
 
