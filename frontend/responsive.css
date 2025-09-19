@@ -1,0 +1,71 @@
+/* Base fluid */
+html, body { height: 100%; }
+body {
+  margin: 0;
+  /* tipografía que se adapta a tablet/TV */
+  font-size: clamp(14px, 1.8vw, 18px);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Contenedor general */
+.app, .container, main {
+  max-width: 100vw;
+  padding: 8px;
+  overflow-x: hidden;   /* evita scroll horizontal accidental */
+}
+
+/* Layout de tarjetas y paneles en grid fluido */
+.cards, .panels, .grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+/* Tarjetas/paneles no rompan el grid */
+.card, .panel, .widget { min-width: 0; }
+
+/* Tablas: scroll horizontal elegante en pantallas pequeñas */
+.table-wrap { overflow-x: auto; max-width: 100%; }
+.table-wrap > table {
+  width: 100%;
+  border-collapse: collapse;
+}
+table th, table td { padding: .5rem; }
+
+/* Gráficas/canvas responsive */
+.chart, canvas, svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  /* si tu librería necesita altura fija, usa aspect-ratio: */
+  aspect-ratio: 16 / 9;
+}
+
+/* Imágenes */
+img, video { max-width: 100%; height: auto; }
+
+/* Cabecera y pie pegados sin “cortar” contenido en tablet */
+header, footer { position: relative; }
+
+/* Evita 100vh “roto” en móviles; usa *vh modernos */
+.fullscreen, .fill {
+  min-height: 100svh; /* soportado en navegadores modernos */
+}
+
+/* Breakpoints suaves por si tienes columnas rígidas */
+@media (max-width: 1200px) {
+  .only-desktop { display: none !important; }
+}
+@media (max-width: 1024px) {
+  .sidebar { width: 280px; }       /* o colapsa si la tienes fija */
+}
+@media (max-width: 900px) {
+  .cards, .panels, .grid { grid-template-columns: 1fr; }  /* una columna */
+}
+
+/* Botones y targets táctiles cómodos */
+button, .btn, .click {
+  min-height: 44px;
+  padding: .6rem .9rem;
+}
