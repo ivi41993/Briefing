@@ -2140,45 +2140,71 @@ class ExternalConnector:
             "url": self.current_url  # Ya funciona porque _url_idx está inicializado
         }
 
+    async def _reload_env_if_changed(self):
+        try:
+            if self._env_path.exists():
+                m = self._env_path.stat().st_mtime
+                if self._env_mtime != m:
+                    self._env_mtime = m
+                    load_dotenv(override=True)
+                    new_settings = ExternalSettings.from_env()
+                    if new_settings != self.settings:
+                        self.settings = new_settings
+                        await self._ensure_client(recycle=True)
+                        self._url_idx = 0
+                        print("🔄 .env External recargado y cliente renovado.")
+        except Exception as e:
+            print("⚠️ Hot-reload .env (External) error:", e)
+    
     @property
     def current_url(self) -> str:
         return self.settings.urls[self._url_idx] if self.settings.urls else ""
 
+    def _rotate_url(self):
+        if len(self.settings.urls) > 1:
+            self._url_idx = (self._url_idx + 1) % len(self.settings.urls)
+            print(f"🔀 External → {self.current_url}")
+    
+    async def _reauth(self) -> bool:
+        await self._reload_env_if_changed()
+        await self._ensure_client(recycle=True)
+        return True
+    
     async def _post_track(self) -> bool:
-    """POST de tracking/telemetría para mantener sesión"""
-    if not (self._client and self.settings.track_url):
-        return False
-    try:
-        headers = self._build_auth_headers()
-        
-        # Construir body si está configurado
-        body = None
-        if self.settings.track_body_json:
-            body_str = self.settings.track_body_json.replace(
-                "{now_ms}", str(int(time.time() * 1000))
-            ).replace(
-                "{now_iso}", datetime.utcnow().isoformat(timespec="seconds") + "Z"
-            ).replace(
-                "{url}", self.current_url
+        """POST de tracking/telemetría para mantener sesión"""
+        if not (self._client and self.settings.track_url):
+            return False
+        try:
+            headers = self._build_auth_headers()
+            
+            # Construir body si está configurado
+            body = None
+            if self.settings.track_body_json:
+                body_str = self.settings.track_body_json.replace(
+                    "{now_ms}", str(int(time.time() * 1000))
+                ).replace(
+                    "{now_iso}", datetime.utcnow().isoformat(timespec="seconds") + "Z"
+                ).replace(
+                    "{url}", self.current_url
+                )
+                try:
+                    body = json.loads(body_str)
+                except:
+                    body = {"timestamp": int(time.time() * 1000)}
+            
+            r = await self._client.post(
+                self.settings.track_url, 
+                headers=headers, 
+                json=body,
+                timeout=15.0, 
+                follow_redirects=False
             )
-            try:
-                body = json.loads(body_str)
-            except:
-                body = {"timestamp": int(time.time() * 1000)}
-        
-        r = await self._client.post(
-            self.settings.track_url, 
-            headers=headers, 
-            json=body,
-            timeout=15.0, 
-            follow_redirects=False
-        )
-        
-        self._update_cookie_from_response(r)
-        return r.status_code < 400
-        
-    except Exception:
-        return False
+            
+            self._update_cookie_from_response(r)
+            return r.status_code < 400
+            
+        except Exception:
+            return False
 
     async def _ensure_client(self, recycle: bool = False):
         if self._client is not None and not recycle:
@@ -2562,7 +2588,7 @@ async def lifespan(app: FastAPI):
     print("🛑 Sistema detenido correctamente")
 
 # Actualiza la creación de FastAPI:
-app = FastAPI(lifespan=lifespan)
+
 
 
 # Endpoint opcional de estado para debug/monitorización
@@ -3368,6 +3394,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
