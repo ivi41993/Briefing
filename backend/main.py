@@ -3097,20 +3097,29 @@ async def put_roster_presence(upd: PresenceUpdate):
 from fastapi import Query
 
 @app.get("/api/tasks")
-def list_tasks(task_type: str | None = Query(None), station: str | None = Query(None)):
-    """
-    Devuelve las tareas en memoria (opcionalmente filtradas por tipo y estación).
-    """
-    out = list(tasks_in_memory_store.values())
+async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = None):
+    items = list(tasks_in_memory_store.values())
     if task_type:
-        out = [t for t in out if t.get("task_type") == task_type]
+        items = [t for t in items if t.get("task_type") == task_type]
     if station:
-        st = station.upper()
-        out = [t for t in out if not t.get("station") or str(t.get("station")).upper() == st]
-    # Asegura el schema esperado por el front
-    out = [sanitize_task(t) for t in out]
-    return out
+        items = [t for t in items if (t.get("station") or "").upper() == station.upper()]
+    # ordena por fecha creación descendente
+    items.sort(key=lambda t: t.get("created_at",""), reverse=True)
+    return items
 
+@app.post("/api/tasks")
+async def create_task(task: Task):
+    t = task.dict()
+    # normaliza/auto campos
+    if not t.get("id"):
+        t["id"] = str(uuid.uuid4())
+    t.setdefault("created_at", datetime.utcnow().isoformat(timespec='seconds') + "Z")
+    t.setdefault("is_completed", False)
+    tasks_in_memory_store[t["id"]] = t
+    save_tasks_to_disk()
+    # broadcast
+    await manager.broadcast(t)
+    return t
 
 @app.post("/api/tasks", response_model=Task, status_code=201)
 async def create_task(task: Task):
@@ -3398,6 +3407,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
