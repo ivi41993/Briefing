@@ -2530,14 +2530,6 @@ class ExternalConnector:
 
 
 
-# ELIMINA estas líneas:
-@app.on_event("startup")
-async def _startup():
-    load_tasks_from_disk()
-    load_external_from_disk()
-    load_incidents_from_disk()
-    load_attendance_from_disk()
-    print(f"✅ Startup: {len(tasks_in_memory_store)} tareas en memoria")
  
 # @app.on_event("shutdown")
 
@@ -3406,6 +3398,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
