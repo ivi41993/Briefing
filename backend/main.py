@@ -1946,72 +1946,6 @@ class BriefingPayload(BaseModel):
 # ===== NUEVO: almacén de tabla externa (para Carga/Planificación) =====
 
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-        self._broadcast_stats = {"success": 0, "failed": 0, "last_error": None}
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        print(f"🔌 WS conectado. Activos: {len(self.active_connections)}")
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-            print(f"🔌 WS desconectado. Activos: {len(self.active_connections)}")
-
-    async def broadcast(self, data: Dict[str, Any]):
-        """Broadcasting mejorado con estadísticas y manejo de errores"""
-        if not self.active_connections:
-            print("📡 No hay conexiones WebSocket activas para broadcast")
-            return 0
-
-        success_count = 0
-        failed_connections = []
-        
-        # Log del mensaje que se va a enviar (solo para debugging de tareas)
-        if data.get('task_type') or data.get('action') == 'delete':
-            print(f"📡 Broadcasting: {data.get('task_type', 'unknown')} - {data.get('title', data.get('id', 'unknown'))}")
-        
-        for connection in list(self.active_connections):
-            try:
-                await connection.send_json(data)
-                success_count += 1
-            except Exception as e:
-                print(f"❌ Error enviando a WebSocket: {str(e)}")
-                failed_connections.append(connection)
-                self._broadcast_stats["failed"] += 1
-                self._broadcast_stats["last_error"] = str(e)
-
-        # Limpiar conexiones fallidas
-        for failed_conn in failed_connections:
-            self.disconnect(failed_conn)
-        
-        self._broadcast_stats["success"] += success_count
-        
-        if success_count > 0:
-            print(f"📡 Broadcast exitoso a {success_count}/{len(self.active_connections) + len(failed_connections)} conexiones")
-        else:
-            print(f"❌ Broadcast falló a todas las conexiones")
-        
-        return success_count
-
-    async def send_one(self, websocket: WebSocket, data: Dict[str, Any]):
-        try:
-            await websocket.send_json(data)
-        except Exception:
-            self.disconnect(websocket)
-
-    def get_stats(self):
-        return {
-            "active_connections": len(self.active_connections),
-            "broadcast_stats": self._broadcast_stats
-        }
-
-# ELIMINA la línea: manager = ConnectionManager() si aparece duplicada
-# Debe haber SOLO UNA instancia después de la definición de la clase
-manager = ConnectionManager()
 
 
 
@@ -2531,6 +2465,53 @@ class ExternalConnector:
 
             await asyncio.sleep(next_delay)
 
+    def _ssl_verify(self):
+        return _build_ssl_context_for(self.settings.verify_mode, self.settings.cafile)
+
+    async def _login_if_needed(self) -> bool:
+        if self.settings.auth_mode != "LOGIN_POST":
+            return True
+        if not (self.settings.login_url and self._client):
+            return False
+        
+        csrf = None
+        try:
+            r = await self._client.get(self.settings.login_url, timeout=30.0)
+            r.raise_for_status()
+            if self.settings.login_csrf_regex:
+                m = re.search(self.settings.login_csrf_regex, r.text)
+                if m: csrf = m.group(1)
+        except Exception as e:
+            print(f"❌ Login GET error: {e}")
+            return False
+
+        payload = {}
+        if self.settings.login_payload_json:
+            try: 
+                payload = json.loads(self.settings.login_payload_json)
+            except: 
+                payload = {}
+        
+        if payload:
+            payload = json.loads(json.dumps(payload)
+                                 .replace("{username}", self.settings.username)
+                                 .replace("{password}", self.settings.password)
+                                 .replace("{csrf}", csrf or ""))        
+        elif self.settings.username:
+            payload = {"username": self.settings.username, "password": self.settings.password}
+            if csrf: payload["csrf"] = csrf
+
+        try:
+            r = await self._client.post(self.settings.login_url, data=payload, timeout=30.0)
+            r.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"❌ Login POST error: {e}")
+            return False
+
+    def status(self) -> dict[str, Any]:
+        return dict(self._status)
+
 
 
 # ---------------------------
@@ -2543,23 +2524,12 @@ class ExternalConnector:
 # @app.on_event("startup") 
 # @app.on_event("shutdown")
 
-# REEMPLAZA con lifespan moderno:
-from contextlib import asynccontextmanager
-# Crear la app FastAPI ANTES de usarla
-app = FastAPI(title="WFS1 MAD Dashboard", version="1.0.0")
 
-# CORS si es necesario
-from fastapi.middleware.cors import CORSMiddleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # En producción, especifica dominios exactos
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    print("🚀 Iniciando sistema...")
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
@@ -2576,6 +2546,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
+    print("🛑 Deteniendo sistema...")
     for key in ("_poller", "_roster", "_ena_task"):
         task: asyncio.Task = getattr(app.state, key, None)
         if task and not task.done():
@@ -2587,7 +2558,18 @@ async def lifespan(app: FastAPI):
     
     print("🛑 Sistema detenido correctamente")
 
-# Actualiza la creación de FastAPI:
+# ÚNICA instancia de la app
+app = FastAPI(title="WFS1 MAD Dashboard", version="1.0.0", lifespan=lifespan)
+
+# CORS
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 
@@ -3394,6 +3376,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
