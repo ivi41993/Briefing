@@ -2108,37 +2108,37 @@ from dataclasses import dataclass, field
 class ExternalConnector:
     def __init__(self):
     # PRIMERO: inicializar settings y propiedades básicas
-    self.settings = ExternalSettings.from_env()
-    self._url_idx = 0
+        self.settings = ExternalSettings.from_env()
+        self._url_idx = 0
+        
+        # Resto de inicialización
+        self._last_keepalive: float = 0.0
+        self._keepalive_every: int = getattr(self.settings, "keepalive_every", 0) or 120
+        
+        self._env_path = Path(os.getenv("ENV_FILE", ".env"))
+        self._env_mtime = self._env_path.stat().st_mtime if self._env_path.exists() else None
+        self._client: httpx.AsyncClient | None = None
+        self._consec_fail = 0
+        self._last_ok: str | None = None
+        self._cookie_expires_at: float | None = None
+        
+        # Tracking de actividad de la sesión
+        self._last_activity: float = 0.0
+        self._session_health_score = 100
+        
+        # Cargar sesión persistida
+        ck, exp = _load_cookie_session(EXT_SESSION_PATH)
+        if ck:
+            self.settings.cookie_header = ck
+            self._cookie_expires_at = exp
     
-    # Resto de inicialización
-    self._last_keepalive: float = 0.0
-    self._keepalive_every: int = getattr(self.settings, "keepalive_every", 0) or 120
-    
-    self._env_path = Path(os.getenv("ENV_FILE", ".env"))
-    self._env_mtime = self._env_path.stat().st_mtime if self._env_path.exists() else None
-    self._client: httpx.AsyncClient | None = None
-    self._consec_fail = 0
-    self._last_ok: str | None = None
-    self._cookie_expires_at: float | None = None
-    
-    # Tracking de actividad de la sesión
-    self._last_activity: float = 0.0
-    self._session_health_score = 100
-    
-    # Cargar sesión persistida
-    ck, exp = _load_cookie_session(EXT_SESSION_PATH)
-    if ck:
-        self.settings.cookie_header = ck
-        self._cookie_expires_at = exp
-
-    self._status: dict[str, Any] = {
-        "ok": False, 
-        "last_ok": None, 
-        "last_error": None, 
-        "fails": 0, 
-        "url": self.current_url  # Ya funciona porque _url_idx está inicializado
-    }
+        self._status: dict[str, Any] = {
+            "ok": False, 
+            "last_ok": None, 
+            "last_error": None, 
+            "fails": 0, 
+            "url": self.current_url  # Ya funciona porque _url_idx está inicializado
+        }
 
     @property
     def current_url(self) -> str:
@@ -3368,6 +3368,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
