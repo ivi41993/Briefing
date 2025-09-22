@@ -1178,10 +1178,11 @@ function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
     /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
     const GW_MAP = new Map();
     function gwGetDate(t){
-      const cand = t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
-      const d = cand ? new Date(cand) : null;
-      return (d && !isNaN(d)) ? d.getTime() : -Infinity;
-    }
+  const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+  const d = cand ? new Date(cand) : null;
+  return (d && !isNaN(d)) ? d.getTime() : -Infinity;
+}
+
     function renderGwTop3(){
       const cont = document.getElementById('gw-tasks-dynamic-container');
       if(!cont) return;
@@ -1672,6 +1673,24 @@ const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg
         const c=col.querySelector('.column-title .count'); const cards=col.querySelector('.cards-container'); if(c&&cards) c.textContent=`(${cards.children.length})`;
       });
     }
+
+    async function loadAllTasks(){
+  try{
+    const r = await fetch('/api/tasks?task_type=gw_task&station=' + encodeURIComponent(STATION_CODE), { cache:'no-store' });
+    if(!r.ok) throw new Error('GET /api/tasks failed');
+    const tasks = await r.json();
+
+    // Asegura filtrado por estación por si el backend no filtra
+    const list = Array.isArray(tasks) ? tasks.filter(isForThisStation) : [];
+
+    // Pinta todas en memoria y renderiza el TOP3
+    list.forEach(t => { t.task_type === 'gw_task' && GW_MAP.set(t.id, t); });
+    renderGwTop3();
+  }catch(e){
+    console.error('No se pudieron cargar las GW iniciales:', e);
+  }
+}
+
 
 
 
@@ -2254,6 +2273,7 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   setupEventListeners();
   makeColumnsSortable();
   hydrateKpiTotalCost();
+  loadAllTasks();
   fetchInitialData();
   loadPlanifTable();
   loadIncidentes();
@@ -2382,6 +2402,7 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   </script>
 </body>
 </html>
+
 
 
 
