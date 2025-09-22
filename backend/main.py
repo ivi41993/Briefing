@@ -3095,10 +3095,23 @@ async def put_roster_presence(upd: PresenceUpdate):
     return payload
 
 
+from fastapi import Query
+
 @app.get("/api/tasks")
-async def get_all_tasks():
-    # devuelve ya saneado
-    return [sanitize_task(t) for t in tasks_in_memory_store.values()]
+def list_tasks(task_type: str | None = Query(None), station: str | None = Query(None)):
+    """
+    Devuelve las tareas en memoria (opcionalmente filtradas por tipo y estación).
+    """
+    out = list(tasks_in_memory_store.values())
+    if task_type:
+        out = [t for t in out if t.get("task_type") == task_type]
+    if station:
+        st = station.upper()
+        out = [t for t in out if not t.get("station") or str(t.get("station")).upper() == st]
+    # Asegura el schema esperado por el front
+    out = [sanitize_task(t) for t in out]
+    return out
+
 
 @app.post("/api/tasks", response_model=Task, status_code=201)
 async def create_task(task: Task):
@@ -3386,6 +3399,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
