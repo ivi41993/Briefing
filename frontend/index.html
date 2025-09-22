@@ -1150,8 +1150,7 @@ function applyScale(v){ document.documentElement.style.setProperty('--ui-scale',
 })();
 
 function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
-script (línea ~280)
-function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
+
 
 
     /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
@@ -2257,7 +2256,6 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 });
 
 
-  <script>
 (function boot(){
   // Llamadas de inicio
   try { window.initHeaderTimer?.(); } catch(e){}
@@ -2365,11 +2363,12 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
     console.debug('Tarea recibida', task);
   }
 })();
-</script>
+
 
   </script>
 </body>
 </html>
+
 
 
 
