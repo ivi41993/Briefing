@@ -2029,13 +2029,17 @@ from dataclasses import dataclass, field
 
 
 
+        
+# Reemplaza la clase ExternalConnector existente con esta versión mejorada
+
 class ExternalConnector:
     def __init__(self):
         self.settings = ExternalSettings.from_env()
         self._last_keepalive: float = 0.0
-        # por defecto 5 minutos si no hay pista; se recalcula con caducidad cookie o EXT_KEEPALIVE_EVERY
+        # Keepalive más agresivo por defecto
         self._keepalive_every: int = getattr(self.settings, "keepalive_every", 0)
-        self._keepalive_every = self._keepalive_every if self._keepalive_every > 0 else 300
+        self._keepalive_every = self._keepalive_every if self._keepalive_every > 0 else 120  # 2 min
+        
         self._env_path = Path(os.getenv("ENV_FILE", ".env"))
         self._env_mtime = self._env_path.stat().st_mtime if self._env_path.exists() else None
         self._client: httpx.AsyncClient | None = None
@@ -2043,7 +2047,12 @@ class ExternalConnector:
         self._consec_fail = 0
         self._last_ok: str | None = None
         self._cookie_expires_at: float | None = None
-
+        
+        # NUEVO: Tracking de actividad de la sesión
+        self._last_activity: float = 0.0
+        self._session_health_score = 100  # 0-100, decae con errores
+        
+        # Cargar sesión persistida
         ck, exp = _load_cookie_session(EXT_SESSION_PATH)
         if ck:
             self.settings.cookie_header = ck
@@ -2053,319 +2062,266 @@ class ExternalConnector:
             "ok": False, "last_ok": None, "last_error": None, "fails": 0, "url": self.current_url
         }
 
-    @property
-    def current_url(self) -> str:
-        return self.settings.urls[self._url_idx] if self.settings.urls else ""
-
-    def _ssl_verify(self):
-        return _build_ssl_context()
-
-    def _cookies_jar(self):
-        return _parse_cookie_header(self.settings.cookie_header) if self.settings.cookie_header else {}
-
-    def _update_cookie_from_response(self, resp: httpx.Response):
-        setc = resp.headers.get_list("set-cookie")
-        if setc:
-            new_cookie, exp = _merge_set_cookie_with_expiry(self.settings.cookie_header, setc)
-            self.settings.cookie_header = new_cookie
-            if exp:
-                self._cookie_expires_at = exp
-            _save_cookie_session(EXT_SESSION_PATH, self.settings.cookie_header, self._cookie_expires_at)
-
-    async def _keepalive(self) -> bool:
-        """
-        Mantiene viva la sesión EXT si configuraste EXT_KEEPALIVE_URL.
-        (No usa _timeout_url; eso solo aplica a Enablon)
-        """
-        if not self._client or not self.settings.keepalive_url:
-            return False
-        try:
-            headers = {}
-            if self.settings.cookie_header:
-                headers["Cookie"] = self.settings.cookie_header
-                headers.update(_extract_xsrf_from_cookie(self.settings.cookie_header))
-            r = await self._client.get(self.settings.keepalive_url, headers=headers, timeout=20.0, follow_redirects=False)
-            setc = r.headers.get_list("set-cookie")
-            if setc:
-                self.settings.cookie_header = _merge_set_cookie_into_header(self.settings.cookie_header, setc)
-
-            return r.status_code < 400
-        except Exception:
-            return False
-
-    async def _tick_keepalive(self):
-        """Mantiene viva la sesión: POST track si existe, si no GET keepalive; ajusta temporizador por caducidad."""
-        ok = False
-        # 1) track POST
-        if self.settings.track_url:
-            ok = await self._post_track()
-
-        # 2) fallback keepalive GET
-        if not ok and self.settings.keepalive_url:
-            ok = await self._keepalive()
-
-        # 3) si ambos fallan y la cookie expira pronto → reauth
-        if not ok and self._cookie_expires_at and (self._cookie_expires_at - time.time()) < 90:
-            await self._reauth()
-
-        # 4) reajusta intervalo con la expiración más cercana si la conocemos
-        if self._cookie_expires_at:
-            # dispara ~a mitad de vida, con margen
-            secs = int(self._cookie_expires_at - time.time())
-            self._keepalive_every = max(120, min(secs - 60, max(secs // 2, 180)))
-
-    
-    async def _post_track(self) -> bool:
-        """Envía el POST de telemetría/track si está configurado; fusiona Set-Cookie."""
-        if not (self._client and self.settings.track_url):
-            return False
-        try:
-            headers = {}
-            if self.settings.cookie_header:
-                headers["Cookie"] = self.settings.cookie_header
-                headers.update(_extract_xsrf_from_cookie(self.settings.cookie_header))
-            if self.settings.referer:
-                headers["Referer"] = self.settings.referer
-            body = {}
-            if self.settings.track_body_json:
-                # Plantillas simples
-                tpl = (self.settings.track_body_json or "")
-                tpl = (tpl
-                       .replace("{now_ms}", str(int(time.time() * 1000)))
-                       .replace("{now_iso}", datetime.utcnow().isoformat(timespec="seconds") + "Z")
-                       .replace("{url}", self.current_url or (self.settings.urls[0] if self.settings.urls else "")))
-                try:
-                    body = json.loads(tpl)
-                except Exception:
-                    # si no es JSON válido, lo mandamos como texto
-                    r = await self._client.post(self.settings.track_url, headers=headers, content=tpl,
-                                                timeout=20.0, follow_redirects=False)
-                    self._update_cookie_from_response(r)
-                    return r.status_code < 400
-
-            r = await self._client.post(self.settings.track_url, headers=headers, json=body,
-                                        timeout=20.0, follow_redirects=False)
-            self._update_cookie_from_response(r)
-            return r.status_code < 400
-        except Exception:
-            return False
-
-    
-    async def _maybe_refresh_before_expiry(self):
-        if not self._cookie_expires_at:
-            return
-        if (self._cookie_expires_at - time.time()) < 120:
-            await self._tick_keepalive()
-
-
     async def _ensure_client(self, recycle: bool = False):
         if self._client is not None and not recycle:
             return
         if self._client is not None and recycle:
-            try:
-                await self._client.aclose()
-            except Exception:
-                pass
+            try: await self._client.aclose()
+            except Exception: pass
 
+        # Configuración más robusta para conexiones persistentes
         transport = httpx.AsyncHTTPTransport(
             retries=0,
             http2=self.settings.http2,
             limits=httpx.Limits(
                 max_connections=self.settings.max_connections,
                 max_keepalive_connections=self.settings.max_keepalive,
-                keepalive_expiry=60.0,
+                keepalive_expiry=180.0,  # Aumentado de 60 a 180 segundos
             ),
         )
+        
+        # Headers mejorados para mantener sesión
+        default_headers = {
+            "User-Agent": self.settings.user_agent,
+            "Accept": "application/json, text/plain, */*",
+            "X-Requested-With": "XMLHttpRequest",
+            "Connection": "keep-alive",
+            "Cache-Control": "no-cache",
+        }
+        
+        if self.settings.referer:
+            default_headers["Referer"] = self.settings.referer
+
         self._client = httpx.AsyncClient(
             verify=self._ssl_verify(),
             transport=transport,
-            headers={
-                "User-Agent": self.settings.user_agent,
-                "Accept": "application/json, text/plain, */*",
-                "X-Requested-With": "XMLHttpRequest",
-                "Referer": self.settings.referer or None,
-            }
+            headers=default_headers,
+            timeout=httpx.Timeout(30.0, connect=10.0, read=30.0, write=10.0)
         )
 
-    async def _reload_env_if_changed(self):
-        try:
-            if self._env_path.exists():
-                m = self._env_path.stat().st_mtime
-                if self._env_mtime != m:
-                    self._env_mtime = m
-                    load_dotenv(override=True)
-                    new_settings = ExternalSettings.from_env()
-                    if new_settings != self.settings:
-                        self.settings = new_settings
-                        await self._ensure_client(recycle=True)
-                        self._url_idx = 0
-                        print("🔄 .env recargado y cliente renovado.")
-        except Exception as e:
-            print("⚠️ Hot-reload .env error:", e)
-
-    async def _login_if_needed(self) -> bool:
-        if self.settings.auth_mode != "LOGIN_POST":
-            return True
-        if not (self.settings.login_url and self._client):
+    async def _aggressive_keepalive(self) -> bool:
+        """Keepalive más agresivo con múltiples estrategias"""
+        if not self._client:
             return False
+            
+        success = False
+        
+        # Estrategia 1: POST track si está configurado
+        if self.settings.track_url:
+            success = await self._post_track()
+            
+        # Estrategia 2: GET keepalive si hay URL específica
+        if not success and self.settings.keepalive_url:
+            success = await self._simple_keepalive(self.settings.keepalive_url)
+            
+        # Estrategia 3: HEAD a la URL principal (menos intrusivo)
+        if not success:
+            success = await self._head_keepalive()
+            
+        # Estrategia 4: GET ligero a la URL principal
+        if not success:
+            success = await self._simple_keepalive(self.current_url)
+            
+        # Actualizar score de salud de sesión
+        if success:
+            self._session_health_score = min(100, self._session_health_score + 10)
+            self._last_activity = time.time()
+        else:
+            self._session_health_score = max(0, self._session_health_score - 25)
+            
+        print(f"🔄 Keepalive: {'✓' if success else '✗'} (health: {self._session_health_score}%)")
+        
+        return success
 
-        csrf = None
-        try:
-            r = await self._client.get(self.settings.login_url, timeout=30.0)
-            r.raise_for_status()
-            if self.settings.login_csrf_regex:
-                m = re.search(self.settings.login_csrf_regex, r.text)
-                if m:
-                    csrf = m.group(1)
-        except Exception as e:
-            self._status.update(ok=False, last_error=f"login_get:{e}")
-            return False
-
-        payload = {}
-        if self.settings.login_payload_json:
-            try:
-                payload = json.loads(self.settings.login_payload_json)
-            except Exception:
-                pass
-        if "{username}" in json.dumps(payload) or "{password}" in json.dumps(payload) or "{csrf}" in json.dumps(payload):
-            payload = json.loads(json.dumps(payload)
-                                 .replace("{username}", self.settings.username)
-                                 .replace("{password}", self.settings.password)
-                                 .replace("{csrf}", csrf or ""))
-
-        if not payload and self.settings.username:
-            payload = {"username": self.settings.username, "password": self.settings.password}
-            if csrf is not None:
-                payload["csrf"] = csrf
-
-        try:
-            r = await self._client.post(self.settings.login_url, data=payload, timeout=30.0)
-            r.raise_for_status()
-            return True
-        except Exception as e:
-            self._status.update(ok=False, last_error=f"login_post:{e}")
-            return False
-
-    async def _refresh_via_script(self) -> bool:
-        if not self.settings.refresh_cmd:
+    async def _head_keepalive(self) -> bool:
+        """HEAD request ligero para mantener conexión"""
+        if not (self._client and self.current_url):
             return False
         try:
-            proc = await asyncio.create_subprocess_shell(
-                self.settings.refresh_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            headers = self._build_auth_headers()
+            r = await self._client.head(
+                self.current_url, 
+                headers=headers, 
+                timeout=15.0, 
+                follow_redirects=False
             )
-            out, err = await proc.communicate()
-            if proc.returncode != 0:
-                raise RuntimeError(err.decode("utf-8", "ignore"))
-            data = json.loads(out.decode("utf-8", "ignore"))
-            cookie = data.get("cookie") or data.get("Cookie")
-            url = data.get("url") or data.get("URL")
-            if cookie:
-                self.settings.cookie_header = cookie
-            if url:
-                if url not in self.settings.urls:
-                    self.settings.urls.insert(0, url)
-                self._url_idx = 0
-            await self._ensure_client(recycle=True)
-            return True
-        except Exception as e:
-            self._status.update(ok=False, last_error=f"refresh_cmd:{e}")
+            self._update_cookie_from_response(r)
+            return r.status_code < 400
+        except Exception:
             return False
 
-    async def _reauth(self) -> bool:
-        if self.settings.auth_mode == "SCRIPT":
-            if await self._refresh_via_script():
-                return True
-        if self.settings.auth_mode == "LOGIN_POST":
-            if await self._login_if_needed():
-                return True
-        await self._reload_env_if_changed()
-        await self._ensure_client(recycle=True)
-        return True
+    async def _simple_keepalive(self, url: str) -> bool:
+        """GET request de keepalive"""
+        if not (self._client and url):
+            return False
+        try:
+            headers = self._build_auth_headers()
+            r = await self._client.get(
+                url, 
+                headers=headers, 
+                timeout=20.0, 
+                follow_redirects=False
+            )
+            self._update_cookie_from_response(r)
+            return r.status_code < 400
+        except Exception:
+            return False
 
-    def _rotate_url(self):
-        if len(self.settings.urls) <= 1:
-            return
-        self._url_idx = (self._url_idx + 1) % len(self.settings.urls)
-        print(f"🔀 Rotando a URL: {self.current_url}")
+    def _build_auth_headers(self) -> dict:
+        """Construye headers de autenticación consistentes"""
+        headers = {}
+        if self.settings.cookie_header:
+            headers["Cookie"] = self.settings.cookie_header
+            headers.update(_extract_xsrf_from_cookie(self.settings.cookie_header))
+        if self.settings.referer:
+            headers["Referer"] = self.settings.referer
+        return headers
+
+    def _should_preemptive_refresh(self) -> bool:
+        """Determina si debe hacer refresh proactivo"""
+        now = time.time()
+        
+        # Refresh si la cookie expira en menos de 5 minutos
+        if self._cookie_expires_at and (self._cookie_expires_at - now) < 300:
+            return True
+            
+        # Refresh si la salud de la sesión está baja
+        if self._session_health_score < 30:
+            return True
+            
+        # Refresh si ha pasado mucho tiempo sin actividad exitosa
+        if self._last_activity and (now - self._last_activity) > 1800:  # 30 min
+            return True
+            
+        return False
 
     async def _fetch_once(self):
         if not self.current_url:
             return
+            
         await self._ensure_client()
-        await self._maybe_refresh_before_expiry()
+        
+        # Refresh proactivo si es necesario
+        if self._should_preemptive_refresh():
+            print(f"🔄 Refresh proactivo (health: {self._session_health_score}%)")
+            await self._reauth()
 
-        def _build_headers():
-            headers = {}
-            if self.settings.cookie_header:
-                headers["Cookie"] = self.settings.cookie_header
-                headers.update(_extract_xsrf_from_cookie(self.settings.cookie_header))
-            if self.settings.referer:
-                headers["Referer"] = self.settings.referer
-            return headers
-
-        async def _one_get():
-            return await self._client.get(
+        try:
+            headers = self._build_auth_headers()
+            
+            resp = await self._client.get(
                 self.current_url,
-                headers=_build_headers(),
+                headers=headers,
                 timeout=30.0,
                 follow_redirects=False
             )
 
-        try:
-            resp = await _one_get()
-
-            # reauth/redirecciones típicas
-            if resp.status_code in (401, 403, 419, 440, 301, 302, 303, 307, 308):
+            # Manejo mejorado de estados de auth
+            if resp.status_code in (401, 403, 419, 440):
+                print(f"🔐 Auth error {resp.status_code}, reautenticando...")
                 await self._reauth()
-                resp = await _one_get()
+                # Segundo intento después de reauth
+                headers = self._build_auth_headers()
+                resp = await self._client.get(
+                    self.current_url,
+                    headers=headers, 
+                    timeout=30.0,
+                    follow_redirects=False
+                )
+
+            # Manejo de redirects
+            if resp.status_code in (301, 302, 303, 307, 308):
+                location = resp.headers.get("location", "")
+                if "login" in location.lower():
+                    print("🔐 Redirect a login, reautenticando...")
+                    await self._reauth()
+                    headers = self._build_auth_headers()
+                    resp = await self._client.get(
+                        self.current_url,
+                        headers=headers,
+                        timeout=30.0,
+                        follow_redirects=False
+                    )
 
             if resp.status_code >= 500:
                 raise httpx.HTTPStatusError("5xx", request=resp.request, response=resp)
 
             self._update_cookie_from_response(resp)
-
-            ctype = (resp.headers.get("content-type") or "").lower()
-            text = resp.text or ""
-
-            # Acepta JSON aunque venga con text/plain
-            if "application/json" in ctype:
+            
+            # Validación de contenido JSON
+            try:
                 data = resp.json()
-            else:
-                data = None
-                txt = text.lstrip()
-                if txt.startswith("{") or txt.startswith("["):
+            except Exception:
+                # Intento de parsing de texto que parece JSON
+                text = resp.text or ""
+                if text.lstrip().startswith(("{", "[")):
                     try:
-                        data = json.loads(txt)
+                        data = json.loads(text)
                     except Exception:
-                        pass
-                if data is None:
-                    raise ValueError(f"Contenido no JSON: {ctype}")
+                        raise ValueError(f"Contenido no es JSON válido: {resp.headers.get('content-type', 'unknown')}")
+                else:
+                    raise ValueError(f"Respuesta no es JSON: {resp.headers.get('content-type', 'unknown')}")
 
-            # Evita volcar páginas de login disfrazadas
+            # Detección de páginas de login disfrazadas
             if isinstance(data, dict):
-                head = json.dumps({k: data.get(k) for k in list(data.keys())[:12]}).lower()
-                looks_login = any(w in head for w in ("login","signin","unauthorized","forbidden","expired","csrf","xsrf"))
-                has_table  = any(k in (kk.lower() for kk in data.keys()) for k in ("data","value","items","results","rows","records","list","columns"))
-                if looks_login and not has_table:
+                content_sample = json.dumps({k: data.get(k) for k in list(data.keys())[:10]}).lower()
+                suspicious_terms = ("login", "signin", "unauthorized", "forbidden", "expired", "csrf", "xsrf")
+                has_data_structure = any(k in (kk.lower() for kk in data.keys()) 
+                                       for k in ("data", "value", "items", "results", "rows", "records", "list", "columns"))
+                
+                if any(term in content_sample for term in suspicious_terms) and not has_data_structure:
+                    print("🔐 Contenido sospechoso de login, reautenticando...")
                     raise httpx.HTTPStatusError("auth", request=resp.request, response=resp)
 
-            # Extrae base (si hay 'data' en raíz)
+            # Procesamiento exitoso
             base = data.get("data") if isinstance(data, dict) and "data" in data else data
             await apply_external_table(base)
 
+            # Actualización de estado exitoso
             self._consec_fail = 0
             self._last_ok = datetime.utcnow().isoformat(timespec="seconds") + "Z"
-            self._status.update(ok=True, last_ok=self._last_ok, last_error=None, fails=0, url=self.current_url)
-            await manager.broadcast({"type":"external_status","ok":True,"url":self.current_url,"ts":self._last_ok})
+            self._last_activity = time.time()
+            self._session_health_score = min(100, self._session_health_score + 5)
+            
+            self._status.update(
+                ok=True, 
+                last_ok=self._last_ok, 
+                last_error=None, 
+                fails=0, 
+                url=self.current_url
+            )
+            
+            await manager.broadcast({
+                "type": "external_status",
+                "ok": True,
+                "url": self.current_url,
+                "ts": self._last_ok,
+                "health": self._session_health_score
+            })
 
         except Exception as e:
             self._consec_fail += 1
-            self._status.update(ok=False, last_error=str(e), fails=self._consec_fail, url=self.current_url)
-            await manager.broadcast({"type":"external_status","ok":False,"url":self.current_url,"error":str(e),"fails":self._consec_fail})
+            self._session_health_score = max(0, self._session_health_score - 15)
+            
+            error_msg = str(e)
+            print(f"❌ External fetch error: {error_msg}")
+            
+            self._status.update(
+                ok=False, 
+                last_error=error_msg, 
+                fails=self._consec_fail, 
+                url=self.current_url
+            )
+            
+            await manager.broadcast({
+                "type": "external_status",
+                "ok": False,
+                "url": self.current_url,
+                "error": error_msg,
+                "fails": self._consec_fail,
+                "health": self._session_health_score
+            })
             raise
-
 
     async def run(self):
         await self._ensure_client()
@@ -2377,33 +2333,46 @@ class ExternalConnector:
             try:
                 await self._reload_env_if_changed()
 
-                # ⏱️ keepalive/track periódico
+                # Keepalive más frecuente y agresivo
                 now = time.time()
-                if now - self._last_keepalive >= self._keepalive_every:
-                    await self._tick_keepalive()
+                should_keepalive = (
+                    now - self._last_keepalive >= self._keepalive_every or
+                    self._session_health_score < 50 or
+                    self._should_preemptive_refresh()
+                )
+                
+                if should_keepalive:
+                    await self._aggressive_keepalive()
                     self._last_keepalive = now
 
                 await self._fetch_once()
-                next_delay = self.settings.poll_seconds
+                
+                # Delay dinámico basado en salud de sesión
+                base_delay = self.settings.poll_seconds
+                if self._session_health_score > 80:
+                    next_delay = base_delay
+                elif self._session_health_score > 50:
+                    next_delay = max(10, base_delay // 2)
+                else:
+                    next_delay = max(5, base_delay // 4)  # Más agresivo si hay problemas
 
-                
-                
             except Exception:
+                # Backoff exponencial mejorado
                 step = min(self._consec_fail, 6)
                 backoff = min(300, (2 ** step))
                 jitter = int(0.2 * backoff * (1 + (os.getpid() % 5)))
-                next_delay = max(10, backoff + (jitter % 7))
-                if self._consec_fail % 3 == 0:
-                    await self._ensure_client(recycle=True)
+                next_delay = max(5, backoff + (jitter % 7))  # Mínimo reducido a 5s
+                
+                # Acciones de recuperación más agresivas
                 if self._consec_fail % 2 == 0:
+                    await self._ensure_client(recycle=True)
+                if self._consec_fail % 3 == 0:
                     self._rotate_url()
-                await self._reauth()
+                    await self._reauth()
+                    
+                print(f"🔄 Retry en {next_delay}s (intento {self._consec_fail})")
+
             await asyncio.sleep(next_delay)
-
-    def status(self) -> dict[str, Any]:
-        return dict(self._status)
-
-
 
 
 
@@ -3022,3 +2991,4 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
