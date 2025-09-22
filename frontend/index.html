@@ -1050,6 +1050,13 @@ button, .btn, .click {
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
   <script>
+    // Función de escape HTML (faltaba definición)
+function esc(s){ 
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); 
+}
+
+// Función $$ ya existe, mantenerla
+function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
     script (línea ~280)
 function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
     /* ===== CRONÓMETRO EN HEADER ===== */
@@ -1118,15 +1125,32 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
 
     const UI_SCALE_KEY='ui_scale_v1';
 function applyScale(v){ document.documentElement.style.setProperty('--ui-scale', v); }
-function initScale(){
-  const sel = document.getElementById('scale-select');
-  const saved = localStorage.getItem(UI_SCALE_KEY) || sel?.value || '1.15';
-  applyScale(saved);
-  if (sel){ sel.value = saved; sel.addEventListener('change', e=>{ const v=e.target.value; localStorage.setItem(UI_SCALE_KEY,v); applyScale(v); }); }
-}
-document.getElementById('present-btn')?.addEventListener('click', async ()=>{
-  try{ await (document.documentElement.requestFullscreen?.({navigationUI:'hide'}) ?? document.documentElement.requestFullscreen?.()); }catch{}
-});
+// REEMPLAZA la sección completa de escalado:
+(function initUIScaling(){
+  const UI_SCALE_KEY='ui_scale_v1';
+  
+  function applyScale(v){ 
+    document.documentElement.style.setProperty('--ui-scale', v); 
+  }
+  
+  function initScale(){
+    const sel = document.getElementById('scale-select');
+    if (!sel) return;
+    
+    const saved = localStorage.getItem(UI_SCALE_KEY) || sel.value || '1.15';
+    applyScale(saved);
+    sel.value = saved;
+    
+    sel.addEventListener('change', e => {
+      const v = e.target.value;
+      localStorage.setItem(UI_SCALE_KEY, v);
+      applyScale(v);
+    });
+  }
+  
+  // Ejecutar inmediatamente
+  initScale();
+})();
 
 function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
 script (línea ~280)
@@ -1430,13 +1454,26 @@ listEl.querySelectorAll('.att-radio').forEach(inp=>{
 
     /* Server I/O */
     async function fetchServerRoster(){
-  try{
-    const r = await fetch('/api/roster/current', { cache: 'no-store' });
-    if(!r.ok) return null;
-    return await r.json();
-  }catch{ return null; }
+  try {
+    const r = await fetch('/api/roster/current', { 
+      cache: 'no-store',
+      headers: {'Accept': 'application/json'}
+    });
+    
+    if (!r.ok) {
+      console.warn('Roster fetch failed:', r.status, r.statusText);
+      return null;
+    }
+    
+    const data = await r.json();
+    console.log('Roster cargado:', data);
+    return data;
+    
+  } catch (e) {
+    console.error('Error fetching roster:', e);
+    return null;
+  }
 }
-
     async function createTaskOnServer(data){ const r=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('create failed'); }
     async function updateTaskOnServer(id, data){ const r=await fetch(`/api/tasks/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('update failed'); }
     async function deleteTaskOnServer(id){ const r=await fetch(`/api/tasks/${id}`,{method:'DELETE'}); if(!r.ok) throw new Error('delete failed'); }
@@ -2199,8 +2236,11 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
     /* Init */
     document.addEventListener('DOMContentLoaded', ()=>{
+  console.log('Inicializando dashboard...');
+  
   try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/Hora:', e); }
-
+  try{ initHeaderTimer(); }catch(e){ console.error('Timer:', e); }  // AÑADIR ESTA LÍNEA
+  
   setupEventListeners();
   makeColumnsSortable();
   hydrateKpiTotalCost();
@@ -2212,14 +2252,16 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   initEhsSimple();
   initFullscreenToggles();
   init5S();
-  initHeaderTimer();
+  
   try{ initBriefing(); }catch(e){ console.error('initBriefing:', e); }
   updateSpotlightRouting?.();
+  
+  console.log('Dashboard inicializado correctamente');
 });
-
   </script>
 </body>
 </html>
+
 
 
 
