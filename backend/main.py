@@ -391,6 +391,7 @@ latest_incidents_table: Dict[str, Any] = {
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self._broadcast_stats = {"success": 0, "failed": 0, "last_error": None}
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -403,12 +404,40 @@ class ConnectionManager:
             print(f"🔌 WS desconectado. Activos: {len(self.active_connections)}")
 
     async def broadcast(self, data: Dict[str, Any]):
-        # Enviar a todos; si uno falla, lo desconectamos
-        for connection in list(self.active_connections):
+        """Broadcasting mejorado con estadísticas y manejo de errores"""
+        if not self.active_connections:
+            print("📡 No hay conexiones WebSocket activas para broadcast")
+            return
+
+        success_count = 0
+        failed_connections = []
+        
+        # Log del mensaje que se va a enviar (solo para debugging de tareas)
+        if data.get('task_type') or data.get('action') == 'delete':
+            print(f"📡 Broadcasting: {data.get('task_type', 'unknown')} - {data.get('title', data.get('id', 'unknown'))}")
+        
+        for connection in list(self.active_connections):  # Copia para modificar durante iteración
             try:
                 await connection.send_json(data)
-            except Exception:
-                self.disconnect(connection)
+                success_count += 1
+            except Exception as e:
+                print(f"❌ Error enviando a WebSocket: {str(e)}")
+                failed_connections.append(connection)
+                self._broadcast_stats["failed"] += 1
+                self._broadcast_stats["last_error"] = str(e)
+
+        # Limpiar conexiones fallidas
+        for failed_conn in failed_connections:
+            self.disconnect(failed_conn)
+        
+        self._broadcast_stats["success"] += success_count
+        
+        if success_count > 0:
+            print(f"📡 Broadcast exitoso a {success_count}/{len(self.active_connections) + len(failed_connections)} conexiones")
+        else:
+            print(f"❌ Broadcast falló a todas las conexiones")
+        
+        return success_count
 
     async def send_one(self, websocket: WebSocket, data: Dict[str, Any]):
         try:
@@ -416,7 +445,13 @@ class ConnectionManager:
         except Exception:
             self.disconnect(websocket)
 
-app = FastAPI()
+    def get_stats(self):
+        return {
+            "active_connections": len(self.active_connections),
+            "broadcast_stats": self._broadcast_stats
+        }
+
+# Asegúrate de que solo hay UNA instancia de ConnectionManager
 manager = ConnectionManager()
 
 # ======================================================================
@@ -3230,6 +3265,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
