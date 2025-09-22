@@ -1176,14 +1176,14 @@ function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
 
 
 /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
+/* ===== GW: mostrar solo TOP-3 por última fecha ===== */
 const GW_MAP = new Map();
 function gwGetDate(t){
-  const cand =
-    t.gw_date || t.last_date || t.last_done_at ||
-    t.updated_at || t.due_date || t.created_at || t.date;
+  const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
   const d = cand ? new Date(cand) : null;
   return (d && !isNaN(d)) ? d.getTime() : -Infinity;
 }
+
 
 
 
@@ -1268,7 +1268,6 @@ render();
 /* Equipo (roster) */
 let TEAM_STATE = null; // cache de estado actual {shift, sheet_date, window, people, attendance, ...}
 
-function esc(s){ return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;"); }
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
 
@@ -2300,6 +2299,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
