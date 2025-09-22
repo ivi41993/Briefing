@@ -1177,26 +1177,28 @@ function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
 
     /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
     const GW_MAP = new Map();
-    function gwGetDate(t){
-      const cand = t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
-      const d = cand ? new Date(cand) : null;
-      return (d && !isNaN(d)) ? d.getTime() : -Infinity;
-    }
+   /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
+const GW_MAP = new Map();
+
+function gwGetDate(t){
   const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
   const d = cand ? new Date(cand) : null;
   return (d && !isNaN(d)) ? d.getTime() : -Infinity;
 }
 
-    function renderGwTop3(){
-      const cont = document.getElementById('gw-tasks-dynamic-container');
-      if(!cont) return;
-      cont.innerHTML = '';
-      const top3 = [...GW_MAP.values()]
-        .sort((a,b) => gwGetDate(b) - gwGetDate(a))
-        .slice(0, 3);
-      // renderGwTask hace prepend → invertimos para que el más reciente quede arriba
-      top3.slice().reverse().forEach(t => renderGwTask(t, `task-${t.id}`));
-    }
+function renderGwTop3(){
+  const cont = document.getElementById('gw-tasks-dynamic-container');
+  if(!cont) return;
+  cont.innerHTML = '';
+  const top3 = [...GW_MAP.values()]
+    .sort((a,b) => gwGetDate(b) - gwGetDate(a))
+    .slice(0, 3);
+  // renderGwTask hace prepend → invertimos para que el más reciente quede arriba
+  top3.slice().reverse().forEach(t => renderGwTask(t, `task-${t.id}`));
+}
+// Evita ReferenceError si aún no implementaste esta carga
+function fetchInitialData(){ /* no-op */ }
+
 
     /* ===== 5S: estado, render y persistencia local ===== */
 
@@ -2406,3 +2408,4 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   </script>
 </body>
 </html>
+
