@@ -2063,13 +2063,12 @@ class ExternalConnector:
             self.settings.cookie_header = ck
             self._cookie_expires_at = exp
 
-        # AHORA SÍ: inicializar status usando current_url (que ya funciona)
-        self._status: dict[str, Any] = {
+        #self._status: dict[str, Any] = {
             "ok": False, 
             "last_ok": None, 
             "last_error": None, 
             "fails": 0, 
-            "url": self.current_url  # Ya no falla porque _url_idx está inicializado
+            "url": ""  # Inicializar vacío, se actualizará después
         }
 
     @property
@@ -3231,6 +3230,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
