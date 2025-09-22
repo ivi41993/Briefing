@@ -1049,6 +1049,28 @@ button, .btn, .click {
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
   <script>
+    // === Contexto de estación (MAD por defecto; puedes pasar ?station=MAD/BCN en la URL) ===
+const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
+const STATION_CODE =
+  (new URLSearchParams(location.search).get('station') || '')
+    .toUpperCase() ||
+  // intenta deducirlo del <title> (p.ej. "WFS1 MAD")
+  ((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || [,'MAD'])[1]).toUpperCase();
+
+function isForThisStation(obj){
+  const st = (obj && obj.station ? String(obj.station) : '').toUpperCase();
+  // si el objeto no trae estación, lo aceptamos; si trae, debe coincidir
+  return !st || st === STATION_CODE;
+}
+
+// pinta la estación en el H1 si hace falta
+try {
+  const h1 = document.querySelector('header h1');
+  if (h1 && !h1.textContent.toUpperCase().includes(STATION_CODE)) {
+    h1.textContent = h1.textContent.replace(/(MAD|BCN|VLC|SVQ)/i, STATION_CODE);
+  }
+} catch {}
+
     // Función de escape HTML (faltaba definición)
 function esc(s){ 
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); 
@@ -1478,7 +1500,7 @@ listEl.querySelectorAll('.att-radio').forEach(inp=>{
 
     /* Render tarjetas */
     function processTaskUpdate(data){
-      // DESPUÉS
+if (!isForThisStation(data)) return;      // DESPUÉS
 if (data && data.type==='roster_update'){
   renderRoster(document.getElementById('team-list'), data.people||[], data); 
   return;
@@ -1651,15 +1673,7 @@ const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg
       });
     }
 
-    async function fetchInitialData(){
-      try{
-        const r=await fetch('/api/tasks'); if(!r.ok) throw new Error('No se pudo obtener la lista de tareas.');
-        const tasks=await r.json();
-        document.querySelectorAll('.cards-container').forEach(c=> c.innerHTML='');
-        const gw=document.getElementById('gw-tasks-dynamic-container'); if(gw) gw.innerHTML='';
-        tasks.forEach(task=> processTaskUpdate(task));
-      }catch(e){ console.error('Error cargando datos:', e); }
-    }
+    if (!isForThisStation(data)) return;
 
     function connectWebSocket(){
       const wsUrl=`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
@@ -2368,6 +2382,7 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   </script>
 </body>
 </html>
+
 
 
 
