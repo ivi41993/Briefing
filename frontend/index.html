@@ -1583,45 +1583,87 @@ default: console.warn('task_type desconocido:', data.task_type);
 }
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
+
 function renderBoardCard(task, elementId){
-const safeStatus=task.status.replace(/\s+/g,'-');
-const columnId=`${task.task_type}-${safeStatus}`;
-const column=document.getElementById(columnId); if(!column) return;
+  const safeStatus=(task.status||'Abiertas').replace(/\s+/g,'-');
+  const columnId=`${task.task_type}-${safeStatus}`;
+  const column=document.getElementById(columnId);
+  if(!column) return;
 
-let card=document.getElementById(elementId);
-if(!card){ card=document.createElement('div'); card.id=elementId; }
-card.className='card'; card.dataset.status=safeStatus;
+  let card=document.getElementById(elementId);
+  if(!card){ card=document.createElement('div'); card.id=elementId; }
+  card.className='card'; card.dataset.status=safeStatus;
 
-const catKey=(task.category||'').toLowerCase();
-card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
-if(['seguridad','incidencias','mantenimiento'].includes(catKey)) card.classList.add(`cat-${catKey}`);
+  // clase por categoría
+  const catKey=(task.category||'').toLowerCase();
+  card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
+  if(['seguridad','incidencias','mantenimiento'].includes(catKey)) card.classList.add(`cat-${catKey}`);
 
-if(card.parentElement!==column) column.prepend(card);
+  if(card.parentElement!==column) column.prepend(card);
 
-const creationDate=task.created_at?new Date(task.created_at).toISOString().split('T')[0]:'—';
-const due=task.due_date?new Date(task.due_date).toISOString().split('T')[0]:'—';
-const catLabel=catKey? (catKey==='seguridad'?'Seguridad':(catKey==='incidencias'?'Incidencias':'Mantenimiento')) : 'General';
+  const creationDate=task.created_at?new Date(task.created_at).toISOString().split('T')[0]:'—';
+  const due=task.due_date?new Date(task.due_date).toISOString().split('T')[0]:'—';
+  const catLabel=catKey? (catKey==='seguridad'?'Seguridad':(catKey==='incidencias'?'Incidencias':'Mantenimiento')) : 'General';
 
-card.innerHTML=`
-     ${GRIP}
-       <div class="card-content">
-         <div class="card-title">
-           ${task.title || ''}
-           <span class="cat-chip ${catKey || ''}">${catLabel}</span>
-         </div>
-         <div class="card-details">Alta: ${creationDate} • Objetivo: ${due}</div>
-         <div class="card-assignee">${task.assigned_to || 'Sin asignar'}</div>
-       </div>
-       <div class="card-actions">
-         <button class="delete-card-btn" title="Eliminar">
-           <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-             <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-             <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-           </svg>
-         </button>
-       </div>`;
-ensureFullscreenBtn(card);
-}
+  card.innerHTML=`
+    ${GRIP}
+    <div class="card-content">
+      <div class="card-title">
+        ${task.title || ''}
+        <span class="cat-chip ${catKey || ''}">${catLabel}</span>
+      </div>
+      <div class="card-details">Alta: ${creationDate} • Objetivo: ${due}</div>
+      <div class="card-assignee">${task.assigned_to || 'Sin asignar'}</div>
+    </div>
+    <div class="card-actions" style="display:flex;gap:6px;">
+      <button class="edit-card-btn" title="Editar">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-9 9L4 13l.146-2.854 9-9zM11.207 2L5 8.207 4.646 10.5l2.293-.354L13 3.793 11.207 2z"/>
+        </svg>
+      </button>
+      <button class="delete-card-btn" title="Eliminar">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </svg>
+      </button>
+    </div>`;
+} // ←←← IMPORTANTE: esta llave cierra la función
+document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('.edit-card-btn');
+  if(!btn) return;
+  const card = btn.closest('.card');
+  if(!card) return;
+  const id = card.id.replace('task-','');
+
+  const title = card.querySelector('.card-title')?.childNodes[0]?.nodeValue?.trim() || '';
+  const cat = (card.classList.contains('cat-seguridad') ? 'seguridad'
+            : card.classList.contains('cat-incidencias') ? 'incidencias'
+            : card.classList.contains('cat-mantenimiento') ? 'mantenimiento' : '');
+  const details = card.querySelector('.card-details')?.textContent || '';
+  const dueMatch = details.match(/Objetivo:\s*(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}|—)/);
+  const due = (dueMatch && dueMatch[1] !== '—') ? dueMatch[1] : '';
+  const assigned = card.querySelector('.card-assignee')?.textContent || '';
+
+  const newTitle = prompt('Título', title) ?? title;
+  const newCat   = prompt('Categoría (seguridad|incidencias|mantenimiento)', cat) ?? cat;
+  const newDue   = prompt('Fecha objetivo (YYYY-MM-DD)', due) ?? due;
+  const newAss   = prompt('Responsable', assigned) ?? assigned;
+
+  try{
+    const updated = await updateTaskFields(id, {
+      title: newTitle.trim(),
+      category: newCat.trim(),
+      due_date: newDue.trim(),
+      assigned_to: newAss.trim()
+    });
+    processTaskUpdate(updated);
+    updateAllColumnCounts?.();
+  }catch{
+    alert('No se pudo editar la tarjeta.');
+  }
+});
+
 
 function renderKaizenCard(task, elementId){
 const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
@@ -2406,6 +2448,7 @@ console.debug('Tarea recibida', task);
 </script>
 </body>
 </html>
+
 
 
 
