@@ -398,71 +398,9 @@ latest_incidents_table: Dict[str, Any] = {
     "version": 0,
 }
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-        self._broadcast_stats = {"success": 0, "failed": 0, "last_error": None}
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        print(f"🔌 WS conectado. Activos: {len(self.active_connections)}")
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-            print(f"🔌 WS desconectado. Activos: {len(self.active_connections)}")
-
-    async def broadcast(self, data: Dict[str, Any]):
-        """Broadcasting mejorado con estadísticas y manejo de errores"""
-        if not self.active_connections:
-            print("📡 No hay conexiones WebSocket activas para broadcast")
-            return
-
-        success_count = 0
-        failed_connections = []
-        
-        # Log del mensaje que se va a enviar (solo para debugging de tareas)
-        if data.get('task_type') or data.get('action') == 'delete':
-            print(f"📡 Broadcasting: {data.get('task_type', 'unknown')} - {data.get('title', data.get('id', 'unknown'))}")
-        
-        for connection in list(self.active_connections):  # Copia para modificar durante iteración
-            try:
-                await connection.send_json(data)
-                success_count += 1
-            except Exception as e:
-                print(f"❌ Error enviando a WebSocket: {str(e)}")
-                failed_connections.append(connection)
-                self._broadcast_stats["failed"] += 1
-                self._broadcast_stats["last_error"] = str(e)
-
-        # Limpiar conexiones fallidas
-        for failed_conn in failed_connections:
-            self.disconnect(failed_conn)
-        
-        self._broadcast_stats["success"] += success_count
-        
-        if success_count > 0:
-            print(f"📡 Broadcast exitoso a {success_count}/{len(self.active_connections) + len(failed_connections)} conexiones")
-        else:
-            print(f"❌ Broadcast falló a todas las conexiones")
-        
-        return success_count
-
-    async def send_one(self, websocket: WebSocket, data: Dict[str, Any]):
-        try:
-            await websocket.send_json(data)
-        except Exception:
-            self.disconnect(websocket)
-
-    def get_stats(self):
-        return {
-            "active_connections": len(self.active_connections),
-            "broadcast_stats": self._broadcast_stats
-        }
 
 # Asegúrate de que solo hay UNA instancia de ConnectionManager
-manager = ConnectionManager()
+
 
 # ======================================================================
 # ===== NUEVO: helpers SSL / parsing / polling de la fuente interna =====
@@ -2977,6 +2915,8 @@ class ConnectionManager:
             "broadcast_stats": self._broadcast_stats
         }
 
+    manager = ConnectionManager()
+
 @app.post("/webhook/powerbi-total-cost")
 async def powerbi_total_cost(request: Request, x_api_key: Optional[str] = Header(None)):
     if x_api_key != API_KEY:
@@ -3107,19 +3047,6 @@ async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = N
     items.sort(key=lambda t: t.get("created_at",""), reverse=True)
     return items
 
-@app.post("/api/tasks")
-async def create_task(task: Task):
-    t = task.dict()
-    # normaliza/auto campos
-    if not t.get("id"):
-        t["id"] = str(uuid.uuid4())
-    t.setdefault("created_at", datetime.utcnow().isoformat(timespec='seconds') + "Z")
-    t.setdefault("is_completed", False)
-    tasks_in_memory_store[t["id"]] = t
-    save_tasks_to_disk()
-    # broadcast
-    await manager.broadcast(t)
-    return t
 
 @app.post("/api/tasks", response_model=Task, status_code=201)
 async def create_task(task: Task):
@@ -3407,6 +3334,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
