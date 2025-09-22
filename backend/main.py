@@ -1949,6 +1949,7 @@ class BriefingPayload(BaseModel):
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self._broadcast_stats = {"success": 0, "failed": 0, "last_error": None}
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -1961,12 +1962,40 @@ class ConnectionManager:
             print(f"🔌 WS desconectado. Activos: {len(self.active_connections)}")
 
     async def broadcast(self, data: Dict[str, Any]):
-        # Enviar a todos; si uno falla, lo desconectamos
+        """Broadcasting mejorado con estadísticas y manejo de errores"""
+        if not self.active_connections:
+            print("📡 No hay conexiones WebSocket activas para broadcast")
+            return 0
+
+        success_count = 0
+        failed_connections = []
+        
+        # Log del mensaje que se va a enviar (solo para debugging de tareas)
+        if data.get('task_type') or data.get('action') == 'delete':
+            print(f"📡 Broadcasting: {data.get('task_type', 'unknown')} - {data.get('title', data.get('id', 'unknown'))}")
+        
         for connection in list(self.active_connections):
             try:
                 await connection.send_json(data)
-            except Exception:
-                self.disconnect(connection)
+                success_count += 1
+            except Exception as e:
+                print(f"❌ Error enviando a WebSocket: {str(e)}")
+                failed_connections.append(connection)
+                self._broadcast_stats["failed"] += 1
+                self._broadcast_stats["last_error"] = str(e)
+
+        # Limpiar conexiones fallidas
+        for failed_conn in failed_connections:
+            self.disconnect(failed_conn)
+        
+        self._broadcast_stats["success"] += success_count
+        
+        if success_count > 0:
+            print(f"📡 Broadcast exitoso a {success_count}/{len(self.active_connections) + len(failed_connections)} conexiones")
+        else:
+            print(f"❌ Broadcast falló a todas las conexiones")
+        
+        return success_count
 
     async def send_one(self, websocket: WebSocket, data: Dict[str, Any]):
         try:
@@ -1974,7 +2003,14 @@ class ConnectionManager:
         except Exception:
             self.disconnect(websocket)
 
+    def get_stats(self):
+        return {
+            "active_connections": len(self.active_connections),
+            "broadcast_stats": self._broadcast_stats
+        }
 
+# ELIMINA la línea: manager = ConnectionManager() si aparece duplicada
+# Debe haber SOLO UNA instancia después de la definición de la clase
 manager = ConnectionManager()
 
 
@@ -2071,46 +2107,78 @@ from dataclasses import dataclass, field
 
 class ExternalConnector:
     def __init__(self):
-        # PRIMERO: inicializar settings y propiedades básicas
-        self.settings = ExternalSettings.from_env()
-        self._url_idx = 0  # Mover antes de usar current_url
-        
-        # Resto de inicialización
-        self._last_keepalive: float = 0.0
-        # Keepalive más agresivo por defecto
-        self._keepalive_every: int = getattr(self.settings, "keepalive_every", 0)
-        self._keepalive_every = self._keepalive_every if self._keepalive_every > 0 else 120  # 2 min
-        
-        self._env_path = Path(os.getenv("ENV_FILE", ".env"))
-        self._env_mtime = self._env_path.stat().st_mtime if self._env_path.exists() else None
-        self._client: httpx.AsyncClient | None = None
-        self._consec_fail = 0
-        self._last_ok: str | None = None
-        self._cookie_expires_at: float | None = None
-        
-        # NUEVO: Tracking de actividad de la sesión
-        self._last_activity: float = 0.0
-        self._session_health_score = 100  # 0-100, decae con errores
-        
-        # Cargar sesión persistida
-        ck, exp = _load_cookie_session(EXT_SESSION_PATH)
-        if ck:
-            self.settings.cookie_header = ck
-            self._cookie_expires_at = exp
+    # PRIMERO: inicializar settings y propiedades básicas
+    self.settings = ExternalSettings.from_env()
+    self._url_idx = 0
+    
+    # Resto de inicialización
+    self._last_keepalive: float = 0.0
+    self._keepalive_every: int = getattr(self.settings, "keepalive_every", 0) or 120
+    
+    self._env_path = Path(os.getenv("ENV_FILE", ".env"))
+    self._env_mtime = self._env_path.stat().st_mtime if self._env_path.exists() else None
+    self._client: httpx.AsyncClient | None = None
+    self._consec_fail = 0
+    self._last_ok: str | None = None
+    self._cookie_expires_at: float | None = None
+    
+    # Tracking de actividad de la sesión
+    self._last_activity: float = 0.0
+    self._session_health_score = 100
+    
+    # Cargar sesión persistida
+    ck, exp = _load_cookie_session(EXT_SESSION_PATH)
+    if ck:
+        self.settings.cookie_header = ck
+        self._cookie_expires_at = exp
 
-        #self._status: dict[str, Any] = {
-            "ok": False, 
-            "last_ok": None, 
-            "last_error": None, 
-            "fails": 0, 
-            "url": ""  # Inicializar vacío, se actualizará después
-        }
+    self._status: dict[str, Any] = {
+        "ok": False, 
+        "last_ok": None, 
+        "last_error": None, 
+        "fails": 0, 
+        "url": self.current_url  # Ya funciona porque _url_idx está inicializado
+    }
 
     @property
     def current_url(self) -> str:
         return self.settings.urls[self._url_idx] if self.settings.urls else ""
 
-    # ... resto de métodos igual
+    async def _post_track(self) -> bool:
+    """POST de tracking/telemetría para mantener sesión"""
+    if not (self._client and self.settings.track_url):
+        return False
+    try:
+        headers = self._build_auth_headers()
+        
+        # Construir body si está configurado
+        body = None
+        if self.settings.track_body_json:
+            body_str = self.settings.track_body_json.replace(
+                "{now_ms}", str(int(time.time() * 1000))
+            ).replace(
+                "{now_iso}", datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            ).replace(
+                "{url}", self.current_url
+            )
+            try:
+                body = json.loads(body_str)
+            except:
+                body = {"timestamp": int(time.time() * 1000)}
+        
+        r = await self._client.post(
+            self.settings.track_url, 
+            headers=headers, 
+            json=body,
+            timeout=15.0, 
+            follow_redirects=False
+        )
+        
+        self._update_cookie_from_response(r)
+        return r.status_code < 400
+        
+    except Exception:
+        return False
 
     async def _ensure_client(self, recycle: bool = False):
         if self._client is not None and not recycle:
@@ -2217,6 +2285,19 @@ class ExternalConnector:
         except Exception:
             return False
 
+    def _update_cookie_from_response(self, response):
+        """Actualiza cookies desde Set-Cookie headers"""
+        set_cookie_headers = response.headers.get_list("set-cookie")
+        if set_cookie_headers:
+            new_cookie, expires_at = _merge_set_cookie_with_expiry(
+                self.settings.cookie_header, set_cookie_headers
+            )
+            self.settings.cookie_header = new_cookie
+            if expires_at:
+                self._cookie_expires_at = expires_at
+                # Persistir sesión
+                _save_cookie_session(EXT_SESSION_PATH, new_cookie, expires_at)
+    
     def _build_auth_headers(self) -> dict:
         """Construye headers de autenticación consistentes"""
         headers = {}
@@ -2432,34 +2513,56 @@ class ExternalConnector:
 
 
 
-@app.on_event("startup")
-async def _startup_ext():
+# ELIMINA estas líneas:
+# @app.on_event("startup") 
+# @app.on_event("shutdown")
+
+# REEMPLAZA con lifespan moderno:
+from contextlib import asynccontextmanager
+# Crear la app FastAPI ANTES de usarla
+app = FastAPI(title="WFS1 MAD Dashboard", version="1.0.0")
+
+# CORS si es necesario
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # En producción, especifica dominios exactos
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     load_tasks_from_disk()
     load_attendance_from_disk()
-    load_incidents_from_disk()  # ← pinta estado inicial para cualquier cliente que se conecte
-    load_external_from_disk()  # ← NUEVO: pinta último snapshot de Carga/Planificación
+    load_incidents_from_disk()
+    load_external_from_disk()
+    
     app.state._roster = asyncio.create_task(_roster_watcher())
-
-    # CQC / Carga
     app.state._ext = ExternalConnector()
     app.state._poller = asyncio.create_task(app.state._ext.run())
-
-    # Enablon / Incidentes
     app.state._ena = EnablonConnector()
     app.state._ena_task = asyncio.create_task(app.state._ena.run())
     
-
-
-
-
-@app.on_event("shutdown")
-async def _shutdown_ext():
-    for key in ("_poller","_roster"):
+    print("🚀 Sistema iniciado correctamente")
+    
+    yield
+    
+    # Shutdown
+    for key in ("_poller", "_roster", "_ena_task"):
         task: asyncio.Task = getattr(app.state, key, None)
         if task and not task.done():
             task.cancel()
-            try: await task
-            except asyncio.CancelledError: pass
+            try: 
+                await task
+            except asyncio.CancelledError: 
+                pass
+    
+    print("🛑 Sistema detenido correctamente")
+
+# Actualiza la creación de FastAPI:
+app = FastAPI(lifespan=lifespan)
 
 
 # Endpoint opcional de estado para debug/monitorización
@@ -3265,6 +3368,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
