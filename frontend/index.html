@@ -1178,14 +1178,14 @@ function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
 /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
 const GW_MAP = new Map();
 function gwGetDate(t){
-      const cand = t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
-      const d = cand ? new Date(cand) : null;
-      return (d && !isNaN(d)) ? d.getTime() : -Infinity;
-    }
-  const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+  const cand =
+    t.gw_date || t.last_date || t.last_done_at ||
+    t.updated_at || t.due_date || t.created_at || t.date;
   const d = cand ? new Date(cand) : null;
   return (d && !isNaN(d)) ? d.getTime() : -Infinity;
 }
+
+
 
 function renderGwTop3(){
 const cont = document.getElementById('gw-tasks-dynamic-container');
@@ -2294,118 +2294,13 @@ console.log('Dashboard inicializado correctamente');
 });
 
 
-(function boot(){
-// Llamadas de inicio
-try { window.initHeaderTimer?.(); } catch(e){}
-hydrateKpiTotalCost();
-initFullscreenToggles();
 
-// Conexión WS
-const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-const ws = new WebSocket(`${wsProto}//${location.host}/ws`);
-
-ws.addEventListener('open', () => {
-console.log('WS abierto');
-});
-
-ws.addEventListener('message', async (ev) => {
-let msg;
-try { msg = JSON.parse(ev.data); } catch { return; }
-
-// 1) KPI PowerBI
-if (msg.type === 'kpi_update' && msg.metric === 'Total Cost') {
-// Guarda y pinta
-try { localStorage.setItem('kpi_total_cost', JSON.stringify({ value: msg.value, timestamp: msg.timestamp })); } catch {}
-updateKpiTotalCost(msg.value, msg.timestamp);
-return;
-}
-
-// 2) Ping de tablas → rehidrata desde API REST
-if (msg.type === 'table_state' || msg.type === 'table_ping') {
-if (msg.table === 'external') {
-try {
-const res = await fetch('/api/external-table');
-const tbl = await res.json();
-renderPlanifTable(tbl);
-} catch(e){}
-return;
-}
-if (msg.table === 'incidents') {
-try {
-const res = await fetch('/api/incidents-table');
-const tbl = await res.json();
-renderIncidentesTable(tbl);
-} catch(e){}
-return;
-}
-}
-
-// 3) Roster actualizado
-if (msg.type === 'roster_update') {
-renderRoster(msg);
-return;
-}
-
-// 4) Tareas (kanban/kaizen/gw)
-if (msg.task_type) {
-upsertTaskCard(msg);
-return;
-}
-});
-
-// Renderers mínimos (adapta a tu UI real)
-function renderPlanifTable(tbl){
-const el = document.getElementById('planif-table');
-const meta = document.getElementById('planif-meta');
-if (!el) return;
-const cols = tbl.columns || [];
-const rows = tbl.rows || [];
-meta.textContent = rows.length ? `Filas: ${rows.length}` : 'Sin datos';
-el.innerHTML = rows.length
-? `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`
-: '';
-}
-
-function renderIncidentesTable(tbl){
-const el = document.getElementById('incidentes-table');
-const meta = document.getElementById('incidentes-meta');
-if (!el) return;
-const cols = tbl.columns || [];
-const rows = tbl.rows || [];
-meta.textContent = rows.length ? `Incidentes: ${rows.length}` : 'Sin datos';
-el.innerHTML = rows.length
-? `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`
-: '';
-}
-
-function renderRoster(msg){
-const list = document.getElementById('team-list');
-const meta = document.getElementById('team-meta');
-const badge = document.getElementById('shift-badge');
-if (!list) return;
-list.innerHTML = '';
-(msg.people || []).forEach(p=>{
-const div = document.createElement('div');
-div.textContent = `${p.nombre_completo || (p.apellidos || '') + (p.nombre ? ', '+p.nombre : '')} · ${p.horario || ''}`;
-list.appendChild(div);
-});
-meta.textContent = `${msg.sheet || '—'} · ${msg.sheet_date || ''} · ${msg.count||0} personas`;
-if (badge){ badge.dataset.shift = msg.shift || ''; badge.textContent = msg.shift || '—'; }
-}
-
-function upsertTaskCard(task){
-// Aquí mete la lógica que ya tengas para pintar en Kanban/Kaizen/GW
-// De momento lo dejamos como log:
-console.debug('Tarea recibida', task);
-}
-})();
 
 
 </script>
 </body>
 </html>
+
 
 
 
