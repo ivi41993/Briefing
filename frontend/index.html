@@ -3,7 +3,6 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Dashboard - WFS1 MAD</title>
 
 <!-- Fuentes -->
@@ -54,7 +53,8 @@ transition:.15s transform,.2s box-shadow,.2s filter; cursor:pointer;
 
 /* ======= Layout 3 columnas ======= */
 .dashboard-3col{
-height:100vh;
+min-height: 100svh;   /* respeta barra/gestos iPad */
+height: auto;
 display:grid;
 grid-template-columns: 320px 1fr 380px;  /* IZQ / CENTRO / DER */
 grid-template-rows: auto 1fr;
@@ -89,7 +89,9 @@ font-size:.85rem; font-weight:600; color:var(--text-muted);
 margin:0 0 6px; padding-bottom:8px; border-bottom:2px solid #e9ecef;
 }
 .column-title .count{ background:#eef1f4; color:var(--text-muted); padding:2px 6px; border-radius:6px; font-size:.8rem; }
-.cards-container{ min-height:120px; max-height:48vh; overflow:auto; padding-top:4px; }
+.cards-container{ min-height:120px; max-height: clamp(280px, 48svh, 70vh);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; overflow:auto; padding-top:4px; }
 
 .card{
 position:relative;
@@ -204,13 +206,37 @@ color:#fff; font-size:1.3rem; line-height:1; display:flex; align-items:center; j
 .status-tag.status-alert{ color:#991b1b; background:#ffe3e3; }
 
 /* Carga / Planificación */
-.table-scroll{ overflow:auto; max-height:320px; border:1px solid var(--border); border-radius:8px; }
+.table-scroll,
+.col-left, .col-middle, .col-right{
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-padding-bottom: 40px; /* evita que la barra/bottom-safe tape lo último */
+}
 #planif-table{ width:100%; border-collapse:collapse; font-size:.9rem; }
 #planif-table thead th{
 position:sticky; top:0; background:#fafafa; border-bottom:1px solid var(--border);
 text-align:left; padding:8px; z-index:1;
 }
 #planif-table tbody td{ padding:8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+/* iOS/iPadOS: evita zoom al enfocar inputs */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+/* sensaciones táctiles */
+* { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
+  touch-action: manipulation;
+}
+
+/* selects y botones en cabecera: que no se corten en iPad */
+.header-controls input,
+.header-controls .btn-primary {
+  min-height: 44px;
+}
+/* asegura que sticky tome como contenedor la propia columna central */
+.col-middle { position: relative; }
 
 /* Fullscreen helpers */
 .widget, .card{ position:relative; }
@@ -759,6 +785,52 @@ grid-template-rows: auto auto auto auto;
 #kpi-costes .kpi-value.large{ font-size: clamp(1.6rem, 3.8vw, 2.6rem); }
 header h1{ font-size: clamp(1.4rem, 0.9vw + 1rem, 1.9rem); }
 }
+
+.dashboard-3col{
+  padding:
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-top))
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-right))
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom))
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+  gap: 16px;
+}
+/* iPad portrait ~768x1024 */
+@media (min-width: 768px) and (max-width: 979.98px){
+  .dashboard-3col{
+    grid-template-columns: 1fr;               /* 1 columna */
+    grid-template-rows: auto auto auto;
+  }
+  #brief-check .check-grid{ grid-template-columns: 1fr; }
+  header h1{ font-size: clamp(1.2rem, 1.6vw + 1rem, 1.6rem); }
+}
+
+/* iPad landscape ~1024x1366 */
+@media (min-width: 980px) and (max-width: 1366px){
+  .dashboard-3col{
+    grid-template-columns:
+      clamp(240px, 26vw, 300px)  /* izq */
+      minmax(0, 1fr);            /* centro */
+    grid-template-rows: auto 1fr auto;
+  }
+  .col-right{
+    grid-column: 1 / -1;         /* derecha debajo a todo el ancho */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+}
+/* encabezados pegados por debajo de barra de Safari */
+#planif-table thead th, #incidentes-table thead th{
+  position: sticky; top: 0;
+  z-index: 2;
+}
+.table-scroll{ padding-bottom: 8px; } /* evita corte del último tr */
+/* evita subpixel shake al hacer zoom a UI scale */
+html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+/* títulos que no “salten” por el scale del kanban */
+.card-title{ transform: none; }
+
 </style>
 </head>
 <body>
@@ -1426,8 +1498,22 @@ if(list) list.innerHTML='<div style="color:var(--text-muted)">Sin datos del info
 }
 /* Kanban / Kaizen / GW */
 function makeColumnsSortable(){
-document.querySelectorAll('#kanban-widget .cards-container').forEach(c=> new Sortable(c,{group:'kanban-board',animation:150,onEnd:handleDragEnd,ghostClass:'sortable-ghost',dragClass:'sortable-drag'}));
-document.querySelectorAll('#kaizen-widget .cards-container').forEach(c=> new Sortable(c,{group:'kaizen-board',animation:150,onEnd:handleDragEnd,ghostClass:'sortable-ghost',dragClass:'sortable-drag'}));
+  const common = {
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    dragClass: 'sortable-drag',
+    handle: '.drag-handle',
+    forceFallback: true,         // ← iPad fiable
+    delayOnTouchOnly: true,      // ← solo táctil
+    delay: 120,                  // ← evita taps accidentales
+    touchStartThreshold: 4
+  };
+  
+  document.querySelectorAll('#kanban-widget .cards-container')
+    .forEach(c => new Sortable(c, { group:'kanban-board', ...common, onEnd:handleDragEnd }));
+
+  document.querySelectorAll('#kaizen-widget .cards-container')
+    .forEach(c => new Sortable(c, { group:'kaizen-board', ...common, onEnd:handleDragEnd }));
 }
 async function handleDragEnd({item,to,from,oldIndex}){
   if(to===from){ updateAllColumnCounts(); return; }
@@ -2459,6 +2545,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
