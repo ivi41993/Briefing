@@ -1050,6 +1050,8 @@ button, .btn, .click {
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
   <script>
+    script (línea ~280)
+function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
     /* ===== CRONÓMETRO EN HEADER ===== */
 (function(){
   const KEY='header_big_timer_v1';
@@ -1127,12 +1129,8 @@ document.getElementById('present-btn')?.addEventListener('click', async ()=>{
 });
 
 function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
-function makeColumnsSortable(){
-  const common = { animation:150, ghostClass:'sortable-ghost', dragClass:'sortable-drag',
-                   handle:'.drag-handle', delayOnTouchOnly:true, delay: isTouch()? 160 : 0, onEnd: handleDragEnd };
-  $$('#kanban-widget .cards-container').forEach(c=> new Sortable(c,{ group:'kanban-board', ...common }));
-  $$('#kaizen-widget .cards-container').forEach(c=> new Sortable(c,{ group:'kaizen-board', ...common }));
-}
+script (línea ~280)
+function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
 
 
     /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
@@ -2222,6 +2220,7 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   </script>
 </body>
 </html>
+
 
 
 
