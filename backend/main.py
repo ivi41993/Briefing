@@ -1,20 +1,30 @@
 from __future__ import annotations
-import httpx
-import uvicorn
+import asyncio
+import ssl
+import time
 import os
 import uuid
 import json
 import re
-import asyncio  # NUEVO
-import ssl      # NUEVO
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
-
-from zoneinfo import ZoneInfo
 from pathlib import Path
-from datetime import timedelta
+from zoneinfo import ZoneInfo
+import tempfile
+from urllib.parse import unquote
+from contextlib import asynccontextmanager  # ← ESTA LÍNEA DEBE ESTAR AQUÍ
+
 import pandas as pd
-import re
+import httpx
+import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconnect, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+# Cargar variables de entorno INMEDIATAMENTE
+load_dotenv()
 
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
@@ -3376,6 +3386,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
