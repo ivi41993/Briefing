@@ -1429,7 +1429,22 @@ function makeColumnsSortable(){
 document.querySelectorAll('#kanban-widget .cards-container').forEach(c=> new Sortable(c,{group:'kanban-board',animation:150,onEnd:handleDragEnd,ghostClass:'sortable-ghost',dragClass:'sortable-drag'}));
 document.querySelectorAll('#kaizen-widget .cards-container').forEach(c=> new Sortable(c,{group:'kaizen-board',animation:150,onEnd:handleDragEnd,ghostClass:'sortable-ghost',dragClass:'sortable-drag'}));
 }
-async function handleDragEnd({item,to,from,oldIndex}){ if(to===from) return; const id=item.id.replace('task-',''); const st=to.dataset.status; try{ await updateTaskOnServer(id,{status:st}); }catch(e){ from.insertBefore(item,from.children[oldIndex]); } }
+async function handleDragEnd({item,to,from,oldIndex}){
+  if(to===from){ updateAllColumnCounts(); return; }
+  const id=item.id.replace('task-','');
+  const st=to.dataset.status;
+  try{
+    await updateTaskOnServer(id,{status:st});
+    // nada más; el DOM ya se movió
+  }catch(e){
+    // revierte
+    from.insertBefore(item, from.children[oldIndex] || null);
+    alert('No se pudo actualizar el estado en el servidor.');
+  }finally{
+    updateAllColumnCounts();
+  }
+}
+
 
 function setupEventListeners(){
 document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
@@ -1444,20 +1459,38 @@ rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ c
 }
 
 async function handleKanbanSubmit(e){
-e.preventDefault();
-const f=e.target;
-const taskData={ task_type:'kanban_rapida', status:'Abiertas',
-category:f.elements.category.value, title:f.elements.title.value.trim(),
-due_date:f.elements.due_date.value, assigned_to:f.elements.assigned_to.value.trim(), station: STATION_CODE  };
-if(!taskData.category || !taskData.title || !taskData.due_date) return;
-try{ await createTaskOnServer(taskData); f.reset(); document.getElementById('problem-category').selectedIndex=0; }catch{ alert('Error: No se pudo crear la tarjeta.'); }
+  e.preventDefault();
+  const f=e.target;
+  const taskData={
+    task_type:'kanban_rapida',
+    status:'Abiertas',
+    category:f.elements.category.value,
+    title:f.elements.title.value.trim(),
+    due_date:f.elements.due_date.value,
+    assigned_to:f.elements.assigned_to.value.trim(),
+    station: STATION_CODE
+  };
+  if(!taskData.category || !taskData.title || !taskData.due_date) return;
+  try{
+    await createTaskOnServer(taskData);
+    f.reset();
+    document.getElementById('problem-category').selectedIndex=0;
+    updateAllColumnCounts();                 // 👈
+  }catch{
+    alert('Error: No se pudo crear la tarjeta.');
+  }
 }
+
 function handleDeleteClick(e){
-const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
-const card=btn.closest('.card'); if(!card) return;
-const id=card.id.replace('task-','');
-if(confirm('¿Seguro que quieres eliminar esta tarjeta?')){ deleteTaskOnServer(id).catch(()=>alert('Error: No se pudo eliminar la tarjeta.')); }
+  const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
+  const card=btn.closest('.card'); if(!card) return;
+  const id=card.id.replace('task-','');
+  const ttype = card.dataset.taskType || 'kanban_rapida';
+  if(confirm('¿Seguro que quieres eliminar esta tarjeta?')){
+    deleteTaskOnServer(id, ttype).catch(()=>alert('Error: No se pudo eliminar la tarjeta.'));
+  }
 }
+
 function handleGwTick(e){
 if(e.target.type==='checkbox' && e.target.closest('.gw-task-item')){
 const item=e.target.closest('.gw-task-item'); const id=item.id.replace('task-',''); const done=e.target.checked;
@@ -1496,9 +1529,38 @@ console.error('Error fetching roster:', e);
 return null;
 }
 }
-async function createTaskOnServer(data){ const r=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('create failed'); }
-async function updateTaskOnServer(id, data){ const r=await fetch(`/api/tasks/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('update failed'); }
-async function deleteTaskOnServer(id){ const r=await fetch(`/api/tasks/${id}`,{method:'DELETE'}); if(!r.ok) throw new Error('delete failed'); }
+async function createTaskOnServer(data){
+  const r = await fetch('/api/tasks',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  });
+  if(!r.ok) throw new Error('create failed');
+  const task = await r.json();
+  processTaskUpdate(task);            // pinta ya
+  return task;
+}
+
+async function updateTaskOnServer(id, data){
+  const r = await fetch(`/api/tasks/${id}`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  });
+  if(!r.ok) throw new Error('update failed');
+  const task = await r.json();
+  processTaskUpdate(task);            // re-render por si cambió categoría/fechas/etc.
+  return task;
+}
+
+async function deleteTaskOnServer(id, taskType){
+  const r = await fetch(`/api/tasks/${id}`,{ method:'DELETE' });
+  if(!r.ok) throw new Error('delete failed');
+  // elimina local sin esperar WS
+  processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' });
+}
+
+
 async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
 async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
 
@@ -1593,6 +1655,7 @@ function renderBoardCard(task, elementId){
   if(!card){ card=document.createElement('div'); card.id=elementId; }
   card.className='card'; 
   card.dataset.status=safeStatus;
+  card.dataset.taskType='kanban_rapida';
 
   // categoría = color de fondo
   const catKey=(task.category||'').toLowerCase();
@@ -1699,6 +1762,7 @@ const column=document.getElementById(columnId); if(!column) return;
 let card=document.getElementById(elementId);
 if(!card){ card=document.createElement('div'); card.id=elementId; }
 card.className='card'; card.dataset.status=safeStatus;
+card.dataset.taskType='kaizen';  
 if(card.parentElement!==column) column.prepend(card);
 
 let dueHuman=''; if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
@@ -1760,6 +1824,32 @@ const c=col.querySelector('.column-title .count'); const cards=col.querySelector
     renderGwTop3();
   }catch(e){
     console.error('No se pudieron cargar las GW iniciales:', e);
+  }
+}
+
+  // CARGA INICIAL DE KANBAN + KAIZEN (y mantiene GW como ya tienes)
+async function loadBoardsInitial(){
+  try{
+    const qsStation = 'station=' + encodeURIComponent(STATION_CODE);
+
+    const [kanRes, kaiRes, gwRes] = await Promise.all([
+      fetch('/api/tasks?task_type=kanban_rapida&'+qsStation, {cache:'no-store'}),
+      fetch('/api/tasks?task_type=kaizen&'+qsStation, {cache:'no-store'}),
+      fetch('/api/tasks?task_type=gw_task&'+qsStation, {cache:'no-store'}),
+    ]);
+
+    const [kan, kai, gw] = await Promise.all([kanRes.json(), kaiRes.json(), gwRes.json()]);
+
+    // pinta todas
+    (Array.isArray(kan)?kan:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
+    (Array.isArray(kai)?kai:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
+    (Array.isArray(gw)?gw:[]).filter(isForThisStation).forEach(t=>{
+      if (t.task_type==='gw_task') { GW_MAP.set(t.id, t); }
+    });
+    renderGwTop3();
+    updateAllColumnCounts();
+  }catch(e){
+    console.error('No se pudieron cargar las tarjetas iniciales:', e);
   }
 }
 
@@ -2345,7 +2435,8 @@ try{ initHeaderTimer(); }catch(e){ console.error('Timer:', e); }  // AÑADIR EST
 setupEventListeners();
 makeColumnsSortable();
 hydrateKpiTotalCost();
-  loadAllTasks();
+loadBoardsInitial();
+
 fetchInitialData();
 loadPlanifTable();
 loadIncidentes();
@@ -2368,6 +2459,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
