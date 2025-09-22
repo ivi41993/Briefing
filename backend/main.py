@@ -2874,15 +2874,12 @@ class ConnectionManager:
             print(f"🔌 WS desconectado. Activos: {len(self.active_connections)}")
 
     async def broadcast(self, data: Dict[str, Any]):
-        """Broadcasting mejorado con estadísticas y manejo de errores"""
         if not self.active_connections:
             print("📡 No hay conexiones WebSocket activas para broadcast")
             return
-
         success_count = 0
         failed_connections = []
-        
-        for connection in list(self.active_connections):  # Copia para modificar durante iteración
+        for connection in list(self.active_connections):
             try:
                 await connection.send_json(data)
                 success_count += 1
@@ -2891,16 +2888,11 @@ class ConnectionManager:
                 failed_connections.append(connection)
                 self._broadcast_stats["failed"] += 1
                 self._broadcast_stats["last_error"] = str(e)
-
-        # Limpiar conexiones fallidas
         for failed_conn in failed_connections:
             self.disconnect(failed_conn)
-        
         self._broadcast_stats["success"] += success_count
-        
         if success_count > 0:
             print(f"📡 Broadcast exitoso a {success_count}/{len(self.active_connections) + len(failed_connections)} conexiones")
-        
         return success_count
 
     async def send_one(self, websocket: WebSocket, data: Dict[str, Any]):
@@ -2915,7 +2907,9 @@ class ConnectionManager:
             "broadcast_stats": self._broadcast_stats
         }
 
-    manager = ConnectionManager()
+# ✅ Instancia global ÚNICA (fuera de la clase)
+manager = ConnectionManager()
+
 
 @app.post("/webhook/powerbi-total-cost")
 async def powerbi_total_cost(request: Request, x_api_key: Optional[str] = Header(None)):
@@ -3334,6 +3328,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
