@@ -1441,14 +1441,29 @@ listEl.querySelectorAll('.att-radio').forEach(inp=>{
     }
 
     async function handleKanbanSubmit(e){
-      e.preventDefault();
-      const f=e.target;
-      const taskData={ task_type:'kanban_rapida', status:'Abiertas',
-        category:f.elements.category.value, title:f.elements.title.value.trim(),
-        due_date:f.elements.due_date.value, assigned_to:f.elements.assigned_to.value.trim() };
-      if(!taskData.category || !taskData.title || !taskData.due_date) return;
-      try{ await createTaskOnServer(taskData); f.reset(); document.getElementById('problem-category').selectedIndex=0; }catch{ alert('Error: No se pudo crear la tarjeta.'); }
-    }
+  e.preventDefault();
+  const f=e.target;
+  const taskData={
+    task_type:'kanban_rapida',
+    status:'Abiertas',
+    category:f.elements.category.value,
+    title:f.elements.title.value.trim(),
+    due_date:f.elements.due_date.value,
+    assigned_to:f.elements.assigned_to.value.trim()
+  };
+  if(!taskData.category || !taskData.title || !taskData.due_date) return;
+
+  try{
+    const created = await createTaskOnServer(taskData);   // ← devuelve la tarea
+    processTaskUpdate(created);                           // ← pinta ya
+    f.reset();
+    document.getElementById('problem-category').selectedIndex=0;
+    updateAllColumnCounts();
+  }catch{
+    alert('Error: No se pudo crear la tarjeta.');
+  }
+}
+
     function handleDeleteClick(e){
       const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
       const card=btn.closest('.card'); if(!card) return;
@@ -1493,7 +1508,12 @@ listEl.querySelectorAll('.att-radio').forEach(inp=>{
     return null;
   }
 }
-    async function createTaskOnServer(data){ const r=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('create failed'); }
+   async function createTaskOnServer(data){
+  const r=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  if(!r.ok) throw new Error('create failed');
+  return r.json();          // ← IMPORTANTE
+}
+
     async function updateTaskOnServer(id, data){ const r=await fetch(`/api/tasks/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('update failed'); }
     async function deleteTaskOnServer(id){ const r=await fetch(`/api/tasks/${id}`,{method:'DELETE'}); if(!r.ok) throw new Error('delete failed'); }
     async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
@@ -1501,7 +1521,7 @@ listEl.querySelectorAll('.att-radio').forEach(inp=>{
 
     /* Render tarjetas */
     function processTaskUpdate(data){
-if (!isForThisStation(data)) return;      // DESPUÉS
+if (data.task_type !== 'kanban_rapida' && !isForThisStation(data)) return;      // DESPUÉS
 if (data && data.type==='roster_update'){
   renderRoster(document.getElementById('team-list'), data.people||[], data); 
   return;
@@ -1599,27 +1619,72 @@ const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg
       const catLabel=catKey? (catKey==='seguridad'?'Seguridad':(catKey==='incidencias'?'Incidencias':'Mantenimiento')) : 'General';
 
       card.innerHTML=`
-      ${GRIP}
-        <div class="card-content">
-          <div class="card-title">
-            ${task.title || ''}
-            <span class="cat-chip ${catKey || ''}">${catLabel}</span>
-          </div>
-          <div class="card-details">Alta: ${creationDate} • Objetivo: ${due}</div>
-          <div class="card-assignee">${task.assigned_to || 'Sin asignar'}</div>
-        </div>
-        <div class="card-actions">
-          <button class="delete-card-btn" title="Eliminar">
-            <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-            </svg>
-          </button>
-        </div>`;
-      ensureFullscreenBtn(card);
-    }
+  ${GRIP}
+  <div class="card-content">
+    <div class="card-title">
+      ${task.title || ''}
+      <span class="cat-chip ${catKey || ''}">${catLabel}</span>
+    </div>
+    <div class="card-details">Alta: ${creationDate} • Objetivo: ${due}</div>
+    <div class="card-assignee">${task.assigned_to || 'Sin asignar'}</div>
+  </div>
+  <div class="card-actions" style="display:flex;gap:6px;">
+    <button class="edit-card-btn" title="Editar">
+      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-9 9L4 13l.146-2.854 9-9zM11.207 2L5 8.207 4.646 10.5l2.293-.354L13 3.793 11.207 2z"/>
+      </svg>
+    </button>
+    <button class="delete-card-btn" title="Eliminar">
+      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+      </svg>
+    </button>
+  </div>`;
 
-    function renderKaizenCard(task, elementId){
+
+    
+      document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('.edit-card-btn');
+  if(!btn) return;
+  const card = btn.closest('.card');
+  if(!card) return;
+  const id = card.id.replace('task-','');
+
+  // lee valores actuales
+  const title = card.querySelector('.card-title')?.childNodes[0]?.nodeValue?.trim() || '';
+  const cat   = (card.classList.contains('cat-seguridad') ? 'seguridad'
+                : card.classList.contains('cat-incidencias') ? 'incidencias'
+                : card.classList.contains('cat-mantenimiento') ? 'mantenimiento' : '');
+  const details = card.querySelector('.card-details')?.textContent || '';
+  const dueMatch = details.match(/Objetivo:\s*(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}|—)/);
+  const due = (dueMatch && dueMatch[1] !== '—') ? dueMatch[1] : '';
+  const assigned = card.querySelector('.card-assignee')?.textContent || '';
+
+  // prompts rápidos (puedes sustituir por modal)
+  const newTitle = prompt('Título', title) ?? title;
+  const newCat = prompt('Categoría (seguridad|incidencias|mantenimiento)', cat) ?? cat;
+  const newDue = prompt('Fecha objetivo (YYYY-MM-DD)', due) ?? due;
+  const newAss = prompt('Responsable', assigned) ?? assigned;
+
+  try{
+    const updated = await updateTaskFields(id, {
+      title: newTitle.trim(),
+      category: newCat.trim(),
+      due_date: newDue.trim(),
+      assigned_to: newAss.trim()
+    });
+    processTaskUpdate(updated);
+    updateAllColumnCounts();
+  }catch(err){
+    alert('No se pudo editar la tarjeta.');
+  }
+});
+
+      
+
+      
+      function renderKaizenCard(task, elementId){
       const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
       const columnId=`kaizen-${safeStatus}`;
       const column=document.getElementById(columnId); if(!column) return;
@@ -1676,22 +1741,26 @@ const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg
 
     async function loadAllTasks(){
   try{
-    const r = await fetch('/api/tasks?task_type=gw_task&station=' + encodeURIComponent(STATION_CODE), { cache:'no-store' });
-    if(!r.ok) throw new Error('GET /api/tasks failed');
+    const r = await fetch('/api/tasks?task_type=kanban_rapida', { cache:'no-store' });
+    if(!r.ok) throw new Error('GET /api/tasks kanban failed');
     const tasks = await r.json();
-
-    // Asegura filtrado por estación por si el backend no filtra
-    const list = Array.isArray(tasks) ? tasks.filter(isForThisStation) : [];
-
-    // Pinta todas en memoria y renderiza el TOP3
-    list.forEach(t => { t.task_type === 'gw_task' && GW_MAP.set(t.id, t); });
-    renderGwTop3();
+    (Array.isArray(tasks) ? tasks : []).forEach(t => renderBoardCard(t, `task-${t.id}`));
+    updateAllColumnCounts();
   }catch(e){
-    console.error('No se pudieron cargar las GW iniciales:', e);
+    console.error('No se pudieron cargar las tarjetas Kanban:', e);
   }
 }
 
 
+    async function updateTaskFields(id, data){
+  const r = await fetch(`/api/tasks/${id}`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(data)        // ← puede traer status o cualquier campo editable
+  });
+  if(!r.ok) throw new Error('update failed');
+  return r.json();
+}
 
 
     function connectWebSocket(){
@@ -2402,6 +2471,7 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   </script>
 </body>
 </html>
+
 
 
 
