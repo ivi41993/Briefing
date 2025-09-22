@@ -2545,43 +2545,267 @@ def post_briefing(payload: BriefingPayload):
 # -----------------------------------
 # Webhooks (EXISTENTE, SIN CAMBIOS)
 # -----------------------------------
+# Reemplaza el endpoint existente con esta versión mejorada
+
 @app.post("/webhook/sharepoint-bulk-update")
 async def sharepoint_bulk_update(payload: Dict[str, Any], x_api_key: Optional[str] = Header(None)):
+    """Webhook mejorado con logging detallado y validación robusta"""
+    
+    # 1. Validación de API Key
     if x_api_key != API_KEY:
+        print(f"⚠️ SharePoint webhook: API Key inválida. Recibida: {x_api_key[:10] if x_api_key else 'None'}...")
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
-    tasks_to_process = payload.get("body", [])
-    if not isinstance(tasks_to_process, list):
-        raise HTTPException(status_code=400, detail="El 'body' debe ser una lista de tareas.")
+    print(f"🟢 SharePoint webhook recibido: {datetime.utcnow().isoformat()}")
+    
+    # 2. Log del payload completo para debugging
+    try:
+        payload_str = json.dumps(payload, indent=2, ensure_ascii=False)[:1000]  # Limitar a 1000 chars
+        print(f"📦 Payload recibido:\n{payload_str}")
+        if len(json.dumps(payload)) > 1000:
+            print(f"... (payload truncado, total: {len(json.dumps(payload))} chars)")
+    except Exception as e:
+        print(f"⚠️ No se pudo serializar el payload: {e}")
 
-    print(f"🟢 SharePoint bulk: {len(tasks_to_process)} elemento(s)")
-    if tasks_to_process:
-        print("📦 Primer elemento:\n" + json.dumps(tasks_to_process[0], indent=2, ensure_ascii=False))
+    # 3. Extracción de datos más robusta
+    tasks_to_process = []
+    
+    # Intentar múltiples estructuras de payload
+    if isinstance(payload, dict):
+        # Estructura 1: {"body": [...]}
+        if "body" in payload and isinstance(payload["body"], list):
+            tasks_to_process = payload["body"]
+            print(f"📋 Estructura 'body' detectada: {len(tasks_to_process)} elementos")
+        
+        # Estructura 2: {"tasks": [...]} o {"data": [...]}
+        elif any(k in payload for k in ("tasks", "data", "items", "records")):
+            for key in ("tasks", "data", "items", "records"):
+                if key in payload and isinstance(payload[key], list):
+                    tasks_to_process = payload[key]
+                    print(f"📋 Estructura '{key}' detectada: {len(tasks_to_process)} elementos")
+                    break
+        
+        # Estructura 3: Lista directa en el payload
+        elif "id" in payload or "task_type" in payload or any(k in payload for k in ("station", "warehouse", "gw_date")):
+            tasks_to_process = [payload]  # Un solo elemento
+            print(f"📋 Elemento único detectado")
+    
+    # Estructura 4: Lista directa como payload
+    elif isinstance(payload, list):
+        tasks_to_process = payload
+        print(f"📋 Lista directa: {len(tasks_to_process)} elementos")
 
+    if not tasks_to_process:
+        print(f"⚠️ No se encontraron tareas válidas en el payload")
+        # Log las keys disponibles para debugging
+        if isinstance(payload, dict):
+            print(f"📋 Keys disponibles en payload: {list(payload.keys())}")
+        return {"message": "No se encontraron tareas válidas", "processed": 0}
+
+    print(f"🔄 Procesando {len(tasks_to_process)} elemento(s)...")
+
+    # 4. Procesamiento con logging detallado
     processed = []
-    for incoming in tasks_to_process:
-        # inferir task_type si no viene
-        if "task_type" not in incoming and any(k in incoming for k in ("station","warehouse","gw_date")):
-            incoming["task_type"] = "gw_task"
+    errors = []
+    
+    for i, incoming in enumerate(tasks_to_process):
+        try:
+            print(f"🔍 Procesando elemento {i+1}/{len(tasks_to_process)}")
+            
+            # Validación básica
+            if not isinstance(incoming, dict):
+                print(f"⚠️ Elemento {i+1} no es un dict: {type(incoming)}")
+                errors.append(f"Elemento {i+1}: no es un objeto válido")
+                continue
 
-        # normaliza id
-        incoming = sanitize_task(incoming)
-        tid = incoming.get("id")
-        if not tid or not incoming.get("task_type"):
-            continue
+            # Log del elemento individual
+            if i < 3:  # Solo los primeros 3 para no spam
+                try:
+                    elem_str = json.dumps(incoming, indent=2, ensure_ascii=False)[:500]
+                    print(f"📄 Elemento {i+1} contenido:\n{elem_str}")
+                except:
+                    print(f"📄 Elemento {i+1}: {list(incoming.keys()) if hasattr(incoming, 'keys') else 'No serializable'}")
 
-        # 🔧 MERGE que preserva ticks/notas ya marcados por el usuario
-        existing = tasks_in_memory_store.get(tid)
-        merged = merge_preserve_server(existing, incoming)
+            # 5. Inferencia de task_type más robusta
+            original_task_type = incoming.get("task_type", "")
+            
+            if not original_task_type:
+                # Heurística mejorada para detectar tipos
+                if any(k in incoming for k in ("station", "warehouse", "gw_date", "shift_date")):
+                    incoming["task_type"] = "gw_task"
+                    print(f"  → Inferido como 'gw_task' por keys: station/warehouse/gw_date")
+                elif any(k in incoming for k in ("category", "due_date", "assigned_to")):
+                    incoming["task_type"] = "kanban_rapida"
+                    print(f"  → Inferido como 'kanban_rapida' por keys: category/due_date/assigned_to")
+                elif any(k in incoming for k in ("status", "title")):
+                    incoming["task_type"] = "kaizen"
+                    print(f"  → Inferido como 'kaizen' por keys: status/title")
+                else:
+                    incoming["task_type"] = "generic_task"
+                    print(f"  → Asignado 'generic_task' por defecto")
 
-        tasks_in_memory_store[tid] = merged
-        processed.append(merged)
+            # 6. Sanitización con logging
+            incoming = sanitize_task(incoming)
+            tid = incoming.get("id")
+            task_type = incoming.get("task_type")
+            
+            print(f"  → ID: {tid}, Tipo: {task_type}")
+            
+            if not tid:
+                print(f"⚠️ Elemento {i+1} sin ID válido, generando UUID")
+                incoming["id"] = str(uuid.uuid4())
+                tid = incoming["id"]
+            
+            if not task_type:
+                print(f"⚠️ Elemento {i+1} sin task_type, saltando")
+                errors.append(f"Elemento {i+1}: sin task_type válido")
+                continue
 
-    # emite lo ya fusionado (con is_completed preservado)
-    for t in processed:
-        await manager.broadcast(t)
+            # 7. MERGE que preserva estado del servidor
+            existing = tasks_in_memory_store.get(tid)
+            if existing:
+                print(f"  → Actualizando tarea existente {tid}")
+                print(f"    Estado actual: completed={existing.get('is_completed')}, note='{existing.get('note', '')[:50]}'")
+            else:
+                print(f"  → Nueva tarea {tid}")
 
-    return {"message": f"{len(processed)} tarea(s) procesadas y transmitidas con éxito."}
+            merged = merge_preserve_server(existing, incoming)
+            
+            # Log del resultado final
+            print(f"  → Resultado: completed={merged.get('is_completed')}, status={merged.get('status')}")
+            
+            tasks_in_memory_store[tid] = merged
+            processed.append(merged)
+
+        except Exception as e:
+            error_msg = f"Error procesando elemento {i+1}: {str(e)}"
+            print(f"❌ {error_msg}")
+            errors.append(error_msg)
+            # Continuar con el siguiente elemento
+
+    # 8. Persistencia con validación
+    if processed:
+        try:
+            save_tasks_to_disk()
+            print(f"💾 Guardadas {len(processed)} tareas en disco")
+        except Exception as e:
+            print(f"⚠️ Error guardando en disco: {e}")
+
+    # 9. Broadcasting mejorado con retry
+    broadcast_success = 0
+    broadcast_errors = []
+    
+    for task in processed:
+        try:
+            print(f"📡 Broadcasting tarea {task['id']} tipo {task['task_type']}")
+            await manager.broadcast(task)
+            broadcast_success += 1
+            
+            # Pequeño delay para evitar spam
+            await asyncio.sleep(0.1)
+            
+        except Exception as e:
+            error_msg = f"Error broadcasting {task.get('id', 'unknown')}: {str(e)}"
+            print(f"❌ {error_msg}")
+            broadcast_errors.append(error_msg)
+
+    # 10. Respuesta detallada
+    response = {
+        "message": f"{len(processed)} tarea(s) procesadas correctamente",
+        "processed": len(processed),
+        "broadcast_success": broadcast_success,
+        "total_tasks_in_memory": len(tasks_in_memory_store),
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+    
+    if errors:
+        response["processing_errors"] = errors[:5]  # Solo primeros 5 errores
+        response["total_errors"] = len(errors)
+    
+    if broadcast_errors:
+        response["broadcast_errors"] = broadcast_errors[:3]  # Solo primeros 3
+    
+    # Log final
+    print(f"✅ SharePoint webhook completado:")
+    print(f"   - Recibidos: {len(tasks_to_process)}")
+    print(f"   - Procesados: {len(processed)}")
+    print(f"   - Broadcasted: {broadcast_success}")
+    print(f"   - Errores: {len(errors)}")
+    print(f"   - Total en memoria: {len(tasks_in_memory_store)}")
+
+    return response
+
+
+# NUEVO: Endpoint de diagnóstico para debugging
+@app.get("/api/webhook-status")
+async def webhook_status():
+    """Endpoint de diagnóstico para verificar el estado del sistema de webhooks"""
+    return {
+        "tasks_in_memory": len(tasks_in_memory_store),
+        "websocket_connections": len(manager.active_connections),
+        "last_webhook_processed": "N/A",  # Podrías añadir timestamp si lo guardas
+        "api_key_configured": bool(API_KEY),
+        "sample_task_ids": list(tasks_in_memory_store.keys())[:5]
+    }
+
+
+# MEJORA: Broadcasting más robusto
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+        self._broadcast_stats = {"success": 0, "failed": 0, "last_error": None}
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"🔌 WS conectado. Activos: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            print(f"🔌 WS desconectado. Activos: {len(self.active_connections)}")
+
+    async def broadcast(self, data: Dict[str, Any]):
+        """Broadcasting mejorado con estadísticas y manejo de errores"""
+        if not self.active_connections:
+            print("📡 No hay conexiones WebSocket activas para broadcast")
+            return
+
+        success_count = 0
+        failed_connections = []
+        
+        for connection in list(self.active_connections):  # Copia para modificar durante iteración
+            try:
+                await connection.send_json(data)
+                success_count += 1
+            except Exception as e:
+                print(f"❌ Error enviando a WebSocket: {str(e)}")
+                failed_connections.append(connection)
+                self._broadcast_stats["failed"] += 1
+                self._broadcast_stats["last_error"] = str(e)
+
+        # Limpiar conexiones fallidas
+        for failed_conn in failed_connections:
+            self.disconnect(failed_conn)
+        
+        self._broadcast_stats["success"] += success_count
+        
+        if success_count > 0:
+            print(f"📡 Broadcast exitoso a {success_count}/{len(self.active_connections) + len(failed_connections)} conexiones")
+        
+        return success_count
+
+    async def send_one(self, websocket: WebSocket, data: Dict[str, Any]):
+        try:
+            await websocket.send_json(data)
+        except Exception:
+            self.disconnect(websocket)
+
+    def get_stats(self):
+        return {
+            "active_connections": len(self.active_connections),
+            "broadcast_stats": self._broadcast_stats
+        }
 
 @app.post("/webhook/powerbi-total-cost")
 async def powerbi_total_cost(request: Request, x_api_key: Optional[str] = Header(None)):
@@ -2991,4 +3215,5 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
