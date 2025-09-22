@@ -1,158 +1,158 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Dashboard - WFS1 MAD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dashboard - WFS1 MAD</title>
 
-  <!-- Fuentes -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<!-- Fuentes -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
-  <style>
-    :root{ --ui-scale: 1; }                  /* 1 = 100% */
+<style>
+:root{ --ui-scale: 1; }                  /* 1 = 100% */
 html{ font-size: calc(16px * var(--ui-scale)); }
 @media (min-width: 1600px){
-  :root{ --ui-scale: 1.15; }             /* TVs grandes: sube ligeramente por defecto */
+:root{ --ui-scale: 1.15; }             /* TVs grandes: sube ligeramente por defecto */
 }
 
-    :root{
-      --brand-red-900:#7f1d1d; --brand-red-800:#991b1b; --brand-red-700:#b91c1c;
-      --brand-red-600:#dc2626; --brand-red-500:#ef4444; --brand-red-400:#f87171;
+:root{
+--brand-red-900:#7f1d1d; --brand-red-800:#991b1b; --brand-red-700:#b91c1c;
+--brand-red-600:#dc2626; --brand-red-500:#ef4444; --brand-red-400:#f87171;
 
-      --bg-page:#f7f8fa;
-      --bg-card:#ffffff;
-      --border:#e6e8ec;
-      --text:#1f2937;
-      --text-muted:#6b7280;
+--bg-page:#f7f8fa;
+--bg-card:#ffffff;
+--border:#e6e8ec;
+--text:#1f2937;
+--text-muted:#6b7280;
 
-      /* Categorías Kanban (fondo completo) */
-      --cat-seg:#fee2e2;
-      --cat-inc:#fff1e6;
-      --cat-man:#eaf8f0;
-    }
+/* Categorías Kanban (fondo completo) */
+--cat-seg:#fee2e2;
+--cat-inc:#fff1e6;
+--cat-man:#eaf8f0;
+}
 
-    /* Base */
-    html,body{ background:var(--bg-page); color:var(--text); height:100%; }
-    body{ margin:0; font:14px "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    h1,h2,h3,.widget-title,.column-title .count{ font-family:"Space Grotesk", Inter, system-ui, sans-serif; letter-spacing:.2px; }
+/* Base */
+html,body{ background:var(--bg-page); color:var(--text); height:100%; }
+body{ margin:0; font:14px "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+h1,h2,h3,.widget-title,.column-title .count{ font-family:"Space Grotesk", Inter, system-ui, sans-serif; letter-spacing:.2px; }
 
-    /* Header */
-    header{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
-    header h1{ margin:0; color:var(--brand-red-600); font-weight:700; font-size: clamp(1.6rem, 1vw + 1rem, 2.2rem); }
-    .header-controls{ display:flex; gap:12px; align-items:center; }
-    .header-controls input{ padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:.9rem; background:#fff; }
-    .btn-primary{
-      background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
-      color:#fff; border:none; border-radius:10px; padding:10px 16px;
-      box-shadow:0 6px 16px rgba(220,38,38,.25);
-      transition:.15s transform,.2s box-shadow,.2s filter; cursor:pointer;
-    }
-    .btn-primary:hover{ transform:translateY(-1px); filter:saturate(110%); }
+/* Header */
+header{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
+header h1{ margin:0; color:var(--brand-red-600); font-weight:700; font-size: clamp(1.6rem, 1vw + 1rem, 2.2rem); }
+.header-controls{ display:flex; gap:12px; align-items:center; }
+.header-controls input{ padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:.9rem; background:#fff; }
+.btn-primary{
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color:#fff; border:none; border-radius:10px; padding:10px 16px;
+box-shadow:0 6px 16px rgba(220,38,38,.25);
+transition:.15s transform,.2s box-shadow,.2s filter; cursor:pointer;
+}
+.btn-primary:hover{ transform:translateY(-1px); filter:saturate(110%); }
 
-    /* ======= Layout 3 columnas ======= */
-    .dashboard-3col{
-      height:100vh;
-      display:grid;
-      grid-template-columns: 320px 1fr 380px;  /* IZQ / CENTRO / DER */
-      grid-template-rows: auto 1fr;
-      gap:20px; padding:20px;
-    }
-    header{ grid-column: 1 / -1; }
-    .col-left, .col-middle, .col-right{
-      min-height:0; overflow:auto; display:flex; flex-direction:column; gap:20px;
-    }
+/* ======= Layout 3 columnas ======= */
+.dashboard-3col{
+height:100vh;
+display:grid;
+grid-template-columns: 320px 1fr 380px;  /* IZQ / CENTRO / DER */
+grid-template-rows: auto 1fr;
+gap:20px; padding:20px;
+}
+header{ grid-column: 1 / -1; }
+.col-left, .col-middle, .col-right{
+min-height:0; overflow:auto; display:flex; flex-direction:column; gap:20px;
+}
 
-    /* Widgets / tarjetas */
-    .widget,.card{
-      background:var(--bg-card);
-      border:1px solid var(--border);
-      border-radius:12px;
-      box-shadow: 0 6px 18px rgba(17,24,39,.06);
-      padding:16px;
-    }
-    .widget-title{ font-size:1.05rem; font-weight:700; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
-    .widget-title-icon{ width:16px; height:16px; color:var(--text-muted); }
+/* Widgets / tarjetas */
+.widget,.card{
+background:var(--bg-card);
+border:1px solid var(--border);
+border-radius:12px;
+box-shadow: 0 6px 18px rgba(17,24,39,.06);
+padding:16px;
+}
+.widget-title{ font-size:1.05rem; font-weight:700; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
+.widget-title-icon{ width:16px; height:16px; color:var(--text-muted); }
 
-    /* Kanban / Kaizen */
-    .board-container{ display:grid; gap:12px; }
-    .board-container.kanban{ grid-template-columns: repeat(4, minmax(0,1fr)); }
-    .board-container.kaizen{ grid-template-columns: repeat(3, minmax(0,1fr)); }
-    .board-container.kaizen.compact{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+/* Kanban / Kaizen */
+.board-container{ display:grid; gap:12px; }
+.board-container.kanban{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+.board-container.kaizen{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+.board-container.kaizen.compact{ grid-template-columns: repeat(2, minmax(0,1fr)); }
 
-    .kanban-column{ display:flex; flex-direction:column; min-width:0; }
-    .column-title{
-      display:flex; justify-content:space-between; align-items:baseline;
-      font-size:.85rem; font-weight:600; color:var(--text-muted);
-      margin:0 0 6px; padding-bottom:8px; border-bottom:2px solid #e9ecef;
-    }
-    .column-title .count{ background:#eef1f4; color:var(--text-muted); padding:2px 6px; border-radius:6px; font-size:.8rem; }
-    .cards-container{ min-height:120px; max-height:48vh; overflow:auto; padding-top:4px; }
+.kanban-column{ display:flex; flex-direction:column; min-width:0; }
+.column-title{
+display:flex; justify-content:space-between; align-items:baseline;
+font-size:.85rem; font-weight:600; color:var(--text-muted);
+margin:0 0 6px; padding-bottom:8px; border-bottom:2px solid #e9ecef;
+}
+.column-title .count{ background:#eef1f4; color:var(--text-muted); padding:2px 6px; border-radius:6px; font-size:.8rem; }
+.cards-container{ min-height:120px; max-height:48vh; overflow:auto; padding-top:4px; }
 
-    .card{
-      position:relative;
-      margin-bottom:8px;
-      padding:10px 12px;
-      display:flex; align-items:center; justify-content:space-between; gap:8px;
-      cursor:grab;
-    }
-    .card:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
-    .card-content{ flex:1 1 auto; min-width:0; }
-    .card-title{
-      font-weight:600; font-size:.95rem; margin:0 0 4px; line-height:1.25;
-      overflow:hidden; max-height:2.5em; display:inline-block;
-      transform:scale(1.12); transform-origin:left top;
-    }
-    .card-details,.card-assignee{ font-size:.8rem; color:var(--text-muted); }
-    .card-assignee{ margin-top:4px; }
-    .card-actions .icon{ width:14px; height:14px; }
-    .delete-card-btn{ background:none; border:none; color:#9ca3af; display:none; cursor:pointer; }
-    .card:hover .delete-card-btn{ display:block; }
+.card{
+position:relative;
+margin-bottom:8px;
+padding:10px 12px;
+display:flex; align-items:center; justify-content:space-between; gap:8px;
+cursor:grab;
+}
+.card:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.card-content{ flex:1 1 auto; min-width:0; }
+.card-title{
+font-weight:600; font-size:.95rem; margin:0 0 4px; line-height:1.25;
+overflow:hidden; max-height:2.5em; display:inline-block;
+transform:scale(1.12); transform-origin:left top;
+}
+.card-details,.card-assignee{ font-size:.8rem; color:var(--text-muted); }
+.card-assignee{ margin-top:4px; }
+.card-actions .icon{ width:14px; height:14px; }
+.delete-card-btn{ background:none; border:none; color:#9ca3af; display:none; cursor:pointer; }
+.card:hover .delete-card-btn{ display:block; }
 
-    .sortable-ghost{ opacity:.4; background:#dee2e6; }
-    .sortable-drag{ opacity:1 !important; transform:rotate(2deg); box-shadow:0 8px 24px rgba(0,0,0,.15); }
+.sortable-ghost{ opacity:.4; background:#dee2e6; }
+.sortable-drag{ opacity:1 !important; transform:rotate(2deg); box-shadow:0 8px 24px rgba(0,0,0,.15); }
 
-    /* Chips de categoría */
-    .cat-chip{
-      display:inline-block; margin-left:8px; font-size:.7rem; font-weight:700;
-      padding:2px 6px; border-radius:999px; border:1px solid rgba(0,0,0,.08);
-      vertical-align:middle; background:rgba(255,255,255,.7);
-    }
+/* Chips de categoría */
+.cat-chip{
+display:inline-block; margin-left:8px; font-size:.7rem; font-weight:700;
+padding:2px 6px; border-radius:999px; border:1px solid rgba(0,0,0,.08);
+vertical-align:middle; background:rgba(255,255,255,.7);
+}
 
-    /* === KANBAN: teñido completo por categoría (scoped) === */
-    #kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
-    #kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
-    #kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
+/* === KANBAN: teñido completo por categoría (scoped) === */
+#kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
+#kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
+#kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
 
-    /* 5S & GW */
-    .checkbox-item{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.9rem; }
-    .gw-task-item{
-      display:flex; align-items:center; gap:8px; padding:6px 4px;
-      font-size:.9rem; border-bottom:1px solid var(--border); cursor:pointer;
-    }
-    .gw-task-item:last-child{ border-bottom:none; }
-    .gw-task-item.completed label{ color:var(--text-muted); text-decoration:line-through; }
-    .gw-note{
-      font-size:.85rem; width:100%; margin-top:4px; padding:6px 8px;
-      border:1px solid var(--border); border-radius:6px;
-    }
-    .gw-note:disabled{ background:#f8f9fa; color:var(--text-muted); }
-    .highlight-gw{ animation: highlight-gw 2s ease-out; }
-    @keyframes highlight-gw { from{ background:#dbe4ff; } to{ background:transparent; } }
+/* 5S & GW */
+.checkbox-item{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.9rem; }
+.gw-task-item{
+display:flex; align-items:center; gap:8px; padding:6px 4px;
+font-size:.9rem; border-bottom:1px solid var(--border); cursor:pointer;
+}
+.gw-task-item:last-child{ border-bottom:none; }
+.gw-task-item.completed label{ color:var(--text-muted); text-decoration:line-through; }
+.gw-note{
+font-size:.85rem; width:100%; margin-top:4px; padding:6px 8px;
+border:1px solid var(--border); border-radius:6px;
+}
+.gw-note:disabled{ background:#f8f9fa; color:var(--text-muted); }
+.highlight-gw{ animation: highlight-gw 2s ease-out; }
+@keyframes highlight-gw { from{ background:#dbe4ff; } to{ background:transparent; } }
 
-    /* ===== 5S gestionable ===== */
+/* ===== 5S gestionable ===== */
 
 .s5-compact{
-  display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+display:flex; gap:6px; flex-wrap:wrap; align-items:center;
 }
 .s5-pill{
-  display:inline-flex; align-items:center; gap:6px;
-  border:1px solid var(--border); background:#fff;
-  border-radius:999px; padding:6px 10px; font-size:.8rem; line-height:1;
-  cursor:pointer; user-select:none;
-  transition:transform .06s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+display:inline-flex; align-items:center; gap:6px;
+border:1px solid var(--border); background:#fff;
+border-radius:999px; padding:6px 10px; font-size:.8rem; line-height:1;
+cursor:pointer; user-select:none;
+transition:transform .06s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
 }
 .s5-pill:hover{ transform:translateY(-1px); }
 .s5-pill:active{ transform:translateY(0); }
@@ -160,9 +160,9 @@ html{ font-size: calc(16px * var(--ui-scale)); }
 
 /* Estado activado (OK) */
 .s5-pill.on{
-  background:linear-gradient(135deg, #ecfdf5, #ffffff);
-  border-color: rgba(16,185,129,.55);
-  box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+background:linear-gradient(135deg, #ecfdf5, #ffffff);
+border-color: rgba(16,185,129,.55);
+box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
 }
 .s5-pill.on .s5-dot{ background:#10b981; }
 
@@ -174,125 +174,125 @@ html{ font-size: calc(16px * var(--ui-scale)); }
 #s5-meta{ margin-top:4px; font-size:.78rem; }
 
 
-    /* EHS simple */
-    #ehs-widget{ display:flex; flex-direction:column; gap:8px; }
-    #ehs-month{ color:var(--text-muted); font-size:.95rem; }
-    .ehs-controls{
-      display:flex; align-items:center; gap:14px;
-      border:1px solid var(--border); border-radius:12px; padding:8px 10px;
-    }
-    .ehs-btn{
-      width:42px; height:42px; border:none; border-radius:10px; cursor:pointer;
-      background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
-      color:#fff; font-size:1.3rem; line-height:1; display:flex; align-items:center; justify-content:center;
-    }
-    .ehs-big{ font-size: clamp(2rem, 2.2vw + .8rem, 3rem); font-weight:800; line-height:1; color:var(--brand-red-600); min-width:3ch; text-align:center; }
+/* EHS simple */
+#ehs-widget{ display:flex; flex-direction:column; gap:8px; }
+#ehs-month{ color:var(--text-muted); font-size:.95rem; }
+.ehs-controls{
+display:flex; align-items:center; gap:14px;
+border:1px solid var(--border); border-radius:12px; padding:8px 10px;
+}
+.ehs-btn{
+width:42px; height:42px; border:none; border-radius:10px; cursor:pointer;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color:#fff; font-size:1.3rem; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.ehs-big{ font-size: clamp(2rem, 2.2vw + .8rem, 3rem); font-weight:800; line-height:1; color:var(--brand-red-600); min-width:3ch; text-align:center; }
 
-    /* KPI Costes */
-    #kpi-costes .kpi-value.large{ font-size: clamp(2.1rem, 2.3vw + 1rem, 3.2rem); line-height:1; font-weight:700; }
-    #kpi-total-cost{ color:var(--brand-red-600); font-weight:800; }
-    .kpi-text{ color:var(--text-muted); margin:0; font-size:.9rem; }
-    .kpi-currency{ font-size:1rem; font-weight:600; margin-left:4px; vertical-align:super; color:var(--brand-red-600); }
-    .flash{ animation: flash-kpi 900ms ease-out; }
-    @keyframes flash-kpi{ from{ background:#fff3cd; } to{ background:transparent; } }
+/* KPI Costes */
+#kpi-costes .kpi-value.large{ font-size: clamp(2.1rem, 2.3vw + 1rem, 3.2rem); line-height:1; font-weight:700; }
+#kpi-total-cost{ color:var(--brand-red-600); font-weight:800; }
+.kpi-text{ color:var(--text-muted); margin:0; font-size:.9rem; }
+.kpi-currency{ font-size:1rem; font-weight:600; margin-left:4px; vertical-align:super; color:var(--brand-red-600); }
+.flash{ animation: flash-kpi 900ms ease-out; }
+@keyframes flash-kpi{ from{ background:#fff3cd; } to{ background:transparent; } }
 
-    /* Estado LEAN */
-    .lean-status-container{ display:flex; flex-direction:column; gap:8px; }
-    .lean-status-item{ display:flex; justify-content:space-between; align-items:center; font-size:.9rem; }
-    .status-tag{ font-size:.75rem; font-weight:700; padding:2px 8px; border-radius:12px; }
-    .status-tag.status-ok{ color:#166534; background:#e3f9e5; }
-    .status-tag.status-alert{ color:#991b1b; background:#ffe3e3; }
+/* Estado LEAN */
+.lean-status-container{ display:flex; flex-direction:column; gap:8px; }
+.lean-status-item{ display:flex; justify-content:space-between; align-items:center; font-size:.9rem; }
+.status-tag{ font-size:.75rem; font-weight:700; padding:2px 8px; border-radius:12px; }
+.status-tag.status-ok{ color:#166534; background:#e3f9e5; }
+.status-tag.status-alert{ color:#991b1b; background:#ffe3e3; }
 
-    /* Carga / Planificación */
-    .table-scroll{ overflow:auto; max-height:320px; border:1px solid var(--border); border-radius:8px; }
-    #planif-table{ width:100%; border-collapse:collapse; font-size:.9rem; }
-    #planif-table thead th{
-      position:sticky; top:0; background:#fafafa; border-bottom:1px solid var(--border);
-      text-align:left; padding:8px; z-index:1;
-    }
-    #planif-table tbody td{ padding:8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+/* Carga / Planificación */
+.table-scroll{ overflow:auto; max-height:320px; border:1px solid var(--border); border-radius:8px; }
+#planif-table{ width:100%; border-collapse:collapse; font-size:.9rem; }
+#planif-table thead th{
+position:sticky; top:0; background:#fafafa; border-bottom:1px solid var(--border);
+text-align:left; padding:8px; z-index:1;
+}
+#planif-table tbody td{ padding:8px; border-bottom:1px solid var(--border); white-space:nowrap; }
 
-    /* Fullscreen helpers */
-    .widget, .card{ position:relative; }
-    .fs-toggle{
-      position:absolute; top:8px; right:8px; border:1px solid var(--border);
-      background:rgba(255,255,255,.92); border-radius:8px; padding:6px; cursor:pointer; line-height:0; opacity:.65;
-      display:inline-flex; align-items:center; justify-content:center;
-      transition: opacity .15s, transform .15s, box-shadow .15s;
-      box-shadow:0 4px 12px rgba(0,0,0,.08);
-    }
-    .fs-toggle:hover{ opacity:1; transform:scale(1.05); }
-    .fs-toggle svg{ width:14px; height:14px; display:block; }
-    .widget:fullscreen, .card:fullscreen{ background:#fff; border-radius:0; box-shadow:none; padding:24px; }
-    :fullscreen{ overflow:auto; }
-    html.fs-zoom{ font-size:18px; }
-    @media (min-width:1280px){ html.fs-zoom{ font-size:20px; } }
+/* Fullscreen helpers */
+.widget, .card{ position:relative; }
+.fs-toggle{
+position:absolute; top:8px; right:8px; border:1px solid var(--border);
+background:rgba(255,255,255,.92); border-radius:8px; padding:6px; cursor:pointer; line-height:0; opacity:.65;
+display:inline-flex; align-items:center; justify-content:center;
+transition: opacity .15s, transform .15s, box-shadow .15s;
+box-shadow:0 4px 12px rgba(0,0,0,.08);
+}
+.fs-toggle:hover{ opacity:1; transform:scale(1.05); }
+.fs-toggle svg{ width:14px; height:14px; display:block; }
+.widget:fullscreen, .card:fullscreen{ background:#fff; border-radius:0; box-shadow:none; padding:24px; }
+:fullscreen{ overflow:auto; }
+html.fs-zoom{ font-size:18px; }
+@media (min-width:1280px){ html.fs-zoom{ font-size:20px; } }
 
-    /* ======= Split Kaizen + 5S/GW en la columna central ======= */
-    .actions-split{
-      display:grid;
-      grid-template-columns: 1.2fr 1fr; /* Kaizen algo más ancho */
-      gap:20px;
-      align-items:start;
-    }
-    @media (max-width: 1100px){
-      .actions-split{ grid-template-columns: 1fr; }
-    }
+/* ======= Split Kaizen + 5S/GW en la columna central ======= */
+.actions-split{
+display:grid;
+grid-template-columns: 1.2fr 1fr; /* Kaizen algo más ancho */
+gap:20px;
+align-items:start;
+}
+@media (max-width: 1100px){
+.actions-split{ grid-template-columns: 1fr; }
+}
 
-    /* Responsive mínimo */
-    @media (max-width: 1200px){
-      .dashboard-3col{ grid-template-columns: 280px 1fr 320px; }
-    }
-    @media (max-width: 980px){
-      .dashboard-3col{ grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; }
-      .col-left,.col-right{ order:2; }
-      .col-middle{ order:1; }
-    }
-    /* Objetivos táctiles cómodos */
+/* Responsive mínimo */
+@media (max-width: 1200px){
+.dashboard-3col{ grid-template-columns: 280px 1fr 320px; }
+}
+@media (max-width: 980px){
+.dashboard-3col{ grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; }
+.col-left,.col-right{ order:2; }
+.col-middle{ order:1; }
+}
+/* Objetivos táctiles cómodos */
 @media (hover:none) and (pointer:coarse){
-  .btn-primary, .ehs-btn, .btn-compact, .delete-card-btn, .s5-pill { min-width:44px; min-height:44px; }
-  .new-item-form input, .new-item-form select { padding:12px; }
+.btn-primary, .ehs-btn, .btn-compact, .delete-card-btn, .s5-pill { min-width:44px; min-height:44px; }
+.new-item-form input, .new-item-form select { padding:12px; }
 }
 
 /* Asa de arrastre */
 .card { gap:10px; }
 .drag-handle{
-  align-self:stretch; display:flex; align-items:center; justify-content:center;
-  padding:6px; border:1px solid var(--border); border-radius:10px; background:var(--bg-card);
-  cursor:grab; opacity:.7;
+align-self:stretch; display:flex; align-items:center; justify-content:center;
+padding:6px; border:1px solid var(--border); border-radius:10px; background:var(--bg-card);
+cursor:grab; opacity:.7;
 }
 .card:active .drag-handle{ cursor:grabbing; opacity:1; }
 .drag-handle svg{ width:14px; height:14px; }
 .dashboard{
-  padding: clamp(12px, 2vw, 28px);
-  padding-left:  max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
-  padding-right: max(clamp(12px, 2vw, 28px), env(safe-area-inset-right));
-  padding-top:   max(clamp(12px, 2vw, 28px), env(safe-area-inset-top));
-  padding-bottom:max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom));
+padding: clamp(12px, 2vw, 28px);
+padding-left:  max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+padding-right: max(clamp(12px, 2vw, 28px), env(safe-area-inset-right));
+padding-top:   max(clamp(12px, 2vw, 28px), env(safe-area-inset-top));
+padding-bottom:max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom));
 }
 
 /* === Cronómetro (más pequeño) === */
 .header-timer { min-height: 56px; }
 .header-timer .timer-face{ gap:8px; }
 .header-timer .timer-display{
-  /* antes: clamp(2.2rem, 6.5vw, 6.5rem) */
-  font-size: clamp(1.8rem, 5vw, 5rem);
+/* antes: clamp(2.2rem, 6.5vw, 6.5rem) */
+font-size: clamp(1.8rem, 5vw, 5rem);
 }
 .header-timer .timer-dot{
-  width:10px; height:10px;
+width:10px; height:10px;
 }
 .header-timer .timer-reset{
-  min-width:40px; min-height:40px; padding:6px 10px; font-weight:600;
+min-width:40px; min-height:40px; padding:6px 10px; font-weight:600;
 }
 
 /* En móviles, un pelín más compacto aún */
 @media (max-width:700px){
-  .header-timer .timer-display{ font-size: clamp(1.4rem, 7.5vw, 2.6rem); }
+.header-timer .timer-display{ font-size: clamp(1.4rem, 7.5vw, 2.6rem); }
 }
 
 /* === Briefing / Checklist === */
 #briefing-widget .grid{
-  display:grid; gap:10px; grid-template-columns: repeat(12, minmax(0,1fr));
+display:grid; gap:10px; grid-template-columns: repeat(12, minmax(0,1fr));
 }
 #briefing-widget .row{ display: contents; }
 #briefing-widget .field{ grid-column: span 12; display:flex; align-items:center; gap:8px; }
@@ -300,11 +300,11 @@ html{ font-size: calc(16px * var(--ui-scale)); }
 
 #briefing-header .h-inline{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 #briefing-header input[type="text"], #briefing-header input[type="number"]{
-  padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:#fff;
+padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:#fff;
 }
 #briefing-header .chip{
-  display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border);
-  border-radius:999px; background:#fff; font-size:.85rem; cursor:pointer; user-select:none;
+display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border);
+border-radius:999px; background:#fff; font-size:.85rem; cursor:pointer; user-select:none;
 }
 #briefing-header .chip input{ margin:0; }
 
@@ -312,7 +312,7 @@ html{ font-size: calc(16px * var(--ui-scale)); }
 .br-section h4{ margin:0 0 8px; font-size:1rem; }
 .br-status{ display:flex; gap:8px; margin:6px 0 10px; }
 .br-status .opt{
-  border:1px solid var(--border); border-radius:999px; padding:4px 10px; font-weight:600; font-size:.85rem; cursor:pointer; user-select:none;
+border:1px solid var(--border); border-radius:999px; padding:4px 10px; font-weight:600; font-size:.85rem; cursor:pointer; user-select:none;
 }
 .br-status input{ display:none; }
 .br-status .opt[data-v="OK"].on{ background:#e3f9e5; color:#166534; border-color:#a7f3d0; }
@@ -322,7 +322,7 @@ html{ font-size: calc(16px * var(--ui-scale)); }
 .br-criteria{ margin:6px 0 8px; padding-left:6px; }
 .br-criteria .checkbox-item{ margin:6px 0; }
 .br-notes{
-  width:100%; min-height:56px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff; font-size:.9rem;
+width:100%; min-height:56px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff; font-size:.9rem;
 }
 
 #briefing-result{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; padding:10px; border:1px dashed var(--border); border-radius:10px; background:#fafafa; }
@@ -331,257 +331,257 @@ html{ font-size: calc(16px * var(--ui-scale)); }
 /* === Checklist en cuadrícula (responsive) === */
 /* === Checklist compacto === */
 .check-grid{
-  display:grid; gap:8px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+display:grid; gap:8px;
+grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 /* —— Ajuste vertical de tarjetas del checklist —— */
 .check-card{
-  /* antes: row + space-between */
-  display:flex;
-  flex-direction:column;        /* título arriba, botones debajo */
-  align-items:flex-start;
-  justify-content:flex-start;
-  gap:10px;                     /* separación título/botones */
-  padding:14px 16px;            /* un poco más de aire */
-  min-height:84px;              /* sube la “altura base” */
+/* antes: row + space-between */
+display:flex;
+flex-direction:column;        /* título arriba, botones debajo */
+align-items:flex-start;
+justify-content:flex-start;
+gap:10px;                     /* separación título/botones */
+padding:14px 16px;            /* un poco más de aire */
+min-height:84px;              /* sube la “altura base” */
 }
 
 /* El título ahora envuelve líneas (nada de cortar con ellipsis) */
 .check-title{
-  font-weight:600;
-  font-size:.95rem;
-  line-height:1.25;
-  white-space:normal;
-  overflow:visible;
-  text-overflow:unset;
-  word-break:break-word;
+font-weight:600;
+font-size:.95rem;
+line-height:1.25;
+white-space:normal;
+overflow:visible;
+text-overflow:unset;
+word-break:break-word;
 }
 
 /* Botonera en una fila debajo del título (se puede partir en dos líneas si no cabe) */
 .check-actions{
-  width:100%;
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
+width:100%;
+display:flex;
+flex-wrap:wrap;
+gap:8px;
 }
 
 /* Botones un poco más cómodos para tocar */
 .check-actions label{
-  padding:6px 12px;             /* más alto */
-  border-radius:999px;
-  font-size:.78rem;
+padding:6px 12px;             /* más alto */
+border-radius:999px;
+font-size:.78rem;
 }
 
 .check-actions input:checked + label{
-  background:#ecfdf5; border-color:rgba(16,185,129,.6);
-  box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+background:#ecfdf5; border-color:rgba(16,185,129,.6);
+box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
 }
 .header-left{ display:flex; flex-direction:column; gap:2px; }
 #now-header{ font-size:.95rem; color:var(--text-muted); }
 
 .shift-chip{
-  display:inline-flex; align-items:center; gap:6px;
-  padding:4px 10px; border:1px solid var(--border);
-  border-radius:999px; background:#fff; font-weight:600; font-size:.85rem;
+display:inline-flex; align-items:center; gap:6px;
+padding:4px 10px; border:1px solid var(--border);
+border-radius:999px; background:#fff; font-weight:600; font-size:.85rem;
 }
 /* === Spotlight Checklist === */
 #brief-check{
-  position: sticky;           /* siempre visible al hacer scroll en la columna central */
-  top: 0;
-  z-index: 5;
-  border: 2px solid rgba(239,68,68,.45);  /* brand red */
-  box-shadow:
-    0 14px 36px rgba(239,68,68,.18),
-    0 2px 0 rgba(255,255,255,.9) inset;
-  background:
-    radial-gradient(1200px 200px at 50% -60px, rgba(239,68,68,.06), transparent),
-    #fff;
-  animation: brief-pop .25s ease-out;
+position: sticky;           /* siempre visible al hacer scroll en la columna central */
+top: 0;
+z-index: 5;
+border: 2px solid rgba(239,68,68,.45);  /* brand red */
+box-shadow:
+0 14px 36px rgba(239,68,68,.18),
+0 2px 0 rgba(255,255,255,.9) inset;
+background:
+radial-gradient(1200px 200px at 50% -60px, rgba(239,68,68,.06), transparent),
+#fff;
+animation: brief-pop .25s ease-out;
 }
 #brief-check .widget-title{
-  font-size: 1.25rem;
-  color: var(--brand-red-700);
+font-size: 1.25rem;
+color: var(--brand-red-700);
 }
 #brief-check .check-grid{
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); /* tarjetas un pelín más grandes */
+grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); /* tarjetas un pelín más grandes */
 }
 #brief-check .check-card{
-  border: 1px solid var(--border);
-  box-shadow: 0 6px 16px rgba(17,24,39,.06);
-  min-height: 96px;
+border: 1px solid var(--border);
+box-shadow: 0 6px 16px rgba(17,24,39,.06);
+min-height: 96px;
 }
 @keyframes brief-pop { from { transform: scale(.985); opacity:.96; } to { transform: scale(1); opacity:1; } }
 
 /* Chip de turno con color semántico */
 #shift-badge{ border-color: rgba(0,0,0,.06); }
 #shift-badge[data-shift="Mañana"]{
-  background:#ecfdf5; color:#065f46; border-color:#a7f3d0;
+background:#ecfdf5; color:#065f46; border-color:#a7f3d0;
 }
 #shift-badge[data-shift="Tarde"]{
-  background:#fff7ed; color:#9a3412; border-color:#fed7aa;
+background:#fff7ed; color:#9a3412; border-color:#fed7aa;
 }
 #shift-badge[data-shift="Noche"]{
-  background:#eef2ff; color:#3730a3; border-color:#c7d2fe;
+background:#eef2ff; color:#3730a3; border-color:#c7d2fe;
 }
 
 /* Suaviza el resto de widgets para que el ojo vaya al checklist */
 .col-middle .widget:not(#brief-check){
-  filter: saturate(.92);
-  opacity: .96;
-  transition: filter .2s ease, opacity .2s ease, transform .2s ease;
+filter: saturate(.92);
+opacity: .96;
+transition: filter .2s ease, opacity .2s ease, transform .2s ease;
 }
 .col-middle .widget:not(#brief-check):hover{
-  filter: none;
-  opacity: 1;
+filter: none;
+opacity: 1;
 }
 
 /* Bullets del título en Incidentes (Enablon) */
 #incidentes-widget .title-bullets{
-  list-style:none; margin:0; padding:0;
-  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+list-style:none; margin:0; padding:0;
+display:flex; gap:8px; align-items:center; flex-wrap:wrap;
 }
 #incidentes-widget .title-chip{
-  display:inline-flex; align-items:center;
-  padding:4px 10px; border:1px solid var(--border);
-  border-radius:999px; background:#fff; font-size:.8rem; font-weight:600;
-  white-space:nowrap;
+display:inline-flex; align-items:center;
+padding:4px 10px; border:1px solid var(--border);
+border-radius:999px; background:#fff; font-size:.8rem; font-weight:600;
+white-space:nowrap;
 }
 /* Compactar en pantallas muy pequeñas */
 @media (max-width: 520px){
-  #incidentes-widget .title-bullets{ gap:6px; }
-  #incidentes-widget .title-chip{ font-size:.75rem; padding:3px 8px; }
+#incidentes-widget .title-bullets{ gap:6px; }
+#incidentes-widget .title-chip{ font-size:.75rem; padding:3px 8px; }
 }
 /* Banner de recordatorio dentro de Incidentes (Enablon) */
 #incidentes-widget .incident-remember{
-  margin: 6px 0 10px;
-  padding: 10px 12px;
-  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
-  color: #fff;
-  border-radius: 10px;
-  font-weight: 800;
-  letter-spacing: .2px;
+margin: 6px 0 10px;
+padding: 10px 12px;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color: #fff;
+border-radius: 10px;
+font-weight: 800;
+letter-spacing: .2px;
 }
 
 /* Bullets del título (rojo con texto blanco) */
 #incidentes-widget .title-bullets{
-  list-style: none; margin: 0; padding: 0;
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+list-style: none; margin: 0; padding: 0;
+display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
 }
 #incidentes-widget .title-chip{
-  display: inline-flex; align-items: center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: .8rem; font-weight: 700;
-  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
-  color: #fff; border: none;
-  box-shadow: 0 6px 14px rgba(220,38,38,.22);
+display: inline-flex; align-items: center;
+padding: 6px 12px;
+border-radius: 999px;
+font-size: .8rem; font-weight: 700;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color: #fff; border: none;
+box-shadow: 0 6px 14px rgba(220,38,38,.22);
 }
 #incidentes-widget .title-chip:hover{
-  filter: saturate(110%);
-  transform: translateY(-1px);
+filter: saturate(110%);
+transform: translateY(-1px);
 }
 
 /* Compacto en pantallas pequeñas */
 @media (max-width: 520px){
-  #incidentes-widget .title-chip{ font-size: .75rem; padding: 4px 10px; }
-  #incidentes-widget .title-bullets{ gap: 6px; }
+#incidentes-widget .title-chip{ font-size: .75rem; padding: 4px 10px; }
+#incidentes-widget .title-bullets{ gap: 6px; }
 }
 
 /* Banner RECORDAR en Incidentes */
 #incidentes-widget .incident-remember{
-  margin: 6px 0 8px;
-  padding: 10px 12px;
-  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
-  color: #fff;
-  border-radius: 10px;
-  font-weight: 800;
-  letter-spacing: .2px;
+margin: 6px 0 8px;
+padding: 10px 12px;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color: #fff;
+border-radius: 10px;
+font-weight: 800;
+letter-spacing: .2px;
 }
 
 /* Bullets rojos con texto blanco */
 #incidentes-widget .title-bullets{
-  list-style: none; margin: 0 0 10px; padding: 0;
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+list-style: none; margin: 0 0 10px; padding: 0;
+display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
 }
 #incidentes-widget .title-chip{
-  display: inline-flex; align-items: center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: .8rem; font-weight: 700;
-  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
-  color: #fff; border: none;
-  box-shadow: 0 6px 14px rgba(220,38,38,.22);
+display: inline-flex; align-items: center;
+padding: 6px 12px;
+border-radius: 999px;
+font-size: .8rem; font-weight: 700;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color: #fff; border: none;
+box-shadow: 0 6px 14px rgba(220,38,38,.22);
 }
 #incidentes-widget .title-chip:hover{
-  filter: saturate(110%);
-  transform: translateY(-1px);
+filter: saturate(110%);
+transform: translateY(-1px);
 }
 @media (max-width: 520px){
-  #incidentes-widget .title-chip{ font-size: .75rem; padding: 4px 10px; }
-  #incidentes-widget .title-bullets{ gap: 6px; }
+#incidentes-widget .title-chip{ font-size: .75rem; padding: 4px 10px; }
+#incidentes-widget .title-bullets{ gap: 6px; }
 }
 /* Selector de zona y chip visual */
 .team-right .zone-select{
-  padding:6px 10px; border:1px solid var(--border);
-  border-radius:8px; background:#fff; font-size:.85rem;
+padding:6px 10px; border:1px solid var(--border);
+border-radius:8px; background:#fff; font-size:.85rem;
 }
 .chip-zone{
-  display:inline-block; margin-left:6px; padding:2px 8px;
-  border-radius:999px; font-size:.72rem; font-weight:700;
-  color:#3730a3; background:#eef2ff; border:1px solid #c7d2fe;
+display:inline-block; margin-left:6px; padding:2px 8px;
+border-radius:999px; font-size:.72rem; font-weight:700;
+color:#3730a3; background:#eef2ff; border:1px solid #c7d2fe;
 }
 /* —— Spotlight / Parpadeo guiado —— */
 .spotlight-blink{
-  position: relative;
-  border-color: rgba(239,68,68,.6) !important;      /* rojo marca */
-  box-shadow:
-    0 0 0 3px rgba(239,68,68,.20),
-    0 14px 36px rgba(239,68,68,.12);
-  animation: blink-glow 1.2s ease-in-out infinite;
+position: relative;
+border-color: rgba(239,68,68,.6) !important;      /* rojo marca */
+box-shadow:
+0 0 0 3px rgba(239,68,68,.20),
+0 14px 36px rgba(239,68,68,.12);
+animation: blink-glow 1.2s ease-in-out infinite;
 }
 @keyframes blink-glow{
-  0%, 100% { box-shadow:
-                0 0 0 2px rgba(239,68,68,.18),
-                0 8px 22px rgba(239,68,68,.10);
-             transform: translateZ(0) scale(1); }
-  50%      { box-shadow:
-                0 0 0 5px rgba(239,68,68,.28),
-                0 18px 44px rgba(239,68,68,.18);
-             transform: translateZ(0) scale(1.01); }
+0%, 100% { box-shadow:
+0 0 0 2px rgba(239,68,68,.18),
+0 8px 22px rgba(239,68,68,.10);
+transform: translateZ(0) scale(1); }
+50%      { box-shadow:
+0 0 0 5px rgba(239,68,68,.28),
+0 18px 44px rgba(239,68,68,.18);
+transform: translateZ(0) scale(1.01); }
 }
 /* === Incidentes: estilo blanco + borde rojo + texto rojo === */
 #incidentes-widget .incident-remember{
-  background:#fff !important;
-  color: var(--brand-red-700) !important;
-  border: 2px solid var(--brand-red-600) !important;
-  border-radius: 12px;
-  box-shadow: none !important;
+background:#fff !important;
+color: var(--brand-red-700) !important;
+border: 2px solid var(--brand-red-600) !important;
+border-radius: 12px;
+box-shadow: none !important;
 }
 
 #incidentes-widget .title-chip{
-  background:#fff !important;
-  color: var(--brand-red-700) !important;
-  border: 2px solid var(--brand-red-600) !important;
-  box-shadow: none !important;
+background:#fff !important;
+color: var(--brand-red-700) !important;
+border: 2px solid var(--brand-red-600) !important;
+box-shadow: none !important;
 }
 
 /* Hover suave (opcional) */
 #incidentes-widget .title-chip:hover{
-  transform: none;
-  filter: none;
-  box-shadow: 0 0 0 3px rgba(239,68,68,.12);
+transform: none;
+filter: none;
+box-shadow: 0 0 0 3px rgba(239,68,68,.12);
 }
 
 /* === Control de presencia con ✓ y ✕ === */
 .presence-toggle{
-  display:inline-flex; align-items:center;
-  border:1px solid var(--border); border-radius:10px; overflow:hidden;
-  background:#fff;
+display:inline-flex; align-items:center;
+border:1px solid var(--border); border-radius:10px; overflow:hidden;
+background:#fff;
 }
 .presence-toggle input{ display:none; }
 .presence-toggle label{
-  padding:6px 10px; font-size:.82rem; font-weight:700; cursor:pointer; user-select:none;
-  display:inline-flex; align-items:center; gap:6px;
+padding:6px 10px; font-size:.82rem; font-weight:700; cursor:pointer; user-select:none;
+display:inline-flex; align-items:center; gap:6px;
 }
 .presence-toggle label + input + label{ border-left:1px solid var(--border); } /* separador */
 
@@ -589,32 +589,32 @@ html{ font-size: calc(16px * var(--ui-scale)); }
 .presence-toggle .no { color:#991b1b; }   /* rojo  */
 
 .presence-toggle input[value="yes"]:checked + label.yes{
-  background:#e3f9e5; box-shadow: inset 0 0 0 2px rgba(16,185,129,.12);
+background:#e3f9e5; box-shadow: inset 0 0 0 2px rgba(16,185,129,.12);
 }
 .presence-toggle input[value="no"]:checked + label.no{
-  background:#ffe3e3; box-shadow: inset 0 0 0 2px rgba(239,68,68,.12);
+background:#ffe3e3; box-shadow: inset 0 0 0 2px rgba(239,68,68,.12);
 }
 /* Base fluid */
 html, body { height: 100%; }
 body {
-  margin: 0;
-  /* tipografía que se adapta a tablet/TV */
-  font-size: clamp(14px, 1.8vw, 18px);
-  -webkit-text-size-adjust: 100%;
+margin: 0;
+/* tipografía que se adapta a tablet/TV */
+font-size: clamp(14px, 1.8vw, 18px);
+-webkit-text-size-adjust: 100%;
 }
 
 /* Contenedor general */
 .app, .container, main {
-  max-width: 100vw;
-  padding: 8px;
-  overflow-x: hidden;   /* evita scroll horizontal accidental */
+max-width: 100vw;
+padding: 8px;
+overflow-x: hidden;   /* evita scroll horizontal accidental */
 }
 
 /* Layout de tarjetas y paneles en grid fluido */
 .cards, .panels, .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 12px;
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 12px;
 }
 
 /* Tarjetas/paneles no rompan el grid */
@@ -623,19 +623,19 @@ body {
 /* Tablas: scroll horizontal elegante en pantallas pequeñas */
 .table-wrap { overflow-x: auto; max-width: 100%; }
 .table-wrap > table {
-  width: 100%;
-  border-collapse: collapse;
+width: 100%;
+border-collapse: collapse;
 }
 table th, table td { padding: .5rem; }
 
 /* Gráficas/canvas responsive */
 .chart, canvas, svg {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  /* si tu librería necesita altura fija, usa aspect-ratio: */
-  aspect-ratio: 16 / 9;
+display: block;
+width: 100%;
+max-width: 100%;
+height: auto;
+/* si tu librería necesita altura fija, usa aspect-ratio: */
+aspect-ratio: 16 / 9;
 }
 
 /* Imágenes */
@@ -646,1039 +646,1037 @@ header, footer { position: relative; }
 
 /* Evita 100vh “roto” en móviles; usa *vh modernos */
 .fullscreen, .fill {
-  min-height: 100svh; /* soportado en navegadores modernos */
+min-height: 100svh; /* soportado en navegadores modernos */
 }
 
 /* Breakpoints suaves por si tienes columnas rígidas */
 @media (max-width: 1200px) {
-  .only-desktop { display: none !important; }
+.only-desktop { display: none !important; }
 }
 @media (max-width: 1024px) {
-  .sidebar { width: 280px; }       /* o colapsa si la tienes fija */
+.sidebar { width: 280px; }       /* o colapsa si la tienes fija */
 }
 @media (max-width: 900px) {
-  .cards, .panels, .grid { grid-template-columns: 1fr; }  /* una columna */
+.cards, .panels, .grid { grid-template-columns: 1fr; }  /* una columna */
 }
 
 /* Botones y targets táctiles cómodos */
 button, .btn, .click {
-  min-height: 44px;
-  padding: .6rem .9rem;
+min-height: 44px;
+padding: .6rem .9rem;
 }
 /* === FIX TABLET: la checklist no tapa la columna central === */
 
 /* 1) Tablet y abajo: quitar sticky y pasar a 1 columna */
 @media (max-width:1100px){
-  .dashboard-3col{
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto;
-  }
-  .col-left, .col-right{ order: 2; }
-  .col-middle{ order: 1; }
+.dashboard-3col{
+grid-template-columns: 1fr;
+grid-template-rows: auto auto auto auto;
+}
+.col-left, .col-right{ order: 2; }
+.col-middle{ order: 1; }
 
-  /* checklist normal (no pegajosa) */
-  #brief-check{
-    position: static !important;
-    top: auto !important;
-    max-height: none !important;
-  }
+/* checklist normal (no pegajosa) */
+#brief-check{
+position: static !important;
+top: auto !important;
+max-height: none !important;
+}
 
-  /* tarjetas del checklist un pelín más compactas */
-  #brief-check .check-grid{ grid-template-columns: 1fr; }
-  #brief-check .check-card{ min-height: auto; padding: 12px; }
+/* tarjetas del checklist un pelín más compactas */
+#brief-check .check-grid{ grid-template-columns: 1fr; }
+#brief-check .check-card{ min-height: auto; padding: 12px; }
 }
 
 /* 2) Escritorio: mantener sticky pero sin monopolizar la vista */
 @media (min-width:1101px){
-  #brief-check{
-    position: sticky;
-    top: 0;
-    max-height: 48vh;   /* deja ~medio alto para que se vean los demás widgets */
-    overflow: auto;
-  }
+#brief-check{
+position: sticky;
+top: 0;
+max-height: 48vh;   /* deja ~medio alto para que se vean los demás widgets */
+overflow: auto;
 }
-    /* --- Tablet landscape (≈980–1366px): central más ancha, laterales con clamp --- */
+}
+/* --- Tablet landscape (≈980–1366px): central más ancha, laterales con clamp --- */
 @media (min-width: 980px) and (max-width: 1366px){
-  .dashboard-3col{
-    /* IZQ        CENTRO                     DER */
-    grid-template-columns:
-      clamp(230px, 22vw, 280px)
-      minmax(0, 1.7fr)
-      clamp(220px, 24vw, 300px);
-    gap: 16px;
-    padding: 16px;
-  }
+.dashboard-3col{
+/* IZQ        CENTRO                     DER */
+grid-template-columns:
+clamp(230px, 22vw, 280px)
+minmax(0, 1.7fr)
+clamp(220px, 24vw, 300px);
+gap: 16px;
+padding: 16px;
+}
 }
 
 /* --- Portátiles/“tablets grandes” (1367–1599px): derecha capada, centro manda --- */
 @media (min-width: 1367px) and (max-width: 1599px){
-  .dashboard-3col{
-    grid-template-columns:
-      clamp(260px, 21vw, 300px)
-      minmax(0, 1.6fr)
-      clamp(240px, 23vw, 340px);
-  }
+.dashboard-3col{
+grid-template-columns:
+clamp(260px, 21vw, 300px)
+minmax(0, 1.6fr)
+clamp(240px, 23vw, 340px);
+}
 }
 
 /* Opcional: si quieres que el medio tenga siempre mínimo decente */
 .col-middle{ min-width: 0; } /* (ya lo tienes) */
 /* ===== iPad / tablets en horizontal: 2 columnas (der. abajo) ===== */
 @media (min-width: 980px) and (max-width: 1280px){
-  .dashboard-3col{
-    /* IZQ más contenida + CENTRO ancho */
-    grid-template-columns: clamp(260px, 28vw, 320px) minmax(0, 1fr);
-    grid-template-rows: auto 1fr auto;
-    gap: 16px;
-    padding: 16px;
-  }
+.dashboard-3col{
+/* IZQ más contenida + CENTRO ancho */
+grid-template-columns: clamp(260px, 28vw, 320px) minmax(0, 1fr);
+grid-template-rows: auto 1fr auto;
+gap: 16px;
+padding: 16px;
+}
 
-  /* Orden claro: izquierda | centro | derecha debajo a todo el ancho */
-  .col-left   { order: 1; grid-column: 1; }
-  .col-middle { order: 2; grid-column: 2; }
-  .col-right  {
-    order: 3;
-    grid-column: 1 / -1;                 /* ocupa el ancho completo debajo */
-    display: grid;                        /* dos tarjetitas si cabe */
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
-  }
+/* Orden claro: izquierda | centro | derecha debajo a todo el ancho */
+.col-left   { order: 1; grid-column: 1; }
+.col-middle { order: 2; grid-column: 2; }
+.col-right  {
+order: 3;
+grid-column: 1 / -1;                 /* ocupa el ancho completo debajo */
+display: grid;                        /* dos tarjetitas si cabe */
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 16px;
+}
 }
 
 /* ===== Móvil / tablet estrecha: 1 columna (sube breakpoint) ===== */
 @media (max-width: 960px){
-  .dashboard-3col{
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto;
-  }
-  .col-left,.col-right{ order: 2; }
-  .col-middle{ order: 1; }
+.dashboard-3col{
+grid-template-columns: 1fr;
+grid-template-rows: auto auto auto auto;
+}
+.col-left,.col-right{ order: 2; }
+.col-middle{ order: 1; }
 }
 
 /* Tamaños de tipografía un pelín más contenidos en tablet */
 @media (min-width: 980px) and (max-width: 1280px){
-  #kpi-costes .kpi-value.large{ font-size: clamp(1.6rem, 3.8vw, 2.6rem); }
-  header h1{ font-size: clamp(1.4rem, 0.9vw + 1rem, 1.9rem); }
+#kpi-costes .kpi-value.large{ font-size: clamp(1.6rem, 3.8vw, 2.6rem); }
+header h1{ font-size: clamp(1.4rem, 0.9vw + 1rem, 1.9rem); }
 }
-  </style>
+</style>
 </head>
 <body>
 <select id="scale-select" aria-label="Escala UI">
-  <option value="1">100%</option>
-  <option value="1.15" selected>115%</option>
-  <option value="1.3">130%</option>
-  <option value="1.5">150%</option>
+<option value="1">100%</option>
+<option value="1.15" selected>115%</option>
+<option value="1.3">130%</option>
+<option value="1.5">150%</option>
 </select>
 <button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">Presentar</button>
 
-  <div class="dashboard-3col">
-    <!-- HEADER -->
-    <header>
-  <div class="header-left">
-    <h1>Factory Floor Dashboard - WFS1 MAD</h1>
-    <div id="now-header">—</div>
-  </div>
+<div class="dashboard-3col">
+<!-- HEADER -->
+<header>
+<div class="header-left">
+<h1>Factory Floor Dashboard - WFS1 MAD</h1>
+<div id="now-header">—</div>
+</div>
 
-  <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
-    <div class="timer-face" id="timer-face">
-      <div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
-      <span class="timer-dot" aria-hidden="true"></span>
-    </div>
-    <button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
-  </div>
+<div class="header-timer" id="timer-widget" aria-label="Cronómetro">
+<div class="timer-face" id="timer-face">
+<div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
+<span class="timer-dot" aria-hidden="true"></span>
+</div>
+<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+</div>
 
-  <div class="header-controls">
-    <input type="text" class="date-picker" value="julio de 2025">
-    <input type="text" placeholder="WHOP">
-    <button class="btn-primary" type="button">Generar Resumen</button>
-  </div>
+<div class="header-controls">
+<input type="text" class="date-picker" value="julio de 2025">
+<input type="text" placeholder="WHOP">
+<button class="btn-primary" type="button">Generar Resumen</button>
+</div>
 </header>
 
 
-    <!-- IZQUIERDA: EQUIPO -->
-    <section class="col-left">
-      <div class="widget" id="team-widget">
-        <h2 class="widget-title">Equipo / Turno</h2>
-        <small class="kpi-text" id="team-meta">—</small>
+<!-- IZQUIERDA: EQUIPO -->
+<section class="col-left">
+<div class="widget" id="team-widget">
+<h2 class="widget-title">Equipo / Turno</h2>
+<small class="kpi-text" id="team-meta">—</small>
 
-        <form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
-          <input type="text" id="team-name" placeholder="Añadir persona…" required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
-          <button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
-        </form>
+<form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+<input type="text" id="team-name" placeholder="Añadir persona…" required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
+<button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
+</form>
 
-        <div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
-      </div>
+<div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+</div>
 
-      <div class="widget" id="prev-shift-widget">
-        <h2 class="widget-title">Información Turno Anterior</h2>
-        <div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
-             aria-label="Escribe la información del turno anterior" spellcheck="true"
-             style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
-             data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
-        <small class="kpi-text" id="prev-shift-saved-hint"></small>
-      </div>
+<div class="widget" id="prev-shift-widget">
+<h2 class="widget-title">Información Turno Anterior</h2>
+<div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
+aria-label="Escribe la información del turno anterior" spellcheck="true"
+style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
+data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
+<small class="kpi-text" id="prev-shift-saved-hint"></small>
+</div>
 
-      <div class="widget" id="ehs-widget">
-        <h2 class="widget-title">Días con incidentes</h2>
-        <div class="ehs-month" id="ehs-month">—</div>
-        <div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual"
-             aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-          <button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-          <div class="ehs-big" id="ehs-days">0</div>
-          <button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
-        </div>
-      </div>
-    </section>
+<div class="widget" id="ehs-widget">
+<h2 class="widget-title">Días con incidentes</h2>
+<div class="ehs-month" id="ehs-month">—</div>
+<div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual"
+aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
+<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
+<div class="ehs-big" id="ehs-days">0</div>
+<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
+</div>
+</div>
+</section>
 
-    <!-- CENTRO: ACCIONES -->
-    <section class="col-middle">
-      <!-- CHECKLIST DE BRIEFING -->
+<!-- CENTRO: ACCIONES -->
+<section class="col-middle">
+<!-- CHECKLIST DE BRIEFING -->
 <div class="widget" id="brief-check">
-  <h2 class="widget-title">
-  <span>Checklist</span>
-  <span id="shift-badge" class="shift-chip">—</span>
+<h2 class="widget-title">
+<span>Checklist</span>
+<span id="shift-badge" class="shift-chip">—</span>
 </h2>
 
-  <div class="check-grid">
-    <div class="check-card">
-      <span class="check-title">1) Highlights del turno anterior</span>
-      <div class="check-actions" role="group" aria-label="Bloque 1">
-        <input id="c1ok"  type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
-        <input id="c1par" type="radio" name="c1" value="PAR"><label for="c1par">PAR</label>
-        <input id="c1no"  type="radio" name="c1" value="NO"><label for="c1no">NO</label>
-      </div>
-    </div>
+<div class="check-grid">
+<div class="check-card">
+<span class="check-title">1) Highlights del turno anterior</span>
+<div class="check-actions" role="group" aria-label="Bloque 1">
+<input id="c1ok"  type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
+<input id="c1par" type="radio" name="c1" value="PAR"><label for="c1par">PAR</label>
+<input id="c1no"  type="radio" name="c1" value="NO"><label for="c1no">NO</label>
+</div>
+</div>
 
-    <div class="check-card">
-      <span class="check-title">2) Actualizaciones operativas</span>
-      <div class="check-actions" role="group" aria-label="Bloque 2">
-        <input id="c2ok"  type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
-        <input id="c2par" type="radio" name="c2" value="PAR"><label for="c2par">PAR</label>
-        <input id="c2no"  type="radio" name="c2" value="NO"><label for="c2no">NO</label>
-      </div>
-    </div>
+<div class="check-card">
+<span class="check-title">2) Actualizaciones operativas</span>
+<div class="check-actions" role="group" aria-label="Bloque 2">
+<input id="c2ok"  type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
+<input id="c2par" type="radio" name="c2" value="PAR"><label for="c2par">PAR</label>
+<input id="c2no"  type="radio" name="c2" value="NO"><label for="c2no">NO</label>
+</div>
+</div>
 
-    <div class="check-card">
-      <span class="check-title">3) Dotación y recursos</span>
-      <div class="check-actions" role="group" aria-label="Bloque 3">
-        <input id="c3ok"  type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
-        <input id="c3par" type="radio" name="c3" value="PAR"><label for="c3par">PAR</label>
-        <input id="c3no"  type="radio" name="c3" value="NO"><label for="c3no">NO</label>
-      </div>
-    </div>
+<div class="check-card">
+<span class="check-title">3) Dotación y recursos</span>
+<div class="check-actions" role="group" aria-label="Bloque 3">
+<input id="c3ok"  type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
+<input id="c3par" type="radio" name="c3" value="PAR"><label for="c3par">PAR</label>
+<input id="c3no"  type="radio" name="c3" value="NO"><label for="c3no">NO</label>
+</div>
+</div>
 
-    <div class="check-card">
-      <span class="check-title">4) Seguridad y protección</span>
-      <div class="check-actions" role="group" aria-label="Bloque 4">
-        <input id="c4ok"  type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
-        <input id="c4par" type="radio" name="c4" value="PAR"><label for="c4par">PAR</label>
-        <input id="c4no"  type="radio" name="c4" value="NO"><label for="c4no">NO</label>
-      </div>
-    </div>
+<div class="check-card">
+<span class="check-title">4) Seguridad y protección</span>
+<div class="check-actions" role="group" aria-label="Bloque 4">
+<input id="c4ok"  type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
+<input id="c4par" type="radio" name="c4" value="PAR"><label for="c4par">PAR</label>
+<input id="c4no"  type="radio" name="c4" value="NO"><label for="c4no">NO</label>
+</div>
+</div>
 
-    <div class="check-card">
-      <span class="check-title">5) Preparación/reportes incidentes</span>
-      <div class="check-actions" role="group" aria-label="Bloque 5">
-        <input id="c5ok"  type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
-        <input id="c5par" type="radio" name="c5" value="PAR"><label for="c5par">PAR</label>
-        <input id="c5no"  type="radio" name="c5" value="NO"><label for="c5no">NO</label>
-      </div>
-    </div>
+<div class="check-card">
+<span class="check-title">5) Preparación/reportes incidentes</span>
+<div class="check-actions" role="group" aria-label="Bloque 5">
+<input id="c5ok"  type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
+<input id="c5par" type="radio" name="c5" value="PAR"><label for="c5par">PAR</label>
+<input id="c5no"  type="radio" name="c5" value="NO"><label for="c5no">NO</label>
+</div>
+</div>
 
-    <div class="check-card">
-      <span class="check-title">6) Feedback → Acciones</span>
-      <div class="check-actions" role="group" aria-label="Bloque 6">
-        <input id="c6ok"  type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
-        <input id="c6par" type="radio" name="c6" value="PAR"><label for="c6par">PAR</label>
-        <input id="c6no"  type="radio" name="c6" value="NO"><label for="c6no">NO</label>
-      </div>
-    </div>
-  </div>
+<div class="check-card">
+<span class="check-title">6) Feedback → Acciones</span>
+<div class="check-actions" role="group" aria-label="Bloque 6">
+<input id="c6ok"  type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
+<input id="c6par" type="radio" name="c6" value="PAR"><label for="c6par">PAR</label>
+<input id="c6no"  type="radio" name="c6" value="NO"><label for="c6no">NO</label>
+</div>
+</div>
+</div>
 
-  <small class="kpi-text" id="brief-check-meta">—</small>
+<small class="kpi-text" id="brief-check-meta">—</small>
 </div>
 
 
 
-      <!-- KANBAN -->
-      <div class="widget" id="kanban-widget">
-        <h2 class="widget-title">Feedback directo</h2>
-        <div class="board-container kanban">
-          <div class="kanban-column">
-            <h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
-            <div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
-          </div>
-          <div class="kanban-column">
-            <h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
-            <div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
-          </div>
-          <div class="kanban-column">
-            <h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
-            <div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
-          </div>
-          <div class="kanban-column">
-            <h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
-            <div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
-          </div>
-        </div>
+<!-- KANBAN -->
+<div class="widget" id="kanban-widget">
+<h2 class="widget-title">Feedback directo</h2>
+<div class="board-container kanban">
+<div class="kanban-column">
+<h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
+</div>
+</div>
 
-        <form class="new-item-form" id="new-kanban-form" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:grid; grid-template-columns: 1fr 1fr auto 1fr auto; gap:8px; align-items:center;">
-          <select id="problem-category" name="category" required>
-            <option value="" disabled selected>Selecciona categoría…</option>
-            <option value="seguridad">Seguridad</option>
-            <option value="incidencias">Incidencias</option>
-            <option value="mantenimiento">Mantenimiento</option>
-          </select>
-          <input type="text" name="title" placeholder="Tipo de problema" required>
-          <input type="date" name="due_date" required>
-          <input type="text" name="assigned_to" placeholder="Equipo responsable" required>
-          <button type="submit" class="btn-primary">Añadir</button>
-        </form>
-      </div>
+<form class="new-item-form" id="new-kanban-form" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:grid; grid-template-columns: 1fr 1fr auto 1fr auto; gap:8px; align-items:center;">
+<select id="problem-category" name="category" required>
+<option value="" disabled selected>Selecciona categoría…</option>
+<option value="seguridad">Seguridad</option>
+<option value="incidencias">Incidencias</option>
+<option value="mantenimiento">Mantenimiento</option>
+</select>
+<input type="text" name="title" placeholder="Tipo de problema" required>
+<input type="date" name="due_date" required>
+<input type="text" name="assigned_to" placeholder="Equipo responsable" required>
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
+</div>
 
-      <!-- INCIDENTES (ENABLON) -->
+<!-- INCIDENTES (ENABLON) -->
 <div class="widget" id="incidentes-widget">
-  <h2 class="widget-title"><span>Incidentes (Enablon) *ESTAMOS A LA ESPERA DE CONSEGUIR LA CONEXION CON PULSE*</span></h2>
+<h2 class="widget-title"><span>Incidentes (Enablon) *ESTAMOS A LA ESPERA DE CONSEGUIR LA CONEXION CON PULSE*</span></h2>
 
-  <!-- RECORDAR entre título y bullets -->
-  <div class="incident-remember" role="note">
-    RECORDAR: En caso de accidente…
-  </div>
+<!-- RECORDAR entre título y bullets -->
+<div class="incident-remember" role="note">
+RECORDAR: En caso de accidente…
+</div>
 
-  <ul class="title-bullets" aria-label="Guía rápida de incidentes">
-    <li class="title-chip" title="Qué hacer">Qué hacer</li>
-    <li class="title-chip" title="A quién avisar">A quién avisar</li>
-    <li class="title-chip" title="Dónde están las herramientas">Dónde están las herramientas</li>
-  </ul>
+<ul class="title-bullets" aria-label="Guía rápida de incidentes">
+<li class="title-chip" title="Qué hacer">Qué hacer</li>
+<li class="title-chip" title="A quién avisar">A quién avisar</li>
+<li class="title-chip" title="Dónde están las herramientas">Dónde están las herramientas</li>
+</ul>
 
-  <small class="kpi-text" id="incidentes-meta">—</small>
-  <div class="table-scroll">
-    <table id="incidentes-table"></table>
-  </div>
+<small class="kpi-text" id="incidentes-meta">—</small>
+<div class="table-scroll">
+<table id="incidentes-table"></table>
+</div>
 </div>
 
 
 
-      <div class="widget kpi-widget" id="planif-widget">
-        <h3 class="widget-title">Carga / Planificación</h3>
-        <small class="kpi-text" id="planif-meta">—</small>
-        <div class="table-scroll">
-          <table id="planif-table"></table>
-        </div>
-      </div>
+<div class="widget kpi-widget" id="planif-widget">
+<h3 class="widget-title">Carga / Planificación</h3>
+<small class="kpi-text" id="planif-meta">—</small>
+<div class="table-scroll">
+<table id="planif-table"></table>
+</div>
+</div>
 
-      <!-- Kaizen + 5S/GW compartido -->
-      <div class="actions-split">
-        <div class="widget" id="kaizen-widget">
-          <h2 class="widget-title">KAIZEN (compacto)</h2>
-          <form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
-            <input type="text" name="title" placeholder="Proyecto de mejora…" required>
-            <input type="text" name="assigned_to" placeholder="Responsable…">
-            <input type="date" name="due_date" aria-label="Fecha máxima">
-            <button type="submit" class="btn-primary">Añadir</button>
-          </form>
-          <div class="board-container kaizen compact" style="margin-top:12px;">
-            <div class="kanban-column">
-              <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
-              <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
-            </div>
-            <div class="kanban-column">
-              <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
-              <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
-            </div>
-            <div class="kanban-column">
-              <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
-              <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
-            </div>
-          </div>
-        </div>
+<!-- Kaizen + 5S/GW compartido -->
+<div class="actions-split">
+<div class="widget" id="kaizen-widget">
+<h2 class="widget-title">KAIZEN (compacto)</h2>
+<form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+<input type="text" name="title" placeholder="Proyecto de mejora…" required>
+<input type="text" name="assigned_to" placeholder="Responsable…">
+<input type="date" name="due_date" aria-label="Fecha máxima">
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
+<div class="board-container kaizen compact" style="margin-top:12px;">
+<div class="kanban-column">
+<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+</div>
+</div>
+</div>
 
-        <div class="widget" id="rotativas-widget">
-          <h2 class="widget-title">5S & GW (Rápido)</h2>
+<div class="widget" id="rotativas-widget">
+<h2 class="widget-title">5S & GW (Rápido)</h2>
 
-          <!-- 5S gestionable -->
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <strong>5S</strong>
+<!-- 5S gestionable -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+<strong>5S</strong>
 <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
-  <button type="button" class="s5-pill" data-key="seiri"      title="1S · Seiri (Clasificar)"><span class="s5-dot"></span>1S</button>
-  <button type="button" class="s5-pill" data-key="seiton"     title="2S · Seiton (Ordenar)"><span class="s5-dot"></span>2S</button>
-  <button type="button" class="s5-pill" data-key="seiso"      title="3S · Seiso (Limpiar)"><span class="s5-dot"></span>3S</button>
-  <button type="button" class="s5-pill" data-key="seiketsu"   title="4S · Seiketsu (Estandarizar)"><span class="s5-dot"></span>4S</button>
-  <button type="button" class="s5-pill" data-key="shitsuke"   title="5S · Shitsuke (Disciplina)"><span class="s5-dot"></span>5S</button>
+<button type="button" class="s5-pill" data-key="seiri"      title="1S · Seiri (Clasificar)"><span class="s5-dot"></span>1S</button>
+<button type="button" class="s5-pill" data-key="seiton"     title="2S · Seiton (Ordenar)"><span class="s5-dot"></span>2S</button>
+<button type="button" class="s5-pill" data-key="seiso"      title="3S · Seiso (Limpiar)"><span class="s5-dot"></span>3S</button>
+<button type="button" class="s5-pill" data-key="seiketsu"   title="4S · Seiketsu (Estandarizar)"><span class="s5-dot"></span>4S</button>
+<button type="button" class="s5-pill" data-key="shitsuke"   title="5S · Shitsuke (Disciplina)"><span class="s5-dot"></span>5S</button>
 </div>
 <small id="s5-meta" class="kpi-text">—</small>
 
-          </div>
+</div>
 
 
-          <!-- GW: solo TOP-3 por última fecha -->
-          <strong style="margin-top: 12px; display:block;">GW</strong>
-          <div id="gw-tasks-dynamic-container"></div>
-        </div>
-      </div>
+<!-- GW: solo TOP-3 por última fecha -->
+<strong style="margin-top: 12px; display:block;">GW</strong>
+<div id="gw-tasks-dynamic-container"></div>
+</div>
+</div>
 
-      <!-- Carga/Planificación (debajo del split) -->
+<!-- Carga/Planificación (debajo del split) -->
 
-    </section>
+</section>
 
-    <!-- DERECHA: RESULTADOS -->
-    <section class="col-right">
-      <div class="widget kpi-widget" id="kpi-costes">
-        <h3 class="widget-title">
-          <span>Costes Mantenimiento WFS1 MAD</span>
-          <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
-        </h3>
-        <div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
-        <small class="kpi-text" id="kpi-costes-meta"></small>
-      </div>
+<!-- DERECHA: RESULTADOS -->
+<section class="col-right">
+<div class="widget kpi-widget" id="kpi-costes">
+<h3 class="widget-title">
+<span>Costes Mantenimiento WFS1 MAD</span>
+<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
+</h3>
+<div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
+<small class="kpi-text" id="kpi-costes-meta"></small>
+</div>
 
-      <div class="widget kpi-widget" id="lean-widget">
-        <h3 class="widget-title">
-          <span>Estado LEAN</span>
-          <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
-        </h3>
-        <div class="lean-status-container">
-          <div class="lean-status-item"><span>Dg Autocheck</span><span class="status-tag status-ok">OK</span></div>
-          <div class="lean-status-item"><span>Uniwin</span><span class="status-tag status-ok">OK</span></div>
-          <div class="lean-status-item"><span>Cs Mobile</span><span class="status-tag status-alert">Alerta</span></div>
-        </div>
-      </div>
-    </section>
-  </div>
+<div class="widget kpi-widget" id="lean-widget">
+<h3 class="widget-title">
+<span>Estado LEAN</span>
+<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
+</h3>
+<div class="lean-status-container">
+<div class="lean-status-item"><span>Dg Autocheck</span><span class="status-tag status-ok">OK</span></div>
+<div class="lean-status-item"><span>Uniwin</span><span class="status-tag status-ok">OK</span></div>
+<div class="lean-status-item"><span>Cs Mobile</span><span class="status-tag status-alert">Alerta</span></div>
+</div>
+</div>
+</section>
+</div>
 
-  <!-- SortableJS -->
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
-  <script>
-    // === Contexto de estación (MAD por defecto; puedes pasar ?station=MAD/BCN en la URL) ===
+<script>
+// === Contexto de estación (MAD por defecto; puedes pasar ?station=MAD/BCN en la URL) ===
 const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
 const STATION_CODE =
-  (new URLSearchParams(location.search).get('station') || '')
-    .toUpperCase() ||
-  // intenta deducirlo del <title> (p.ej. "WFS1 MAD")
-  ((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || [,'MAD'])[1]).toUpperCase();
+(new URLSearchParams(location.search).get('station') || '')
+.toUpperCase() ||
+// intenta deducirlo del <title> (p.ej. "WFS1 MAD")
+((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || [,'MAD'])[1]).toUpperCase();
 
 function isForThisStation(obj){
-  const st = (obj && obj.station ? String(obj.station) : '').toUpperCase();
-  // si el objeto no trae estación, lo aceptamos; si trae, debe coincidir
-  return !st || st === STATION_CODE;
+const st = (obj && obj.station ? String(obj.station) : '').toUpperCase();
+// si el objeto no trae estación, lo aceptamos; si trae, debe coincidir
+return !st || st === STATION_CODE;
 }
 
 // pinta la estación en el H1 si hace falta
 try {
-  const h1 = document.querySelector('header h1');
-  if (h1 && !h1.textContent.toUpperCase().includes(STATION_CODE)) {
-    h1.textContent = h1.textContent.replace(/(MAD|BCN|VLC|SVQ)/i, STATION_CODE);
-  }
+const h1 = document.querySelector('header h1');
+if (h1 && !h1.textContent.toUpperCase().includes(STATION_CODE)) {
+h1.textContent = h1.textContent.replace(/(MAD|BCN|VLC|SVQ)/i, STATION_CODE);
+}
 } catch {}
 
-    // Función de escape HTML (faltaba definición)
+// Función de escape HTML (faltaba definición)
 function esc(s){ 
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); 
+return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); 
 }
 
 // Función $$ ya existe, mantenerla
 function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
-    /* ===== CRONÓMETRO EN HEADER ===== */
+/* ===== CRONÓMETRO EN HEADER ===== */
 (function(){
-  const KEY='header_big_timer_v1';
-  let running=false, startedAt=0, elapsed=0, tick=null;
+const KEY='header_big_timer_v1';
+let running=false, startedAt=0, elapsed=0, tick=null;
 
-  const $ = (id)=>document.getElementById(id);
-  const host = $('timer-widget');
-  const face = $('timer-face');
-  const display = $('timer-display');
-  const resetBtn = $('timer-reset');
+const $ = (id)=>document.getElementById(id);
+const host = $('timer-widget');
+const face = $('timer-face');
+const display = $('timer-display');
+const resetBtn = $('timer-reset');
 
-  function fmt(ms){
-    const t = Math.floor(ms/1000);
-    const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
-    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  }
-  function paint(){ display.textContent = fmt(running ? Date.now()-startedAt : elapsed); }
-  function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
-  function load(){
-    try{
-      const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(!s) return;
-      running = !!s.running; elapsed = Number(s.elapsed)||0; startedAt = Number(s.startedAt)||0;
-      if (running){ const now=Date.now(); elapsed = Math.max(elapsed, now - startedAt); startedAt = now - elapsed; }
-    }catch{}
-  }
-  function setUI(){
-    host?.classList.toggle('timer-running', running);
-    resetBtn.disabled = (!running && elapsed===0);
-  }
-  function start(){
-    if (running) return;
-    running = true;
-    startedAt = Date.now() - elapsed;
-    tick = setInterval(paint, 250);
-    setUI(); paint(); save();
-  }
-  function pause(){
-    if (!running) return;
-    running = false;
-    elapsed = Date.now() - startedAt;
-    clearInterval(tick); tick=null;
-    setUI(); paint(); save();
-  }
-  function reset(){
-    running = false; startedAt = 0; elapsed = 0;
-    clearInterval(tick); tick=null;
-    setUI(); paint(); save();
-  }
+function fmt(ms){
+const t = Math.floor(ms/1000);
+const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function paint(){ display.textContent = fmt(running ? Date.now()-startedAt : elapsed); }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
+function load(){
+try{
+const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(!s) return;
+running = !!s.running; elapsed = Number(s.elapsed)||0; startedAt = Number(s.startedAt)||0;
+if (running){ const now=Date.now(); elapsed = Math.max(elapsed, now - startedAt); startedAt = now - elapsed; }
+}catch{}
+}
+function setUI(){
+host?.classList.toggle('timer-running', running);
+resetBtn.disabled = (!running && elapsed===0);
+}
+function start(){
+if (running) return;
+running = true;
+startedAt = Date.now() - elapsed;
+tick = setInterval(paint, 250);
+setUI(); paint(); save();
+}
+function pause(){
+if (!running) return;
+running = false;
+elapsed = Date.now() - startedAt;
+clearInterval(tick); tick=null;
+setUI(); paint(); save();
+}
+function reset(){
+running = false; startedAt = 0; elapsed = 0;
+clearInterval(tick); tick=null;
+setUI(); paint(); save();
+}
 
-  // Interacción táctil: tocar el tiempo = toggle start/pause
-  display?.addEventListener('click', ()=> (running ? pause() : start()));
-  resetBtn?.addEventListener('click', reset);
+// Interacción táctil: tocar el tiempo = toggle start/pause
+display?.addEventListener('click', ()=> (running ? pause() : start()));
+resetBtn?.addEventListener('click', reset);
 
-  // Robustez al cambiar visibilidad (suspensión tablet)
-  document.addEventListener('visibilitychange', ()=>{ if (!running) return; startedAt = Date.now() - elapsed; paint(); save(); });
+// Robustez al cambiar visibilidad (suspensión tablet)
+document.addEventListener('visibilitychange', ()=>{ if (!running) return; startedAt = Date.now() - elapsed; paint(); save(); });
 
-  // Init público
-  function initHeaderTimer(){
-    load(); paint(); setUI();
-    if (running && !tick) tick = setInterval(paint, 250);
-  }
-  window.initHeaderTimer = initHeaderTimer;
+// Init público
+function initHeaderTimer(){
+load(); paint(); setUI();
+if (running && !tick) tick = setInterval(paint, 250);
+}
+window.initHeaderTimer = initHeaderTimer;
 })();
 
-    const UI_SCALE_KEY='ui_scale_v1';
+const UI_SCALE_KEY='ui_scale_v1';
 function applyScale(v){ document.documentElement.style.setProperty('--ui-scale', v); }
 // REEMPLAZA la sección completa de escalado:
 (function initUIScaling(){
-  const UI_SCALE_KEY='ui_scale_v1';
+const UI_SCALE_KEY='ui_scale_v1';
 
-  function applyScale(v){ 
-    document.documentElement.style.setProperty('--ui-scale', v); 
-  }
+function applyScale(v){ 
+document.documentElement.style.setProperty('--ui-scale', v); 
+}
 
-  function initScale(){
-    const sel = document.getElementById('scale-select');
-    if (!sel) return;
+function initScale(){
+const sel = document.getElementById('scale-select');
+if (!sel) return;
 
-    const saved = localStorage.getItem(UI_SCALE_KEY) || sel.value || '1.15';
-    applyScale(saved);
-    sel.value = saved;
+const saved = localStorage.getItem(UI_SCALE_KEY) || sel.value || '1.15';
+applyScale(saved);
+sel.value = saved;
 
-    sel.addEventListener('change', e => {
-      const v = e.target.value;
-      localStorage.setItem(UI_SCALE_KEY, v);
-      applyScale(v);
-    });
-  }
+sel.addEventListener('change', e => {
+const v = e.target.value;
+localStorage.setItem(UI_SCALE_KEY, v);
+applyScale(v);
+});
+}
 
-  // Ejecutar inmediatamente
-  initScale();
+// Ejecutar inmediatamente
+initScale();
 })();
 
 function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
 
 
 
-    /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
-    const GW_MAP = new Map();
-   /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
+/* ===== GW: mostrar solo TOP-3 por última fecha ===== */
 const GW_MAP = new Map();
-
 function gwGetDate(t){
+      const cand = t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+      const d = cand ? new Date(cand) : null;
+      return (d && !isNaN(d)) ? d.getTime() : -Infinity;
+    }
   const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
   const d = cand ? new Date(cand) : null;
   return (d && !isNaN(d)) ? d.getTime() : -Infinity;
 }
 
 function renderGwTop3(){
-  const cont = document.getElementById('gw-tasks-dynamic-container');
-  if(!cont) return;
-  cont.innerHTML = '';
-  const top3 = [...GW_MAP.values()]
-    .sort((a,b) => gwGetDate(b) - gwGetDate(a))
-    .slice(0, 3);
-  // renderGwTask hace prepend → invertimos para que el más reciente quede arriba
-  top3.slice().reverse().forEach(t => renderGwTask(t, `task-${t.id}`));
+const cont = document.getElementById('gw-tasks-dynamic-container');
+if(!cont) return;
+cont.innerHTML = '';
+const top3 = [...GW_MAP.values()]
+.sort((a,b) => gwGetDate(b) - gwGetDate(a))
+.slice(0, 3);
+// renderGwTask hace prepend → invertimos para que el más reciente quede arriba
+top3.slice().reverse().forEach(t => renderGwTask(t, `task-${t.id}`));
 }
-// Evita ReferenceError si aún no implementaste esta carga
-function fetchInitialData(){ /* no-op */ }
+
+/* ===== 5S: estado, render y persistencia local ===== */
 
 
-    /* ===== 5S: estado, render y persistencia local ===== */
+/* Fullscreen helpers */
+const FS_ICONS = {
+on:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
+off: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>'
+};
+function ensureFullscreenBtn(host){
+if (!host || host.querySelector('.fs-toggle')) return;
+const btn = document.createElement('button');
+btn.className = 'fs-toggle'; btn.type = 'button';
+btn.setAttribute('aria-label','Ver a pantalla completa');
+btn.title = 'Pantalla completa'; btn.innerHTML = FS_ICONS.off;
+btn.addEventListener('mousedown', e => e.stopPropagation(), true);
+btn.addEventListener('click', async (e) => {
+e.preventDefault(); e.stopPropagation();
+try {
+if (document.fullscreenElement === host) { await document.exitFullscreen?.(); }
+else { await (host.requestFullscreen?.({ navigationUI:'hide' }) ?? host.requestFullscreen?.()); }
+} catch (err) { console.warn('Fullscreen error:', err); }
+});
+host.appendChild(btn);
+}
+function initFullscreenToggles(){
+document.querySelectorAll('.widget, .card').forEach(ensureFullscreenBtn);
+document.addEventListener('fullscreenchange', () => {
+const current = document.fullscreenElement;
+document.querySelectorAll('.fs-toggle').forEach(btn => {
+const owner = btn.closest('.widget, .card');
+const isOn  = current === owner;
+btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
+btn.setAttribute('aria-label', isOn ? 'Salir de pantalla completa' : 'Ver a pantalla completa');
+btn.title = isOn ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa';
+});
+document.documentElement.classList.toggle('fs-zoom', !!current);
+});
+}
 
+/* Formatos / KPI */
+function formatEuro(n){ if (n==null || Number.isNaN(n)) return '—'; return new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n); }
+function updateKpiTotalCost(value, ts){
+const v=document.getElementById('kpi-total-cost'); const m=document.getElementById('kpi-costes-meta'); const c=document.getElementById('kpi-costes');
+if(!v || !c) return; v.textContent = formatEuro(value); if(m){ const t=ts?new Date(ts).toLocaleString('es-ES'):''; m.textContent = t?`Actualizado: ${t}`:''; }
+c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
+}
+function hydrateKpiTotalCost(){
+try{ const cached = JSON.parse(localStorage.getItem('kpi_total_cost')||'null'); if(cached && Number.isFinite(cached.value)){ updateKpiTotalCost(cached.value, cached.timestamp); } }catch{}
+}
 
-    /* Fullscreen helpers */
-    const FS_ICONS = {
-      on:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
-      off: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>'
-    };
-    function ensureFullscreenBtn(host){
-      if (!host || host.querySelector('.fs-toggle')) return;
-      const btn = document.createElement('button');
-      btn.className = 'fs-toggle'; btn.type = 'button';
-      btn.setAttribute('aria-label','Ver a pantalla completa');
-      btn.title = 'Pantalla completa'; btn.innerHTML = FS_ICONS.off;
-      btn.addEventListener('mousedown', e => e.stopPropagation(), true);
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault(); e.stopPropagation();
-        try {
-          if (document.fullscreenElement === host) { await document.exitFullscreen?.(); }
-          else { await (host.requestFullscreen?.({ navigationUI:'hide' }) ?? host.requestFullscreen?.()); }
-        } catch (err) { console.warn('Fullscreen error:', err); }
-      });
-      host.appendChild(btn);
-    }
-    function initFullscreenToggles(){
-      document.querySelectorAll('.widget, .card').forEach(ensureFullscreenBtn);
-      document.addEventListener('fullscreenchange', () => {
-        const current = document.fullscreenElement;
-        document.querySelectorAll('.fs-toggle').forEach(btn => {
-          const owner = btn.closest('.widget, .card');
-          const isOn  = current === owner;
-          btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
-          btn.setAttribute('aria-label', isOn ? 'Salir de pantalla completa' : 'Ver a pantalla completa');
-          btn.title = isOn ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa';
-        });
-        document.documentElement.classList.toggle('fs-zoom', !!current);
-      });
-    }
+/* EHS simple */
+function initEhsSimple(){
+const now=new Date(); const year=now.getFullYear(), month=now.getMonth();
+const daysInMonth=new Date(year,month+1,0).getDate();
+const monthEl=document.getElementById('ehs-month'); const daysEl=document.getElementById('ehs-days'); const spinEl=document.getElementById('ehs-spin');
+monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+const monthKey=`${year}-${month+1}`; const lastKey=localStorage.getItem('ehs_month_key'); let days=Number(localStorage.getItem('ehs_days_month'))||0; if(lastKey!==monthKey) days=0;
+function render(){ days=Math.max(0,Math.min(daysInMonth,Math.trunc(days))); daysEl.textContent=days; spinEl.setAttribute('aria-valuemin','0'); spinEl.setAttribute('aria-valuemax',String(daysInMonth)); spinEl.setAttribute('aria-valuenow',String(days));
+localStorage.setItem('ehs_days_month',String(days)); localStorage.setItem('ehs_month_key',monthKey); }
+const inc=()=>{ if(days<daysInMonth){ days+=1; render(); } }; const dec=()=>{ if(days>0){ days-=1; render(); } };
+spinEl.querySelectorAll('.ehs-btn').forEach(btn=>btn.addEventListener('click',()=> (btn.dataset.op==='inc'?inc():dec())));
+spinEl.addEventListener('keydown',(e)=>{ if(e.key==='ArrowUp'||e.key==='ArrowRight'){e.preventDefault();inc();} if(e.key==='ArrowDown'||e.key==='ArrowLeft'){e.preventDefault();dec();}
+if(e.key==='PageUp'){e.preventDefault();days=Math.min(daysInMonth,days+5);render();} if(e.key==='PageDown'){e.preventDefault();days=Math.max(0,days-5);render();}
+if(e.key==='Home'){e.preventDefault();days=0;render();} if(e.key==='End'){e.preventDefault();days=daysInMonth;render();} });
+render();
+}
 
-    /* Formatos / KPI */
-    function formatEuro(n){ if (n==null || Number.isNaN(n)) return '—'; return new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n); }
-    function updateKpiTotalCost(value, ts){
-      const v=document.getElementById('kpi-total-cost'); const m=document.getElementById('kpi-costes-meta'); const c=document.getElementById('kpi-costes');
-      if(!v || !c) return; v.textContent = formatEuro(value); if(m){ const t=ts?new Date(ts).toLocaleString('es-ES'):''; m.textContent = t?`Actualizado: ${t}`:''; }
-      c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
-    }
-    function hydrateKpiTotalCost(){
-      try{ const cached = JSON.parse(localStorage.getItem('kpi_total_cost')||'null'); if(cached && Number.isFinite(cached.value)){ updateKpiTotalCost(cached.value, cached.timestamp); } }catch{}
-    }
-
-    /* EHS simple */
-    function initEhsSimple(){
-      const now=new Date(); const year=now.getFullYear(), month=now.getMonth();
-      const daysInMonth=new Date(year,month+1,0).getDate();
-      const monthEl=document.getElementById('ehs-month'); const daysEl=document.getElementById('ehs-days'); const spinEl=document.getElementById('ehs-spin');
-      monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-      const monthKey=`${year}-${month+1}`; const lastKey=localStorage.getItem('ehs_month_key'); let days=Number(localStorage.getItem('ehs_days_month'))||0; if(lastKey!==monthKey) days=0;
-      function render(){ days=Math.max(0,Math.min(daysInMonth,Math.trunc(days))); daysEl.textContent=days; spinEl.setAttribute('aria-valuemin','0'); spinEl.setAttribute('aria-valuemax',String(daysInMonth)); spinEl.setAttribute('aria-valuenow',String(days));
-        localStorage.setItem('ehs_days_month',String(days)); localStorage.setItem('ehs_month_key',monthKey); }
-      const inc=()=>{ if(days<daysInMonth){ days+=1; render(); } }; const dec=()=>{ if(days>0){ days-=1; render(); } };
-      spinEl.querySelectorAll('.ehs-btn').forEach(btn=>btn.addEventListener('click',()=> (btn.dataset.op==='inc'?inc():dec())));
-      spinEl.addEventListener('keydown',(e)=>{ if(e.key==='ArrowUp'||e.key==='ArrowRight'){e.preventDefault();inc();} if(e.key==='ArrowDown'||e.key==='ArrowLeft'){e.preventDefault();dec();}
-        if(e.key==='PageUp'){e.preventDefault();days=Math.min(daysInMonth,days+5);render();} if(e.key==='PageDown'){e.preventDefault();days=Math.max(0,days-5);render();}
-        if(e.key==='Home'){e.preventDefault();days=0;render();} if(e.key==='End'){e.preventDefault();days=daysInMonth;render();} });
-      render();
-    }
-
-    /* Equipo (roster) */
-    let TEAM_STATE = null; // cache de estado actual {shift, sheet_date, window, people, attendance, ...}
+/* Equipo (roster) */
+let TEAM_STATE = null; // cache de estado actual {shift, sheet_date, window, people, attendance, ...}
 
 function esc(s){ return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;"); }
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
 
 function updateTeamMeta(state){
-  const meta = document.getElementById('team-meta');
-  if(!meta || !state) return;
-  const total = (state.people||[]).length;
-  const present = countPresent(state.attendance||{});
-  const shift = state.shift || '—';
-  const win = state.window ? `${state.window.from}–${state.window.to}` : '—';
-  meta.textContent = `${shift} • ${win} • Presentes ${present}/${total}`;
+const meta = document.getElementById('team-meta');
+if(!meta || !state) return;
+const total = (state.people||[]).length;
+const present = countPresent(state.attendance||{});
+const shift = state.shift || '—';
+const win = state.window ? `${state.window.from}–${state.window.to}` : '—';
+meta.textContent = `${shift} • ${win} • Presentes ${present}/${total}`;
 }
 
 async function updatePresenceOnServer(person, present){
-  try{
-    await fetch('/api/roster/presence', {
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        person, present,
-        date: TEAM_STATE?.sheet_date || null,
-        shift: TEAM_STATE?.shift || null
-      })
-    });
-  }catch(e){
-    console.error('PUT /api/roster/presence falló', e);
-  }
+try{
+await fetch('/api/roster/presence', {
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body: JSON.stringify({
+person, present,
+date: TEAM_STATE?.sheet_date || null,
+shift: TEAM_STATE?.shift || null
+})
+});
+}catch(e){
+console.error('PUT /api/roster/presence falló', e);
+}
 }
 
 async function updateZoneOnServer(person, zone){
-  try{
-    await fetch('/api/roster/zone', {
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        person, zone,
-        date: TEAM_STATE?.sheet_date || null,
-        shift: TEAM_STATE?.shift || null
-      })
-    });
-  }catch(e){
-    console.error('PUT /api/roster/zone falló', e);
-  }
+try{
+await fetch('/api/roster/zone', {
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body: JSON.stringify({
+person, zone,
+date: TEAM_STATE?.sheet_date || null,
+shift: TEAM_STATE?.shift || null
+})
+});
+}catch(e){
+console.error('PUT /api/roster/zone falló', e);
+}
 }
 
 function renderRoster(listEl, people, state){
-  if(!listEl) return;
-  TEAM_STATE = state || TEAM_STATE || {};
-  TEAM_STATE.people     = people || [];
-  TEAM_STATE.attendance = (state && state.attendance) ? state.attendance : (TEAM_STATE.attendance || {});
-  TEAM_STATE.zones      = (state && state.zones) ? state.zones : (TEAM_STATE.zones || {});  // ← zonas
+if(!listEl) return;
+TEAM_STATE = state || TEAM_STATE || {};
+TEAM_STATE.people     = people || [];
+TEAM_STATE.attendance = (state && state.attendance) ? state.attendance : (TEAM_STATE.attendance || {});
+TEAM_STATE.zones      = (state && state.zones) ? state.zones : (TEAM_STATE.zones || {});  // ← zonas
 
-  listEl.innerHTML = '';
+listEl.innerHTML = '';
 
-  if(!TEAM_STATE.people.length){
-    listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del informe actual.</div>';
-    updateTeamMeta(TEAM_STATE);
-    return;
-  }
+if(!TEAM_STATE.people.length){
+listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del informe actual.</div>';
+updateTeamMeta(TEAM_STATE);
+return;
+}
 
-  const ZONES = ['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'];
+const ZONES = ['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'];
 
-  TEAM_STATE.people.forEach((p, idx)=>{
-  const full   = p.nombre_completo || '—';
-  const horario= p.horario || '';
-  const obs    = p.observaciones || '';
-  const presentVal = (TEAM_STATE.attendance||{})[full];
-  const yesChecked = presentVal === true  ? 'checked' : '';
-  const noChecked  = presentVal === false ? 'checked' : '';
-  const zone   = (TEAM_STATE.zones||{})[full] || '';
+TEAM_STATE.people.forEach((p, idx)=>{
+const full   = p.nombre_completo || '—';
+const horario= p.horario || '';
+const obs    = p.observaciones || '';
+const presentVal = (TEAM_STATE.attendance||{})[full];
+const yesChecked = presentVal === true  ? 'checked' : '';
+const noChecked  = presentVal === false ? 'checked' : '';
+const zone   = (TEAM_STATE.zones||{})[full] || '';
 
-  const row = document.createElement('div');
-  row.className = 'team-row';
-  row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px;gap:10px;';
+const row = document.createElement('div');
+row.className = 'team-row';
+row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px;gap:10px;';
 
-  const left = document.createElement('div');
-  left.className = 'team-left';
-  left.innerHTML =
-    `<span class="team-name" style="font-weight:600">${esc(full)}</span>` +
-    (horario? ` <small class="meta">• ${esc(horario)}</small>`:'') +
-    (obs?     ` <small class="meta">• ${esc(obs)}</small>`:'') +
-    (zone?    ` <span class="chip-zone" data-zone-chip="${esc(full)}">${esc(zone)}</span>` : '');
+const left = document.createElement('div');
+left.className = 'team-left';
+left.innerHTML =
+`<span class="team-name" style="font-weight:600">${esc(full)}</span>` +
+(horario? ` <small class="meta">• ${esc(horario)}</small>`:'') +
+(obs?     ` <small class="meta">• ${esc(obs)}</small>`:'') +
+(zone?    ` <span class="chip-zone" data-zone-chip="${esc(full)}">${esc(zone)}</span>` : '');
 
-  const right = document.createElement('div');
-  right.className = 'team-right';
-  right.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
-  right.innerHTML = `
-    <div class="presence-toggle" role="group" aria-label="Presencia">
-      <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
-      <label for="att-${idx}-y" class="yes">✓ Presente</label>
+const right = document.createElement('div');
+right.className = 'team-right';
+right.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+right.innerHTML = `
+   <div class="presence-toggle" role="group" aria-label="Presencia">
+     <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+     <label for="att-${idx}-y" class="yes">✓ Presente</label>
 
-      <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
-      <label for="att-${idx}-n" class="no">✕ Ausente</label>
-    </div>
+     <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+     <label for="att-${idx}-n" class="no">✕ Ausente</label>
+   </div>
 
-    <select class="zone-select" data-person="${esc(full)}" title="Zona">
-      <option value="" ${zone? '' : 'selected'} disabled>Zona…</option>
-      ${['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'].map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
-    </select>
-  `;
+   <select class="zone-select" data-person="${esc(full)}" title="Zona">
+     <option value="" ${zone? '' : 'selected'} disabled>Zona…</option>
+     ${['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'].map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+   </select>
+ `;
 
-  row.appendChild(left);
-  row.appendChild(right);
-  listEl.appendChild(row);
+row.appendChild(left);
+row.appendChild(right);
+listEl.appendChild(row);
 });
 
 
-  // Eventos de presencia
-  // Eventos de presencia (✓ / ✕)
+// Eventos de presencia
+// Eventos de presencia (✓ / ✕)
 listEl.querySelectorAll('.att-radio').forEach(inp=>{
-  inp.addEventListener('change', (e)=>{
-    const person  = e.target.dataset.person;
-    const present = e.target.value === 'yes';
-    TEAM_STATE.attendance = TEAM_STATE.attendance || {};
-    TEAM_STATE.attendance[person] = present;
-    updateTeamMeta(TEAM_STATE);
-    updatePresenceOnServer(person, present);
-    updateSpotlightRouting?.();  // refresca el flujo de parpadeo
-  });
+inp.addEventListener('change', (e)=>{
+const person  = e.target.dataset.person;
+const present = e.target.value === 'yes';
+TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+TEAM_STATE.attendance[person] = present;
+updateTeamMeta(TEAM_STATE);
+updatePresenceOnServer(person, present);
+updateSpotlightRouting?.();  // refresca el flujo de parpadeo
+});
 });
 
 
-  // Eventos de zona
-  listEl.querySelectorAll('.zone-select').forEach(sel=>{
-    sel.addEventListener('change', (e)=>{
-      const person = e.target.dataset.person;
-      const zone   = e.target.value || '';
-      TEAM_STATE.zones = TEAM_STATE.zones || {};
-      TEAM_STATE.zones[person] = zone;
+// Eventos de zona
+listEl.querySelectorAll('.zone-select').forEach(sel=>{
+sel.addEventListener('change', (e)=>{
+const person = e.target.dataset.person;
+const zone   = e.target.value || '';
+TEAM_STATE.zones = TEAM_STATE.zones || {};
+TEAM_STATE.zones[person] = zone;
 
-      // Actualiza la chip de zona en la parte izquierda
-      const chip = listEl.querySelector(`.chip-zone[data-zone-chip="${CSS.escape(person)}"]`);
-      if (chip){
-        chip.textContent = zone;
-      }else if (zone){
-        // si no existía, añádela
-        const host = e.target.closest('.team-row')?.querySelector('.team-left');
-        if (host) host.insertAdjacentHTML('beforeend', ` <span class="chip-zone" data-zone-chip="${esc(person)}">${esc(zone)}</span>`);
-      }
-
-      updateZoneOnServer(person, zone);
-      updateTeamMeta(TEAM_STATE);
-    });
-  });
-
-  updateTeamMeta(TEAM_STATE);
+// Actualiza la chip de zona en la parte izquierda
+const chip = listEl.querySelector(`.chip-zone[data-zone-chip="${CSS.escape(person)}"]`);
+if (chip){
+chip.textContent = zone;
+}else if (zone){
+// si no existía, añádela
+const host = e.target.closest('.team-row')?.querySelector('.team-left');
+if (host) host.insertAdjacentHTML('beforeend', ` <span class="chip-zone" data-zone-chip="${esc(person)}">${esc(zone)}</span>`);
 }
-    async function initTeamRoster(){
-  const state = await fetchServerRoster();
-  if(state){
-    renderRoster(document.getElementById('team-list'), state.people||[], state);
-  }else{
-    const list=document.getElementById('team-list');
-    if(list) list.innerHTML='<div style="color:var(--text-muted)">Sin datos del informe. Añade manualmente o sube el Excel.</div>';
-  }
+
+updateZoneOnServer(person, zone);
+updateTeamMeta(TEAM_STATE);
+});
+});
+
+updateTeamMeta(TEAM_STATE);
 }
-    /* Kanban / Kaizen / GW */
-    function makeColumnsSortable(){
-      document.querySelectorAll('#kanban-widget .cards-container').forEach(c=> new Sortable(c,{group:'kanban-board',animation:150,onEnd:handleDragEnd,ghostClass:'sortable-ghost',dragClass:'sortable-drag'}));
-      document.querySelectorAll('#kaizen-widget .cards-container').forEach(c=> new Sortable(c,{group:'kaizen-board',animation:150,onEnd:handleDragEnd,ghostClass:'sortable-ghost',dragClass:'sortable-drag'}));
-    }
-    async function handleDragEnd({item,to,from,oldIndex}){ if(to===from) return; const id=item.id.replace('task-',''); const st=to.dataset.status; try{ await updateTaskOnServer(id,{status:st}); }catch(e){ from.insertBefore(item,from.children[oldIndex]); } }
-
-    function setupEventListeners(){
-      document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
-      document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
-      document.addEventListener('click', handleDeleteClick);
-
-      const rot=document.getElementById('rotativas-widget');
-      // GW
-      rot.addEventListener('change', handleGwTick);
-      rot.addEventListener('keydown',(e)=>{ if(e.target.classList.contains('gw-note') && e.key==='Enter'){ e.preventDefault(); const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); e.target.blur(); }});
-      rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); } }, true);
-    }
-
-    async function handleKanbanSubmit(e){
-      e.preventDefault();
-      const f=e.target;
-      const taskData={ task_type:'kanban_rapida', status:'Abiertas',
-        category:f.elements.category.value, title:f.elements.title.value.trim(),
-        due_date:f.elements.due_date.value, assigned_to:f.elements.assigned_to.value.trim() };
-      if(!taskData.category || !taskData.title || !taskData.due_date) return;
-      try{ await createTaskOnServer(taskData); f.reset(); document.getElementById('problem-category').selectedIndex=0; }catch{ alert('Error: No se pudo crear la tarjeta.'); }
-    }
-    function handleDeleteClick(e){
-      const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
-      const card=btn.closest('.card'); if(!card) return;
-      const id=card.id.replace('task-','');
-      if(confirm('¿Seguro que quieres eliminar esta tarjeta?')){ deleteTaskOnServer(id).catch(()=>alert('Error: No se pudo eliminar la tarjeta.')); }
-    }
-    function handleGwTick(e){
-      if(e.target.type==='checkbox' && e.target.closest('.gw-task-item')){
-        const item=e.target.closest('.gw-task-item'); const id=item.id.replace('task-',''); const done=e.target.checked;
-        const note=item.querySelector('.gw-note'); if(note) note.disabled=!done;
-        updateTaskCompletion(id,done).catch(err=>{ console.error('tick fail',err); e.target.checked=!done; });
-        item.classList.toggle('completed',done);
-      }
-    }
-    async function handleKaizenSubmit(e){
-      e.preventDefault();
-      const f=e.target;
-      const taskData={ task_type:'kaizen', status:'Proyectos', title:f.elements.title.value.trim(), assigned_to:f.elements.assigned_to.value.trim(), due_date:f.elements.due_date.value||null };
-      if(!taskData.title) return;
-      createTaskOnServer(taskData).then(()=>{ f.reset(); updateAllColumnCounts(); }).catch(()=> alert('No se pudo crear el KAIZEN.'));
-    }
-
-    /* Server I/O */
-    async function fetchServerRoster(){
-  try {
-    const r = await fetch('/api/roster/current', { 
-      cache: 'no-store',
-      headers: {'Accept': 'application/json'}
-    });
-
-    if (!r.ok) {
-      console.warn('Roster fetch failed:', r.status, r.statusText);
-      return null;
-    }
-
-    const data = await r.json();
-    console.log('Roster cargado:', data);
-    return data;
-
-  } catch (e) {
-    console.error('Error fetching roster:', e);
-    return null;
-  }
+async function initTeamRoster(){
+const state = await fetchServerRoster();
+if(state){
+renderRoster(document.getElementById('team-list'), state.people||[], state);
+}else{
+const list=document.getElementById('team-list');
+if(list) list.innerHTML='<div style="color:var(--text-muted)">Sin datos del informe. Añade manualmente o sube el Excel.</div>';
 }
-    async function createTaskOnServer(data){ const r=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('create failed'); }
-    async function updateTaskOnServer(id, data){ const r=await fetch(`/api/tasks/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('update failed'); }
-    async function deleteTaskOnServer(id){ const r=await fetch(`/api/tasks/${id}`,{method:'DELETE'}); if(!r.ok) throw new Error('delete failed'); }
-    async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
-    async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
+}
+/* Kanban / Kaizen / GW */
+function makeColumnsSortable(){
+document.querySelectorAll('#kanban-widget .cards-container').forEach(c=> new Sortable(c,{group:'kanban-board',animation:150,onEnd:handleDragEnd,ghostClass:'sortable-ghost',dragClass:'sortable-drag'}));
+document.querySelectorAll('#kaizen-widget .cards-container').forEach(c=> new Sortable(c,{group:'kaizen-board',animation:150,onEnd:handleDragEnd,ghostClass:'sortable-ghost',dragClass:'sortable-drag'}));
+}
+async function handleDragEnd({item,to,from,oldIndex}){ if(to===from) return; const id=item.id.replace('task-',''); const st=to.dataset.status; try{ await updateTaskOnServer(id,{status:st}); }catch(e){ from.insertBefore(item,from.children[oldIndex]); } }
 
-    /* Render tarjetas */
-    function processTaskUpdate(data){
+function setupEventListeners(){
+document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+document.addEventListener('click', handleDeleteClick);
+
+const rot=document.getElementById('rotativas-widget');
+// GW
+rot.addEventListener('change', handleGwTick);
+rot.addEventListener('keydown',(e)=>{ if(e.target.classList.contains('gw-note') && e.key==='Enter'){ e.preventDefault(); const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); e.target.blur(); }});
+rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); } }, true);
+}
+
+async function handleKanbanSubmit(e){
+e.preventDefault();
+const f=e.target;
+const taskData={ task_type:'kanban_rapida', status:'Abiertas',
+category:f.elements.category.value, title:f.elements.title.value.trim(),
+due_date:f.elements.due_date.value, assigned_to:f.elements.assigned_to.value.trim() };
+if(!taskData.category || !taskData.title || !taskData.due_date) return;
+try{ await createTaskOnServer(taskData); f.reset(); document.getElementById('problem-category').selectedIndex=0; }catch{ alert('Error: No se pudo crear la tarjeta.'); }
+}
+function handleDeleteClick(e){
+const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
+const card=btn.closest('.card'); if(!card) return;
+const id=card.id.replace('task-','');
+if(confirm('¿Seguro que quieres eliminar esta tarjeta?')){ deleteTaskOnServer(id).catch(()=>alert('Error: No se pudo eliminar la tarjeta.')); }
+}
+function handleGwTick(e){
+if(e.target.type==='checkbox' && e.target.closest('.gw-task-item')){
+const item=e.target.closest('.gw-task-item'); const id=item.id.replace('task-',''); const done=e.target.checked;
+const note=item.querySelector('.gw-note'); if(note) note.disabled=!done;
+updateTaskCompletion(id,done).catch(err=>{ console.error('tick fail',err); e.target.checked=!done; });
+item.classList.toggle('completed',done);
+}
+}
+async function handleKaizenSubmit(e){
+e.preventDefault();
+const f=e.target;
+const taskData={ task_type:'kaizen', status:'Proyectos', title:f.elements.title.value.trim(), assigned_to:f.elements.assigned_to.value.trim(), due_date:f.elements.due_date.value||null };
+if(!taskData.title) return;
+createTaskOnServer(taskData).then(()=>{ f.reset(); updateAllColumnCounts(); }).catch(()=> alert('No se pudo crear el KAIZEN.'));
+}
+
+/* Server I/O */
+async function fetchServerRoster(){
+try {
+const r = await fetch('/api/roster/current', { 
+cache: 'no-store',
+headers: {'Accept': 'application/json'}
+});
+
+if (!r.ok) {
+console.warn('Roster fetch failed:', r.status, r.statusText);
+return null;
+}
+
+const data = await r.json();
+console.log('Roster cargado:', data);
+return data;
+
+} catch (e) {
+console.error('Error fetching roster:', e);
+return null;
+}
+}
+async function createTaskOnServer(data){ const r=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('create failed'); }
+async function updateTaskOnServer(id, data){ const r=await fetch(`/api/tasks/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); if(!r.ok) throw new Error('update failed'); }
+async function deleteTaskOnServer(id){ const r=await fetch(`/api/tasks/${id}`,{method:'DELETE'}); if(!r.ok) throw new Error('delete failed'); }
+async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
+async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
+
+/* Render tarjetas */
+function processTaskUpdate(data){
 if (!isForThisStation(data)) return;      // DESPUÉS
 if (data && data.type==='roster_update'){
-  renderRoster(document.getElementById('team-list'), data.people||[], data); 
-  return;
+renderRoster(document.getElementById('team-list'), data.people||[], data); 
+return;
 }
 
-      if (data && data.type==='presence_update'){
-  // sólo si coincide con el turno/fecha que estoy viendo
-  if (TEAM_STATE 
-    && TEAM_STATE.sheet_date === data.sheet_date
-    && TEAM_STATE.shift === data.shift){
-  const yesSel = `.att-radio[data-person="${CSS.escape(data.person)}"][value="yes"]`;
-  const noSel  = `.att-radio[data-person="${CSS.escape(data.person)}"][value="no"]`;
-  const yesEl  = document.querySelector(yesSel);
-  const noEl   = document.querySelector(noSel);
-  if (yesEl && noEl){
-    if (data.present) { yesEl.checked = true; } else { noEl.checked = true; }
-    TEAM_STATE.attendance = TEAM_STATE.attendance || {};
-    TEAM_STATE.attendance[data.person] = !!data.present;
-    updateTeamMeta(TEAM_STATE);
-    updateSpotlightRouting?.();
-  }
+if (data && data.type==='presence_update'){
+// sólo si coincide con el turno/fecha que estoy viendo
+if (TEAM_STATE 
+&& TEAM_STATE.sheet_date === data.sheet_date
+&& TEAM_STATE.shift === data.shift){
+const yesSel = `.att-radio[data-person="${CSS.escape(data.person)}"][value="yes"]`;
+const noSel  = `.att-radio[data-person="${CSS.escape(data.person)}"][value="no"]`;
+const yesEl  = document.querySelector(yesSel);
+const noEl   = document.querySelector(noSel);
+if (yesEl && noEl){
+if (data.present) { yesEl.checked = true; } else { noEl.checked = true; }
+TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+TEAM_STATE.attendance[data.person] = !!data.present;
+updateTeamMeta(TEAM_STATE);
+updateSpotlightRouting?.();
+}
 }
 return;
 
 }
 if (data && data.type==='zone_update'){
-  if (TEAM_STATE
-      && TEAM_STATE.sheet_date === data.sheet_date
-      && TEAM_STATE.shift === data.shift){
-    TEAM_STATE.zones = TEAM_STATE.zones || {};
-    TEAM_STATE.zones[data.person] = data.zone || '';
-    // Re-render para reflejar cambio en select y chip
-    renderRoster(document.getElementById('team-list'), TEAM_STATE.people||[], TEAM_STATE);
-  }
-  return;
+if (TEAM_STATE
+&& TEAM_STATE.sheet_date === data.sheet_date
+&& TEAM_STATE.shift === data.shift){
+TEAM_STATE.zones = TEAM_STATE.zones || {};
+TEAM_STATE.zones[data.person] = data.zone || '';
+// Re-render para reflejar cambio en select y chip
+renderRoster(document.getElementById('team-list'), TEAM_STATE.people||[], TEAM_STATE);
+}
+return;
 }
 
-      // ping de planificación
+// ping de planificación
 if (data && (data.type==='table_ping'||data.type==='table_state') && data.table==='external'){
-  loadPlanifTable();
-  return;
+loadPlanifTable();
+return;
 }
 
 // ping de incidentes (Enablon)
 if (data && (data.type==='table_ping'||data.type==='table_state') && data.table==='incidents'){
-  loadIncidentes();
-  return;
+loadIncidentes();
+return;
 }
 
-      if(data && (data.type==='kpi_update'||data.type==='kpi_state'||(data.metric&&data.tab))){
-        const metric=String(data.metric||'').trim().toLowerCase(); const tab=String(data.tab||'').trim();
-        if(metric==='total cost' && (!tab || tab==='MAD WFS1')){
-          let v=data.value;
-          if(typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
-          else if(Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
-          else if(v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
-          if(typeof v==='number' && Number.isFinite(v)){ updateKpiTotalCost(v, data.timestamp); try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{} }
-        }
-        return;
-      }
+if(data && (data.type==='kpi_update'||data.type==='kpi_state'||(data.metric&&data.tab))){
+const metric=String(data.metric||'').trim().toLowerCase(); const tab=String(data.tab||'').trim();
+if(metric==='total cost' && (!tab || tab==='MAD WFS1')){
+let v=data.value;
+if(typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
+else if(Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
+else if(v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
+if(typeof v==='number' && Number.isFinite(v)){ updateKpiTotalCost(v, data.timestamp); try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{} }
+}
+return;
+}
 
-      const elementId = `task-${data.id}`;
-      if (data.action === 'delete') {
-        document.getElementById(elementId)?.remove();
-        updateAllColumnCounts && updateAllColumnCounts();
-        if (data.task_type === 'gw_task') { GW_MAP.delete(data.id); renderGwTop3(); }
-        return;
-      }
+const elementId = `task-${data.id}`;
+if (data.action === 'delete') {
+document.getElementById(elementId)?.remove();
+updateAllColumnCounts && updateAllColumnCounts();
+if (data.task_type === 'gw_task') { GW_MAP.delete(data.id); renderGwTop3(); }
+return;
+}
 
-      switch(data.task_type){
-        case 'kanban_rapida': renderBoardCard(data, elementId); updateAllColumnCounts(); break;
-        case 'kaizen':        renderKaizenCard(data, elementId); updateAllColumnCounts(); break;
-        case 'gw_task':       GW_MAP.set(data.id, data); renderGwTop3(); break;
-        default: console.warn('task_type desconocido:', data.task_type);
-      }
-    }
+switch(data.task_type){
+case 'kanban_rapida': renderBoardCard(data, elementId); updateAllColumnCounts(); break;
+case 'kaizen':        renderKaizenCard(data, elementId); updateAllColumnCounts(); break;
+case 'gw_task':       GW_MAP.set(data.id, data); renderGwTop3(); break;
+default: console.warn('task_type desconocido:', data.task_type);
+}
+}
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
-    function renderBoardCard(task, elementId){
-      const safeStatus=task.status.replace(/\s+/g,'-');
-      const columnId=`${task.task_type}-${safeStatus}`;
-      const column=document.getElementById(columnId); if(!column) return;
+function renderBoardCard(task, elementId){
+const safeStatus=task.status.replace(/\s+/g,'-');
+const columnId=`${task.task_type}-${safeStatus}`;
+const column=document.getElementById(columnId); if(!column) return;
 
-      let card=document.getElementById(elementId);
-      if(!card){ card=document.createElement('div'); card.id=elementId; }
-      card.className='card'; card.dataset.status=safeStatus;
+let card=document.getElementById(elementId);
+if(!card){ card=document.createElement('div'); card.id=elementId; }
+card.className='card'; card.dataset.status=safeStatus;
 
-      const catKey=(task.category||'').toLowerCase();
-      card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
-      if(['seguridad','incidencias','mantenimiento'].includes(catKey)) card.classList.add(`cat-${catKey}`);
+const catKey=(task.category||'').toLowerCase();
+card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
+if(['seguridad','incidencias','mantenimiento'].includes(catKey)) card.classList.add(`cat-${catKey}`);
 
-      if(card.parentElement!==column) column.prepend(card);
+if(card.parentElement!==column) column.prepend(card);
 
-      const creationDate=task.created_at?new Date(task.created_at).toISOString().split('T')[0]:'—';
-      const due=task.due_date?new Date(task.due_date).toISOString().split('T')[0]:'—';
-      const catLabel=catKey? (catKey==='seguridad'?'Seguridad':(catKey==='incidencias'?'Incidencias':'Mantenimiento')) : 'General';
+const creationDate=task.created_at?new Date(task.created_at).toISOString().split('T')[0]:'—';
+const due=task.due_date?new Date(task.due_date).toISOString().split('T')[0]:'—';
+const catLabel=catKey? (catKey==='seguridad'?'Seguridad':(catKey==='incidencias'?'Incidencias':'Mantenimiento')) : 'General';
 
-      card.innerHTML=`
-      ${GRIP}
-        <div class="card-content">
-          <div class="card-title">
-            ${task.title || ''}
-            <span class="cat-chip ${catKey || ''}">${catLabel}</span>
-          </div>
-          <div class="card-details">Alta: ${creationDate} • Objetivo: ${due}</div>
-          <div class="card-assignee">${task.assigned_to || 'Sin asignar'}</div>
-        </div>
-        <div class="card-actions">
-          <button class="delete-card-btn" title="Eliminar">
-            <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-            </svg>
-          </button>
-        </div>`;
-      ensureFullscreenBtn(card);
-    }
+card.innerHTML=`
+     ${GRIP}
+       <div class="card-content">
+         <div class="card-title">
+           ${task.title || ''}
+           <span class="cat-chip ${catKey || ''}">${catLabel}</span>
+         </div>
+         <div class="card-details">Alta: ${creationDate} • Objetivo: ${due}</div>
+         <div class="card-assignee">${task.assigned_to || 'Sin asignar'}</div>
+       </div>
+       <div class="card-actions">
+         <button class="delete-card-btn" title="Eliminar">
+           <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+             <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+             <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+           </svg>
+         </button>
+       </div>`;
+ensureFullscreenBtn(card);
+}
 
-    function renderKaizenCard(task, elementId){
-      const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
-      const columnId=`kaizen-${safeStatus}`;
-      const column=document.getElementById(columnId); if(!column) return;
+function renderKaizenCard(task, elementId){
+const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
+const columnId=`kaizen-${safeStatus}`;
+const column=document.getElementById(columnId); if(!column) return;
 
-      let card=document.getElementById(elementId);
-      if(!card){ card=document.createElement('div'); card.id=elementId; }
-      card.className='card'; card.dataset.status=safeStatus;
-      if(card.parentElement!==column) column.prepend(card);
+let card=document.getElementById(elementId);
+if(!card){ card=document.createElement('div'); card.id=elementId; }
+card.className='card'; card.dataset.status=safeStatus;
+if(card.parentElement!==column) column.prepend(card);
 
-      let dueHuman=''; if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
+let dueHuman=''; if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
 
-      card.innerHTML=`
-      ${GRIP}
-        <div class="card-content">
-          <div class="card-title">${task.title || ''}</div>
-          <div class="card-details">
-            ${task.assigned_to ? `Responsable: ${task.assigned_to}` : 'Responsable: —'}
-            ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
-          </div>
-        </div>
-        <div class="card-actions">
-          <button class="delete-card-btn" title="Eliminar">
-            <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-            </svg>
-          </button>
-        </div>`;
-      ensureFullscreenBtn(card);
-    }
+card.innerHTML=`
+     ${GRIP}
+       <div class="card-content">
+         <div class="card-title">${task.title || ''}</div>
+         <div class="card-details">
+           ${task.assigned_to ? `Responsable: ${task.assigned_to}` : 'Responsable: —'}
+           ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
+         </div>
+       </div>
+       <div class="card-actions">
+         <button class="delete-card-btn" title="Eliminar">
+           <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+             <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+             <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+           </svg>
+         </button>
+       </div>`;
+ensureFullscreenBtn(card);
+}
 
-    function renderGwTask(task, elementId){
-      const container=document.getElementById('gw-tasks-dynamic-container'); if(!container) return;
-      let el=document.getElementById(elementId); const chkId=`gw-check-${task.id}`; const noteId=`gw-note-${task.id}`;
-      if(!el){ el=document.createElement('div'); el.id=elementId; container.prepend(el); }
-      el.className='gw-task-item';
-      el.innerHTML = `
-        <input type="checkbox" id="${chkId}" ${task.is_completed ? 'checked' : ''}>
-        <label for="${chkId}">${task.title}</label>
-        <input type="text" class="gw-note" id="${noteId}" placeholder="Añadir nota (opcional)" ${task.is_completed ? '' : 'disabled'} value="${task.note ? String(task.note).replace(/"/g,'&quot;') : ''}">
-      `;
-      el.classList.toggle('completed', !!task.is_completed);
-      el.classList.add('highlight-gw'); setTimeout(()=> el.classList.remove('highlight-gw'), 2000);
-    }
+function renderGwTask(task, elementId){
+const container=document.getElementById('gw-tasks-dynamic-container'); if(!container) return;
+let el=document.getElementById(elementId); const chkId=`gw-check-${task.id}`; const noteId=`gw-note-${task.id}`;
+if(!el){ el=document.createElement('div'); el.id=elementId; container.prepend(el); }
+el.className='gw-task-item';
+el.innerHTML = `
+       <input type="checkbox" id="${chkId}" ${task.is_completed ? 'checked' : ''}>
+       <label for="${chkId}">${task.title}</label>
+       <input type="text" class="gw-note" id="${noteId}" placeholder="Añadir nota (opcional)" ${task.is_completed ? '' : 'disabled'} value="${task.note ? String(task.note).replace(/"/g,'&quot;') : ''}">
+     `;
+el.classList.toggle('completed', !!task.is_completed);
+el.classList.add('highlight-gw'); setTimeout(()=> el.classList.remove('highlight-gw'), 2000);
+}
 
-    function updateAllColumnCounts(){
-      document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
-        const c=col.querySelector('.column-title .count'); const cards=col.querySelector('.cards-container'); if(c&&cards) c.textContent=`(${cards.children.length})`;
-      });
-      document.querySelectorAll('#kaizen-widget .kanban-column').forEach(col=>{
-        const c=col.querySelector('.column-title .count'); const cards=col.querySelector('.cards-container'); if(c&&cards) c.textContent=`(${cards.children.length})`;
-      });
-    }
+function updateAllColumnCounts(){
+document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
+const c=col.querySelector('.column-title .count'); const cards=col.querySelector('.cards-container'); if(c&&cards) c.textContent=`(${cards.children.length})`;
+});
+document.querySelectorAll('#kaizen-widget .kanban-column').forEach(col=>{
+const c=col.querySelector('.column-title .count'); const cards=col.querySelector('.cards-container'); if(c&&cards) c.textContent=`(${cards.children.length})`;
+});
+}
 
     async function loadAllTasks(){
   try{
@@ -1700,712 +1698,722 @@ const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg
 
 
 
-    function connectWebSocket(){
-      const wsUrl=`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
-      const socket=new WebSocket(wsUrl);
-      socket.onopen=()=>console.log('✅ WebSocket conectado');
-      socket.onmessage=(ev)=>processTaskUpdate(JSON.parse(ev.data));
-      socket.onclose=()=>setTimeout(connectWebSocket,3000);
-      socket.onerror=(err)=>{ console.error('WS error:',err); socket.close(); };
-    }
+function connectWebSocket(){
+const wsUrl=`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
+const socket=new WebSocket(wsUrl);
+socket.onopen=()=>console.log('✅ WebSocket conectado');
+socket.onmessage=(ev)=>processTaskUpdate(JSON.parse(ev.data));
+socket.onclose=()=>setTimeout(connectWebSocket,3000);
+socket.onerror=(err)=>{ console.error('WS error:',err); socket.close(); };
+}
 
-    /* ===== Incidentes (Enablon) usando /api/external-table ===== */
+/* ===== Incidentes (Enablon) usando /api/external-table ===== */
 const INC_CACHE_KEY = 'incidents_cache_v1';
 function cacheIncidentes(state){
-  try { localStorage.setItem(INC_CACHE_KEY, JSON.stringify(state)); } catch {}
+try { localStorage.setItem(INC_CACHE_KEY, JSON.stringify(state)); } catch {}
 }
 function getCachedIncidentes(){
-  try { return JSON.parse(localStorage.getItem(INC_CACHE_KEY) || 'null'); } catch { return null; }
+try { return JSON.parse(localStorage.getItem(INC_CACHE_KEY) || 'null'); } catch { return null; }
 }
 
 async function loadIncidentes(){
-  const tbl  = document.getElementById('incidentes-table');
-  const meta = document.getElementById('incidentes-meta');
+const tbl  = document.getElementById('incidentes-table');
+const meta = document.getElementById('incidentes-meta');
 
-  // 1) Pinta rápido desde caché si hay algo y la tabla está vacía
-  const cached = getCachedIncidentes();
-  if (cached && (!tbl || !tbl.tBodies || !tbl.tBodies.length)) {
-    renderIncidentes(cached);
-  }
+// 1) Pinta rápido desde caché si hay algo y la tabla está vacía
+const cached = getCachedIncidentes();
+if (cached && (!tbl || !tbl.tBodies || !tbl.tBodies.length)) {
+renderIncidentes(cached);
+}
 
-  // 2) Intenta servidor
-  try{
-    const r = await fetch('/api/incidents-table', { cache:'no-store' });
-    if(!r.ok) throw new Error('GET /api/incidents-table failed');
-    const state = await r.json();
+// 2) Intenta servidor
+try{
+const r = await fetch('/api/incidents-table', { cache:'no-store' });
+if(!r.ok) throw new Error('GET /api/incidents-table failed');
+const state = await r.json();
 
-    // Sólo actualiza si hay contenido real; si viene vacío, conserva el último bueno
-    if (Array.isArray(state.columns) && state.columns.length){
-      renderIncidentes(state);
-      cacheIncidentes(state);
-    } else if (cached){
-      renderIncidentes(cached);
-      if (meta) meta.textContent += ' • fuente offline';
-    }
-  }catch(e){
-    console.error('Incidentes load error', e);
-    // 3) En error: NO borres la tabla. Si hay caché, úsala, si no, deja lo que hubiera
-    if (cached){
-      renderIncidentes(cached);
-      if (meta) meta.textContent += ' • fuente offline';
-    }
-  }
+// Sólo actualiza si hay contenido real; si viene vacío, conserva el último bueno
+if (Array.isArray(state.columns) && state.columns.length){
+renderIncidentes(state);
+cacheIncidentes(state);
+} else if (cached){
+renderIncidentes(cached);
+if (meta) meta.textContent += ' • fuente offline';
+}
+}catch(e){
+console.error('Incidentes load error', e);
+// 3) En error: NO borres la tabla. Si hay caché, úsala, si no, deja lo que hubiera
+if (cached){
+renderIncidentes(cached);
+if (meta) meta.textContent += ' • fuente offline';
+}
+}
 }
 
 function renderIncidentes(state){
-  const tbl  = document.getElementById('incidentes-table');
-  const meta = document.getElementById('incidentes-meta');
-  if(!tbl) return;
+const tbl  = document.getElementById('incidentes-table');
+const meta = document.getElementById('incidentes-meta');
+if(!tbl) return;
 
-  const cols = Array.isArray(state?.columns) ? state.columns : [];
-  const rows = Array.isArray(state?.rows) ? state.rows : [];
-  const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
+const cols = Array.isArray(state?.columns) ? state.columns : [];
+const rows = Array.isArray(state?.rows) ? state.rows : [];
+const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
 
-  // Helper para elegir la PRIMERA columna que exista
-  const pick = (...cands) => {
-    for (const name of cands){
-      const idx = cols.indexOf(name);
-      if (idx !== -1) return { name, idx };
-    }
-    return null;
-  };
+// Helper para elegir la PRIMERA columna que exista
+const pick = (...cands) => {
+for (const name of cands){
+const idx = cols.indexOf(name);
+if (idx !== -1) return { name, idx };
+}
+return null;
+};
 
-  // Candidatas típicas de Enablon / EHS
-  let selected = [
-    pick('Id','ID','IncidentId','IncidentID','Number','Reference','IncidentNo','CaseNumber'),
-    pick('Title','Name','ShortDescription','Subject','Summary','Description'),
-    pick('Status','State','WorkflowStatus','CurrentStatus'),
-    pick('Priority','Severity','RiskLevel','Criticality'),
-    pick('Category','Type','IncidentType','SubType','Classification'),
-    pick('Site','Location','Area','Department','Plant'),
-    pick('Created','CreatedAt','CreationDate','Date','CreatedOn','ReportedOn','ReportDate','StartDate'),
-    pick('DueDate','TargetDate','Deadline','ExpirationDate'),
-    pick('Owner','AssignedTo','Assignee','Responsible','Manager')
-  ].filter(Boolean);
+// Candidatas típicas de Enablon / EHS
+let selected = [
+pick('Id','ID','IncidentId','IncidentID','Number','Reference','IncidentNo','CaseNumber'),
+pick('Title','Name','ShortDescription','Subject','Summary','Description'),
+pick('Status','State','WorkflowStatus','CurrentStatus'),
+pick('Priority','Severity','RiskLevel','Criticality'),
+pick('Category','Type','IncidentType','SubType','Classification'),
+pick('Site','Location','Area','Department','Plant'),
+pick('Created','CreatedAt','CreationDate','Date','CreatedOn','ReportedOn','ReportDate','StartDate'),
+pick('DueDate','TargetDate','Deadline','ExpirationDate'),
+pick('Owner','AssignedTo','Assignee','Responsible','Manager')
+].filter(Boolean);
 
-  // Si no encontramos nada, usa las primeras 6 columnas como fallback
-  if (selected.length === 0 && cols.length){
-    const n = Math.min(cols.length, 6);
-    selected = Array.from({length:n}, (_,i)=>({ name: cols[i], idx: i }));
-  }
+// Si no encontramos nada, usa las primeras 6 columnas como fallback
+if (selected.length === 0 && cols.length){
+const n = Math.min(cols.length, 6);
+selected = Array.from({length:n}, (_,i)=>({ name: cols[i], idx: i }));
+}
 
-  if (selected.length === 0){
-    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
-    if (meta) meta.textContent = `Filas: ${rows.length} • Actualizado: ${ts}`;
-    return;
-  }
+if (selected.length === 0){
+tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
+if (meta) meta.textContent = `Filas: ${rows.length} • Actualizado: ${ts}`;
+return;
+}
 
-  // Cabecera
-  let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
+// Cabecera
+let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
 
-  // Cuerpo (limita a 200 filas para no sobrecargar DOM)
-  let tbody = '<tbody>';
-  const MAX_ROWS = 200;
-  const slice = rows.slice(0, MAX_ROWS);
-  for (const r of slice){
-    tbody += '<tr>' + selected.map(c => `<td>${r[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
-  }
-  if (rows.length > MAX_ROWS){
-    tbody += `<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length} incidentes…</td></tr>`;
-  }
-  tbody += '</tbody>';
+// Cuerpo (limita a 200 filas para no sobrecargar DOM)
+let tbody = '<tbody>';
+const MAX_ROWS = 200;
+const slice = rows.slice(0, MAX_ROWS);
+for (const r of slice){
+tbody += '<tr>' + selected.map(c => `<td>${r[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
+}
+if (rows.length > MAX_ROWS){
+tbody += `<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length} incidentes…</td></tr>`;
+}
+tbody += '</tbody>';
 
-  tbl.innerHTML = thead + tbody;
-  if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+tbl.innerHTML = thead + tbody;
+if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
 }
 
 
-    /* Carga/Planificación */
-    async function loadPlanifTable(){
-      try{
-        const r=await fetch('/api/external-table');
-        if(!r.ok) throw new Error('GET /api/external-table failed');
-        const s=await r.json(); renderPlanif(s);
-      }catch(e){ console.error('Planif load error', e); }
-    }
-    // === Carga/Planificación: solo estas columnas ===
+/* Carga/Planificación */
+async function loadPlanifTable(){
+try{
+const r=await fetch('/api/external-table');
+if(!r.ok) throw new Error('GET /api/external-table failed');
+const s=await r.json(); renderPlanif(s);
+}catch(e){ console.error('Planif load error', e); }
+}
+// === Carga/Planificación: solo estas columnas ===
 const PLANIF_WHITELIST = [
-  'FlightId',
-  'FlightType',
-  'AircraftType',
-  'FlightIdentifier',
-  'Departure.Scheduled',
-  'PiecesProgress.Members.Manifested.Item1',
-  'WeightProgress.Members.Manifested.Item1'
+'FlightId',
+'FlightType',
+'AircraftType',
+'FlightIdentifier',
+'Departure.Scheduled',
+'PiecesProgress.Members.Manifested.Item1',
+'WeightProgress.Members.Manifested.Item1'
 ];
 
 function renderPlanif(state){
-  const tbl  = document.getElementById('planif-table');
-  const meta = document.getElementById('planif-meta');
-  if(!tbl) return;
+const tbl  = document.getElementById('planif-table');
+const meta = document.getElementById('planif-meta');
+if(!tbl) return;
 
-  const cols = Array.isArray(state.columns) ? state.columns : [];
-  const rows = Array.isArray(state.rows) ? state.rows : [];
-  const ts   = state.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
+const cols = Array.isArray(state.columns) ? state.columns : [];
+const rows = Array.isArray(state.rows) ? state.rows : [];
+const ts   = state.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
 
-  // 1) Intento con whitelist
-  let selected = PLANIF_WHITELIST
-    .map(name => ({ name, idx: cols.indexOf(name) }))
-    .filter(c => c.idx !== -1);
+// 1) Intento con whitelist
+let selected = PLANIF_WHITELIST
+.map(name => ({ name, idx: cols.indexOf(name) }))
+.filter(c => c.idx !== -1);
 
-  // 2) Fallback: si no hay ninguna columna de la whitelist,
-  //    muestra las primeras N columnas reales del payload
-  if (selected.length === 0 && cols.length){
-    const N = Math.min(cols.length, 8);
-    selected = Array.from({length:N}, (_,i)=>({ name: cols[i], idx: i }));
-  }
+// 2) Fallback: si no hay ninguna columna de la whitelist,
+//    muestra las primeras N columnas reales del payload
+if (selected.length === 0 && cols.length){
+const N = Math.min(cols.length, 8);
+selected = Array.from({length:N}, (_,i)=>({ name: cols[i], idx: i }));
+}
 
-  if (selected.length === 0){
-    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
-    if (meta) meta.textContent = `Filas: ${rows.length} • Actualizado: ${ts}`;
-    return;
-  }
+if (selected.length === 0){
+tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
+if (meta) meta.textContent = `Filas: ${rows.length} • Actualizado: ${ts}`;
+return;
+}
 
-  let thead = '<thead><tr>' + selected.map(c => `<th>${c.name}</th>`).join('') + '</tr></thead>';
-  let tbody = '<tbody>' + rows.map(r => (
-    '<tr>' + selected.map(c => `<td>${r[c.idx] == null ? '' : String(r[c.idx])}</td>`).join('') + '</tr>'
-  )).join('') + '</tbody>';
+let thead = '<thead><tr>' + selected.map(c => `<th>${c.name}</th>`).join('') + '</tr></thead>';
+let tbody = '<tbody>' + rows.map(r => (
+'<tr>' + selected.map(c => `<td>${r[c.idx] == null ? '' : String(r[c.idx])}</td>`).join('') + '</tr>'
+)).join('') + '</tbody>';
 
-  tbl.innerHTML = thead + tbody;
-  if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+tbl.innerHTML = thead + tbody;
+if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
 }
 
 
-    /* Turno anterior editable */
-    (function initPrevShiftEditable(){
-      const KEY_NOTE='prev_shift_note_v1', KEY_WHEN='prev_shift_note_saved_at_v1';
-      const el=document.getElementById('prev-shift-note'), hint=document.getElementById('prev-shift-saved-hint'); if(!el) return;
-      try{ const s=localStorage.getItem(KEY_NOTE); if(s!==null) el.textContent=s; const w=localStorage.getItem(KEY_WHEN); if(w) hint.textContent=`Guardado: ${new Date(w).toLocaleString('es-ES')}`; }catch{}
-      let t; const save=()=>{ try{ const plain=el.textContent||''; localStorage.setItem(KEY_NOTE,plain); const now=new Date().toISOString(); localStorage.setItem(KEY_WHEN,now); hint.textContent=`Guardado: ${new Date(now).toLocaleString('es-ES')}`; }catch{} };
-      el.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(save,500); });
-      el.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){ e.preventDefault(); save(); } if(e.key==='Escape') el.blur(); });
-      el.addEventListener('blur', save);
-    })();
+/* Turno anterior editable */
+(function initPrevShiftEditable(){
+const KEY_NOTE='prev_shift_note_v1', KEY_WHEN='prev_shift_note_saved_at_v1';
+const el=document.getElementById('prev-shift-note'), hint=document.getElementById('prev-shift-saved-hint'); if(!el) return;
+try{ const s=localStorage.getItem(KEY_NOTE); if(s!==null) el.textContent=s; const w=localStorage.getItem(KEY_WHEN); if(w) hint.textContent=`Guardado: ${new Date(w).toLocaleString('es-ES')}`; }catch{}
+let t; const save=()=>{ try{ const plain=el.textContent||''; localStorage.setItem(KEY_NOTE,plain); const now=new Date().toISOString(); localStorage.setItem(KEY_WHEN,now); hint.textContent=`Guardado: ${new Date(now).toLocaleString('es-ES')}`; }catch{} };
+el.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(save,500); });
+el.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){ e.preventDefault(); save(); } if(e.key==='Escape') el.blur(); });
+el.addEventListener('blur', save);
+})();
 
 /* ===== 5S compacto (localStorage) ===== */
 const S5_KEYS = [
-  { key:'seiri',    label:'1S Seiri' },
-  { key:'seiton',   label:'2S Seiton' },
-  { key:'seiso',    label:'3S Seiso' },
-  { key:'seiketsu', label:'4S Seiketsu' },
-  { key:'shitsuke', label:'5S Shitsuke' },
+{ key:'seiri',    label:'1S Seiri' },
+{ key:'seiton',   label:'2S Seiton' },
+{ key:'seiso',    label:'3S Seiso' },
+{ key:'seiketsu', label:'4S Seiketsu' },
+{ key:'shitsuke', label:'5S Shitsuke' },
 ];
 const S5_STATE_KEY = 's5_state_v1';
 
 function loadS5State(){
-  try { return JSON.parse(localStorage.getItem(S5_STATE_KEY) || '{}'); }
-  catch { return {}; }
+try { return JSON.parse(localStorage.getItem(S5_STATE_KEY) || '{}'); }
+catch { return {}; }
 }
 function saveS5State(state){
-  try { localStorage.setItem(S5_STATE_KEY, JSON.stringify(state)); } catch {}
+try { localStorage.setItem(S5_STATE_KEY, JSON.stringify(state)); } catch {}
 }
 
 function render5S(){
-  const strip = document.getElementById('s5-strip');
-  if (!strip) return;
-  const state = loadS5State();
+const strip = document.getElementById('s5-strip');
+if (!strip) return;
+const state = loadS5State();
 
-  // Marcar ON/OFF
-  let done = 0;
-  strip.querySelectorAll('.s5-pill').forEach(btn => {
-    const k = btn.dataset.key;
-    const on = !!state[k];
-    btn.classList.toggle('on', on);
-    if (on) done++;
-  });
+// Marcar ON/OFF
+let done = 0;
+strip.querySelectorAll('.s5-pill').forEach(btn => {
+const k = btn.dataset.key;
+const on = !!state[k];
+btn.classList.toggle('on', on);
+if (on) done++;
+});
 
-  // Meta “x/5” + fecha
-  const meta = document.getElementById('s5-meta');
-  if (meta){
-    const ts = state.updated_at ? new Date(state.updated_at).toLocaleString('es-ES') : null;
-    meta.textContent = `${done}/5 completadas${ts ? ` • Actualizado: ${ts}` : ''}`;
-  }
+// Meta “x/5” + fecha
+const meta = document.getElementById('s5-meta');
+if (meta){
+const ts = state.updated_at ? new Date(state.updated_at).toLocaleString('es-ES') : null;
+meta.textContent = `${done}/5 completadas${ts ? ` • Actualizado: ${ts}` : ''}`;
+}
 }
 
 function toggle5S(key, el){
-  const state = loadS5State();
-  state[key] = !state[key];
-  state.updated_at = new Date().toISOString();
-  saveS5State(state);
-  render5S();
-  if (el){ el.classList.add('bump'); setTimeout(()=> el.classList.remove('bump'), 220); }
+const state = loadS5State();
+state[key] = !state[key];
+state.updated_at = new Date().toISOString();
+saveS5State(state);
+render5S();
+if (el){ el.classList.add('bump'); setTimeout(()=> el.classList.remove('bump'), 220); }
 }
 
 function init5S(){
-  const strip = document.getElementById('s5-strip');
-  if (!strip) return;
-  // Delegación de eventos
-  strip.addEventListener('click', (e)=>{
-    const btn = e.target.closest('.s5-pill');
-    if (!btn) return;
-    const key = btn.dataset.key;
-    if (!key) return;
-    toggle5S(key, btn);
-  });
-  render5S();
+const strip = document.getElementById('s5-strip');
+if (!strip) return;
+// Delegación de eventos
+strip.addEventListener('click', (e)=>{
+const btn = e.target.closest('.s5-pill');
+if (!btn) return;
+const key = btn.dataset.key;
+if (!key) return;
+toggle5S(key, btn);
+});
+render5S();
 }
 /* ===== Briefing / Checklist ===== */
 const BR_KEY = 'briefing_state_v1';
 
 function br_parseTimerText(txt){
-  // Acepta HH:MM:SS o MM:SS
-  const m = String(txt||'').trim().split(':').map(Number);
-  if (m.length === 3) return (m[0]*3600 + m[1]*60 + m[2])|0;
-  if (m.length === 2) return (m[0]*60 + m[1])|0;
-  return 0;
+// Acepta HH:MM:SS o MM:SS
+const m = String(txt||'').trim().split(':').map(Number);
+if (m.length === 3) return (m[0]*3600 + m[1]*60 + m[2])|0;
+if (m.length === 2) return (m[0]*60 + m[1])|0;
+return 0;
 }
 function br_fmtMMSS(sec){
-  sec = Math.max(0, Number(sec)||0);
-  const m = Math.floor(sec/60), s = sec%60;
-  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+sec = Math.max(0, Number(sec)||0);
+const m = Math.floor(sec/60), s = sec%60;
+return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 function br_todayISO(){
-  const d = new Date();
-  return d.toISOString().slice(0,10);
+const d = new Date();
+return d.toISOString().slice(0,10);
 }
 function br_load(){
-  try{ return JSON.parse(localStorage.getItem(BR_KEY) || 'null'); } catch{ return null; }
+try{ return JSON.parse(localStorage.getItem(BR_KEY) || 'null'); } catch{ return null; }
 }
 function br_save(state){
-  try{
-    localStorage.setItem(BR_KEY, JSON.stringify(state));
-    const hint = document.getElementById('briefing-save-hint');
-    if (hint){ hint.textContent = `Guardado local: ${new Date().toLocaleString('es-ES')}`; }
-  }catch{}
+try{
+localStorage.setItem(BR_KEY, JSON.stringify(state));
+const hint = document.getElementById('briefing-save-hint');
+if (hint){ hint.textContent = `Guardado local: ${new Date().toLocaleString('es-ES')}`; }
+}catch{}
 }
 function br_collect(){
-  const state = {
-    date_iso: document.getElementById('br-date').value || br_todayISO(),
-    shift: (document.querySelector('input[name="br-shift"]:checked')?.value)||'',
-    supervisor: document.getElementById('br-supervisor').value || '',
-    duration_sec: br_parseTimerText(document.getElementById('br-duration').value || '00:00'),
-    attendance_pct: Number(document.getElementById('br-attendance').value||'')||null,
-    sections: {}
-  };
-  document.querySelectorAll('#briefing-sections .br-section').forEach(sec=>{
-    const key = sec.dataset.key;
-    const status = sec.querySelector('.br-status input:checked')?.value || '';
-    const notes = sec.querySelector('[data-notes]')?.value || '';
-    const criteria = {};
-    sec.querySelectorAll('.br-criteria [data-c]').forEach(chk=>{
-      criteria[chk.dataset.c] = !!chk.checked;
-    });
-    state.sections[key] = { status, criteria, notes };
-  });
-  // cálculo
-  state.ok_blocks = ['s1','s2','s3','s4','s5','s6'].reduce((acc,k)=> acc + (state.sections[k]?.status==='OK' ? 1:0), 0);
-  state.coverage_pct = Math.round((state.ok_blocks/6)*100);
-  state.standard_met = (state.coverage_pct >= 95) && (state.duration_sec <= 600);
-  return state;
+const state = {
+date_iso: document.getElementById('br-date').value || br_todayISO(),
+shift: (document.querySelector('input[name="br-shift"]:checked')?.value)||'',
+supervisor: document.getElementById('br-supervisor').value || '',
+duration_sec: br_parseTimerText(document.getElementById('br-duration').value || '00:00'),
+attendance_pct: Number(document.getElementById('br-attendance').value||'')||null,
+sections: {}
+};
+document.querySelectorAll('#briefing-sections .br-section').forEach(sec=>{
+const key = sec.dataset.key;
+const status = sec.querySelector('.br-status input:checked')?.value || '';
+const notes = sec.querySelector('[data-notes]')?.value || '';
+const criteria = {};
+sec.querySelectorAll('.br-criteria [data-c]').forEach(chk=>{
+criteria[chk.dataset.c] = !!chk.checked;
+});
+state.sections[key] = { status, criteria, notes };
+});
+// cálculo
+state.ok_blocks = ['s1','s2','s3','s4','s5','s6'].reduce((acc,k)=> acc + (state.sections[k]?.status==='OK' ? 1:0), 0);
+state.coverage_pct = Math.round((state.ok_blocks/6)*100);
+state.standard_met = (state.coverage_pct >= 95) && (state.duration_sec <= 600);
+return state;
 }
 function br_render(state){
-  if (!state) return;
-  document.getElementById('br-date').value = state.date_iso || br_todayISO();
-  ['06:00','14:00','22:00'].forEach(v=>{
-    const el = document.querySelector(`input[name="br-shift"][value="${v}"]`);
-    if (el) el.checked = (state.shift === v);
-  });
-  document.getElementById('br-supervisor').value = state.supervisor || '';
-  document.getElementById('br-duration').value = br_fmtMMSS(state.duration_sec||0);
-  document.getElementById('br-attendance').value = (state.attendance_pct ?? '');
+if (!state) return;
+document.getElementById('br-date').value = state.date_iso || br_todayISO();
+['06:00','14:00','22:00'].forEach(v=>{
+const el = document.querySelector(`input[name="br-shift"][value="${v}"]`);
+if (el) el.checked = (state.shift === v);
+});
+document.getElementById('br-supervisor').value = state.supervisor || '';
+document.getElementById('br-duration').value = br_fmtMMSS(state.duration_sec||0);
+document.getElementById('br-attendance').value = (state.attendance_pct ?? '');
 
-  Object.entries(state.sections || {}).forEach(([key, sec])=>{
-    const host = document.querySelector(`#briefing-sections .br-section[data-key="${key}"]`);
-    if (!host) return;
-    if (sec.status){
-      const radio = host.querySelector(`.br-status input[value="${sec.status}"]`);
-      if (radio) radio.checked = true;
-    }
-    host.querySelectorAll('.br-status .opt').forEach(l=>{
-      const val = l.getAttribute('data-v');
-      l.classList.toggle('on', val === sec.status);
-    });
-    Object.entries(sec.criteria || {}).forEach(([ck, val])=>{
-      const chk = host.querySelector(`.br-criteria [data-c="${ck}"]`);
-      if (chk) chk.checked = !!val;
-    });
-    const notes = host.querySelector('[data-notes]');
-    if (notes) notes.value = sec.notes || '';
-  });
+Object.entries(state.sections || {}).forEach(([key, sec])=>{
+const host = document.querySelector(`#briefing-sections .br-section[data-key="${key}"]`);
+if (!host) return;
+if (sec.status){
+const radio = host.querySelector(`.br-status input[value="${sec.status}"]`);
+if (radio) radio.checked = true;
+}
+host.querySelectorAll('.br-status .opt').forEach(l=>{
+const val = l.getAttribute('data-v');
+l.classList.toggle('on', val === sec.status);
+});
+Object.entries(sec.criteria || {}).forEach(([ck, val])=>{
+const chk = host.querySelector(`.br-criteria [data-c="${ck}"]`);
+if (chk) chk.checked = !!val;
+});
+const notes = host.querySelector('[data-notes]');
+if (notes) notes.value = sec.notes || '';
+});
 
-  document.getElementById('br-ok').textContent = state.ok_blocks ?? 0;
-  document.getElementById('br-cov').textContent = `${state.coverage_pct ?? 0}%`;
-  document.getElementById('br-std').textContent = (state.standard_met ? 'Sí' : 'No');
+document.getElementById('br-ok').textContent = state.ok_blocks ?? 0;
+document.getElementById('br-cov').textContent = `${state.coverage_pct ?? 0}%`;
+document.getElementById('br-std').textContent = (state.standard_met ? 'Sí' : 'No');
 }
 function br_applyRosterHint(roster){
-  const hint = document.getElementById('br-roster-hint');
-  if (!hint) return;
-  const count = Array.isArray(roster?.people) ? roster.people.length : 0;
-  const shift = roster?.shift || '';
-  if (count){ hint.textContent = `Roster actual: ${count} personas • Turno: ${shift}`; }
-  else { hint.textContent = 'Roster no disponible.'; }
-  // Preselección de turno según ventana
-  const w = roster?.window;
-  const from = w?.from;
-  if (from && ['06:00','14:00','22:00'].includes(from)){
-    const el = document.querySelector(`input[name="br-shift"][value="${from}"]`);
-    if (el) el.checked = true;
-  }
+const hint = document.getElementById('br-roster-hint');
+if (!hint) return;
+const count = Array.isArray(roster?.people) ? roster.people.length : 0;
+const shift = roster?.shift || '';
+if (count){ hint.textContent = `Roster actual: ${count} personas • Turno: ${shift}`; }
+else { hint.textContent = 'Roster no disponible.'; }
+// Preselección de turno según ventana
+const w = roster?.window;
+const from = w?.from;
+if (from && ['06:00','14:00','22:00'].includes(from)){
+const el = document.querySelector(`input[name="br-shift"][value="${from}"]`);
+if (el) el.checked = true;
+}
 }
 async function br_fetchRoster(){
-  try{
-    const r = await fetch('/api/roster/current',{cache:'no-store'});
-    if (!r.ok) return;
-    const data = await r.json();
-    br_applyRosterHint(data);
-  }catch{}
+try{
+const r = await fetch('/api/roster/current',{cache:'no-store'});
+if (!r.ok) return;
+const data = await r.json();
+br_applyRosterHint(data);
+}catch{}
 }
 
 async function br_saveToServer(){
-  const state = br_collect();
-  br_save(state);
-  try{
-    const r = await fetch('/api/briefing', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(state) });
-    if (r.ok){
-      const hint = document.getElementById('briefing-save-hint');
-      hint.textContent = `Guardado en servidor: ${new Date().toLocaleString('es-ES')}`;
-    }
-  }catch{}
+const state = br_collect();
+br_save(state);
+try{
+const r = await fetch('/api/briefing', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(state) });
+if (r.ok){
+const hint = document.getElementById('briefing-save-hint');
+hint.textContent = `Guardado en servidor: ${new Date().toLocaleString('es-ES')}`;
+}
+}catch{}
 }
 
 function initBriefing(){
-  // Si esta vista solo tiene el checklist compacto, salimos y evitamos errores
-  if (!document.getElementById('br-date')) return;// eventos
-  // status chips
-  document.querySelectorAll('#briefing-sections .br-status .opt').forEach(lbl=>{
-    lbl.addEventListener('click', ()=>{
-      const val = lbl.getAttribute('data-v');
-      const host = lbl.closest('.br-section');
-      const radio = host?.querySelector(`.br-status input[value="${val}"]`);
-      if (radio){ radio.checked = true; }
-      host?.querySelectorAll('.br-status .opt').forEach(l=> l.classList.toggle('on', l === lbl));
-      br_render(br_collect()); br_save(br_collect());
-    });
-  });
-  // inputs que recalculan
-  ['br-date','br-supervisor','br-duration','br-attendance'].forEach(id=>{
-    const el = document.getElementById(id);
-    el?.addEventListener('input', ()=>{ br_render(br_collect()); br_save(br_collect()); });
-  });
-  document.querySelectorAll('#briefing-sections input, #briefing-sections textarea').forEach(el=>{
-    el.addEventListener('input', ()=>{ br_render(br_collect()); br_save(br_collect()); });
-    el.addEventListener('change', ()=>{ br_render(br_collect()); br_save(br_collect()); });
-  });
+// Si esta vista solo tiene el checklist compacto, salimos y evitamos errores
+if (!document.getElementById('br-date')) return;// eventos
+// status chips
+document.querySelectorAll('#briefing-sections .br-status .opt').forEach(lbl=>{
+lbl.addEventListener('click', ()=>{
+const val = lbl.getAttribute('data-v');
+const host = lbl.closest('.br-section');
+const radio = host?.querySelector(`.br-status input[value="${val}"]`);
+if (radio){ radio.checked = true; }
+host?.querySelectorAll('.br-status .opt').forEach(l=> l.classList.toggle('on', l === lbl));
+br_render(br_collect()); br_save(br_collect());
+});
+});
+// inputs que recalculan
+['br-date','br-supervisor','br-duration','br-attendance'].forEach(id=>{
+const el = document.getElementById(id);
+el?.addEventListener('input', ()=>{ br_render(br_collect()); br_save(br_collect()); });
+});
+document.querySelectorAll('#briefing-sections input, #briefing-sections textarea').forEach(el=>{
+el.addEventListener('input', ()=>{ br_render(br_collect()); br_save(br_collect()); });
+el.addEventListener('change', ()=>{ br_render(br_collect()); br_save(br_collect()); });
+});
 
-  // copiar del cronómetro
-  document.getElementById('br-copy-timer')?.addEventListener('click', ()=>{
-    const t = document.getElementById('timer-display')?.textContent || '00:00:00';
-    const sec = br_parseTimerText(t);
-    document.getElementById('br-duration').value = br_fmtMMSS(sec);
-    br_render(br_collect()); br_save(br_collect());
-  });
+// copiar del cronómetro
+document.getElementById('br-copy-timer')?.addEventListener('click', ()=>{
+const t = document.getElementById('timer-display')?.textContent || '00:00:00';
+const sec = br_parseTimerText(t);
+document.getElementById('br-duration').value = br_fmtMMSS(sec);
+br_render(br_collect()); br_save(br_collect());
+});
 
-  // guardar servidor / imprimir
-  document.getElementById('br-save')?.addEventListener('click', br_saveToServer);
-  document.getElementById('br-print')?.addEventListener('click', ()=> window.print());
+// guardar servidor / imprimir
+document.getElementById('br-save')?.addEventListener('click', br_saveToServer);
+document.getElementById('br-print')?.addEventListener('click', ()=> window.print());
 
-  // primer estado
-  const state = br_load() || { date_iso: br_todayISO(), shift:'', supervisor:'', duration_sec:0, attendance_pct:null, sections:{} , ok_blocks:0, coverage_pct:0, standard_met:false };
-  br_render(state);
-  br_fetchRoster();
+// primer estado
+const state = br_load() || { date_iso: br_todayISO(), shift:'', supervisor:'', duration_sec:0, attendance_pct:null, sections:{} , ok_blocks:0, coverage_pct:0, standard_met:false };
+br_render(state);
+br_fetchRoster();
 }
 
 (function(){
-  const host=document.getElementById('brief-check'); if(!host) return;
-  const meta=host.querySelector('#brief-check-meta');
-  const KEY='brief_check_v1';
+const host=document.getElementById('brief-check'); if(!host) return;
+const meta=host.querySelector('#brief-check-meta');
+const KEY='brief_check_v1';
 
-  function save(){
-    const data={};
-    host.querySelectorAll('.check-actions input:checked').forEach(i=>data[i.name]=i.value);
-    try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch{}
-  }
-  function load(){
-    try{
-      const data=JSON.parse(localStorage.getItem(KEY)||'{}');
-      Object.entries(data).forEach(([n,v])=>{
-        const el=host.querySelector(`input[name="${n}"][value="${v}"]`);
-        if(el) el.checked=true;
-      });
-    }catch{}
-  }
-  function recalc(){
-    const groups=[...new Set([...host.querySelectorAll('.check-actions input')].map(i=>i.name))];
-    const ok=groups.filter(n=>{
-      const sel=host.querySelector(`input[name="${n}"]:checked`);
-      return sel && sel.value==='OK';
-    }).length;
-    if(meta) meta.textContent=`Bloques OK: ${ok} / ${groups.length} · Cobertura: ${groups.length?Math.round(ok/groups.length*100):0}%`;
-  }
+function save(){
+const data={};
+host.querySelectorAll('.check-actions input:checked').forEach(i=>data[i.name]=i.value);
+try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch{}
+}
+function load(){
+try{
+const data=JSON.parse(localStorage.getItem(KEY)||'{}');
+Object.entries(data).forEach(([n,v])=>{
+const el=host.querySelector(`input[name="${n}"][value="${v}"]`);
+if(el) el.checked=true;
+});
+}catch{}
+}
+function recalc(){
+const groups=[...new Set([...host.querySelectorAll('.check-actions input')].map(i=>i.name))];
+const ok=groups.filter(n=>{
+const sel=host.querySelector(`input[name="${n}"]:checked`);
+return sel && sel.value==='OK';
+}).length;
+if(meta) meta.textContent=`Bloques OK: ${ok} / ${groups.length} · Cobertura: ${groups.length?Math.round(ok/groups.length*100):0}%`;
+}
 
-  function bump(){            // ← NUEVO: centraliza el refresco
-    save(); recalc();
-    updateSpotlightRouting?.();  // ← NUEVO: recalcula el parpadeo
-  }
+function bump(){            // ← NUEVO: centraliza el refresco
+save(); recalc();
+updateSpotlightRouting?.();  // ← NUEVO: recalcula el parpadeo
+}
 
-  load(); 
-  recalc();
-  updateSpotlightRouting?.();    // ← NUEVO: al iniciar, ajusta el foco
+load(); 
+recalc();
+updateSpotlightRouting?.();    // ← NUEVO: al iniciar, ajusta el foco
 
-  host.addEventListener('change', e=>{
-    if(e.target.matches('.check-actions input')) bump();
-  });
-  host.addEventListener('input', e=>{          // ← NUEVO: por si ‘change’ no dispara en iOS/Safari
-    if(e.target.matches('.check-actions input')) bump();
-  });
+host.addEventListener('change', e=>{
+if(e.target.matches('.check-actions input')) bump();
+});
+host.addEventListener('input', e=>{          // ← NUEVO: por si ‘change’ no dispara en iOS/Safari
+if(e.target.matches('.check-actions input')) bump();
+});
 })();
 
 
 /* ===== Fecha/Hora y Turno automático ===== */
 function computeShift(d=new Date()){
-  const m = d.getHours()*60 + d.getMinutes();
-  // Mañana 06:00–14:00, Tarde 14:00–22:00, Noche 22:00–06:00
-  if (m >= 360 && m < 840)   return { name:'Mañana', from:'06:00', to:'14:00' };
-  if (m >= 840 && m < 1320)  return { name:'Tarde',  from:'14:00', to:'22:00' };
-  return { name:'Noche', from:'22:00', to:'06:00' };
+const m = d.getHours()*60 + d.getMinutes();
+// Mañana 06:00–14:00, Tarde 14:00–22:00, Noche 22:00–06:00
+if (m >= 360 && m < 840)   return { name:'Mañana', from:'06:00', to:'14:00' };
+if (m >= 840 && m < 1320)  return { name:'Tarde',  from:'14:00', to:'22:00' };
+return { name:'Noche', from:'22:00', to:'06:00' };
 }
 
 /* ===== Reset checklist al cambiar de turno ===== */
 const SHIFT_NAME_KEY = 'shift_name_v1';
 
 function resetBriefChecklistTo(val='NO'){
-  const host = document.getElementById('brief-check');
-  if (!host) return;
+const host = document.getElementById('brief-check');
+if (!host) return;
 
-  // Detecta los grupos (c1..c6) y marca el valor indicado
-  const groups = [...new Set([...host.querySelectorAll('.check-actions input')].map(i=>i.name))];
-  groups.forEach(n=>{
-    const target = host.querySelector(`input[name="${n}"][value="${val}"]`);
-    if (target){
-      target.checked = true;
-      // Dispara 'change' para que se guarde y refresque meta/spotlight
-      target.dispatchEvent(new Event('change', { bubbles:true }));
-    }
-  });
+// Detecta los grupos (c1..c6) y marca el valor indicado
+const groups = [...new Set([...host.querySelectorAll('.check-actions input')].map(i=>i.name))];
+groups.forEach(n=>{
+const target = host.querySelector(`input[name="${n}"][value="${val}"]`);
+if (target){
+target.checked = true;
+// Dispara 'change' para que se guarde y refresque meta/spotlight
+target.dispatchEvent(new Event('change', { bubbles:true }));
+}
+});
 
-  // Persistencia rápida (opcional, por si el listener no estuviera)
-  try{
-    const data = Object.fromEntries(groups.map(n => [n, val]));
-    localStorage.setItem('brief_check_v1', JSON.stringify(data));
-  }catch{}
+// Persistencia rápida (opcional, por si el listener no estuviera)
+try{
+const data = Object.fromEntries(groups.map(n => [n, val]));
+localStorage.setItem('brief_check_v1', JSON.stringify(data));
+}catch{}
 
-  // Recalcula el foco de parpadeo
-  updateSpotlightRouting?.();
+// Recalcula el foco de parpadeo
+updateSpotlightRouting?.();
 }
 
 function paintDateTimeAndShift(){
-  const now = new Date();
-  const dt = now.toLocaleString('es-ES', {
-    weekday:'long', day:'2-digit', month:'long', year:'numeric',
-    hour:'2-digit', minute:'2-digit'
-  });
-  const headEl = document.getElementById('now-header');
-  if (headEl) headEl.textContent = dt;
+const now = new Date();
+const dt = now.toLocaleString('es-ES', {
+weekday:'long', day:'2-digit', month:'long', year:'numeric',
+hour:'2-digit', minute:'2-digit'
+});
+const headEl = document.getElementById('now-header');
+if (headEl) headEl.textContent = dt;
 
-  const shift = computeShift(now);
-  const badge = document.getElementById('shift-badge');
-  if (badge){
-    badge.textContent = `Turno: ${shift.name} (${shift.from}–${shift.to})`;
-    badge.setAttribute('data-shift', shift.name);   // ← para colorear el chip
-  }
+const shift = computeShift(now);
+const badge = document.getElementById('shift-badge');
+if (badge){
+badge.textContent = `Turno: ${shift.name} (${shift.from}–${shift.to})`;
+badge.setAttribute('data-shift', shift.name);   // ← para colorear el chip
+}
 }
 
 
 function initDateTimeAndShift(){
-  // pinta ya
-  paintDateTimeAndShift();
-  // sincroniza al siguiente minuto y luego cada minuto
-  const now = new Date();
-  const msToNextMin = (60 - now.getSeconds())*1000 - now.getMilliseconds();
-  setTimeout(()=>{ paintDateTimeAndShift(); setInterval(paintDateTimeAndShift, 60000); }, Math.max(0, msToNextMin));
+// pinta ya
+paintDateTimeAndShift();
+// sincroniza al siguiente minuto y luego cada minuto
+const now = new Date();
+const msToNextMin = (60 - now.getSeconds())*1000 - now.getMilliseconds();
+setTimeout(()=>{ paintDateTimeAndShift(); setInterval(paintDateTimeAndShift, 60000); }, Math.max(0, msToNextMin));
 }
 
 /* ===== Unión Checklist → Widgets (spotlight) ===== */
 function rosterComplete(){
-  const total = (TEAM_STATE?.people || []).length;
-  if (!total) return false;
-  const att = TEAM_STATE?.attendance || {};
-  // Completo cuando cada persona tiene true/false (no undefined)
-  return TEAM_STATE.people.every(p => {
-    const k = p.nombre_completo || '—';
-    return att[k] === true || att[k] === false;
-  });
+const total = (TEAM_STATE?.people || []).length;
+if (!total) return false;
+const att = TEAM_STATE?.attendance || {};
+// Completo cuando cada persona tiene true/false (no undefined)
+return TEAM_STATE.people.every(p => {
+const k = p.nombre_completo || '—';
+return att[k] === true || att[k] === false;
+});
 }
 
 function readC(name){
-  const sel = document.querySelector(`#brief-check input[name="${name}"]:checked`);
-  return sel ? sel.value : null;
+const sel = document.querySelector(`#brief-check input[name="${name}"]:checked`);
+return sel ? sel.value : null;
 }
 function setSpotlight(ids){
-  const ALL = [
-    'team-widget',
-    'prev-shift-widget',
-    'planif-widget',
-    'rotativas-widget',   // 5S & GW
-    'incidentes-widget',
-    'kanban-widget'
-  ];
-  ALL.forEach(id=>{
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.classList.toggle('spotlight-blink', ids.includes(id));
-  });
+const ALL = [
+'team-widget',
+'prev-shift-widget',
+'planif-widget',
+'rotativas-widget',   // 5S & GW
+'incidentes-widget',
+'kanban-widget'
+];
+ALL.forEach(id=>{
+const el = document.getElementById(id);
+if (!el) return;
+el.classList.toggle('spotlight-blink', ids.includes(id));
+});
 }
 function updateSpotlightRouting(){
-  // Paso 0: completar Equipo / Turno
-  if (!rosterComplete()) return setSpotlight(['team-widget']);
+// Paso 0: completar Equipo / Turno
+if (!rosterComplete()) return setSpotlight(['team-widget']);
 
-  // Luego avanza según checklist 1→6
-  if (readC('c1') !== 'OK') return setSpotlight(['prev-shift-widget']);   // Highlights
-  if (readC('c2') !== 'OK') return setSpotlight(['planif-widget']);       // Actualizaciones operativas
-  if (readC('c3') !== 'OK') return setSpotlight(['team-widget']);         // Dotación y recursos
-  if (readC('c4') !== 'OK') return setSpotlight(['rotativas-widget']);    // Seguridad y protección
-  if (readC('c5') !== 'OK') return setSpotlight(['incidentes-widget']);   // Prep/reportes incidentes
-  if (readC('c6') !== 'OK') return setSpotlight(['kanban-widget']);       // Feedback → Acciones
+// Luego avanza según checklist 1→6
+if (readC('c1') !== 'OK') return setSpotlight(['prev-shift-widget']);   // Highlights
+if (readC('c2') !== 'OK') return setSpotlight(['planif-widget']);       // Actualizaciones operativas
+if (readC('c3') !== 'OK') return setSpotlight(['team-widget']);         // Dotación y recursos
+if (readC('c4') !== 'OK') return setSpotlight(['rotativas-widget']);    // Seguridad y protección
+if (readC('c5') !== 'OK') return setSpotlight(['incidentes-widget']);   // Prep/reportes incidentes
+if (readC('c6') !== 'OK') return setSpotlight(['kanban-widget']);       // Feedback → Acciones
 
-  // Todo OK → sin parpadeo
-  setSpotlight([]);
+// Todo OK → sin parpadeo
+setSpotlight([]);
 }
 window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
 
-    /* Init */
-    document.addEventListener('DOMContentLoaded', ()=>{
-  console.log('Inicializando dashboard...');
+/* Init */
+document.addEventListener('DOMContentLoaded', ()=>{
+console.log('Inicializando dashboard...');
 
-  try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/Hora:', e); }
-  try{ initHeaderTimer(); }catch(e){ console.error('Timer:', e); }  // AÑADIR ESTA LÍNEA
+try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/Hora:', e); }
+try{ initHeaderTimer(); }catch(e){ console.error('Timer:', e); }  // AÑADIR ESTA LÍNEA
 
-  setupEventListeners();
-  makeColumnsSortable();
-  hydrateKpiTotalCost();
+setupEventListeners();
+makeColumnsSortable();
+hydrateKpiTotalCost();
   loadAllTasks();
-  fetchInitialData();
-  loadPlanifTable();
-  loadIncidentes();
-  connectWebSocket();
-  initTeamRoster();
-  initEhsSimple();
-  initFullscreenToggles();
-  init5S();
+fetchInitialData();
+loadPlanifTable();
+loadIncidentes();
+connectWebSocket();
+initTeamRoster();
+initEhsSimple();
+initFullscreenToggles();
+init5S();
 
-  try{ initBriefing(); }catch(e){ console.error('initBriefing:', e); }
-  updateSpotlightRouting?.();
+try{ initBriefing(); }catch(e){ console.error('initBriefing:', e); }
+updateSpotlightRouting?.();
 
-  console.log('Dashboard inicializado correctamente');
+console.log('Dashboard inicializado correctamente');
 });
 
 
 (function boot(){
-  // Llamadas de inicio
-  try { window.initHeaderTimer?.(); } catch(e){}
-  hydrateKpiTotalCost();
-  initFullscreenToggles();
+// Llamadas de inicio
+try { window.initHeaderTimer?.(); } catch(e){}
+hydrateKpiTotalCost();
+initFullscreenToggles();
 
-  // Conexión WS
-  const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(`${wsProto}//${location.host}/ws`);
+// Conexión WS
+const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const ws = new WebSocket(`${wsProto}//${location.host}/ws`);
 
-  ws.addEventListener('open', () => {
-    console.log('WS abierto');
-  });
+ws.addEventListener('open', () => {
+console.log('WS abierto');
+});
 
-  ws.addEventListener('message', async (ev) => {
-    let msg;
-    try { msg = JSON.parse(ev.data); } catch { return; }
+ws.addEventListener('message', async (ev) => {
+let msg;
+try { msg = JSON.parse(ev.data); } catch { return; }
 
-    // 1) KPI PowerBI
-    if (msg.type === 'kpi_update' && msg.metric === 'Total Cost') {
-      // Guarda y pinta
-      try { localStorage.setItem('kpi_total_cost', JSON.stringify({ value: msg.value, timestamp: msg.timestamp })); } catch {}
-      updateKpiTotalCost(msg.value, msg.timestamp);
-      return;
-    }
+// 1) KPI PowerBI
+if (msg.type === 'kpi_update' && msg.metric === 'Total Cost') {
+// Guarda y pinta
+try { localStorage.setItem('kpi_total_cost', JSON.stringify({ value: msg.value, timestamp: msg.timestamp })); } catch {}
+updateKpiTotalCost(msg.value, msg.timestamp);
+return;
+}
 
-    // 2) Ping de tablas → rehidrata desde API REST
-    if (msg.type === 'table_state' || msg.type === 'table_ping') {
-      if (msg.table === 'external') {
-        try {
-          const res = await fetch('/api/external-table');
-          const tbl = await res.json();
-          renderPlanifTable(tbl);
-        } catch(e){}
-        return;
-      }
-      if (msg.table === 'incidents') {
-        try {
-          const res = await fetch('/api/incidents-table');
-          const tbl = await res.json();
-          renderIncidentesTable(tbl);
-        } catch(e){}
-        return;
-      }
-    }
+// 2) Ping de tablas → rehidrata desde API REST
+if (msg.type === 'table_state' || msg.type === 'table_ping') {
+if (msg.table === 'external') {
+try {
+const res = await fetch('/api/external-table');
+const tbl = await res.json();
+renderPlanifTable(tbl);
+} catch(e){}
+return;
+}
+if (msg.table === 'incidents') {
+try {
+const res = await fetch('/api/incidents-table');
+const tbl = await res.json();
+renderIncidentesTable(tbl);
+} catch(e){}
+return;
+}
+}
 
-    // 3) Roster actualizado
-    if (msg.type === 'roster_update') {
-      renderRoster(msg);
-      return;
-    }
+// 3) Roster actualizado
+if (msg.type === 'roster_update') {
+renderRoster(msg);
+return;
+}
 
-    // 4) Tareas (kanban/kaizen/gw)
-    if (msg.task_type) {
-      upsertTaskCard(msg);
-      return;
-    }
-  });
+// 4) Tareas (kanban/kaizen/gw)
+if (msg.task_type) {
+upsertTaskCard(msg);
+return;
+}
+});
 
-  // Renderers mínimos (adapta a tu UI real)
-  function renderPlanifTable(tbl){
-    const el = document.getElementById('planif-table');
-    const meta = document.getElementById('planif-meta');
-    if (!el) return;
-    const cols = tbl.columns || [];
-    const rows = tbl.rows || [];
-    meta.textContent = rows.length ? `Filas: ${rows.length}` : 'Sin datos';
-    el.innerHTML = rows.length
-      ? `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
-         <tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`
-      : '';
-  }
+// Renderers mínimos (adapta a tu UI real)
+function renderPlanifTable(tbl){
+const el = document.getElementById('planif-table');
+const meta = document.getElementById('planif-meta');
+if (!el) return;
+const cols = tbl.columns || [];
+const rows = tbl.rows || [];
+meta.textContent = rows.length ? `Filas: ${rows.length}` : 'Sin datos';
+el.innerHTML = rows.length
+? `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`
+: '';
+}
 
-  function renderIncidentesTable(tbl){
-    const el = document.getElementById('incidentes-table');
-    const meta = document.getElementById('incidentes-meta');
-    if (!el) return;
-    const cols = tbl.columns || [];
-    const rows = tbl.rows || [];
-    meta.textContent = rows.length ? `Incidentes: ${rows.length}` : 'Sin datos';
-    el.innerHTML = rows.length
-      ? `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
-         <tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`
-      : '';
-  }
+function renderIncidentesTable(tbl){
+const el = document.getElementById('incidentes-table');
+const meta = document.getElementById('incidentes-meta');
+if (!el) return;
+const cols = tbl.columns || [];
+const rows = tbl.rows || [];
+meta.textContent = rows.length ? `Incidentes: ${rows.length}` : 'Sin datos';
+el.innerHTML = rows.length
+? `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`
+: '';
+}
 
-  function renderRoster(msg){
-    const list = document.getElementById('team-list');
-    const meta = document.getElementById('team-meta');
-    const badge = document.getElementById('shift-badge');
-    if (!list) return;
-    list.innerHTML = '';
-    (msg.people || []).forEach(p=>{
-      const div = document.createElement('div');
-      div.textContent = `${p.nombre_completo || (p.apellidos || '') + (p.nombre ? ', '+p.nombre : '')} · ${p.horario || ''}`;
-      list.appendChild(div);
-    });
-    meta.textContent = `${msg.sheet || '—'} · ${msg.sheet_date || ''} · ${msg.count||0} personas`;
-    if (badge){ badge.dataset.shift = msg.shift || ''; badge.textContent = msg.shift || '—'; }
-  }
+function renderRoster(msg){
+const list = document.getElementById('team-list');
+const meta = document.getElementById('team-meta');
+const badge = document.getElementById('shift-badge');
+if (!list) return;
+list.innerHTML = '';
+(msg.people || []).forEach(p=>{
+const div = document.createElement('div');
+div.textContent = `${p.nombre_completo || (p.apellidos || '') + (p.nombre ? ', '+p.nombre : '')} · ${p.horario || ''}`;
+list.appendChild(div);
+});
+meta.textContent = `${msg.sheet || '—'} · ${msg.sheet_date || ''} · ${msg.count||0} personas`;
+if (badge){ badge.dataset.shift = msg.shift || ''; badge.textContent = msg.shift || '—'; }
+}
 
-  function upsertTaskCard(task){
-    // Aquí mete la lógica que ya tengas para pintar en Kanban/Kaizen/GW
-    // De momento lo dejamos como log:
-    console.debug('Tarea recibida', task);
-  }
+function upsertTaskCard(task){
+// Aquí mete la lógica que ya tengas para pintar en Kanban/Kaizen/GW
+// De momento lo dejamos como log:
+console.debug('Tarea recibida', task);
+}
 })();
 
 
-  </script>
+</script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
 
