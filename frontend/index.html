@@ -829,6 +829,11 @@ html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 
 /* títulos que no “salten” por el scale del kanban */
 .card-title{ transform: none; }
+/* Placeholder visual para la nota del turno anterior */
+.editable-note[contenteditable="true"]:empty:before{
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+}
 
 </style>
 </head>
@@ -891,25 +896,7 @@ html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
   
 
 
-<div class="widget" id="prev-shift-widget">
-<h2 class="widget-title">Información Turno Anterior</h2>
-<div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
-aria-label="Escribe la información del turno anterior" spellcheck="true"
-style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
-data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
-<small class="kpi-text" id="prev-shift-saved-hint"></small>
-</div>
 
-<div class="widget" id="ehs-widget">
-<h2 class="widget-title">Días con incidentes</h2>
-<div class="ehs-month" id="ehs-month">—</div>
-<div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual"
-aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-<div class="ehs-big" id="ehs-days">0</div>
-<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
-</div>
-</div>
 </section>
 
 <!-- CENTRO: ACCIONES -->
@@ -1123,6 +1110,25 @@ RECORDAR: En caso de accidente…
 <div class="lean-status-item"><span>Dg Autocheck</span><span class="status-tag status-ok">OK</span></div>
 <div class="lean-status-item"><span>Uniwin</span><span class="status-tag status-ok">OK</span></div>
 <div class="lean-status-item"><span>Cs Mobile</span><span class="status-tag status-alert">Alerta</span></div>
+</div>
+  <div class="widget" id="prev-shift-widget">
+<h2 class="widget-title">Información Turno Anterior</h2>
+<div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
+aria-label="Escribe la información del turno anterior" spellcheck="true"
+style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
+data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
+<small class="kpi-text" id="prev-shift-saved-hint"></small>
+</div>
+
+<div class="widget" id="ehs-widget">
+<h2 class="widget-title">Días con incidentes</h2>
+<div class="ehs-month" id="ehs-month">—</div>
+<div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual"
+aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
+<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
+<div class="ehs-big" id="ehs-days">0</div>
+<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
+</div>
 </div>
 </div>
 </section>
@@ -2600,6 +2606,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
