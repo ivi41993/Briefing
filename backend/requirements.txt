@@ -5,3 +5,5 @@ python-dotenv>=1.0
 pandas>=2.0
 openpyxl>=3.1
 truststore>=0.8  # opcional, para EXT/ENA_VERIFY_MODE=TRUSTSTORE
+python-multipart>=0.0.9
+
