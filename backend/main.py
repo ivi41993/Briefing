@@ -3202,7 +3202,7 @@ from fastapi import Query
 @app.get("/api/tasks")
 async def list_tasks(
     task_type: Optional[str] = None,
-    station: Optional:str = None,
+    station: Optional[str] = None,
     fresh_only: bool = Query(False, description="Oculta datos si superan el TTL")
 ):
     # Si fresh_only y no hay actualización fresca, responde vacío (o lo que prefieras)
@@ -3508,6 +3508,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
