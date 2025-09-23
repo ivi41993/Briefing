@@ -2928,7 +2928,7 @@ async def sharepoint_bulk_update(payload: Dict[str, Any], x_api_key: Optional[st
             tasks_in_memory_store[tid] = merged
             processed.append(merged)
             global sp_last_update_ts
-                sp_last_update_ts = time.time()
+            sp_last_update_ts = time.time()
 
 
         except Exception as e:
@@ -3508,6 +3508,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
