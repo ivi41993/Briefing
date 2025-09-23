@@ -26,6 +26,11 @@ from pydantic import BaseModel, Field
 # Cargar variables de entorno INMEDIATAMENTE
 load_dotenv()
 
+# === Storage backend (file|memory) ===
+STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
+USE_DISK = (STORAGE_BACKEND != "memory")
+
+
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
 ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
@@ -157,6 +162,9 @@ from pathlib import Path
 TASKS_DB = os.getenv("TASKS_DB", "./data/tasks.json")
 
 def _atomic_write_json(path: str, data: list[dict]):
+    if not USE_DISK:
+        # No escribir a disco en modo memory
+        return
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tasks_", suffix=".json")
@@ -171,7 +179,55 @@ def _atomic_write_json(path: str, data: list[dict]):
         except Exception:
             pass
 
+def _atomic_write_json_any(path: str, data: Any):
+    if not USE_DISK:
+        return
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".data_", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        try:
+            if Path(tmp).exists():
+                os.remove(tmp)
+        except Exception:
+            pass
+
+def _atomic_append_json(path: str, item: dict):
+    if not USE_DISK:
+        # En memoria: simplemente añade al cache "último briefing"
+        global _last_briefing_cache
+        _last_briefing_cache = item
+        return
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    arr = []
+    if p.exists():
+        try:
+            with p.open("r", encoding="utf-8") as fh:
+                arr = json.load(fh) or []
+        except Exception:
+            arr = []
+    arr.append(item)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".brief_", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(arr, fh, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        try:
+            if Path(tmp).exists():
+                os.remove(tmp)
+        except Exception:
+            pass
+
+
 def save_tasks_to_disk():
+    if not USE_DISK:
+        return
     try:
         payload = [sanitize_task(t) for t in tasks_in_memory_store.values()]
         _atomic_write_json(TASKS_DB, payload)
@@ -180,6 +236,8 @@ def save_tasks_to_disk():
         print("⚠️ Error guardando tareas:", repr(e))
 
 def load_tasks_from_disk():
+    if not USE_DISK:
+        return
     try:
         p = Path(TASKS_DB)
         if not p.exists():
@@ -1697,6 +1755,8 @@ def _atomic_write_json(path: str, data: list[dict]):
 EXTERNAL_DB = os.getenv("EXTERNAL_DB", "./data/external_table.json")
 
 def load_external_from_disk():
+    if not USE_DISK:
+        return
     global latest_external_table
     try:
         p = Path(EXTERNAL_DB)
@@ -1713,6 +1773,8 @@ def load_external_from_disk():
         print("⚠️ Error leyendo EXTERNAL_DB:", repr(e))
 
 def save_external_to_disk():
+    if not USE_DISK:
+        return
     try:
         _atomic_write_json_any(EXTERNAL_DB, latest_external_table)
     except Exception as e:
@@ -1725,6 +1787,8 @@ def save_external_to_disk():
 INCIDENTS_DB = os.getenv("INCIDENTS_DB", "./data/incidents_table.json")
 
 def load_incidents_from_disk():
+    if not USE_DISK:
+        return
     global latest_incidents_table
     try:
         p = Path(INCIDENTS_DB)
@@ -1741,6 +1805,8 @@ def load_incidents_from_disk():
         print("⚠️ Error leyendo INCIDENTS_DB:", repr(e))
 
 def save_incidents_to_disk():
+    if not USE_DISK:
+        return
     try:
         _atomic_write_json_any(INCIDENTS_DB, latest_incidents_table)
     except Exception as e:
@@ -1774,7 +1840,11 @@ def _atomic_write_json_any(path: str, data: Any):
             pass
 
 def load_attendance_from_disk():
-    global attendance_store
+    if not USE_DISK:
+        # En memoria: inicializa vacío
+        global attendance_store
+        attendance_store = attendance_store or {}
+        return
     try:
         p = Path(ATTENDANCE_DB)
         if p.exists():
@@ -1789,6 +1859,8 @@ def load_attendance_from_disk():
         attendance_store = {}
 
 def save_attendance_to_disk():
+    if not USE_DISK:
+        return
     try:
         _atomic_write_json_any(ATTENDANCE_DB, attendance_store)
     except Exception as e:
@@ -2519,6 +2591,74 @@ app.add_middleware(
 )
 
 
+@app.get("/api/backup")
+def api_backup():
+    """
+    Devuelve un snapshot de todo lo 'persistente' en memoria.
+    Lo puedes descargar desde el front y guardarlo donde quieras (gratis).
+    """
+    return {
+        "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "tasks": list(tasks_in_memory_store.values()),
+        "attendance": attendance_store,
+        "external_table": latest_external_table,
+        "incidents_table": latest_incidents_table,
+        "last_briefing": _last_briefing_cache,
+        # añade aquí lo que quieras incluir
+    }
+
+@app.post("/api/restore")
+async def api_restore(payload: Dict[str, Any], x_api_key: Optional[str] = Header(None)):
+    """
+    Restaura desde un snapshot exportado por /api/backup.
+    Protegido opcionalmente por tu API_KEY si quieres.
+    """
+    # (opcional) seguridad
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+
+    # Tareas
+    tasks = payload.get("tasks") or []
+    if isinstance(tasks, list):
+        tasks_in_memory_store.clear()
+        for t in tasks:
+            t = sanitize_task(t)
+            if t.get("id"):
+                tasks_in_memory_store[t["id"]] = t
+        # broadcast opcional
+        for t in tasks_in_memory_store.values():
+            await manager.broadcast(t)
+
+    # Asistencia
+    global attendance_store
+    att = payload.get("attendance")
+    if isinstance(att, dict):
+        attendance_store = att
+
+    # Tablas
+    ext = payload.get("external_table")
+    if isinstance(ext, dict):
+        latest_external_table.update(ext)
+        latest_external_table["version"] = int(latest_external_table.get("version") or 0) + 1
+        await manager.broadcast({"type":"table_ping","table":"external","version":latest_external_table["version"],
+                                 "rows": len(latest_external_table.get("rows", [])),
+                                 "fetched_at": latest_external_table.get("fetched_at")})
+
+    inc = payload.get("incidents_table")
+    if isinstance(inc, dict):
+        latest_incidents_table.update(inc)
+        latest_incidents_table["version"] = int(latest_incidents_table.get("version") or 0) + 1
+        await manager.broadcast({"type":"table_ping","table":"incidents","version":latest_incidents_table["version"],
+                                 "rows": len(latest_incidents_table.get("rows", [])),
+                                 "fetched_at": latest_incidents_table.get("fetched_at")})
+
+    # Briefing
+    global _last_briefing_cache
+    lb = payload.get("last_briefing")
+    if isinstance(lb, dict):
+        _last_briefing_cache = lb
+
+    return {"status": "ok", "restored": True}
 
 # Endpoint opcional de estado para debug/monitorización
 @app.get("/api/external-status")
@@ -3328,6 +3468,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
