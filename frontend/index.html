@@ -879,6 +879,16 @@ html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 
 <div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
 </div>
+  <div class="widget" id="roster-upload-widget">
+  <h2 class="widget-title">Subir Excel (Planificación)</h2>
+  <form id="roster-upload-form" style="display:flex; gap:8px; align-items:center;">
+    <input type="file" id="roster-file" accept=".xlsx,.xls" required
+           style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+    <button class="btn-primary" type="submit">Subir</button>
+  </form>
+  <small id="roster-upload-result" class="kpi-text">—</small>
+</div>
+
 
 <div class="widget" id="prev-shift-widget">
 <h2 class="widget-title">Información Turno Anterior</h2>
@@ -1121,6 +1131,48 @@ RECORDAR: En caso de accidente…
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
+  (function initRosterUpload(){
+  const form   = document.getElementById('roster-upload-form');
+  const input  = document.getElementById('roster-file');
+  const status = document.getElementById('roster-upload-result');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const f = input.files?.[0];
+    if (!f) { status.textContent = 'Selecciona un .xlsx/.xls'; return; }
+
+    const fd = new FormData();
+    fd.append('file', f); // ⚠️ el campo se llama "file" (coincide con UploadFile)
+
+    status.textContent = 'Subiendo…';
+    try {
+      const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({detail: res.statusText}));
+        throw new Error(err.detail || 'Error al subir');
+      }
+      const data = await res.json();
+      // pinta feedback
+      status.textContent =
+        `OK: ${data.people_count} personas cargadas • Hoja: ${data.sheet_loaded || '—'} • Fecha hoja: ${data.sheet_date || '—'}`;
+
+      // refresca el estado visible de roster (si tienes un render específico):
+      try {
+        const r = await fetch('/api/roster/current');
+        const cur = await r.json();
+        // aquí llama a tu función de repintado si la tienes, p.ej. renderRoster(cur)
+        // renderRoster(cur);
+      } catch {}
+
+    } catch (err) {
+      status.textContent = `Error: ${err.message || err}`;
+    } finally {
+      input.value = '';
+    }
+  });
+})();
+
 // === Contexto de estación (MAD por defecto; puedes pasar ?station=MAD/BCN en la URL) ===
 const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
 const STATION_CODE =
@@ -2545,6 +2597,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
