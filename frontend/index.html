@@ -1133,7 +1133,8 @@ RECORDAR: En caso de accidente…
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
-  (function initRosterUpload(){
+  
+(function initRosterUpload(){
   const form   = document.getElementById('roster-upload-form');
   const input  = document.getElementById('roster-file');
   const status = document.getElementById('roster-upload-result');
@@ -1145,45 +1146,28 @@ RECORDAR: En caso de accidente…
     if (!f) { status.textContent = 'Selecciona un .xlsx/.xls'; return; }
 
     const fd = new FormData();
-    fd.append('file', f); // ⚠️ el campo se llama "file" (coincide con UploadFile)
+    fd.append('file', f); // debe llamarse "file"
 
     status.textContent = 'Subiendo…';
-    // dentro de initRosterUpload() → form.addEventListener('submit', async (e)=>{ ... })
-try {
-  const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
-  if (!res.ok) {
-    const err = await res.json().catch(()=>({detail: res.statusText}));
-    throw new Error(err.detail || 'Error al subir');
-  }
-  const data = await res.json();
-  status.textContent =
-    `OK: ${data.people_count} personas cargadas • Hoja: ${data.sheet_loaded || '—'} • Fecha hoja: ${data.sheet_date || '—'}`;
-
-  // ⬇️ REFRESCA LA TARJETA DE EQUIPO YA MISMO
-  const r   = await fetch('/api/roster/current', { cache:'no-store' });
-  const cur = await r.json();
-  const listEl = document.getElementById('team-list');
-  renderRoster(listEl, cur.people || [], cur);
-
-} catch (err) {
-  status.textContent = `Error: ${err.message || err}`;
-} finally {
-  input.value = '';
-}
-w Error(err.detail || 'Error al subir');
+    try {
+      const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({detail: res.statusText}));
+        throw new Error(err.detail || 'Error al subir');
       }
       const data = await res.json();
-      // pinta feedback
       status.textContent =
         `OK: ${data.people_count} personas cargadas • Hoja: ${data.sheet_loaded || '—'} • Fecha hoja: ${data.sheet_date || '—'}`;
 
-      // refresca el estado visible de roster (si tienes un render específico):
+      // refresca la tarjeta de equipo inmediatamente
       try {
-        const r = await fetch('/api/roster/current');
+        const r   = await fetch('/api/roster/current', { cache:'no-store' });
         const cur = await r.json();
-        // aquí llama a tu función de repintado si la tienes, p.ej. renderRoster(cur)
-        // renderRoster(cur);
-      } catch {}
+        const listEl = document.getElementById('team-list');
+        renderRoster(listEl, cur.people || [], cur);
+      } catch (e) {
+        console.warn('No se pudo refrescar roster tras subir:', e);
+      }
 
     } catch (err) {
       status.textContent = `Error: ${err.message || err}`;
@@ -1192,6 +1176,8 @@ w Error(err.detail || 'Error al subir');
     }
   });
 })();
+
+
 
 // === Contexto de estación (MAD por defecto; puedes pasar ?station=MAD/BCN en la URL) ===
 const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
@@ -2594,8 +2580,6 @@ setupEventListeners();
 makeColumnsSortable();
 hydrateKpiTotalCost();
 loadBoardsInitial();
-
-fetchInitialData();
 loadPlanifTable();
 loadIncidentes();
 connectWebSocket();
@@ -2617,6 +2601,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
