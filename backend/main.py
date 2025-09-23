@@ -41,6 +41,9 @@ SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domin
 
 
 
+# === SharePoint memory cache / TTL ===
+SP_TTL_SECONDS = int(os.getenv("SP_TTL_SECONDS", str(8*3600)))  # 8 horas por defecto
+sp_last_update_ts: float | None = None  # timestamp de última actualización válida
 
 
 
@@ -2924,6 +2927,9 @@ async def sharepoint_bulk_update(payload: Dict[str, Any], x_api_key: Optional[st
             
             tasks_in_memory_store[tid] = merged
             processed.append(merged)
+            global sp_last_update_ts
+                sp_last_update_ts = time.time()
+
 
         except Exception as e:
             error_msg = f"Error procesando elemento {i+1}: {str(e)}"
@@ -2982,6 +2988,29 @@ async def sharepoint_bulk_update(payload: Dict[str, Any], x_api_key: Optional[st
     print(f"   - Total en memoria: {len(tasks_in_memory_store)}")
 
     return response
+
+
+@app.get("/api/sharepoint/state")
+def api_sp_state():
+    age = None
+    if sp_last_update_ts:
+        age = int(time.time() - sp_last_update_ts)
+    return {
+        "in_memory": len(tasks_in_memory_store),
+        "last_update_age_sec": age,
+        "ttl_sec": SP_TTL_SECONDS,
+        "is_fresh": (age is not None and age <= SP_TTL_SECONDS)
+    }
+
+@app.delete("/api/sharepoint/clear", status_code=204)
+def api_sp_clear(x_api_key: Optional[str] = Header(None)):
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    tasks_in_memory_store.clear()
+    save_tasks_to_disk()  # no-op en memory
+    global sp_last_update_ts
+    sp_last_update_ts = None
+    return {}
 
 
 # NUEVO: Endpoint de diagnóstico para debugging
@@ -3171,15 +3200,26 @@ async def put_roster_presence(upd: PresenceUpdate):
 from fastapi import Query
 
 @app.get("/api/tasks")
-async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = None):
+async def list_tasks(
+    task_type: Optional[str] = None,
+    station: Optional:str = None,
+    fresh_only: bool = Query(False, description="Oculta datos si superan el TTL")
+):
+    # Si fresh_only y no hay actualización fresca, responde vacío (o lo que prefieras)
+    if fresh_only:
+        if not sp_last_update_ts:
+            return []
+        if (time.time() - sp_last_update_ts) > SP_TTL_SECONDS:
+            return []
+
     items = list(tasks_in_memory_store.values())
     if task_type:
         items = [t for t in items if t.get("task_type") == task_type]
     if station:
         items = [t for t in items if (t.get("station") or "").upper() == station.upper()]
-    # ordena por fecha creación descendente
     items.sort(key=lambda t: t.get("created_at",""), reverse=True)
     return items
+
 
 
 @app.post("/api/tasks", response_model=Task, status_code=201)
@@ -3468,6 +3508,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
