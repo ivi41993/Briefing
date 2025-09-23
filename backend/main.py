@@ -2610,6 +2610,94 @@ def api_backup():
         # añade aquí lo que quieras incluir
     }
 
+from fastapi import UploadFile, File
+
+@app.post("/api/roster/upload")
+async def upload_roster(file: UploadFile = File(...)):
+    # Validación simple de extensión
+    if not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="Solo se admite .xlsx/.xls")
+
+    target = Path(ROSTER_XLSX_PATH)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    # Backup del fichero anterior (si existía)
+    if target.exists():
+        backup = target.with_name(
+            target.stem + f".{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}" + target.suffix + ".bak"
+        )
+        try:
+            target.replace(backup)
+        except Exception:
+            pass  # si falla el backup, no bloqueamos la subida
+
+    # Guardar el nuevo
+    raw = await file.read()
+    with target.open("wb") as fh:
+        fh.write(raw)
+
+    # Forzar recarga inmediata del roster
+    roster_cache["file_mtime"] = None
+    await _build_roster_state(force=True)
+
+    return {
+        "ok": True,
+        "path": str(target),
+        "sheet_loaded": roster_cache.get("sheet"),
+        "people_count": len(roster_cache.get("people") or []),
+        "shift": roster_cache.get("shift"),
+        "sheet_date": roster_cache.get("sheet_date").isoformat() if roster_cache.get("sheet_date") else None,
+    }
+
+from fastapi import Query
+
+@app.get("/api/roster/by")
+def get_roster_by(
+    date_iso: str = Query(..., description="Fecha ISO YYYY-MM-DD"),
+    shift: str = Query(..., pattern="^(Mañana|Tarde|Noche)$")
+):
+    try:
+        d = datetime.fromisoformat(date_iso).date()
+    except Exception:
+        raise HTTPException(status_code=400, detail="date_iso inválida, usa YYYY-MM-DD")
+
+    sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, d)
+    if not sheet_real:
+        return {"sheet": None, "people": [], "sheet_date": d.isoformat(), "shift": shift}
+
+    people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift)
+    return {
+        "sheet": sheet_real,
+        "sheet_date": d.isoformat(),
+        "shift": shift,
+        "people": people,
+        "count": len(people),
+    }
+
+@app.get("/api/roster/needs-update")
+def roster_needs_update():
+    names = _list_sheet_names(ROSTER_XLSX_PATH)
+    if not names:
+        return {"has_file": False, "message": "No se encontró el Excel", "days_cover_remaining": None}
+
+    # Parsear fechas de nombres de hoja
+    ds = [ _parse_sheet_date(n) for n in names ]
+    ds = [ d for d in ds if d is not None ]
+    if not ds:
+        return {"has_file": True, "message": "No hay hojas con nombre de fecha DD-MM-AAAA", "days_cover_remaining": None}
+
+    last = max(ds)
+    today = date.today()
+    days_left = (last - today).days
+
+    return {
+        "has_file": True,
+        "last_sheet": last.isoformat(),
+        "days_cover_remaining": days_left,
+        "needs_new_upload": (days_left < 14),
+        "hint": "Sube un Excel con al menos 14 días por delante si 'needs_new_upload' es true."
+    }
+
 @app.post("/api/restore")
 async def api_restore(payload: Dict[str, Any], x_api_key: Optional[str] = Header(None)):
     """
@@ -3508,6 +3596,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
