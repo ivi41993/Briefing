@@ -64,96 +64,128 @@ SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domin
 
 
 
+import unicodedata
+
+def _norm_key(txt: str) -> str:
+    s = (txt or "").strip().lower()
+    # quita acentos/diacríticos
+    s = ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
+    # homogeneiza separadores
+    s = s.replace(',', '').replace(';','').replace(':','')
+    s = s.replace('\u00a0', ' ')  # NBSP → espacio normal
+    s = s.replace('  ', ' ').replace(' ', '')
+    return s
+
 def _normalize_cols(cols):
-    norm = {}
-    for c in cols:
-        k = c.strip().lower()
-        norm[k] = c
-    # devuelve los nombres reales (tal y como están en el excel)
+    # mapa normalizado -> nombre real de la hoja
+    norm = {_norm_key(c): c for c in cols}
+
     def pick(*cands):
         for cand in cands:
-            # Añadimos una limpieza extra para quitar comas y espacios extra
-            cand_clean = cand.replace(",", "").replace(" ", "")
-            for k in norm:
-                k_clean = k.replace(",", "").replace(" ", "")
-                if k_clean == cand_clean:
-                    return norm[k]
+            real = norm.get(_norm_key(cand))
+            if real:
+                return real
         return None
-   
+
     return {
         "apellidos": pick("apellidos","apellido","apellidos/s"),
-        "nombre": pick("nombre","nombree","nombres"),
-        # --- NUEVA LÍNEA ---
-        # Añadimos una clave para la columna combinada. Buscará "apellidos, nombre", "apellidos nombre", etc.
-        "apellidos, nombre": pick("apellidos, nombre", "apellidos nombre", "nombre completo"),
-        # --------------------
+        "nombre": pick("nombre","nombres"),
+        "apellidos, nombre": pick("apellidos, nombre","apellidos nombre","nombre completo"),
         "horario": pick("horario","turno","franja"),
-        "observaciones": pick("observaciones","observación","obs","observaciones "),
+        "observaciones": pick("observaciones","observacion","obs"),
+        # Por si más adelante quieres usarlo:
+        "nomina": pick("nomina","nómina"),
+        "contrato": pick("contrato"),
+        "formacion": pick("formacion","formación"),
+        "limitaciones": pick("limitaciones","limitacion"),
     }
+
 def _match_shift(horario: str, shift: str) -> bool:
-    s = (horario or "").lower()
+    s = (horario or "").strip().lower()
+    s = s.replace('mañana','manana')
+    # códigos sueltos muy típicos
+    if s in ('m','t','n'):
+        return (shift == 'Mañana' and s=='m') or (shift=='Tarde' and s=='t') or (shift=='Noche' and s=='n')
+
+    def starts_any(x: str, *pref): return any(x.startswith(p) for p in pref)
+
     if shift == "Mañana":
-        return ("mañana" in s) or ("manana" in s) or s.startswith(("06:", "07:", "08:", "09:", "10:", "11:", "12:", "13:"))
+        return ('manana' in s) or starts_any(s, "06:", "07:", "08:", "09:", "10:", "11:", "12:", "13:") or "06" in s and "14" in s
     if shift == "Tarde":
-        return ("tarde" in s) or s.startswith(("14:", "15:", "16:", "17:", "18:", "19:", "20:", "21:"))
+        return ('tarde' in s) or starts_any(s, "14:", "15:", "16:", "17:", "18:", "19:", "20:", "21:") or "14" in s and "22" in s
     if shift == "Noche":
-        return ("noche" in s) or s.startswith(("22:", "23:", "00:", "01:", "02:", "03:", "04:", "05:", "06:"))
+        return ('noche' in s) or starts_any(s, "22:", "23:", "00:", "01:", "02:", "03:", "04:", "05:", "06:") or "22" in s and "06" in s
     return True
+
 
 
 def _read_sheet_people(xlsx_path: str, sheet_name: str, shift: str) -> list[dict]:
     if not Path(xlsx_path).exists():
         return []
-    try:
-        df = pd.read_excel(xlsx_path, sheet_name=sheet_name, dtype=str, header=2)
-    except Exception as e:
-        print("⚠️ No se pudo leer hoja:", sheet_name, repr(e))
+    df = None
+    cols = None
+
+    # Prioriza header=2 (fila 3 de Excel), pero prueba 1 y 0 por si acaso
+    for hdr in (2, 1, 0):
+        try:
+            df_try = pd.read_excel(xlsx_path, sheet_name=sheet_name, dtype=str, header=hdr)
+            cols_try = _normalize_cols(list(df_try.columns))
+            if cols_try.get("horario") and (cols_try.get("apellidos, nombre") or (cols_try.get("apellidos") and cols_try.get("nombre"))):
+                df, cols = df_try, cols_try
+                break
+        except Exception as e:
+            print(f"⚠️ No se pudo leer hoja={sheet_name} header={hdr}: {e}")
+
+    if df is None:
+        print("⚠️ Hoja sin columnas esperadas:", sheet_name)
         return []
- 
-    cols = _normalize_cols(list(df.columns))
-   
-    req = ["apellidos, nombre", "horario"]
-    if any(cols[k] is None for k in req):
-        print("⚠️ Hoja sin columnas esperadas:", sheet_name, "→", df.columns.tolist())
-        return []
- 
-    full_name_col = cols["apellidos, nombre"]
-    ho_col = cols["horario"]
-    ob_col = cols["observaciones"] or ho_col
- 
+
+    full_name_col = cols.get("apellidos, nombre")
+    ap_col        = cols.get("apellidos")
+    no_col        = cols.get("nombre")
+    ho_col        = cols.get("horario")
+    ob_col        = cols.get("observaciones") or ho_col  # si no hay observaciones, no rompe
+
     people = []
     for _, row in df.iterrows():
-        full_name = str(row.get(full_name_col) or "").strip()
-        ho = str(row.get(ho_col) or "").strip()
- 
-        if not full_name or full_name.lower() == "nan":
+        # nombre completo
+        if full_name_col:
+            full_name = str(row.get(full_name_col) or "").strip()
+        else:
+            ap = str(row.get(ap_col) or "").strip()
+            no = str(row.get(no_col) or "").strip()
+            full_name = f"{ap}, {no}".strip(", ").strip()
+
+        ho = str(row.get(ho_col) or "").strip() if ho_col else ""
+        ob = str(row.get(ob_col) or "").strip()
+
+        # limpia "nan"
+        if full_name.lower() == "nan": full_name = ""
+        if ho.lower() == "nan": ho = ""
+        if ob.lower() == "nan": ob = ""
+
+        if not full_name:
             continue
         if not _match_shift(ho, shift):
             continue
- 
-        # --- CAMBIO FINAL Y CLAVE AQUÍ ---
-        # Leemos las observaciones y si el resultado es "nan", lo convertimos a texto vacío.
-        ob = str(row.get(ob_col) or "").strip()
-        if ob.lower() == 'nan':
-            ob = ""
-        # ------------------------------------
- 
-        ap, no = "", ""
+
+        ap_out, no_out = "", ""
         if "," in full_name:
-            parts = full_name.split(",", 1)
-            ap = parts[0].strip()
-            no = parts[1].strip()
+            ap_out, no_out = [p.strip() for p in full_name.split(",", 1)]
         else:
-            ap = full_name
-       
+            ap_out = full_name
+
         people.append({
-            "apellidos": ap,
-            "nombre": no,
+            "apellidos": ap_out,
+            "nombre": no_out,
             "nombre_completo": full_name,
             "horario": ho,
             "observaciones": ob,
         })
+
+    print(f"👥 Roster: {len(people)} personas tras filtrar por turno='{shift}' en hoja='{sheet_name}'")
     return people
+
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconnect, Request
@@ -3596,6 +3628,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
