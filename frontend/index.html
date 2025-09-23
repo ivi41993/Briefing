@@ -869,25 +869,27 @@ html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 <!-- IZQUIERDA: EQUIPO -->
 <section class="col-left">
 <div class="widget" id="team-widget">
-<h2 class="widget-title">Equipo / Turno</h2>
-<small class="kpi-text" id="team-meta">—</small>
+  <h2 class="widget-title">Equipo / Turno</h2>
+  <small class="kpi-text" id="team-meta">—</small>
 
-<form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
-<input type="text" id="team-name" placeholder="Añadir persona…" required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
-<button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
-</form>
+  <form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+    <input type="text" id="team-name" placeholder="Añadir persona…" required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
+    <button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
+  </form>
 
-<div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
-</div>
-  <div class="widget" id="roster-upload-widget">
-  <h2 class="widget-title">Subir Excel (Planificación)</h2>
-  <form id="roster-upload-form" style="display:flex; gap:8px; align-items:center;">
+  <!-- 👇 Subida de Excel ahora dentro de la tarjeta del equipo -->
+  <form id="roster-upload-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
     <input type="file" id="roster-file" accept=".xlsx,.xls" required
            style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
-    <button class="btn-primary" type="submit">Subir</button>
+    <button class="btn-primary" type="submit">Subir Excel</button>
   </form>
   <small id="roster-upload-result" class="kpi-text">—</small>
+  <!-- ☝️ mantiene los mismos IDs que usa tu JS -->
+
+  <div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
 </div>
+
+  
 
 
 <div class="widget" id="prev-shift-widget">
@@ -2597,6 +2599,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
