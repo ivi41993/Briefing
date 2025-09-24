@@ -460,7 +460,7 @@ filter: none;
 opacity: 1;
 }
 
-/* Bullets del título en Incidentes (Enablon) */
+/* Bullets del título en Incidentes */
 #incidentes-widget .title-bullets{
 list-style:none; margin:0; padding:0;
 display:flex; gap:8px; align-items:center; flex-wrap:wrap;
@@ -913,7 +913,6 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <span class="check-title">1) Highlights del turno anterior</span>
 <div class="check-actions" role="group" aria-label="Bloque 1">
 <input id="c1ok"  type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
-<input id="c1par" type="radio" name="c1" value="PAR"><label for="c1par">PAR</label>
 <input id="c1no"  type="radio" name="c1" value="NO"><label for="c1no">NO</label>
 </div>
 </div>
@@ -922,7 +921,6 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <span class="check-title">2) Actualizaciones operativas</span>
 <div class="check-actions" role="group" aria-label="Bloque 2">
 <input id="c2ok"  type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
-<input id="c2par" type="radio" name="c2" value="PAR"><label for="c2par">PAR</label>
 <input id="c2no"  type="radio" name="c2" value="NO"><label for="c2no">NO</label>
 </div>
 </div>
@@ -931,7 +929,6 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <span class="check-title">3) Dotación y recursos</span>
 <div class="check-actions" role="group" aria-label="Bloque 3">
 <input id="c3ok"  type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
-<input id="c3par" type="radio" name="c3" value="PAR"><label for="c3par">PAR</label>
 <input id="c3no"  type="radio" name="c3" value="NO"><label for="c3no">NO</label>
 </div>
 </div>
@@ -940,7 +937,6 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <span class="check-title">4) Seguridad y protección</span>
 <div class="check-actions" role="group" aria-label="Bloque 4">
 <input id="c4ok"  type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
-<input id="c4par" type="radio" name="c4" value="PAR"><label for="c4par">PAR</label>
 <input id="c4no"  type="radio" name="c4" value="NO"><label for="c4no">NO</label>
 </div>
 </div>
@@ -949,16 +945,22 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <span class="check-title">5) Preparación/reportes incidentes</span>
 <div class="check-actions" role="group" aria-label="Bloque 5">
 <input id="c5ok"  type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
-<input id="c5par" type="radio" name="c5" value="PAR"><label for="c5par">PAR</label>
 <input id="c5no"  type="radio" name="c5" value="NO"><label for="c5no">NO</label>
 </div>
 </div>
 
 <div class="check-card">
-<span class="check-title">6) Feedback → Acciones</span>
+<span class="check-title">6) Revisión Kpis</span>
 <div class="check-actions" role="group" aria-label="Bloque 6">
+<input id="c5ok"  type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
+<input id="c5no"  type="radio" name="c5" value="NO"><label for="c5no">NO</label>
+</div>
+</div>
+  
+<div class="check-card">
+<span class="check-title">7) Feedback → Acciones</span>
+<div class="check-actions" role="group" aria-label="Bloque 7">
 <input id="c6ok"  type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
-<input id="c6par" type="radio" name="c6" value="PAR"><label for="c6par">PAR</label>
 <input id="c6no"  type="radio" name="c6" value="NO"><label for="c6no">NO</label>
 </div>
 </div>
@@ -2609,6 +2611,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
