@@ -2649,12 +2649,204 @@ console.log('Dashboard inicializado correctamente');
 });
 
 
+// ===== WebSocket robusto (con pings y reconexión) =====
+(() => {
+  const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  let ws = null;
+  let wsTimer = null;          // ping setInterval
+  let reconnectTimer = null;   // backoff
+  let reconnectAttempts = 0;
+  const MAX_BACKOFF = 15000;   // 15s máx entre intentos
+  const PING_EVERY_MS = 25000; // 25s (mantiene vivo el socket en proxies/firewalls)
 
+  function log(...args){ try{ console.debug('[WS]', ...args); } catch{} }
+
+  function connectWS(){
+    try { ws && ws.close(1000); } catch(e){}
+    ws = new WebSocket(WS_URL);
+
+    ws.addEventListener('open', () => {
+      log('conectado');
+      reconnectAttempts = 0;
+      // ping periódico para que el servidor no cierre por inactividad
+      clearInterval(wsTimer);
+      wsTimer = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try { ws.send('ping'); } catch(e){}
+        }
+      }, PING_EVERY_MS);
+      // pide estado inicial (por si nos reconectamos)
+      try { ws.send('hello'); } catch(e){}
+    });
+
+    ws.addEventListener('message', (ev) => {
+      // —— aquí decides qué renderizar con los mensajes del backend ——
+      // Mantén tu switch existente; solo garantizamos que SIEMPRE llegan
+      // table_state / table_ping con datos reales cuando el backend los tenga.
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'table_ping' && msg.table === 'external') {
+          renderPlanifFromTablePing(msg); // define más abajo
+        } else if (msg.type === 'table_state' && msg.table === 'external') {
+          renderPlanifFromTableState(msg); // define más abajo
+        } else if (msg.type === 'table_ping' && msg.table === 'incidents') {
+          renderIncidentsFromPing(msg);
+        } else if (msg.type === 'table_state' && msg.table === 'incidents') {
+          renderIncidentsFromState(msg);
+        }
+        // ... (deja tu lógica actual para kanban, kpis, etc.)
+      } catch(e){ /* noop */ }
+    });
+
+    ws.addEventListener('close', () => {
+      clearInterval(wsTimer);
+      // reconexión con backoff: 1s → 2s → 4s … hasta 15s
+      const backoff = Math.min(MAX_BACKOFF, 1000 * Math.pow(2, reconnectAttempts++));
+      log('cerrado, reintento en', backoff, 'ms');
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connectWS, backoff);
+    });
+
+    ws.addEventListener('error', () => {
+      try { ws.close(); } catch(e){}
+    });
+  }
+
+  // Helpers de render mínimo (puedes enganchar tu render actual)
+  function renderPlanifFromTablePing(msg){
+    // Solo meta: pide tabla completa al REST y pinta
+    fetchExternalTableOnce();
+  }
+  function renderPlanifFromTableState(msg){
+    // Estado inicial al conectar el WS
+    fetchExternalTableOnce();
+  }
+  function renderIncidentsFromPing(_msg){ fetchIncidentsTableOnce(); }
+  function renderIncidentsFromState(_msg){ fetchIncidentsTableOnce(); }
+
+  // Fallback de visibilidad: seguimos enviando pings aunque la pestaña esté oculta,
+  // pero si tu SO suspende timers, el backoff del servidor y el reconnect nos rescatan.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && (!ws || ws.readyState !== WebSocket.OPEN)) {
+      connectWS();
+    }
+  });
+
+  // Arrancar
+  connectWS();
+})();
+
+// ===== Polling de respaldo (HTTP) =====
+(() => {
+  let lastExternalTs = null;
+  let lastIncidentsTs = null;
+
+  async function fetchJSON(url) {
+    const u = new URL(url, location.origin);
+    u.searchParams.set('_', Date.now()); // cache-busting
+    const r = await fetch(u.toString(), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+    return r.json();
+  }
+
+  async function fetchExternalTableOnce(){
+    try{
+      const data = await fetchJSON('/api/external-table');
+      if (!data || !data.fetched_at) return;
+      if (lastExternalTs !== data.fetched_at) {
+        lastExternalTs = data.fetched_at;
+        renderPlanifTableData(data);  // <- usa tu renderer de la tabla (planificación)
+        // actualiza un meta en pantalla si quieres
+        const m = document.getElementById('planif-meta');
+        if (m) m.textContent = `Actualizado: ${data.fetched_at} • Filas: ${data.rows?.length ?? data.rows}`;
+      }
+    } catch(e){ /* silencio: el WS volverá a empujar */ }
+  }
+
+  async function fetchIncidentsTableOnce(){
+    try{
+      const data = await fetchJSON('/api/incidents-table');
+      if (!data || !data.fetched_at) return;
+      if (lastIncidentsTs !== data.fetched_at) {
+        lastIncidentsTs = data.fetched_at;
+        renderIncidentsTableData(data); // <- tu renderer de incidentes
+        const m = document.getElementById('incidentes-meta');
+        if (m) m.textContent = `Actualizado: ${data.fetched_at} • Filas: ${data.rows?.length ?? data.rows}`;
+      }
+    } catch(e){ /* noop */ }
+  }
+
+  // Poll cada 30s (puedes bajarlo a 10–15s si quieres más “vivo”)
+  setInterval(fetchExternalTableOnce, 30000);
+  setInterval(fetchIncidentsTableOnce, 30000);
+
+  // Primer disparo al cargar
+  fetchExternalTableOnce();
+  fetchIncidentsTableOnce();
+
+  // Exponer funciones para el bloque WS de arriba
+  window.fetchExternalTableOnce = fetchExternalTableOnce;
+  window.fetchIncidentsTableOnce = fetchIncidentsTableOnce;
+
+  // Render “puente”: adapta a tu DOM real
+  window.renderPlanifTableData = function(data){
+    const table = document.getElementById('planif-table');
+    if (!table) return;
+    const cols = data.columns || [];
+    const rows = data.rows || [];
+    const thead = `<thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>`;
+    const tbody = `<tbody>${rows.map(r=>{
+      const cells = Array.isArray(r) ? r : cols.map(c=> (r[c] ?? ''));
+      return `<tr>${cells.map(x=>`<td>${escapeHtml(String(x ?? ''))}</td>`).join('')}</tr>`;
+    }).join('')}</tbody>`;
+    table.innerHTML = thead + tbody;
+  };
+
+  window.renderIncidentsTableData = function(data){
+    const table = document.getElementById('incidentes-table');
+    if (!table) return;
+    const cols = data.columns || [];
+    const rows = data.rows || [];
+    const thead = `<thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>`;
+    const tbody = `<tbody>${rows.map(r=>{
+      const cells = Array.isArray(r) ? r : cols.map(c=> (r[c] ?? ''));
+      return `<tr>${cells.map(x=>`<td>${escapeHtml(String(x ?? ''))}</td>`).join('')}</tr>`;
+    }).join('')}</tbody>`;
+    table.innerHTML = thead + tbody;
+  };
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+})();
+
+// ===== Auto-refresh estilo TV =====
+// Recarga dura cada X horas + pequeño jitter para que no se alineen todas las teles.
+(() => {
+  const HOURS = 6;                      // cámbialo a tu gusto (p. ej., 4–8h)
+  const JITTER_MIN = 0;                 // ms extra mínimo
+  const JITTER_MAX = 120000;            // hasta 2 minutos aleatorios
+
+  function scheduleHardReload(){
+    const base = HOURS * 60 * 60 * 1000;
+    const jitter = Math.floor(Math.random() * (JITTER_MAX - JITTER_MIN + 1)) + JITTER_MIN;
+    const ms = base + jitter;
+    setTimeout(() => {
+      // cache-busting para evitar recursos zombis
+      const u = new URL(location.href);
+      u.searchParams.set('r', Date.now());
+      location.replace(u.toString());
+    }, ms);
+  }
+
+  scheduleHardReload();
+})();
 
 
 </script>
 </body>
 </html>
+
 
 
 
