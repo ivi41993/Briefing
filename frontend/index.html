@@ -1139,6 +1139,54 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
+let ws = new WebSocket(`ws://${location.host}/ws`);
+
+ws.onmessage = (ev) => {
+  const msg = JSON.parse(ev.data || "{}");
+
+  if (msg.type === "table_state" && msg.table === "external") {
+    // inicial: pinta meta desde el snapshot
+    renderPlanifMeta(msg.fetched_at, msg.rows);
+  }
+
+  if (msg.type === "table_ping" && msg.table === "external") {
+    // dato actualizado: actualiza meta con la hora DEL DATO
+    renderPlanifMeta(msg.fetched_at, msg.rows);
+  }
+
+  if (msg.type === "external_status") {
+    // pinta solo el badge de conexión y el “freshness” del dato
+    paintConnBadge({
+      ok_conn: msg.ok_conn,
+      ok_data: msg.ok_data,
+      url: msg.url,
+      ts_conn: msg.ts_conn,
+      data_ts: msg.data_fetched_at,
+      rows: msg.data_rows,
+      ver: msg.data_version
+    });
+
+    // NO tocar el meta de planif aquí (evita “9:53” engañoso)
+  }
+};
+
+function renderPlanifMeta(fetchedAt, rows){
+  const el = document.getElementById('planif-meta');
+  if (!el) return;
+  if (!fetchedAt) {
+    el.textContent = 'Sin datos recientes';
+    return;
+  }
+  const dt = new Date(fetchedAt);
+  el.textContent = `Datos: ${dt.toLocaleString()} • filas: ${rows ?? '—'}`;
+}
+
+function paintConnBadge(s){
+  // Implementa un pequeño indicador (ej. en #planif-widget .widget-title) 
+  // Verde si ok_conn, Ámbar si ok_conn pero !ok_data, Rojo si !ok_conn.
+  // Evita tocar planif-meta aquí.
+}
+
   
 (function initRosterUpload(){
   const form   = document.getElementById('roster-upload-form');
@@ -2607,6 +2655,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
