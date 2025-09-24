@@ -1139,32 +1139,7 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
-let ws = new WebSocket(`ws://${location.host}/ws`);
 
-ws.onmessage = (ev) => {
-  const msg = JSON.parse(ev.data || "{}");
-
-  if (msg.type === "table_state" && msg.table === "external") {
-    // inicial: pinta meta desde el snapshot
-    renderPlanifMeta(msg.fetched_at, msg.rows);
-  }
-
-  if (msg.type === "table_ping" && msg.table === "external") {
-    // dato actualizado: actualiza meta con la hora DEL DATO
-    renderPlanifMeta(msg.fetched_at, msg.rows);
-  }
-
-  if (msg.type === "external_status") {
-    // pinta solo el badge de conexión y el “freshness” del dato
-    paintConnBadge({
-      ok_conn: msg.ok_conn,
-      ok_data: msg.ok_data,
-      url: msg.url,
-      ts_conn: msg.ts_conn,
-      data_ts: msg.data_fetched_at,
-      rows: msg.data_rows,
-      ver: msg.data_version
-    });
 
     // NO tocar el meta de planif aquí (evita “9:53” engañoso)
   }
@@ -2054,14 +2029,6 @@ console.error('No se pudieron cargar las tarjetas iniciales:', e);
 
 
 
-function connectWebSocket(){
-const wsUrl=`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
-const socket=new WebSocket(wsUrl);
-socket.onopen=()=>console.log('✅ WebSocket conectado');
-socket.onmessage=(ev)=>processTaskUpdate(JSON.parse(ev.data));
-socket.onclose=()=>setTimeout(connectWebSocket,3000);
-socket.onerror=(err)=>{ console.error('WS error:',err); socket.close(); };
-}
 
 /* ===== Incidentes (Enablon) usando /api/external-table ===== */
 const INC_CACHE_KEY = 'incidents_cache_v1';
@@ -2655,6 +2622,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
