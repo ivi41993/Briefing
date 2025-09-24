@@ -483,6 +483,27 @@ latest_external_table: Dict[str, Any] = {
     "version": 0,
 }
 
+        # === Freshness helper (para no confundir conexión vs dato) ===
+def _external_data_summary():
+    fa = latest_external_table.get("fetched_at")
+    ver = int(latest_external_table.get("version") or 0)
+    rows = len(latest_external_table.get("rows") or [])
+    return {
+        "data_fetched_at": fa,
+        "data_version": ver,
+        "data_rows": rows,
+    }
+
+def _external_data_is_fresh(ttl_sec: int = 600) -> bool:
+    try:
+        fa = latest_external_table.get("fetched_at")
+        if not fa:
+            return False
+        ts = datetime.fromisoformat(fa.replace("Z",""))
+        return (datetime.utcnow() - ts) <= timedelta(seconds=ttl_sec)
+    except Exception:
+        return False
+
 # ===== NUEVO: almacén de INCIDENTES (Enablon) =====
 latest_incidents_table: Dict[str, Any] = {
     "columns": [],
@@ -2439,11 +2460,13 @@ class ExternalConnector:
             
             await manager.broadcast({
                 "type": "external_status",
-                "ok": True,
+                "ok_conn": True,                          # <— conexión OK
+                "ok_data": True,                          # <— hubo JSON válido y se volcó a tabla
                 "url": self.current_url,
-                "ts": self._last_ok,
-                "health": self._session_health_score
+                "ts_conn": self._last_ok,                 # hora de conexión
+                **_external_data_summary(),               # hora/versión/filas del DATO
             })
+
 
         except Exception as e:
             self._consec_fail += 1
@@ -2461,12 +2484,15 @@ class ExternalConnector:
             
             await manager.broadcast({
                 "type": "external_status",
-                "ok": False,
+                "ok_conn": False,
+                "ok_data": _external_data_is_fresh(),     # dato puede seguir fresco aunque ahora falle
                 "url": self.current_url,
                 "error": error_msg,
                 "fails": self._consec_fail,
-                "health": self._session_health_score
+                "ts_conn": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                **_external_data_summary(),
             })
+
             raise
 
     async def run(self):
@@ -3628,6 +3654,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
