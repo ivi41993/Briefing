@@ -2598,7 +2598,9 @@ const ALL = [
 'planif-widget',
 'rotativas-widget',   // 5S & GW
 'incidentes-widget',
-'kanban-widget'
+'kanban-widget',
+'lean-widget',
+  'kpi-costes'
 ];
 ALL.forEach(id=>{
 const el = document.getElementById(id);
@@ -2616,7 +2618,8 @@ if (readC('c2') !== 'OK') return setSpotlight(['planif-widget']);       // Actua
 if (readC('c3') !== 'OK') return setSpotlight(['team-widget']);         // Dotación y recursos
 if (readC('c4') !== 'OK') return setSpotlight(['rotativas-widget']);    // Seguridad y protección
 if (readC('c5') !== 'OK') return setSpotlight(['incidentes-widget']);   // Prep/reportes incidentes
-if (readC('c6') !== 'OK') return setSpotlight(['kanban-widget']);       // Feedback → Acciones
+if (readC('c6') !== 'OK') return setSpotlight(['lean-widget','kpi-costes']);
+if (readC('c7') !== 'OK') return setSpotlight(['kanban-widget']);// Feedback → Acciones
 
 // Todo OK → sin parpadeo
 setSpotlight([]);
@@ -2656,6 +2659,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
