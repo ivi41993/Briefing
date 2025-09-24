@@ -90,8 +90,8 @@ margin:0 0 6px; padding-bottom:8px; border-bottom:2px solid #e9ecef;
 }
 .column-title .count{ background:#eef1f4; color:var(--text-muted); padding:2px 6px; border-radius:6px; font-size:.8rem; }
 .cards-container{ min-height:120px; max-height: clamp(280px, 48svh, 70vh);
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch; overflow:auto; padding-top:4px; }
+overscroll-behavior: contain;
+-webkit-overflow-scrolling: touch; overflow:auto; padding-top:4px; }
 
 .card{
 position:relative;
@@ -208,9 +208,9 @@ color:#fff; font-size:1.3rem; line-height:1; display:flex; align-items:center; j
 /* Carga / Planificación */
 .table-scroll,
 .col-left, .col-middle, .col-right{
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  scroll-padding-bottom: 40px; /* evita que la barra/bottom-safe tape lo último */
+-webkit-overflow-scrolling: touch;
+overscroll-behavior: contain;
+scroll-padding-bottom: 40px; /* evita que la barra/bottom-safe tape lo último */
 }
 #planif-table{ width:100%; border-collapse:collapse; font-size:.9rem; }
 #planif-table thead th{
@@ -220,20 +220,20 @@ text-align:left; padding:8px; z-index:1;
 #planif-table tbody td{ padding:8px; border-bottom:1px solid var(--border); white-space:nowrap; }
 /* iOS/iPadOS: evita zoom al enfocar inputs */
 @supports (-webkit-touch-callout: none) {
-  input, select, textarea {
-    font-size: 16px !important;
-  }
+input, select, textarea {
+font-size: 16px !important;
+}
 }
 /* sensaciones táctiles */
 * { -webkit-tap-highlight-color: rgba(0,0,0,0); }
 button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
-  touch-action: manipulation;
+touch-action: manipulation;
 }
 
 /* selects y botones en cabecera: que no se corten en iPad */
 .header-controls input,
 .header-controls .btn-primary {
-  min-height: 44px;
+min-height: 44px;
 }
 /* asegura que sticky tome como contenedor la propia columna central */
 .col-middle { position: relative; }
@@ -786,42 +786,42 @@ header h1{ font-size: clamp(1.4rem, 0.9vw + 1rem, 1.9rem); }
 }
 
 .dashboard-3col{
-  padding:
-    max(clamp(12px, 2vw, 28px), env(safe-area-inset-top))
-    max(clamp(12px, 2vw, 28px), env(safe-area-inset-right))
-    max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom))
-    max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
-  gap: 16px;
+padding:
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-top))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-right))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+gap: 16px;
 }
 /* iPad portrait ~768x1024 */
 @media (min-width: 768px) and (max-width: 979.98px){
-  .dashboard-3col{
-    grid-template-columns: 1fr;               /* 1 columna */
-    grid-template-rows: auto auto auto;
-  }
-  #brief-check .check-grid{ grid-template-columns: 1fr; }
-  header h1{ font-size: clamp(1.2rem, 1.6vw + 1rem, 1.6rem); }
+.dashboard-3col{
+grid-template-columns: 1fr;               /* 1 columna */
+grid-template-rows: auto auto auto;
+}
+#brief-check .check-grid{ grid-template-columns: 1fr; }
+header h1{ font-size: clamp(1.2rem, 1.6vw + 1rem, 1.6rem); }
 }
 
 /* iPad landscape ~1024x1366 */
 @media (min-width: 980px) and (max-width: 1366px){
-  .dashboard-3col{
-    grid-template-columns:
-      clamp(240px, 26vw, 300px)  /* izq */
-      minmax(0, 1fr);            /* centro */
-    grid-template-rows: auto 1fr auto;
-  }
-  .col-right{
-    grid-column: 1 / -1;         /* derecha debajo a todo el ancho */
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
-  }
+.dashboard-3col{
+grid-template-columns:
+clamp(240px, 26vw, 300px)  /* izq */
+minmax(0, 1fr);            /* centro */
+grid-template-rows: auto 1fr auto;
+}
+.col-right{
+grid-column: 1 / -1;         /* derecha debajo a todo el ancho */
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 16px;
+}
 }
 /* encabezados pegados por debajo de barra de Safari */
 #planif-table thead th, #incidentes-table thead th{
-  position: sticky; top: 0;
-  z-index: 2;
+position: sticky; top: 0;
+z-index: 2;
 }
 .table-scroll{ padding-bottom: 8px; } /* evita corte del último tr */
 /* evita subpixel shake al hacer zoom a UI scale */
@@ -831,8 +831,8 @@ html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 .card-title{ transform: none; }
 /* Placeholder visual para la nota del turno anterior */
 .editable-note[contenteditable="true"]:empty:before{
-  content: attr(data-placeholder);
-  color: var(--text-muted);
+content: attr(data-placeholder);
+color: var(--text-muted);
 }
 
 </style>
@@ -873,27 +873,27 @@ html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 <!-- IZQUIERDA: EQUIPO -->
 <section class="col-left">
 <div class="widget" id="team-widget">
-  <h2 class="widget-title">Equipo / Turno</h2>
-  <small class="kpi-text" id="team-meta">—</small>
+<h2 class="widget-title">Equipo / Turno</h2>
+<small class="kpi-text" id="team-meta">—</small>
 
-  <form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
-    <input type="text" id="team-name" placeholder="Añadir persona…" required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
-    <button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
-  </form>
+<form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+<input type="text" id="team-name" placeholder="Añadir persona…" required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
+<button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
+</form>
 
-  <!-- 👇 Subida de Excel ahora dentro de la tarjeta del equipo -->
-  <form id="roster-upload-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
-    <input type="file" id="roster-file" accept=".xlsx,.xls" required
-           style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
-    <button class="btn-primary" type="submit">Subir Excel</button>
-  </form>
-  <small id="roster-upload-result" class="kpi-text">—</small>
-  <!-- ☝️ mantiene los mismos IDs que usa tu JS -->
+<!-- 👇 Subida de Excel ahora dentro de la tarjeta del equipo -->
+<form id="roster-upload-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+<input type="file" id="roster-file" accept=".xlsx,.xls" required
+style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+<button class="btn-primary" type="submit">Subir Excel</button>
+</form>
+<small id="roster-upload-result" class="kpi-text">—</small>
+<!-- ☝️ mantiene los mismos IDs que usa tu JS -->
 
-  <div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+<div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
 </div>
 
-  
+
 
 
 
@@ -1111,12 +1111,12 @@ RECORDAR: En caso de accidente…
 <div class="lean-status-item"><span>Uniwin</span><span class="status-tag status-ok">OK</span></div>
 <div class="lean-status-item"><span>Cs Mobile</span><span class="status-tag status-alert">Alerta</span></div>
 </div>
-  <div class="widget" id="prev-shift-widget">
+<div class="widget" id="prev-shift-widget">
 
 </div>
 
 </div>
-  <h2 class="widget-title">Información Turno Anterior</h2>
+<h2 class="widget-title">Información Turno Anterior</h2>
 <div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior" spellcheck="true"
 style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
@@ -1187,48 +1187,48 @@ function paintConnBadge(s){
   // Evita tocar planif-meta aquí.
 }
 
-  
+
 (function initRosterUpload(){
-  const form   = document.getElementById('roster-upload-form');
-  const input  = document.getElementById('roster-file');
-  const status = document.getElementById('roster-upload-result');
-  if (!form) return;
+const form   = document.getElementById('roster-upload-form');
+const input  = document.getElementById('roster-file');
+const status = document.getElementById('roster-upload-result');
+if (!form) return;
 
-  form.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const f = input.files?.[0];
-    if (!f) { status.textContent = 'Selecciona un .xlsx/.xls'; return; }
+form.addEventListener('submit', async (e)=>{
+e.preventDefault();
+const f = input.files?.[0];
+if (!f) { status.textContent = 'Selecciona un .xlsx/.xls'; return; }
 
-    const fd = new FormData();
-    fd.append('file', f); // debe llamarse "file"
+const fd = new FormData();
+fd.append('file', f); // debe llamarse "file"
 
-    status.textContent = 'Subiendo…';
-    try {
-      const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(()=>({detail: res.statusText}));
-        throw new Error(err.detail || 'Error al subir');
-      }
-      const data = await res.json();
-      status.textContent =
-        `OK: ${data.people_count} personas cargadas • Hoja: ${data.sheet_loaded || '—'} • Fecha hoja: ${data.sheet_date || '—'}`;
+status.textContent = 'Subiendo…';
+try {
+const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
+if (!res.ok) {
+const err = await res.json().catch(()=>({detail: res.statusText}));
+throw new Error(err.detail || 'Error al subir');
+}
+const data = await res.json();
+status.textContent =
+`OK: ${data.people_count} personas cargadas • Hoja: ${data.sheet_loaded || '—'} • Fecha hoja: ${data.sheet_date || '—'}`;
 
-      // refresca la tarjeta de equipo inmediatamente
-      try {
-        const r   = await fetch('/api/roster/current', { cache:'no-store' });
-        const cur = await r.json();
-        const listEl = document.getElementById('team-list');
-        renderRoster(listEl, cur.people || [], cur);
-      } catch (e) {
-        console.warn('No se pudo refrescar roster tras subir:', e);
-      }
+// refresca la tarjeta de equipo inmediatamente
+try {
+const r   = await fetch('/api/roster/current', { cache:'no-store' });
+const cur = await r.json();
+const listEl = document.getElementById('team-list');
+renderRoster(listEl, cur.people || [], cur);
+} catch (e) {
+console.warn('No se pudo refrescar roster tras subir:', e);
+}
 
-    } catch (err) {
-      status.textContent = `Error: ${err.message || err}`;
-    } finally {
-      input.value = '';
-    }
-  });
+} catch (err) {
+status.textContent = `Error: ${err.message || err}`;
+} finally {
+input.value = '';
+}
+});
 })();
 
 
@@ -1363,9 +1363,9 @@ function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
 /* ===== GW: mostrar solo TOP-3 por última fecha ===== */
 const GW_MAP = new Map();
 function gwGetDate(t){
-  const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
-  const d = cand ? new Date(cand) : null;
-  return (d && !isNaN(d)) ? d.getTime() : -Infinity;
+const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+const d = cand ? new Date(cand) : null;
+return (d && !isNaN(d)) ? d.getTime() : -Infinity;
 }
 
 
@@ -1539,19 +1539,19 @@ const right = document.createElement('div');
 right.className = 'team-right';
 right.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
 right.innerHTML = `
-   <div class="presence-toggle" role="group" aria-label="Presencia">
-     <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
-     <label for="att-${idx}-y" class="yes">✓ Presente</label>
+  <div class="presence-toggle" role="group" aria-label="Presencia">
+    <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+    <label for="att-${idx}-y" class="yes">✓ Presente</label>
 
-     <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
-     <label for="att-${idx}-n" class="no">✕ Ausente</label>
-   </div>
+    <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+    <label for="att-${idx}-n" class="no">✕ Ausente</label>
+  </div>
 
-   <select class="zone-select" data-person="${esc(full)}" title="Zona">
-     <option value="" ${zone? '' : 'selected'} disabled>Zona…</option>
-     ${['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'].map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
-   </select>
- `;
+  <select class="zone-select" data-person="${esc(full)}" title="Zona">
+    <option value="" ${zone? '' : 'selected'} disabled>Zona…</option>
+    ${['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'].map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+  </select>
+`;
 
 row.appendChild(left);
 row.appendChild(right);
@@ -1610,37 +1610,37 @@ if(list) list.innerHTML='<div style="color:var(--text-muted)">Sin datos del info
 }
 /* Kanban / Kaizen / GW */
 function makeColumnsSortable(){
-  const common = {
-    animation: 150,
-    ghostClass: 'sortable-ghost',
-    dragClass: 'sortable-drag',
-    handle: '.drag-handle',
-    forceFallback: true,         // ← iPad fiable
-    delayOnTouchOnly: true,      // ← solo táctil
-    delay: 120,                  // ← evita taps accidentales
-    touchStartThreshold: 4
-  };
-  
-  document.querySelectorAll('#kanban-widget .cards-container')
-    .forEach(c => new Sortable(c, { group:'kanban-board', ...common, onEnd:handleDragEnd }));
+const common = {
+animation: 150,
+ghostClass: 'sortable-ghost',
+dragClass: 'sortable-drag',
+handle: '.drag-handle',
+forceFallback: true,         // ← iPad fiable
+delayOnTouchOnly: true,      // ← solo táctil
+delay: 120,                  // ← evita taps accidentales
+touchStartThreshold: 4
+};
 
-  document.querySelectorAll('#kaizen-widget .cards-container')
-    .forEach(c => new Sortable(c, { group:'kaizen-board', ...common, onEnd:handleDragEnd }));
+document.querySelectorAll('#kanban-widget .cards-container')
+.forEach(c => new Sortable(c, { group:'kanban-board', ...common, onEnd:handleDragEnd }));
+
+document.querySelectorAll('#kaizen-widget .cards-container')
+.forEach(c => new Sortable(c, { group:'kaizen-board', ...common, onEnd:handleDragEnd }));
 }
 async function handleDragEnd({item,to,from,oldIndex}){
-  if(to===from){ updateAllColumnCounts(); return; }
-  const id=item.id.replace('task-','');
-  const st=to.dataset.status;
-  try{
-    await updateTaskOnServer(id,{status:st});
-    // nada más; el DOM ya se movió
-  }catch(e){
-    // revierte
-    from.insertBefore(item, from.children[oldIndex] || null);
-    alert('No se pudo actualizar el estado en el servidor.');
-  }finally{
-    updateAllColumnCounts();
-  }
+if(to===from){ updateAllColumnCounts(); return; }
+const id=item.id.replace('task-','');
+const st=to.dataset.status;
+try{
+await updateTaskOnServer(id,{status:st});
+// nada más; el DOM ya se movió
+}catch(e){
+// revierte
+from.insertBefore(item, from.children[oldIndex] || null);
+alert('No se pudo actualizar el estado en el servidor.');
+}finally{
+updateAllColumnCounts();
+}
 }
 
 
@@ -1657,36 +1657,36 @@ rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ c
 }
 
 async function handleKanbanSubmit(e){
-  e.preventDefault();
-  const f=e.target;
-  const taskData={
-    task_type:'kanban_rapida',
-    status:'Abiertas',
-    category:f.elements.category.value,
-    title:f.elements.title.value.trim(),
-    due_date:f.elements.due_date.value,
-    assigned_to:f.elements.assigned_to.value.trim(),
-    station: STATION_CODE
-  };
-  if(!taskData.category || !taskData.title || !taskData.due_date) return;
-  try{
-    await createTaskOnServer(taskData);
-    f.reset();
-    document.getElementById('problem-category').selectedIndex=0;
-    updateAllColumnCounts();                 // 👈
-  }catch{
-    alert('Error: No se pudo crear la tarjeta.');
-  }
+e.preventDefault();
+const f=e.target;
+const taskData={
+task_type:'kanban_rapida',
+status:'Abiertas',
+category:f.elements.category.value,
+title:f.elements.title.value.trim(),
+due_date:f.elements.due_date.value,
+assigned_to:f.elements.assigned_to.value.trim(),
+station: STATION_CODE
+};
+if(!taskData.category || !taskData.title || !taskData.due_date) return;
+try{
+await createTaskOnServer(taskData);
+f.reset();
+document.getElementById('problem-category').selectedIndex=0;
+updateAllColumnCounts();                 // 👈
+}catch{
+alert('Error: No se pudo crear la tarjeta.');
+}
 }
 
 function handleDeleteClick(e){
-  const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
-  const card=btn.closest('.card'); if(!card) return;
-  const id=card.id.replace('task-','');
-  const ttype = card.dataset.taskType || 'kanban_rapida';
-  if(confirm('¿Seguro que quieres eliminar esta tarjeta?')){
-    deleteTaskOnServer(id, ttype).catch(()=>alert('Error: No se pudo eliminar la tarjeta.'));
-  }
+const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
+const card=btn.closest('.card'); if(!card) return;
+const id=card.id.replace('task-','');
+const ttype = card.dataset.taskType || 'kanban_rapida';
+if(confirm('¿Seguro que quieres eliminar esta tarjeta?')){
+deleteTaskOnServer(id, ttype).catch(()=>alert('Error: No se pudo eliminar la tarjeta.'));
+}
 }
 
 function handleGwTick(e){
@@ -1728,34 +1728,34 @@ return null;
 }
 }
 async function createTaskOnServer(data){
-  const r = await fetch('/api/tasks',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(data)
-  });
-  if(!r.ok) throw new Error('create failed');
-  const task = await r.json();
-  processTaskUpdate(task);            // pinta ya
-  return task;
+const r = await fetch('/api/tasks',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(data)
+});
+if(!r.ok) throw new Error('create failed');
+const task = await r.json();
+processTaskUpdate(task);            // pinta ya
+return task;
 }
 
 async function updateTaskOnServer(id, data){
-  const r = await fetch(`/api/tasks/${id}`,{
-    method:'PUT',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(data)
-  });
-  if(!r.ok) throw new Error('update failed');
-  const task = await r.json();
-  processTaskUpdate(task);            // re-render por si cambió categoría/fechas/etc.
-  return task;
+const r = await fetch(`/api/tasks/${id}`,{
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(data)
+});
+if(!r.ok) throw new Error('update failed');
+const task = await r.json();
+processTaskUpdate(task);            // re-render por si cambió categoría/fechas/etc.
+return task;
 }
 
 async function deleteTaskOnServer(id, taskType){
-  const r = await fetch(`/api/tasks/${id}`,{ method:'DELETE' });
-  if(!r.ok) throw new Error('delete failed');
-  // elimina local sin esperar WS
-  processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' });
+const r = await fetch(`/api/tasks/${id}`,{ method:'DELETE' });
+if(!r.ok) throw new Error('delete failed');
+// elimina local sin esperar WS
+processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' });
 }
 
 
@@ -1844,111 +1844,111 @@ default: console.warn('task_type desconocido:', data.task_type);
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
 function renderBoardCard(task, elementId){
-  const safeStatus = (task.status||'Abiertas').replace(/\s+/g,'-');
-  const columnId   = `${task.task_type}-${safeStatus}`;
-  const column     = document.getElementById(columnId); 
-  if(!column) return;
+const safeStatus = (task.status||'Abiertas').replace(/\s+/g,'-');
+const columnId   = `${task.task_type}-${safeStatus}`;
+const column     = document.getElementById(columnId); 
+if(!column) return;
 
-  let card = document.getElementById(elementId);
-  if(!card){ card=document.createElement('div'); card.id=elementId; }
-  card.className='card'; 
-  card.dataset.status=safeStatus;
-  card.dataset.taskType='kanban_rapida';
+let card = document.getElementById(elementId);
+if(!card){ card=document.createElement('div'); card.id=elementId; }
+card.className='card'; 
+card.dataset.status=safeStatus;
+card.dataset.taskType='kanban_rapida';
 
-  // categoría = color de fondo
-  const catKey=(task.category||'').toLowerCase();
-  card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
-  if(['seguridad','incidencias','mantenimiento'].includes(catKey)) card.classList.add(`cat-${catKey}`);
+// categoría = color de fondo
+const catKey=(task.category||'').toLowerCase();
+card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
+if(['seguridad','incidencias','mantenimiento'].includes(catKey)) card.classList.add(`cat-${catKey}`);
 
-  if(card.parentElement!==column) column.prepend(card);
+if(card.parentElement!==column) column.prepend(card);
 
-  const creationDate = task.created_at? new Date(task.created_at).toISOString().split('T')[0] : '—';
-  const dueISO       = task.due_date  ? new Date(task.due_date).toISOString().split('T')[0] : '';
-  const dueHuman     = dueISO || '—';
-  const catLabel = catKey? (catKey==='seguridad'?'Seguridad':(catKey==='incidencias'?'Incidencias':'Mantenimiento')) : 'General';
+const creationDate = task.created_at? new Date(task.created_at).toISOString().split('T')[0] : '—';
+const dueISO       = task.due_date  ? new Date(task.due_date).toISOString().split('T')[0] : '';
+const dueHuman     = dueISO || '—';
+const catLabel = catKey? (catKey==='seguridad'?'Seguridad':(catKey==='incidencias'?'Incidencias':'Mantenimiento')) : 'General';
 
-  card.innerHTML = `
-    ${GRIP}
-    <div class="card-content">
-      <div class="card-title" data-edit="title" title="Tocar para editar">${esc(task.title||'')}</div>
-      <div class="card-details">
-        Alta: ${creationDate} • Objetivo: 
-        <button class="btn-compact" data-edit="due">${dueHuman||'—'}</button>
-      </div>
-      <div class="card-assignee">Responsable: 
-        <span class="assignee" data-edit="assigned_to" title="Tocar para editar">${esc(task.assigned_to||'Sin asignar')}</span>
-      </div>
-      <div style="margin-top:6px;">
-        <button class="btn-compact" data-edit="category">${catLabel}</button>
-      </div>
-    </div>
-    <div class="card-actions">
-      <button class="delete-card-btn" title="Eliminar">
-        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-        </svg>
-      </button>
-    </div>
-  `;
-  ensureFullscreenBtn(card);
+card.innerHTML = `
+   ${GRIP}
+   <div class="card-content">
+     <div class="card-title" data-edit="title" title="Tocar para editar">${esc(task.title||'')}</div>
+     <div class="card-details">
+       Alta: ${creationDate} • Objetivo: 
+       <button class="btn-compact" data-edit="due">${dueHuman||'—'}</button>
+     </div>
+     <div class="card-assignee">Responsable: 
+       <span class="assignee" data-edit="assigned_to" title="Tocar para editar">${esc(task.assigned_to||'Sin asignar')}</span>
+     </div>
+     <div style="margin-top:6px;">
+       <button class="btn-compact" data-edit="category">${catLabel}</button>
+     </div>
+   </div>
+   <div class="card-actions">
+     <button class="delete-card-btn" title="Eliminar">
+       <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+         <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+       </svg>
+     </button>
+   </div>
+ `;
+ensureFullscreenBtn(card);
 
-  // —— Edición táctil/rápida ——
-  const id = task.id;
+// —— Edición táctil/rápida ——
+const id = task.id;
 
-  // Editar título (tap → input)
-  const titleEl = card.querySelector('[data-edit="title"]');
-  titleEl.addEventListener('click', async ()=>{
-    const prev = titleEl.textContent.trim();
-    const next = (prompt('Nuevo título', prev) || '').trim();
-    if(next && next !== prev){
-      try{ await updateTaskOnServer(id, { title: next }); }
-      catch{ alert('No se pudo actualizar el título'); }
-    }
-  });
+// Editar título (tap → input)
+const titleEl = card.querySelector('[data-edit="title"]');
+titleEl.addEventListener('click', async ()=>{
+const prev = titleEl.textContent.trim();
+const next = (prompt('Nuevo título', prev) || '').trim();
+if(next && next !== prev){
+try{ await updateTaskOnServer(id, { title: next }); }
+catch{ alert('No se pudo actualizar el título'); }
+}
+});
 
-  // Editar responsable
-  const asgEl = card.querySelector('[data-edit="assigned_to"]');
-  asgEl.addEventListener('click', async ()=>{
-    const prev = asgEl.textContent.trim();
-    const next = (prompt('Responsable', prev==='Sin asignar'?'':prev) || '').trim();
-    if(next !== prev){
-      try{ await updateTaskOnServer(id, { assigned_to: next || null }); }
-      catch{ alert('No se pudo actualizar el responsable'); }
-    }
-  });
+// Editar responsable
+const asgEl = card.querySelector('[data-edit="assigned_to"]');
+asgEl.addEventListener('click', async ()=>{
+const prev = asgEl.textContent.trim();
+const next = (prompt('Responsable', prev==='Sin asignar'?'':prev) || '').trim();
+if(next !== prev){
+try{ await updateTaskOnServer(id, { assigned_to: next || null }); }
+catch{ alert('No se pudo actualizar el responsable'); }
+}
+});
 
-  // Editar fecha objetivo (abre selector nativo)
-  const dueBtn = card.querySelector('[data-edit="due"]');
-  dueBtn.addEventListener('click', async ()=>{
-    const input = document.createElement('input');
-    input.type = 'date';
-    input.value = dueISO || '';
-    input.style.position='fixed'; input.style.opacity='0'; document.body.appendChild(input);
-    input.addEventListener('change', async ()=>{
-      const newISO = input.value || null;
-      document.body.removeChild(input);
-      if((newISO||'') !== (dueISO||'')){
-        try{ await updateTaskOnServer(id, { due_date: newISO }); }
-        catch{ alert('No se pudo actualizar la fecha'); }
-      }
-    }, { once:true });
-    input.click();
-  });
+// Editar fecha objetivo (abre selector nativo)
+const dueBtn = card.querySelector('[data-edit="due"]');
+dueBtn.addEventListener('click', async ()=>{
+const input = document.createElement('input');
+input.type = 'date';
+input.value = dueISO || '';
+input.style.position='fixed'; input.style.opacity='0'; document.body.appendChild(input);
+input.addEventListener('change', async ()=>{
+const newISO = input.value || null;
+document.body.removeChild(input);
+if((newISO||'') !== (dueISO||'')){
+try{ await updateTaskOnServer(id, { due_date: newISO }); }
+catch{ alert('No se pudo actualizar la fecha'); }
+}
+}, { once:true });
+input.click();
+});
 
-  // Cambiar categoría (ciclo)
-  const catBtn = card.querySelector('[data-edit="category"]');
-  catBtn.addEventListener('click', async ()=>{
-    const opts = ['Seguridad','Incidencias','Mantenimiento','General'];
-    const prev = catLabel;
-    const next = prompt(`Categoría (${opts.join(' / ')})`, prev) || prev;
-    const map = { 'Seguridad':'seguridad', 'Incidencias':'incidencias', 'Mantenimiento':'mantenimiento', 'General':'' };
-    const val = map[next] ?? map[prev];
-    if(val !== (task.category||'')){
-      try{ await updateTaskOnServer(id, { category: val }); }
-      catch{ alert('No se pudo actualizar la categoría'); }
-    }
-  });
+// Cambiar categoría (ciclo)
+const catBtn = card.querySelector('[data-edit="category"]');
+catBtn.addEventListener('click', async ()=>{
+const opts = ['Seguridad','Incidencias','Mantenimiento','General'];
+const prev = catLabel;
+const next = prompt(`Categoría (${opts.join(' / ')})`, prev) || prev;
+const map = { 'Seguridad':'seguridad', 'Incidencias':'incidencias', 'Mantenimiento':'mantenimiento', 'General':'' };
+const val = map[next] ?? map[prev];
+if(val !== (task.category||'')){
+try{ await updateTaskOnServer(id, { category: val }); }
+catch{ alert('No se pudo actualizar la categoría'); }
+}
+});
 }
 
 
@@ -1966,22 +1966,22 @@ if(card.parentElement!==column) column.prepend(card);
 let dueHuman=''; if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
 
 card.innerHTML=`
-     ${GRIP}
-       <div class="card-content">
-         <div class="card-title">${task.title || ''}</div>
-         <div class="card-details">
-           ${task.assigned_to ? `Responsable: ${task.assigned_to}` : 'Responsable: —'}
-           ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
-         </div>
-       </div>
-       <div class="card-actions">
-         <button class="delete-card-btn" title="Eliminar">
-           <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-             <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-             <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-           </svg>
-         </button>
-       </div>`;
+    ${GRIP}
+      <div class="card-content">
+        <div class="card-title">${task.title || ''}</div>
+        <div class="card-details">
+          ${task.assigned_to ? `Responsable: ${task.assigned_to}` : 'Responsable: —'}
+          ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="delete-card-btn" title="Eliminar">
+          <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+          </svg>
+        </button>
+      </div>`;
 ensureFullscreenBtn(card);
 }
 
@@ -1991,10 +1991,10 @@ let el=document.getElementById(elementId); const chkId=`gw-check-${task.id}`; co
 if(!el){ el=document.createElement('div'); el.id=elementId; container.prepend(el); }
 el.className='gw-task-item';
 el.innerHTML = `
-       <input type="checkbox" id="${chkId}" ${task.is_completed ? 'checked' : ''}>
-       <label for="${chkId}">${task.title}</label>
-       <input type="text" class="gw-note" id="${noteId}" placeholder="Añadir nota (opcional)" ${task.is_completed ? '' : 'disabled'} value="${task.note ? String(task.note).replace(/"/g,'&quot;') : ''}">
-     `;
+      <input type="checkbox" id="${chkId}" ${task.is_completed ? 'checked' : ''}>
+      <label for="${chkId}">${task.title}</label>
+      <input type="text" class="gw-note" id="${noteId}" placeholder="Añadir nota (opcional)" ${task.is_completed ? '' : 'disabled'} value="${task.note ? String(task.note).replace(/"/g,'&quot;') : ''}">
+    `;
 el.classList.toggle('completed', !!task.is_completed);
 el.classList.add('highlight-gw'); setTimeout(()=> el.classList.remove('highlight-gw'), 2000);
 }
@@ -2008,47 +2008,47 @@ const c=col.querySelector('.column-title .count'); const cards=col.querySelector
 });
 }
 
-    async function loadAllTasks(){
-  try{
-    const r = await fetch('/api/tasks?task_type=gw_task&station=' + encodeURIComponent(STATION_CODE), { cache:'no-store' });
-    if(!r.ok) throw new Error('GET /api/tasks failed');
-    const tasks = await r.json();
+async function loadAllTasks(){
+try{
+const r = await fetch('/api/tasks?task_type=gw_task&station=' + encodeURIComponent(STATION_CODE), { cache:'no-store' });
+if(!r.ok) throw new Error('GET /api/tasks failed');
+const tasks = await r.json();
 
-    // Asegura filtrado por estación por si el backend no filtra
-    const list = Array.isArray(tasks) ? tasks.filter(isForThisStation) : [];
+// Asegura filtrado por estación por si el backend no filtra
+const list = Array.isArray(tasks) ? tasks.filter(isForThisStation) : [];
 
-    // Pinta todas en memoria y renderiza el TOP3
-    list.forEach(t => { t.task_type === 'gw_task' && GW_MAP.set(t.id, t); });
-    renderGwTop3();
-  }catch(e){
-    console.error('No se pudieron cargar las GW iniciales:', e);
-  }
+// Pinta todas en memoria y renderiza el TOP3
+list.forEach(t => { t.task_type === 'gw_task' && GW_MAP.set(t.id, t); });
+renderGwTop3();
+}catch(e){
+console.error('No se pudieron cargar las GW iniciales:', e);
+}
 }
 
-  // CARGA INICIAL DE KANBAN + KAIZEN (y mantiene GW como ya tienes)
+// CARGA INICIAL DE KANBAN + KAIZEN (y mantiene GW como ya tienes)
 async function loadBoardsInitial(){
-  try{
-    const qsStation = 'station=' + encodeURIComponent(STATION_CODE);
+try{
+const qsStation = 'station=' + encodeURIComponent(STATION_CODE);
 
-    const [kanRes, kaiRes, gwRes] = await Promise.all([
-      fetch('/api/tasks?task_type=kanban_rapida&'+qsStation, {cache:'no-store'}),
-      fetch('/api/tasks?task_type=kaizen&'+qsStation, {cache:'no-store'}),
-      fetch('/api/tasks?task_type=gw_task&'+qsStation, {cache:'no-store'}),
-    ]);
+const [kanRes, kaiRes, gwRes] = await Promise.all([
+fetch('/api/tasks?task_type=kanban_rapida&'+qsStation, {cache:'no-store'}),
+fetch('/api/tasks?task_type=kaizen&'+qsStation, {cache:'no-store'}),
+fetch('/api/tasks?task_type=gw_task&'+qsStation, {cache:'no-store'}),
+]);
 
-    const [kan, kai, gw] = await Promise.all([kanRes.json(), kaiRes.json(), gwRes.json()]);
+const [kan, kai, gw] = await Promise.all([kanRes.json(), kaiRes.json(), gwRes.json()]);
 
-    // pinta todas
-    (Array.isArray(kan)?kan:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
-    (Array.isArray(kai)?kai:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
-    (Array.isArray(gw)?gw:[]).filter(isForThisStation).forEach(t=>{
-      if (t.task_type==='gw_task') { GW_MAP.set(t.id, t); }
-    });
-    renderGwTop3();
-    updateAllColumnCounts();
-  }catch(e){
-    console.error('No se pudieron cargar las tarjetas iniciales:', e);
-  }
+// pinta todas
+(Array.isArray(kan)?kan:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
+(Array.isArray(kai)?kai:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
+(Array.isArray(gw)?gw:[]).filter(isForThisStation).forEach(t=>{
+if (t.task_type==='gw_task') { GW_MAP.set(t.id, t); }
+});
+renderGwTop3();
+updateAllColumnCounts();
+}catch(e){
+console.error('No se pudieron cargar las tarjetas iniciales:', e);
+}
 }
 
 
@@ -2649,205 +2649,12 @@ console.log('Dashboard inicializado correctamente');
 });
 
 
-// ===== WebSocket robusto (con pings y reconexión) =====
-(() => {
-  const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
-  let ws = null;
-  let wsTimer = null;          // ping setInterval
-  let reconnectTimer = null;   // backoff
-  let reconnectAttempts = 0;
-  const MAX_BACKOFF = 15000;   // 15s máx entre intentos
-  const PING_EVERY_MS = 25000; // 25s (mantiene vivo el socket en proxies/firewalls)
 
-  function log(...args){ try{ console.debug('[WS]', ...args); } catch{} }
-
-  function connectWS(){
-    try { ws && ws.close(1000); } catch(e){}
-    ws = new WebSocket(WS_URL);
-
-    ws.addEventListener('open', () => {
-      log('conectado');
-      reconnectAttempts = 0;
-      // ping periódico para que el servidor no cierre por inactividad
-      clearInterval(wsTimer);
-      wsTimer = setInterval(() => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          try { ws.send('ping'); } catch(e){}
-        }
-      }, PING_EVERY_MS);
-      // pide estado inicial (por si nos reconectamos)
-      try { ws.send('hello'); } catch(e){}
-    });
-
-    ws.addEventListener('message', (ev) => {
-      // —— aquí decides qué renderizar con los mensajes del backend ——
-      // Mantén tu switch existente; solo garantizamos que SIEMPRE llegan
-      // table_state / table_ping con datos reales cuando el backend los tenga.
-      try {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === 'table_ping' && msg.table === 'external') {
-          renderPlanifFromTablePing(msg); // define más abajo
-        } else if (msg.type === 'table_state' && msg.table === 'external') {
-          renderPlanifFromTableState(msg); // define más abajo
-        } else if (msg.type === 'table_ping' && msg.table === 'incidents') {
-          renderIncidentsFromPing(msg);
-        } else if (msg.type === 'table_state' && msg.table === 'incidents') {
-          renderIncidentsFromState(msg);
-        }
-        // ... (deja tu lógica actual para kanban, kpis, etc.)
-      } catch(e){ /* noop */ }
-    });
-
-    ws.addEventListener('close', () => {
-      clearInterval(wsTimer);
-      // reconexión con backoff: 1s → 2s → 4s … hasta 15s
-      const backoff = Math.min(MAX_BACKOFF, 1000 * Math.pow(2, reconnectAttempts++));
-      log('cerrado, reintento en', backoff, 'ms');
-      clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connectWS, backoff);
-    });
-
-    ws.addEventListener('error', () => {
-      try { ws.close(); } catch(e){}
-    });
-  }
-
-  // Helpers de render mínimo (puedes enganchar tu render actual)
-  function renderPlanifFromTablePing(msg){
-    // Solo meta: pide tabla completa al REST y pinta
-    fetchExternalTableOnce();
-  }
-  function renderPlanifFromTableState(msg){
-    // Estado inicial al conectar el WS
-    fetchExternalTableOnce();
-  }
-  function renderIncidentsFromPing(_msg){ fetchIncidentsTableOnce(); }
-  function renderIncidentsFromState(_msg){ fetchIncidentsTableOnce(); }
-
-  // Fallback de visibilidad: seguimos enviando pings aunque la pestaña esté oculta,
-  // pero si tu SO suspende timers, el backoff del servidor y el reconnect nos rescatan.
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && (!ws || ws.readyState !== WebSocket.OPEN)) {
-      connectWS();
-    }
-  });
-
-  // Arrancar
-  connectWS();
-})();
-
-// ===== Polling de respaldo (HTTP) =====
-(() => {
-  let lastExternalTs = null;
-  let lastIncidentsTs = null;
-
-  async function fetchJSON(url) {
-    const u = new URL(url, location.origin);
-    u.searchParams.set('_', Date.now()); // cache-busting
-    const r = await fetch(u.toString(), { cache: 'no-store' });
-    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
-    return r.json();
-  }
-
-  async function fetchExternalTableOnce(){
-    try{
-      const data = await fetchJSON('/api/external-table');
-      if (!data || !data.fetched_at) return;
-      if (lastExternalTs !== data.fetched_at) {
-        lastExternalTs = data.fetched_at;
-        renderPlanifTableData(data);  // <- usa tu renderer de la tabla (planificación)
-        // actualiza un meta en pantalla si quieres
-        const m = document.getElementById('planif-meta');
-        if (m) m.textContent = `Actualizado: ${data.fetched_at} • Filas: ${data.rows?.length ?? data.rows}`;
-      }
-    } catch(e){ /* silencio: el WS volverá a empujar */ }
-  }
-
-  async function fetchIncidentsTableOnce(){
-    try{
-      const data = await fetchJSON('/api/incidents-table');
-      if (!data || !data.fetched_at) return;
-      if (lastIncidentsTs !== data.fetched_at) {
-        lastIncidentsTs = data.fetched_at;
-        renderIncidentsTableData(data); // <- tu renderer de incidentes
-        const m = document.getElementById('incidentes-meta');
-        if (m) m.textContent = `Actualizado: ${data.fetched_at} • Filas: ${data.rows?.length ?? data.rows}`;
-      }
-    } catch(e){ /* noop */ }
-  }
-
-  // Poll cada 30s (puedes bajarlo a 10–15s si quieres más “vivo”)
-  setInterval(fetchExternalTableOnce, 30000);
-  setInterval(fetchIncidentsTableOnce, 30000);
-
-  // Primer disparo al cargar
-  fetchExternalTableOnce();
-  fetchIncidentsTableOnce();
-
-  // Exponer funciones para el bloque WS de arriba
-  window.fetchExternalTableOnce = fetchExternalTableOnce;
-  window.fetchIncidentsTableOnce = fetchIncidentsTableOnce;
-
-  // Render “puente”: adapta a tu DOM real
-  window.renderPlanifTableData = function(data){
-    const table = document.getElementById('planif-table');
-    if (!table) return;
-    const cols = data.columns || [];
-    const rows = data.rows || [];
-    const thead = `<thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>`;
-    const tbody = `<tbody>${rows.map(r=>{
-      const cells = Array.isArray(r) ? r : cols.map(c=> (r[c] ?? ''));
-      return `<tr>${cells.map(x=>`<td>${escapeHtml(String(x ?? ''))}</td>`).join('')}</tr>`;
-    }).join('')}</tbody>`;
-    table.innerHTML = thead + tbody;
-  };
-
-  window.renderIncidentsTableData = function(data){
-    const table = document.getElementById('incidentes-table');
-    if (!table) return;
-    const cols = data.columns || [];
-    const rows = data.rows || [];
-    const thead = `<thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>`;
-    const tbody = `<tbody>${rows.map(r=>{
-      const cells = Array.isArray(r) ? r : cols.map(c=> (r[c] ?? ''));
-      return `<tr>${cells.map(x=>`<td>${escapeHtml(String(x ?? ''))}</td>`).join('')}</tr>`;
-    }).join('')}</tbody>`;
-    table.innerHTML = thead + tbody;
-  };
-
-  function escapeHtml(s){
-    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  }
-})();
-
-// ===== Auto-refresh estilo TV =====
-// Recarga dura cada X horas + pequeño jitter para que no se alineen todas las teles.
-(() => {
-  const HOURS = 6;                      // cámbialo a tu gusto (p. ej., 4–8h)
-  const JITTER_MIN = 0;                 // ms extra mínimo
-  const JITTER_MAX = 120000;            // hasta 2 minutos aleatorios
-
-  function scheduleHardReload(){
-    const base = HOURS * 60 * 60 * 1000;
-    const jitter = Math.floor(Math.random() * (JITTER_MAX - JITTER_MIN + 1)) + JITTER_MIN;
-    const ms = base + jitter;
-    setTimeout(() => {
-      // cache-busting para evitar recursos zombis
-      const u = new URL(location.href);
-      u.searchParams.set('r', Date.now());
-      location.replace(u.toString());
-    }, ms);
-  }
-
-  scheduleHardReload();
-})();
 
 
 </script>
 </body>
 </html>
-
-
 
 
 
