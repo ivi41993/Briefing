@@ -241,14 +241,20 @@ min-height: 44px;
 /* Fullscreen helpers */
 .widget, .card{ position:relative; }
 .fs-toggle{
-position:absolute; top:8px; right:8px; border:1px solid var(--border);
-background:rgba(255,255,255,.92); border-radius:8px; padding:6px; cursor:pointer; line-height:0; opacity:.65;
-display:inline-flex; align-items:center; justify-content:center;
-transition: opacity .15s, transform .15s, box-shadow .15s;
-box-shadow:0 4px 12px rgba(0,0,0,.08);
+  position:absolute; top:10px; right:10px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.95);
+  border-radius:12px;
+  padding:10px;                 /* antes ~6px */
+  cursor:pointer; line-height:0; opacity:.8;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition: opacity .15s, transform .15s, box-shadow .15s;
+  box-shadow:0 4px 12px rgba(0,0,0,.10);
+  min-width:44px; min-height:44px;   /* objetivo táctil recomendado */
 }
-.fs-toggle:hover{ opacity:1; transform:scale(1.05); }
-.fs-toggle svg{ width:14px; height:14px; display:block; }
+.fs-toggle:hover{ opacity:1; transform:scale(1.06); }
+.fs-toggle svg{ width:18px; height:18px; display:block; }  /* antes 14px */
+
 .widget:fullscreen, .card:fullscreen{ background:#fff; border-radius:0; box-shadow:none; padding:24px; }
 :fullscreen{ overflow:auto; }
 html.fs-zoom{ font-size:18px; }
@@ -835,6 +841,31 @@ content: attr(data-placeholder);
 color: var(--text-muted);
 }
 
+/* Turno centrado dentro del checklist */
+#brief-check .shift-chip{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 600;
+  font-size: .9rem;
+  margin: 6px auto 10px;   /* <- lo centra horizontalmente */
+}
+
+/* Colores semánticos por turno (aplican a cualquier .shift-chip con data-shift) */
+.shift-chip[data-shift="Mañana"]{
+  background:#ecfdf5; color:#065f46; border-color:#a7f3d0;
+}
+.shift-chip[data-shift="Tarde"]{
+  background:#fff7ed; color:#9a3412; border-color:#fed7aa;
+}
+.shift-chip[data-shift="Noche"]{
+  background:#eef2ff; color:#3730a3; border-color:#c7d2fe;
+}
+
 </style>
 </head>
 <body>
@@ -852,6 +883,7 @@ color: var(--text-muted);
 <div class="header-left">
 <h1>Factory Floor Dashboard - WFS4 MAD</h1>
 <div id="now-header">—</div>
+<span id="shift-badge-header" class="shift-chip">—</span>
 </div>
 
 <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
@@ -905,9 +937,9 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <div class="widget" id="brief-check">
 <h2 class="widget-title">
 <span>Checklist</span>
-<span id="shift-badge" class="shift-chip">—</span>
 </h2>
-
+<span id="shift-badge" class="shift-chip">—</span>
+  
 <div class="check-grid">
 <div class="check-card">
 <span class="check-title">1) Highlights del turno anterior</span>
@@ -2513,11 +2545,14 @@ const headEl = document.getElementById('now-header');
 if (headEl) headEl.textContent = dt;
 
 const shift = computeShift(now);
-const badge = document.getElementById('shift-badge');
-if (badge){
-badge.textContent = `Turno: ${shift.name} (${shift.from}–${shift.to})`;
-badge.setAttribute('data-shift', shift.name);   // ← para colorear el chip
-}
+const paintBadge = (el) => {
+  if (!el) return;
+  el.textContent = `Turno: ${shift.name} (${shift.from}–${shift.to})`;
+  el.setAttribute('data-shift', shift.name);
+};
+paintBadge(document.getElementById('shift-badge'));         // checklist
+paintBadge(document.getElementById('shift-badge-header'));  // header
+
 }
 
 
@@ -2611,6 +2646,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
