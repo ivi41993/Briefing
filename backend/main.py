@@ -2047,13 +2047,13 @@ import base64
 
 class GitHubStore:
     def __init__(self):
-        self.api    = os.getenv("GITHUB_API_URL", "https://api.github.com").rstrip("/")
-        self.repo   = os.getenv("GITHUB_REPO", "")
-        self.branch = os.getenv("GITHUB_BRANCH", "main")
-        self.dir    = (os.getenv("GITHUB_DIR", "data").strip("/"))
-        self.token  = os.getenv("GITHUB_TOKEN", "")
-        self.commit_name  = os.getenv("GITHUB_COMMIT_NAME", "CI")
-        self.commit_email = os.getenv("GITHUB_COMMIT_EMAIL", "ci@example.com")
+        self.api    = os.getenv("GH_API_URL", "https://api.github.com").rstrip("/")
+        self.repo   = os.getenv("GH_REPO", "")
+        self.branch = os.getenv("GH_BRANCH", "main")
+        self.dir    = (os.getenv("GH_DIR", "data").strip("/"))
+        self.token  = os.getenv("GH_TOKEN", "")
+        self.commit_name  = os.getenv("GH_COMMIT_NAME", "CI")
+        self.commit_email = os.getenv("GH_COMMIT_EMAIL", "ci@example.com")
         self._sha_cache: dict[str,str] = {}
 
     def _headers(self):
@@ -3727,6 +3727,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
