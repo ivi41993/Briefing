@@ -2603,40 +2603,52 @@ class ExternalConnector:
 
  
 # @app.on_event("shutdown")
+async def _ws_heartbeat(interval_sec: int = 30):
+    """Emite un latido cada `interval_sec` para mantener el WS vivo y dar señal de salud."""
+    while True:
+        try:
+            await manager.broadcast({
+                "type": "server_heartbeat",
+                "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                **_external_data_summary(),  # incluye frescura del dato externo
+            })
+        except Exception as e:
+            print("⚠️ Heartbeat WS error:", repr(e))
+        await asyncio.sleep(interval_sec)
 
 
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("🚀 Iniciando sistema...")
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
     load_external_from_disk()
-    
+
     app.state._roster = asyncio.create_task(_roster_watcher())
     app.state._ext = ExternalConnector()
     app.state._poller = asyncio.create_task(app.state._ext.run())
     app.state._ena = EnablonConnector()
     app.state._ena_task = asyncio.create_task(app.state._ena.run())
-    
+
+    # 👇 NUEVO: heartbeat WS
+    app.state._hb = asyncio.create_task(_ws_heartbeat(30))
+
     print("🚀 Sistema iniciado correctamente")
-    
     yield
-    
-    # Shutdown
     print("🛑 Deteniendo sistema...")
-    for key in ("_poller", "_roster", "_ena_task"):
+
+    for key in ("_hb", "_poller", "_roster", "_ena_task"):
         task: asyncio.Task = getattr(app.state, key, None)
         if task and not task.done():
             task.cancel()
-            try: 
+            try:
                 await task
-            except asyncio.CancelledError: 
+            except asyncio.CancelledError:
                 pass
-    
     print("🛑 Sistema detenido correctamente")
+
 
 # ÚNICA instancia de la app
 app = FastAPI(title="WFS1 MAD Dashboard", version="1.0.0", lifespan=lifespan)
@@ -3484,15 +3496,21 @@ async def get_external_table():
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        # Estado inicial Carga/Planificación e Incidentes (aunque version=0)
         await push_external_table_state(websocket)
         await push_incidents_table_state(websocket)
 
-        # Mantén el socket vivo
+        # Bucle pasivo: no exige tráfico del cliente
         while True:
-            await websocket.receive_text()
+            try:
+                # Espera “algo” del cliente con timeout suave; si no llega, seguimos vivos
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=120.0)
+                # si quieres, puedes ignorar o inspeccionar `msg`
+            except asyncio.TimeoutError:
+                # silencio del cliente → seguimos; el heartbeat server-side mantiene el canal
+                continue
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
 
 
 # -----------------------------------
@@ -3654,6 +3672,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
