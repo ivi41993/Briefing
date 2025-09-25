@@ -26,9 +26,10 @@ from pydantic import BaseModel, Field
 # Cargar variables de entorno INMEDIATAMENTE
 load_dotenv()
 
-# === Storage backend (file|memory) ===
+# === Storage backend: file | memory | github ===
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
-USE_DISK = (STORAGE_BACKEND != "memory")
+USE_DISK    = (STORAGE_BACKEND == "file")
+USE_GITHUB  = (STORAGE_BACKEND == "github")
 
 
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
@@ -197,12 +198,14 @@ from pathlib import Path
 TASKS_DB = os.getenv("TASKS_DB", "./data/tasks.json")
 
 def _atomic_write_json(path: str, data: list[dict]):
+    if USE_GITHUB and gh_store:
+        gh_store.write_json(path, data, message=f"Update {Path(path).name}")
+        return
     if not USE_DISK:
-        # No escribir a disco en modo memory
         return
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tasks_", suffix=".json")
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False)
@@ -215,11 +218,14 @@ def _atomic_write_json(path: str, data: list[dict]):
             pass
 
 def _atomic_write_json_any(path: str, data: Any):
+    if USE_GITHUB and gh_store:
+        gh_store.write_json(path, data, message=f"Update {Path(path).name}")
+        return
     if not USE_DISK:
         return
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".data_", suffix=".json")
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False)
@@ -230,6 +236,7 @@ def _atomic_write_json_any(path: str, data: Any):
                 os.remove(tmp)
         except Exception:
             pass
+
 
 def _atomic_append_json(path: str, item: dict):
     if not USE_DISK:
@@ -270,23 +277,55 @@ def save_tasks_to_disk():
     except Exception as e:
         print("⚠️ Error guardando tareas:", repr(e))
 
+def _read_json_any(path: str, default: Any):
+    if USE_GITHUB and gh_store:
+        obj = gh_store.read_json(path)
+        return obj if obj is not None else default
+    if USE_DISK:
+        p = Path(path)
+        if p.exists():
+            try:
+                return json.load(p.open("r", encoding="utf-8"))
+            except Exception:
+                return default
+    return default
+
+
 def load_tasks_from_disk():
-    if not USE_DISK:
-        return
-    try:
-        p = Path(TASKS_DB)
-        if not p.exists():
-            return
-        with p.open("r", encoding="utf-8") as fh:
-            arr = json.load(fh)
-        tasks_in_memory_store.clear()
-        for t in arr or []:
-            t = sanitize_task(t)
-            if t.get("id") and t.get("task_type"):
-                tasks_in_memory_store[t["id"]] = t
-        print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas desde {TASKS_DB}")
-    except Exception as e:
-        print("⚠️ Error leyendo tareas:", repr(e))
+    global tasks_in_memory_store
+    arr = _read_json_any(TASKS_DB, [])
+    tasks_in_memory_store.clear()
+    for t in arr or []:
+        t = sanitize_task(t)
+        if t.get("id") and t.get("task_type"):
+            tasks_in_memory_store[t["id"]] = t
+    print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas (backend={STORAGE_BACKEND}).")
+
+def load_external_from_disk():
+    global latest_external_table
+    obj = _read_json_any(EXTERNAL_DB, {})
+    if isinstance(obj, dict) and "columns" in obj and "rows" in obj:
+        latest_external_table.update(obj)
+        if not latest_external_table.get("version"):
+            latest_external_table["version"] = 1
+        print(f"🗂️ Carga/Planificación: {len(latest_external_table.get('rows', []))} filas (backend={STORAGE_BACKEND}).")
+
+def load_incidents_from_disk():
+    global latest_incidents_table
+    obj = _read_json_any(INCIDENTS_DB, {})
+    if isinstance(obj, dict) and "columns" in obj and "rows" in obj:
+        latest_incidents_table.update(obj)
+        if not latest_incidents_table.get("version"):
+            latest_incidents_table["version"] = 1
+        print(f"🗂️ Incidentes: {len(latest_incidents_table.get('rows', []))} filas (backend={STORAGE_BACKEND}).")
+
+def load_attendance_from_disk():
+    global attendance_store
+    attendance_store = _read_json_any(ATTENDANCE_DB, {}) or {}
+    if not isinstance(attendance_store, dict):
+        attendance_store = {}
+    print(f"🗂️ Asistencia cargada ({len(attendance_store)} claves) (backend={STORAGE_BACKEND}).")
+
 
 # -----------------------------------
 # Utilidades
@@ -1810,23 +1849,7 @@ def _atomic_write_json(path: str, data: list[dict]):
 # --- arriba del archivo, cerca de INCIDENTS_DB ---
 EXTERNAL_DB = os.getenv("EXTERNAL_DB", "./data/external_table.json")
 
-def load_external_from_disk():
-    if not USE_DISK:
-        return
-    global latest_external_table
-    try:
-        p = Path(EXTERNAL_DB)
-        if not p.exists():
-            return
-        obj = json.load(p.open("r", encoding="utf-8")) or {}
-        if isinstance(obj, dict) and "columns" in obj and "rows" in obj:
-            latest_external_table.update(obj)
-            if not latest_external_table.get("version"):
-                latest_external_table["version"] = 1
-            print(f"🗂️ Carga/Planificación cargada de disco: "
-                  f"{len(latest_external_table.get('rows', []))} filas.")
-    except Exception as e:
-        print("⚠️ Error leyendo EXTERNAL_DB:", repr(e))
+
 
 def save_external_to_disk():
     if not USE_DISK:
@@ -1841,33 +1864,6 @@ def save_external_to_disk():
 # -----------------------------------
 # === Persistencia tabla Incidentes (Enablon) ===
 INCIDENTS_DB = os.getenv("INCIDENTS_DB", "./data/incidents_table.json")
-
-def load_incidents_from_disk():
-    if not USE_DISK:
-        return
-    global latest_incidents_table
-    try:
-        p = Path(INCIDENTS_DB)
-        if not p.exists():
-            return
-        obj = json.load(p.open("r", encoding="utf-8")) or {}
-        if isinstance(obj, dict) and "columns" in obj and "rows" in obj:
-            latest_incidents_table.update(obj)
-            # asegúrate de que version > 0 para que el WS "table_state" dispare el primer render
-            if not latest_incidents_table.get("version"):
-                latest_incidents_table["version"] = 1
-            print(f"🗂️ Incidentes cargados de disco: {len(latest_incidents_table.get('rows', []))} filas.")
-    except Exception as e:
-        print("⚠️ Error leyendo INCIDENTS_DB:", repr(e))
-
-def save_incidents_to_disk():
-    if not USE_DISK:
-        return
-    try:
-        _atomic_write_json_any(INCIDENTS_DB, latest_incidents_table)
-    except Exception as e:
-        print("⚠️ Error guardando INCIDENTS_DB:", repr(e))
-
 
 
 
@@ -1895,24 +1891,7 @@ def _atomic_write_json_any(path: str, data: Any):
         except Exception:
             pass
 
-def load_attendance_from_disk():
-    if not USE_DISK:
-        # En memoria: inicializa vacío
-        global attendance_store
-        attendance_store = attendance_store or {}
-        return
-    try:
-        p = Path(ATTENDANCE_DB)
-        if p.exists():
-            attendance_store = json.load(p.open("r", encoding="utf-8")) or {}
-        else:
-            attendance_store = {}
-        if not isinstance(attendance_store, dict):
-            attendance_store = {}
-        print(f"🗂️ Asistencia cargada ({len(attendance_store)} claves fecha|turno).")
-    except Exception as e:
-        print("⚠️ Error leyendo asistencia:", repr(e))
-        attendance_store = {}
+
 
 def save_attendance_to_disk():
     if not USE_DISK:
@@ -2064,6 +2043,82 @@ def _merge_set_cookie_into_header(existing_cookie: str, set_cookie_headers: list
 
 
 
+import base64
+
+class GitHubStore:
+    def __init__(self):
+        self.api    = os.getenv("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+        self.repo   = os.getenv("GITHUB_REPO", "")
+        self.branch = os.getenv("GITHUB_BRANCH", "main")
+        self.dir    = (os.getenv("GITHUB_DIR", "data").strip("/"))
+        self.token  = os.getenv("GITHUB_TOKEN", "")
+        self.commit_name  = os.getenv("GITHUB_COMMIT_NAME", "CI")
+        self.commit_email = os.getenv("GITHUB_COMMIT_EMAIL", "ci@example.com")
+        self._sha_cache: dict[str,str] = {}
+
+    def _headers(self):
+        if not self.token:
+            raise RuntimeError("GITHUB_TOKEN no configurado")
+        return {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
+    def _gh_path(self, local_path: str) -> str:
+        # mapea "./data/tasks.json" → "data/tasks.json" dentro del repo
+        p = local_path.replace("\\", "/")
+        p = p.lstrip("./")
+        # si el path ya trae otra carpeta, lo respetamos; si empieza por data/, ok
+        if self.dir and not p.startswith(self.dir + "/"):
+            p = f"{self.dir}/{p.split('/')[-1] if p.startswith('data/') else p}"
+        return p
+
+    def _url(self, gh_path: str) -> str:
+        return f"{self.api}/repos/{self.repo}/contents/{gh_path}"
+
+    def read_json(self, local_path: str):
+        gh_path = self._gh_path(local_path)
+        url = self._url(gh_path)
+        with httpx.Client(timeout=30.0) as c:
+            r = c.get(url, headers=self._headers(), params={"ref": self.branch})
+            if r.status_code == 404:
+                return None
+            r.raise_for_status()
+            obj = r.json()
+            self._sha_cache[gh_path] = obj.get("sha", "")
+            content_b64 = obj.get("content", "")
+            if content_b64:
+                raw = base64.b64decode(content_b64)
+                try:
+                    return json.loads(raw.decode("utf-8"))
+                except Exception:
+                    return None
+            return None
+
+    def write_json(self, local_path: str, data: Any, message: str | None = None):
+        gh_path = self._gh_path(local_path)
+        url = self._url(gh_path)
+        payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        body = {
+            "message": message or f"Update {gh_path}",
+            "content": base64.b64encode(payload).decode("ascii"),
+            "branch": self.branch,
+            "committer": {"name": self.commit_name, "email": self.commit_email},
+        }
+        sha = self._sha_cache.get(gh_path)
+        if sha:
+            body["sha"] = sha  # necesario para actualizar
+        with httpx.Client(timeout=30.0) as c:
+            r = c.put(url, headers=self._headers(), json=body)
+            r.raise_for_status()
+            res = r.json()
+            new_sha = (res.get("content") or {}).get("sha")
+            if new_sha:
+                self._sha_cache[gh_path] = new_sha
+
+# instancia global si toca
+gh_store = GitHubStore() if USE_GITHUB else None
 
 
 # ---- httpx (cliente asíncrono) ----
@@ -3672,6 +3727,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
