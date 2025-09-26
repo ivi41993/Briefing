@@ -946,12 +946,14 @@ color: var(--text-muted);
 </form>
 
 <!-- 👇 Subida de Excel ahora dentro de la tarjeta del equipo -->
+<!-- 👇 Subida de Excel dentro de la tarjeta del equipo -->
 <form id="roster-upload-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
-<input type="file" id="roster-file" accept=".xlsx,.xls" required
-style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
-<button class="btn-primary" type="submit">Subir Excel</button>
+  <input type="file" id="roster-file" accept=".xlsx,.xls" required
+         style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+  <button class="btn-primary" type="submit">Subir Excel</button>
 </form>
 <small id="roster-upload-result" class="kpi-text">—</small>
+
 <!-- ☝️ mantiene los mismos IDs que usa tu JS -->
 
 <div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
@@ -2685,6 +2687,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
