@@ -1777,6 +1777,38 @@ def save_attendance_to_disk():
 def _att_key(d: datetime.date, shift: str) -> str:
     return f"{d.isoformat()}|{shift}"
 
+# ===== ROSTER persistente =====
+ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster_store.json")
+
+# Estructura:
+# {
+#   "YYYY-MM-DD": {
+#       "raw": [ {apellidos, nombre, nombre_completo, horario, observaciones}, ... ],
+#       "by_shift": {
+#           "Mañana": [...],
+#           "Tarde":  [...],
+#           "Noche":  [...]
+#       },
+#       "sheet": "01-09-2025",
+#       "saved_at": "2025-09-01T07:00:00Z"
+#   },
+#   ...
+# }
+roster_store: dict[str, dict] = {}
+
+def save_roster_to_disk():
+    try:
+        _atomic_write_json_any(ROSTER_DB, roster_store)
+    except Exception as e:
+        print("⚠️ Error guardando roster_store:", repr(e))
+
+def load_roster_from_disk():
+    global roster_store
+    obj = _read_json_any(ROSTER_DB, {}) or {}
+    if not isinstance(obj, dict):
+        obj = {}
+    roster_store = obj
+    print(f"🗂️ Roster persistente cargado ({len(roster_store)} fechas).")
 
 
 
@@ -2044,6 +2076,7 @@ async def lifespan(app: FastAPI):
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
+    load_roster_from_disk()
     
 
     app.state._roster = asyncio.create_task(_roster_watcher())
@@ -2102,7 +2135,6 @@ from fastapi import UploadFile, File
 
 @app.post("/api/roster/upload")
 async def upload_roster(file: UploadFile = File(...)):
-    # Validación simple de extensión
     if not file.filename.lower().endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="Solo se admite .xlsx/.xls")
 
@@ -2117,25 +2149,68 @@ async def upload_roster(file: UploadFile = File(...)):
         try:
             target.replace(backup)
         except Exception:
-            pass  # si falla el backup, no bloqueamos la subida
+            pass
 
-    # Guardar el nuevo
     raw = await file.read()
     with target.open("wb") as fh:
         fh.write(raw)
 
-    # Forzar recarga inmediata del roster
+    # === Parsear todo el libro y persistir por fecha ===
+    try:
+        xl = pd.ExcelFile(target)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No pude abrir el Excel: {e}")
+
+    new_dates, total_rows = 0, 0
+    for sheet_name in xl.sheet_names:
+        dte = _parse_sheet_date(sheet_name)   # ya la tienes definida
+        if not dte:
+            continue
+
+        # Unimos lo encontrado por cada turno para obtener el RAW completo de la hoja
+        seen = set()
+        raw_rows: list[dict] = []
+        for shift_tag in ("Mañana", "Tarde", "Noche"):
+            ppl = _read_sheet_people(ROSTER_XLSX_PATH, sheet_name, shift_tag)
+            for r in ppl:
+                key = (r.get("nombre_completo","").strip(), r.get("horario","").strip(), r.get("observaciones","").strip())
+                if key not in seen:
+                    seen.add(key)
+                    raw_rows.append(r)
+
+        # Reparto por turnos con tu _match_shift
+        by_shift = {"Mañana": [], "Tarde": [], "Noche": []}
+        for r in raw_rows:
+            for sh in ("Mañana","Tarde","Noche"):
+                if _match_shift(r.get("horario",""), sh):
+                    by_shift[sh].append(r)
+
+        iso = dte.isoformat()
+        roster_store[iso] = {
+            "raw": raw_rows,
+            "by_shift": {
+                "Mañana": by_shift["Mañana"],
+                "Tarde":  by_shift["Tarde"],
+                "Noche":  by_shift["Noche"],
+            },
+            "sheet": sheet_name,
+            "saved_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        }
+        new_dates += 1
+        total_rows += len(raw_rows)
+
+    save_roster_to_disk()                 # ← persistimos TODO
     roster_cache["file_mtime"] = None
-    await _build_roster_state(force=True)
+    await _build_roster_state(force=True) # refresca cache
 
     return {
         "ok": True,
         "path": str(target),
-        "sheet_loaded": roster_cache.get("sheet"),
-        "people_count": len(roster_cache.get("people") or []),
-        "shift": roster_cache.get("shift"),
-        "sheet_date": roster_cache.get("sheet_date").isoformat() if roster_cache.get("sheet_date") else None,
+        "dates_parsed": new_dates,
+        "rows_total": total_rows,
+        "hint": "Indexado y persistido por fecha; ya se sirve desde el almacén.",
     }
+
 
 from fastapi import Query
 
@@ -2144,6 +2219,20 @@ def get_roster_by(
     date_iso: str = Query(..., description="Fecha ISO YYYY-MM-DD"),
     shift: str = Query(..., pattern="^(Mañana|Tarde|Noche)$")
 ):
+    # 1) Persistencia primero
+    rec = roster_store.get(date_iso)
+    if rec:
+        lst = rec.get("by_shift", {}).get(shift, [])
+        return {
+            "sheet": rec.get("sheet"),
+            "sheet_date": date_iso,
+            "shift": shift,
+            "people": lst,
+            "count": len(lst),
+            "source": "store",
+        }
+
+    # 2) Fallback: Excel directo (compatibilidad)
     try:
         d = datetime.fromisoformat(date_iso).date()
     except Exception:
@@ -2151,7 +2240,7 @@ def get_roster_by(
 
     sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, d)
     if not sheet_real:
-        return {"sheet": None, "people": [], "sheet_date": d.isoformat(), "shift": shift}
+        return {"sheet": None, "people": [], "sheet_date": d.isoformat(), "shift": shift, "source": "fallback"}
 
     people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift)
     return {
@@ -2160,7 +2249,9 @@ def get_roster_by(
         "shift": shift,
         "people": people,
         "count": len(people),
+        "source": "excel",
     }
+
 
 @app.get("/api/roster/needs-update")
 def roster_needs_update():
@@ -2938,6 +3029,25 @@ async def _build_roster_state(force=False) -> dict:
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
+
+    # Si hay persistencia para esa fecha/turno, sirve desde ahí
+    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
+    sh = state.get("shift")
+    if d_iso and sh and d_iso in roster_store:
+        rec = roster_store[d_iso]
+        people = rec.get("by_shift", {}).get(sh, [])
+        return {
+            "shift": sh,
+            "sheet": rec.get("sheet"),
+            "sheet_date": d_iso,
+            "window": state.get("window"),
+            "people": people,
+            "updated_at": rec.get("saved_at") or state.get("updated_at"),
+            "attendance": state.get("attendance", {}),
+            "source": "store"
+        }
+
+    # Fallback al Excel/cálculo en caliente
     return {
         "shift": state.get("shift"),
         "sheet": state.get("sheet"),
@@ -2946,7 +3056,15 @@ async def get_roster_current():
         "people": state.get("people", []),
         "updated_at": state.get("updated_at"),
         "attendance": state.get("attendance", {}),
+        "source": "excel"
     }
+@app.get("/api/roster/persisted")
+def api_roster_persisted():
+    return {
+        "dates": sorted(roster_store.keys()),
+        "count_dates": len(roster_store),
+    }
+
 @app.get("/api/roster/sheets")
 def api_roster_sheets():
     return {
@@ -3035,6 +3153,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
