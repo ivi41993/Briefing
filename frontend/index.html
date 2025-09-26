@@ -1021,13 +1021,15 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
 </div>
 <div class="kanban-column">
-<h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
-</div>
-<div class="kanban-column">
 <h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
 <div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
 </div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
+</div>
+
+  
 </div>
 
 <form class="new-item-form" id="new-kanban-form" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:grid; grid-template-columns: 1fr 1fr auto 1fr auto; gap:8px; align-items:center;">
@@ -1133,7 +1135,7 @@ RECORDAR: En caso de accidente…
 <section class="col-right">
 <div class="widget kpi-widget" id="kpi-costes">
 <h3 class="widget-title">
-<span>Costes Mantenimiento WFS4 MAD</span>
+<span>Costes en daños a los equipos WFS4 MAD</span>
 <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
 </h3>
 <div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
@@ -2659,6 +2661,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
