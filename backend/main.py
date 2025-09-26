@@ -54,7 +54,7 @@ sp_last_update_ts: float | None = None  # timestamp de última actualización v�
 def _sheet_name_for_date(d):
     return SPANISH_DAY[d.weekday()]  # Lunes..Domingo
 
-SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+
 
 
 
@@ -1102,7 +1102,8 @@ async def _fetch_external_once(client: httpx.AsyncClient) -> None:
         print("⚠️ La respuesta no es JSON; se ignora para la tabla externa.")
         return
 
-    await apply_external_table(data)
+    await apply_incidents_table(data)
+
 
 # ============================
 # ExternalConnector (robusto)
@@ -1689,12 +1690,6 @@ class EnablonConnector:
 
 
 
-ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
-ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
-ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
-ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "true"
-
-
 
 
 
@@ -1720,30 +1715,6 @@ ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "t
 
 
 
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconnect, Request
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
-import tempfile
-from pathlib import Path
-
-TASKS_DB = os.getenv("TASKS_DB", "./data/tasks.json")
-
-def _atomic_write_json(path: str, data: list[dict]):
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tasks_", suffix=".json")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False)
-        os.replace(tmp, path)
-    finally:
-        try:
-            if Path(tmp).exists():
-                os.remove(tmp)
-        except Exception:
-            pass
-
 
 
 
@@ -1756,6 +1727,16 @@ def _atomic_write_json(path: str, data: list[dict]):
 # -----------------------------------
 # === Persistencia tabla Incidentes (Enablon) ===
 INCIDENTS_DB = os.getenv("INCIDENTS_DB", "./data/incidents_table.json")
+
+def save_incidents_to_disk():
+    if not USE_DISK:
+        return
+    try:
+        _atomic_write_json_any(INCIDENTS_DB, latest_incidents_table)
+        # print(f"💾 Incidentes guardados en {INCIDENTS_DB}")
+    except Exception as e:
+        print("⚠️ Error guardando incidents_table:", repr(e))
+
 
 
 
@@ -1798,36 +1779,6 @@ def _att_key(d: datetime.date, shift: str) -> str:
 
 
 
-# -----------------------------------
-# Configuración
-# -----------------------------------
-load_dotenv()
-API_KEY = os.getenv("API_KEY")
-
-# ===== NUEVO: credenciales/fuente interna para Carga/Planificación =====
-EXT_URL          = os.getenv("EXT_URL", "").strip()       # URL de la intranet (endpoint que devuelve JSON)
-EXT_COOKIE       = os.getenv("EXT_COOKIE", "").strip()    # Cookie copiada de DevTools (header Cookie:)
-EXT_REFERER      = os.getenv("EXT_REFERER", "").strip()   # Opcional: Referer si tu backend lo pide
-EXT_USER_AGENT   = os.getenv("EXT_USER_AGENT", "Mozilla/5.0")
-EXT_POLL_SECONDS = int(os.getenv("EXT_POLL_SECONDS", "60"))
-
-# SSL (elige 1 modo en .env): TRUSTSTORE | CERTIFI | CAFILE | FALSE
-EXT_VERIFY_MODE  = os.getenv("EXT_VERIFY_MODE", "TRUSTSTORE").upper()
-EXT_CAFILE       = os.getenv("EXT_CAFILE", "").strip()
-
-
-
-# ===== ENABLON efectivo (acepta ENA_* o ENABLON_*) =====
-ENA_URL        = _pick_env("ENA_URL", "ENABLON_URL")
-ENA_COOKIE     = _pick_env("ENA_COOKIE", "ENABLON_COOKIE")
-ENA_REFERER    = _pick_env("ENA_REFERER", "ENABLON_REFERER")
-ENA_USER_AGENT = _pick_env("ENA_USER_AGENT", "ENABLON_USER_AGENT", default="Mozilla/5.0")
-# opcional: bearer/JWT si tu Enablon lo usa
-ENA_BEARER     = _pick_env("ENA_BEARER", "ENABLON_BEARER")
-
-# SSL específicos de ENA (si los tienes); si no, caerá a los de EXT más abajo
-ENA_VERIFY_MODE  = _pick_env("ENA_VERIFY_MODE", "EXT_VERIFY_MODE", default="TRUSTSTORE").upper()
-ENA_CAFILE       = _pick_env("ENA_CAFILE", "EXT_CAFILE", default="")
 
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -3084,6 +3035,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
