@@ -870,6 +870,33 @@ color: var(--text-muted);
   * { animation: none !important; transition: none !important; }
 }
 #brief-check { backdrop-filter: saturate(105%) blur(2px); }
+/* === KPIs centro === */
+.kpi-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap:12px;
+}
+.kpi-tile{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  padding:14px;
+  box-shadow:0 6px 18px rgba(17,24,39,.06);
+}
+.kpi-label{
+  font-weight:700;
+  font-size:.9rem;
+  color:var(--text-muted);
+  margin-bottom:4px;
+}
+.kpi-value{
+  font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+  font-weight:800;
+  font-size: clamp(1.6rem, 2.6vw + .4rem, 2.6rem);
+  line-height:1;
+  color:var(--brand-red-600);
+}
+.kpi-tile.flash{ animation: flash-kpi 900ms ease-out; }
 
 </style>
 </head>
@@ -1069,13 +1096,30 @@ RECORDAR: En caso de accidente…
 
 
 
-<div class="widget kpi-widget" id="planif-widget">
-<h3 class="widget-title">Carga / Planificación</h3>
-<small class="kpi-text" id="planif-meta">—</small>
-<div class="table-scroll">
-<table id="planif-table"></table>
+<div class="widget kpi-widget" id="kpi-center">
+  <h2 class="widget-title">KPIs Operativos</h2>
+
+  <div class="kpi-grid">
+    <div class="kpi-tile">
+      <div class="kpi-label">UPH (unid./hora)</div>
+      <div class="kpi-value" id="kpi-uph">—</div>
+      <small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">OTIF (%)</div>
+      <div class="kpi-value" id="kpi-otif">—</div>
+      <small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">Backlog (envíos)</div>
+      <div class="kpi-value" id="kpi-backlog">—</div>
+      <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
+    </div>
+  </div>
 </div>
-</div>
+
 
 <!-- Kaizen + 5S/GW compartido -->
 <div class="actions-split">
@@ -1802,11 +1846,6 @@ renderRoster(document.getElementById('team-list'), TEAM_STATE.people||[], TEAM_S
 return;
 }
 
-// ping de planificación
-if (data && (data.type==='table_ping'||data.type==='table_state') && data.table==='external'){
-loadPlanifTable();
-return;
-}
 
 // ping de incidentes (Enablon)
 if (data && (data.type==='table_ping'||data.type==='table_state') && data.table==='incidents'){
@@ -1824,6 +1863,42 @@ else if(v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value
 if(typeof v==='number' && Number.isFinite(v)){ updateKpiTotalCost(v, data.timestamp); try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{} }
 }
 return;
+}
+if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)){
+  const metric = String(data.metric||'').trim().toLowerCase();
+  const tab    = String(data.tab||'').trim();
+
+  // Coste total (ya lo tenías)
+  if (metric === 'total cost' && (!tab || tab === 'MAD WFS4')){
+    let v = data.value;
+    if (typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
+    else if (Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
+    else if (v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
+    if (typeof v==='number' && Number.isFinite(v)){
+      updateKpiTotalCost(v, data.timestamp);
+      try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{}
+    }
+    return;
+  }
+
+  // UPH
+  if (metric === 'uph' && (!tab || tab === 'MAD WFS4')){
+    const v = Number(data.value);
+    if (Number.isFinite(v)) setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
+    return;
+  }
+  // OTIF
+  if (metric === 'otif' && (!tab || tab === 'MAD WFS4')){
+    const v = Number(data.value);
+    if (Number.isFinite(v)) setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(v) + ' %');
+    return;
+  }
+  // Backlog
+  if (metric === 'backlog' && (!tab || tab === 'MAD WFS4')){
+    const v = Number(data.value);
+    if (Number.isFinite(v)) setKpiValue('kpi-backlog', 'kpi-backlog-meta', new Intl.NumberFormat('es-ES').format(v));
+    return;
+  }
 }
 
 const elementId = `task-${data.id}`;
@@ -2169,59 +2244,19 @@ if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length}
 }
 
 
-/* Carga/Planificación */
-async function loadPlanifTable(){
-try{
-const r=await fetch('/api/external-table');
-if(!r.ok) throw new Error('GET /api/external-table failed');
-const s=await r.json(); renderPlanif(s);
-}catch(e){ console.error('Planif load error', e); }
+function formatPercent(n){
+  if (n==null || Number.isNaN(n)) return '—';
+  return new Intl.NumberFormat('es-ES', { minimumFractionDigits:1, maximumFractionDigits:1 }).format(n);
 }
-// === Carga/Planificación: solo estas columnas ===
-const PLANIF_WHITELIST = [
-'FlightId',
-'FlightType',
-'AircraftType',
-'FlightIdentifier',
-'Departure.Scheduled',
-'PiecesProgress.Members.Manifested.Item1',
-'WeightProgress.Members.Manifested.Item1'
-];
+function flash(el){ if(!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 
-function renderPlanif(state){
-const tbl  = document.getElementById('planif-table');
-const meta = document.getElementById('planif-meta');
-if(!tbl) return;
-
-const cols = Array.isArray(state.columns) ? state.columns : [];
-const rows = Array.isArray(state.rows) ? state.rows : [];
-const ts   = state.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
-
-// 1) Intento con whitelist
-let selected = PLANIF_WHITELIST
-.map(name => ({ name, idx: cols.indexOf(name) }))
-.filter(c => c.idx !== -1);
-
-// 2) Fallback: si no hay ninguna columna de la whitelist,
-//    muestra las primeras N columnas reales del payload
-if (selected.length === 0 && cols.length){
-const N = Math.min(cols.length, 8);
-selected = Array.from({length:N}, (_,i)=>({ name: cols[i], idx: i }));
-}
-
-if (selected.length === 0){
-tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
-if (meta) meta.textContent = `Filas: ${rows.length} • Actualizado: ${ts}`;
-return;
-}
-
-let thead = '<thead><tr>' + selected.map(c => `<th>${c.name}</th>`).join('') + '</tr></thead>';
-let tbody = '<tbody>' + rows.map(r => (
-'<tr>' + selected.map(c => `<td>${r[c.idx] == null ? '' : String(r[c.idx])}</td>`).join('') + '</tr>'
-)).join('') + '</tbody>';
-
-tbl.innerHTML = thead + tbody;
-if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+function setKpiValue(idValue, idMeta, valueText){
+  const v = document.getElementById(idValue);
+  const m = document.getElementById(idMeta);
+  if (!v) return;
+  v.textContent = valueText;
+  if (m) m.textContent = `Actualizado: ${new Date().toLocaleString('es-ES')}`;
+  flash(v.closest('.kpi-tile'));
 }
 
 
@@ -2640,7 +2675,6 @@ setupEventListeners();
 makeColumnsSortable();
 hydrateKpiTotalCost();
 loadBoardsInitial();
-loadPlanifTable();
 loadIncidentes();
 connectWebSocket();
 initTeamRoster();
@@ -2661,6 +2695,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
