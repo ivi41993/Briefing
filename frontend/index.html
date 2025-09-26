@@ -1101,22 +1101,31 @@ RECORDAR: En caso de accidente…
 
   <div class="kpi-grid">
     <div class="kpi-tile">
-      <div class="kpi-label">UPH (unid./hora)</div>
+      <div class="kpi-label">Uniwin</div>
       <div class="kpi-value" id="kpi-uph">—</div>
       <small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
     </div>
 
     <div class="kpi-tile">
-      <div class="kpi-label">OTIF (%)</div>
+      <div class="kpi-label">DG Autocheck</div>
       <div class="kpi-value" id="kpi-otif">—</div>
       <small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
     </div>
 
     <div class="kpi-tile">
-      <div class="kpi-label">Backlog (envíos)</div>
+      <div class="kpi-label">CargoMobile</div>
       <div class="kpi-value" id="kpi-backlog">—</div>
       <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
     </div>
+
+    <div class="widget kpi-widget" id="kpi-costes">
+<h3 class="widget-title">
+<span>Costes en daños a los equipos WFS4 MAD</span>
+<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
+</h3>
+<div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
+<small class="kpi-text" id="kpi-costes-meta"></small>
+</div>
   </div>
 </div>
 
@@ -1171,33 +1180,14 @@ RECORDAR: En caso de accidente…
 </div>
 </div>
 
-<!-- Carga/Planificación (debajo del split) -->
+
 
 </section>
 
 <!-- DERECHA: RESULTADOS -->
 <section class="col-right">
-<div class="widget kpi-widget" id="kpi-costes">
-<h3 class="widget-title">
-<span>Costes en daños a los equipos WFS4 MAD</span>
-<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
-</h3>
-<div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
-<small class="kpi-text" id="kpi-costes-meta"></small>
-</div>
 
-<div class="widget kpi-widget" id="lean-widget">
-<h3 class="widget-title">
-<span>Estado LEAN</span>
-<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
-</h3>
-<div class="lean-status-container">
-<div class="lean-status-item"><span>Dg Autocheck</span><span class="status-tag status-ok">OK</span></div>
-<div class="lean-status-item"><span>Uniwin</span><span class="status-tag status-ok">OK</span></div>
-<div class="lean-status-item"><span>Cs Mobile</span><span class="status-tag status-alert">Alerta</span></div>
-</div>
 
-</div>
   <div class="widget" id="prev-shift-widget">
   <h2 class="widget-title">Información Turno Anterior</h2>
 <div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
@@ -2695,6 +2685,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
