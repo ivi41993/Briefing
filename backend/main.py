@@ -1110,7 +1110,37 @@ async def _fetch_external_once(client: httpx.AsyncClient) -> None:
 import shlex
 from dataclasses import dataclass, field
 
+@dataclass
+class ExternalSettings:
+    urls: list[str] = field(default_factory=list)
+    referer: str = ""
+    user_agent: str = "Mozilla/5.0"
+    cookie_header: str = ""          # "k1=v1; k2=v2"
+    poll_seconds: int = 60
+    verify_mode: str = "TRUSTSTORE"  # TRUSTSTORE|CERTIFI|CAFILE|FALSE
+    cafile: str = ""
+    auth_mode: str = "COOKIE"        # COOKIE|LOGIN_POST|SCRIPT
 
+    # --- NUEVO: keepalive/track ---
+    keepalive_url: str = ""          # GET ligero que renueva sesión
+    track_url: str = ""              # POST telemetría/track que renueva sesión
+    track_body_json: str = ""        # cuerpo JSON (plantilla con {now_ms},{now_iso},{url})
+    keepalive_every: int = 0         # segundos; 0 = auto por caducidad cookie
+
+    # LOGIN_POST
+    login_url: str = ""
+    login_payload_json: str = ""
+    login_csrf_regex: str = ""
+    username: str = ""
+    password: str = ""
+
+    # SCRIPT
+    refresh_cmd: str = ""            # imprime JSON {cookie,url}
+
+    # miscelánea
+    http2: bool = True
+    max_keepalive: int = 20
+    max_connections: int = 40
 
 
 @dataclass
@@ -3054,6 +3084,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
