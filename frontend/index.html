@@ -897,6 +897,36 @@ color: var(--text-muted);
   color:var(--brand-red-600);
 }
 .kpi-tile.flash{ animation: flash-kpi 900ms ease-out; }
+/* === FIX: Equipo/Turno – el botón "Subir Excel" se sale de la tarjeta === */
+#team-widget #roster-upload-form{
+  display: grid !important;          /* pisa el inline style="display:flex" */
+  grid-template-columns: 1fr auto;   /* input expansivo + botón al lado */
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+#team-widget #roster-file{
+  min-width: 0;          /* permite que el input encoja sin romper el grid */
+  width: 100%;
+  overflow: hidden;      /* evita que el texto largo desborde */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* separa el botón nativo del file input (Safari/Chrome/WebKit) */
+#team-widget #roster-file::-webkit-file-upload-button{ margin-right: 8px; }
+/* equivalente estándar si está disponible */
+@supports selector(::file-selector-button){
+  #team-widget #roster-file::file-selector-button{ margin-right: 8px; }
+}
+
+/* En móviles, apila: input arriba, botón debajo */
+@media (max-width: 520px){
+  #team-widget #roster-upload-form{
+    grid-template-columns: 1fr;
+  }
+}
 
 </style>
 </head>
@@ -2687,6 +2717,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
