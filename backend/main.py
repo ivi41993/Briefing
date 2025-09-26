@@ -292,7 +292,7 @@ def _read_json_any(path: str, default: Any):
 
 
 def load_tasks_from_disk():
-    global tasks_in_memory_store
+    global tasks_in_memory_store, sp_last_update_ts
     arr = _read_json_any(TASKS_DB, [])
     tasks_in_memory_store.clear()
     for t in arr or []:
@@ -300,6 +300,11 @@ def load_tasks_from_disk():
         if t.get("id") and t.get("task_type"):
             tasks_in_memory_store[t["id"]] = t
     print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas (backend={STORAGE_BACKEND}).")
+
+    # 👇 CLAVE: marcar como “fresco” si hay tareas persistidas
+    if tasks_in_memory_store and not sp_last_update_ts:
+        sp_last_update_ts = time.time()
+
 
 
 
@@ -3153,6 +3158,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
