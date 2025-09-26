@@ -1518,6 +1518,14 @@ let TEAM_STATE = null; // cache de estado actual {shift, sheet_date, window, peo
 
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
+async function fetchTasksBootstrap(){
+  let items = await (await fetch('/api/tasks?fresh_only=true')).json();
+  if (!items || items.length === 0) {
+    // primer arranque o backend recién levantado
+    items = await (await fetch('/api/tasks')).json();
+  }
+  return items;
+}
 
 function updateTeamMeta(state){
 const meta = document.getElementById('team-meta');
@@ -2717,6 +2725,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
