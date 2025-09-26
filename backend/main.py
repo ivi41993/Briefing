@@ -301,14 +301,7 @@ def load_tasks_from_disk():
             tasks_in_memory_store[t["id"]] = t
     print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas (backend={STORAGE_BACKEND}).")
 
-def load_external_from_disk():
-    global latest_external_table
-    obj = _read_json_any(EXTERNAL_DB, {})
-    if isinstance(obj, dict) and "columns" in obj and "rows" in obj:
-        latest_external_table.update(obj)
-        if not latest_external_table.get("version"):
-            latest_external_table["version"] = 1
-        print(f"🗂️ Carga/Planificación: {len(latest_external_table.get('rows', []))} filas (backend={STORAGE_BACKEND}).")
+
 
 def load_incidents_from_disk():
     global latest_incidents_table
@@ -514,34 +507,10 @@ class TaskNoteUpdate(BaseModel):
 # -----------------------------------
 tasks_in_memory_store: Dict[str, Any] = {}
 
-# ===== NUEVO: almacén de tabla externa (para Carga/Planificación) =====
-latest_external_table: Dict[str, Any] = {
-    "columns": [],
-    "rows": [],
-    "fetched_at": None,
-    "version": 0,
-}
 
-        # === Freshness helper (para no confundir conexión vs dato) ===
-def _external_data_summary():
-    fa = latest_external_table.get("fetched_at")
-    ver = int(latest_external_table.get("version") or 0)
-    rows = len(latest_external_table.get("rows") or [])
-    return {
-        "data_fetched_at": fa,
-        "data_version": ver,
-        "data_rows": rows,
-    }
 
-def _external_data_is_fresh(ttl_sec: int = 600) -> bool:
-    try:
-        fa = latest_external_table.get("fetched_at")
-        if not fa:
-            return False
-        ts = datetime.fromisoformat(fa.replace("Z",""))
-        return (datetime.utcnow() - ts) <= timedelta(seconds=ttl_sec)
-    except Exception:
-        return False
+
+
 
 # ===== NUEVO: almacén de INCIDENTES (Enablon) =====
 latest_incidents_table: Dict[str, Any] = {
@@ -931,38 +900,7 @@ def _merge_set_cookie_with_expiry(existing_cookie: str, set_cookie_headers: list
 
 
 # --- reemplaza tu apply_external_table por esta versión ---
-async def apply_external_table(payload: Any):
-    cols, rows = _table_from_json(payload)
 
-    # ⛔ No pises el snapshot si viene vacío/ilegible
-    if not cols and not rows:
-        print("ℹ️ External: payload vacío/ilegible; se conserva último estado.")
-        # puedes avisar solo estado, sin cambiar version
-        await manager.broadcast({
-            "type": "external_status",
-            "ok": True,
-            "url": app.state._ext.current_url if hasattr(app.state, "_ext") else None,
-            "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-            "note": "payload_vacio"
-        })
-        return
-
-    ts = datetime.utcnow().isoformat(timespec="seconds") + "Z"
-    latest_external_table["columns"]    = cols
-    latest_external_table["rows"]       = rows
-    latest_external_table["fetched_at"] = ts
-    latest_external_table["version"]    = int(latest_external_table.get("version", 0)) + 1
-
-    save_external_to_disk()
-
-    print(f"📦 External table: {len(rows)} filas, {len(cols)} columnas. Ejemplo columnas: {cols[:8]}")
-    await manager.broadcast({
-        "type": "table_ping",
-        "table": "external",
-        "version": latest_external_table["version"],
-        "rows": len(rows),
-        "fetched_at": ts,
-    })
 
 
 async def apply_incidents_table(payload: Any):
@@ -999,14 +937,7 @@ async def push_incidents_table_state(websocket: WebSocket):
         "fetched_at": latest_incidents_table.get("fetched_at"),
     })
 
-async def push_external_table_state(websocket: WebSocket):
-    await manager.send_one(websocket, {
-        "type": "table_state",
-        "table": "external",
-        "version": latest_external_table.get("version", 0),
-        "rows": len(latest_external_table.get("rows", [])),
-        "fetched_at": latest_external_table.get("fetched_at"),
-    })
+
 
 # 
 
@@ -1179,69 +1110,7 @@ async def _fetch_external_once(client: httpx.AsyncClient) -> None:
 import shlex
 from dataclasses import dataclass, field
 
-@dataclass
-class ExternalSettings:
-    urls: list[str] = field(default_factory=list)
-    referer: str = ""
-    user_agent: str = "Mozilla/5.0"
-    cookie_header: str = ""          # "k1=v1; k2=v2"
-    poll_seconds: int = 60
-    verify_mode: str = "TRUSTSTORE"  # TRUSTSTORE|CERTIFI|CAFILE|FALSE
-    cafile: str = ""
-    auth_mode: str = "COOKIE"        # COOKIE|LOGIN_POST|SCRIPT
 
-    # --- NUEVO: keepalive/track ---
-    keepalive_url: str = ""          # GET ligero que renueva sesión
-    track_url: str = ""              # POST telemetría/track que renueva sesión
-    track_body_json: str = ""        # cuerpo JSON (plantilla con {now_ms},{now_iso},{url})
-    keepalive_every: int = 0         # segundos; 0 = auto por caducidad cookie
-
-    # LOGIN_POST
-    login_url: str = ""
-    login_payload_json: str = ""
-    login_csrf_regex: str = ""
-    username: str = ""
-    password: str = ""
-
-    # SCRIPT
-    refresh_cmd: str = ""            # imprime JSON {cookie,url}
-
-    # miscelánea
-    http2: bool = True
-    max_keepalive: int = 20
-    max_connections: int = 40
-
-    @classmethod
-    def from_env(cls) -> "ExternalSettings":
-        urls = [u.strip() for u in os.getenv("EXT_URLS", "").split(",") if u.strip()]
-        if not urls and os.getenv("EXT_URL", "").strip():
-            urls = [os.getenv("EXT_URL", "").strip()]
-        return cls(
-            urls=urls,
-            referer=os.getenv("EXT_REFERER", "").strip(),
-            user_agent=os.getenv("EXT_USER_AGENT", "Mozilla/5.0"),
-            cookie_header=os.getenv("EXT_COOKIE", "").strip(),
-            poll_seconds=int(os.getenv("EXT_POLL_SECONDS", "60")),
-            verify_mode=os.getenv("EXT_VERIFY_MODE", "TRUSTSTORE").upper(),
-            cafile=os.getenv("EXT_CAFILE", "").strip(),
-            auth_mode=os.getenv("EXT_AUTH_MODE", "COOKIE").upper(),
-
-            # NUEVO
-            keepalive_url=os.getenv("EXT_KEEPALIVE_URL", "").strip(),
-            track_url=os.getenv("EXT_TRACK_URL", "").strip(),
-            track_body_json=os.getenv("EXT_TRACK_BODY_JSON", "").strip(),
-            keepalive_every=int(os.getenv("EXT_KEEPALIVE_EVERY", "0") or "0"),
-
-            login_url=os.getenv("EXT_LOGIN_URL", "").strip(),
-            login_payload_json=os.getenv("EXT_LOGIN_PAYLOAD_JSON", "").strip(),
-            login_csrf_regex=os.getenv("EXT_LOGIN_CSRF_REGEX", "").strip(),
-            username=os.getenv("EXT_USERNAME", "").strip(),
-            password=os.getenv("EXT_PASSWORD", "").strip(),
-            refresh_cmd=os.getenv("EXT_REFRESH_CMD", "").strip(),
-            http2=(os.getenv("EXT_HTTP2", "true").lower() == "true"),
-            max_keepalive=int(os.getenv("EXT_MAX_KEEPALIVE", "20")),
-            max_connections=int(os.getenv("EXT_MAX_CONNECTIONS", "40")),
-        )
 
 
 @dataclass
@@ -1846,18 +1715,11 @@ def _atomic_write_json(path: str, data: list[dict]):
             pass
 
 
-# --- arriba del archivo, cerca de INCIDENTS_DB ---
-EXTERNAL_DB = os.getenv("EXTERNAL_DB", "./data/external_table.json")
 
 
 
-def save_external_to_disk():
-    if not USE_DISK:
-        return
-    try:
-        _atomic_write_json_any(EXTERNAL_DB, latest_external_table)
-    except Exception as e:
-        print("⚠️ Error guardando EXTERNAL_DB:", repr(e))
+
+
 
 # -----------------------------------
 # Utilidades
@@ -2170,484 +2032,6 @@ from dataclasses import dataclass, field
 
 # Reemplaza SOLO el método __init__ de ExternalConnector con esta versión corregida
 
-class ExternalConnector:
-    def __init__(self):
-    # PRIMERO: inicializar settings y propiedades básicas
-        self.settings = ExternalSettings.from_env()
-        self._url_idx = 0
-        
-        # Resto de inicialización
-        self._last_keepalive: float = 0.0
-        self._keepalive_every: int = getattr(self.settings, "keepalive_every", 0) or 120
-        
-        self._env_path = Path(os.getenv("ENV_FILE", ".env"))
-        self._env_mtime = self._env_path.stat().st_mtime if self._env_path.exists() else None
-        self._client: httpx.AsyncClient | None = None
-        self._consec_fail = 0
-        self._last_ok: str | None = None
-        self._cookie_expires_at: float | None = None
-        
-        # Tracking de actividad de la sesión
-        self._last_activity: float = 0.0
-        self._session_health_score = 100
-        
-        # Cargar sesión persistida
-        ck, exp = _load_cookie_session(EXT_SESSION_PATH)
-        if ck:
-            self.settings.cookie_header = ck
-            self._cookie_expires_at = exp
-    
-        self._status: dict[str, Any] = {
-            "ok": False, 
-            "last_ok": None, 
-            "last_error": None, 
-            "fails": 0, 
-            "url": self.current_url  # Ya funciona porque _url_idx está inicializado
-        }
-
-    async def _reload_env_if_changed(self):
-        try:
-            if self._env_path.exists():
-                m = self._env_path.stat().st_mtime
-                if self._env_mtime != m:
-                    self._env_mtime = m
-                    load_dotenv(override=True)
-                    new_settings = ExternalSettings.from_env()
-                    if new_settings != self.settings:
-                        self.settings = new_settings
-                        await self._ensure_client(recycle=True)
-                        self._url_idx = 0
-                        print("🔄 .env External recargado y cliente renovado.")
-        except Exception as e:
-            print("⚠️ Hot-reload .env (External) error:", e)
-    
-    @property
-    def current_url(self) -> str:
-        return self.settings.urls[self._url_idx] if self.settings.urls else ""
-
-    def _rotate_url(self):
-        if len(self.settings.urls) > 1:
-            self._url_idx = (self._url_idx + 1) % len(self.settings.urls)
-            print(f"🔀 External → {self.current_url}")
-    
-    async def _reauth(self) -> bool:
-        await self._reload_env_if_changed()
-        await self._ensure_client(recycle=True)
-        return True
-    
-    async def _post_track(self) -> bool:
-        """POST de tracking/telemetría para mantener sesión"""
-        if not (self._client and self.settings.track_url):
-            return False
-        try:
-            headers = self._build_auth_headers()
-            
-            # Construir body si está configurado
-            body = None
-            if self.settings.track_body_json:
-                body_str = self.settings.track_body_json.replace(
-                    "{now_ms}", str(int(time.time() * 1000))
-                ).replace(
-                    "{now_iso}", datetime.utcnow().isoformat(timespec="seconds") + "Z"
-                ).replace(
-                    "{url}", self.current_url
-                )
-                try:
-                    body = json.loads(body_str)
-                except:
-                    body = {"timestamp": int(time.time() * 1000)}
-            
-            r = await self._client.post(
-                self.settings.track_url, 
-                headers=headers, 
-                json=body,
-                timeout=15.0, 
-                follow_redirects=False
-            )
-            
-            self._update_cookie_from_response(r)
-            return r.status_code < 400
-            
-        except Exception:
-            return False
-
-    async def _ensure_client(self, recycle: bool = False):
-        if self._client is not None and not recycle:
-            return
-        if self._client is not None and recycle:
-            try: await self._client.aclose()
-            except Exception: pass
-
-        # Configuración más robusta para conexiones persistentes
-        transport = httpx.AsyncHTTPTransport(
-            retries=0,
-            http2=self.settings.http2,
-            limits=httpx.Limits(
-                max_connections=self.settings.max_connections,
-                max_keepalive_connections=self.settings.max_keepalive,
-                keepalive_expiry=180.0,  # Aumentado de 60 a 180 segundos
-            ),
-        )
-        
-        # Headers mejorados para mantener sesión
-        default_headers = {
-            "User-Agent": self.settings.user_agent,
-            "Accept": "application/json, text/plain, */*",
-            "X-Requested-With": "XMLHttpRequest",
-            "Connection": "keep-alive",
-            "Cache-Control": "no-cache",
-        }
-        
-        if self.settings.referer:
-            default_headers["Referer"] = self.settings.referer
-
-        self._client = httpx.AsyncClient(
-            verify=self._ssl_verify(),
-            transport=transport,
-            headers=default_headers,
-            timeout=httpx.Timeout(30.0, connect=10.0, read=30.0, write=10.0)
-        )
-
-    async def _aggressive_keepalive(self) -> bool:
-        """Keepalive más agresivo con múltiples estrategias"""
-        if not self._client:
-            return False
-            
-        success = False
-        
-        # Estrategia 1: POST track si está configurado
-        if self.settings.track_url:
-            success = await self._post_track()
-            
-        # Estrategia 2: GET keepalive si hay URL específica
-        if not success and self.settings.keepalive_url:
-            success = await self._simple_keepalive(self.settings.keepalive_url)
-            
-        # Estrategia 3: HEAD a la URL principal (menos intrusivo)
-        if not success:
-            success = await self._head_keepalive()
-            
-        # Estrategia 4: GET ligero a la URL principal
-        if not success:
-            success = await self._simple_keepalive(self.current_url)
-            
-        # Actualizar score de salud de sesión
-        if success:
-            self._session_health_score = min(100, self._session_health_score + 10)
-            self._last_activity = time.time()
-        else:
-            self._session_health_score = max(0, self._session_health_score - 25)
-            
-        print(f"🔄 Keepalive: {'✓' if success else '✗'} (health: {self._session_health_score}%)")
-        
-        return success
-
-    async def _head_keepalive(self) -> bool:
-        """HEAD request ligero para mantener conexión"""
-        if not (self._client and self.current_url):
-            return False
-        try:
-            headers = self._build_auth_headers()
-            r = await self._client.head(
-                self.current_url, 
-                headers=headers, 
-                timeout=15.0, 
-                follow_redirects=False
-            )
-            self._update_cookie_from_response(r)
-            return r.status_code < 400
-        except Exception:
-            return False
-
-    async def _simple_keepalive(self, url: str) -> bool:
-        """GET request de keepalive"""
-        if not (self._client and url):
-            return False
-        try:
-            headers = self._build_auth_headers()
-            r = await self._client.get(
-                url, 
-                headers=headers, 
-                timeout=20.0, 
-                follow_redirects=False
-            )
-            self._update_cookie_from_response(r)
-            return r.status_code < 400
-        except Exception:
-            return False
-
-    def _update_cookie_from_response(self, response):
-        """Actualiza cookies desde Set-Cookie headers"""
-        set_cookie_headers = response.headers.get_list("set-cookie")
-        if set_cookie_headers:
-            new_cookie, expires_at = _merge_set_cookie_with_expiry(
-                self.settings.cookie_header, set_cookie_headers
-            )
-            self.settings.cookie_header = new_cookie
-            if expires_at:
-                self._cookie_expires_at = expires_at
-                # Persistir sesión
-                _save_cookie_session(EXT_SESSION_PATH, new_cookie, expires_at)
-    
-    def _build_auth_headers(self) -> dict:
-        """Construye headers de autenticación consistentes"""
-        headers = {}
-        if self.settings.cookie_header:
-            headers["Cookie"] = self.settings.cookie_header
-            headers.update(_extract_xsrf_from_cookie(self.settings.cookie_header))
-        if self.settings.referer:
-            headers["Referer"] = self.settings.referer
-        return headers
-
-    def _should_preemptive_refresh(self) -> bool:
-        """Determina si debe hacer refresh proactivo"""
-        now = time.time()
-        
-        # Refresh si la cookie expira en menos de 5 minutos
-        if self._cookie_expires_at and (self._cookie_expires_at - now) < 300:
-            return True
-            
-        # Refresh si la salud de la sesión está baja
-        if self._session_health_score < 30:
-            return True
-            
-        # Refresh si ha pasado mucho tiempo sin actividad exitosa
-        if self._last_activity and (now - self._last_activity) > 1800:  # 30 min
-            return True
-            
-        return False
-
-    async def _fetch_once(self):
-        if not self.current_url:
-            return
-            
-        await self._ensure_client()
-        
-        # Refresh proactivo si es necesario
-        if self._should_preemptive_refresh():
-            print(f"🔄 Refresh proactivo (health: {self._session_health_score}%)")
-            await self._reauth()
-
-        try:
-            headers = self._build_auth_headers()
-            
-            resp = await self._client.get(
-                self.current_url,
-                headers=headers,
-                timeout=30.0,
-                follow_redirects=False
-            )
-
-            # Manejo mejorado de estados de auth
-            if resp.status_code in (401, 403, 419, 440):
-                print(f"🔐 Auth error {resp.status_code}, reautenticando...")
-                await self._reauth()
-                # Segundo intento después de reauth
-                headers = self._build_auth_headers()
-                resp = await self._client.get(
-                    self.current_url,
-                    headers=headers, 
-                    timeout=30.0,
-                    follow_redirects=False
-                )
-
-            # Manejo de redirects
-            if resp.status_code in (301, 302, 303, 307, 308):
-                location = resp.headers.get("location", "")
-                if "login" in location.lower():
-                    print("🔐 Redirect a login, reautenticando...")
-                    await self._reauth()
-                    headers = self._build_auth_headers()
-                    resp = await self._client.get(
-                        self.current_url,
-                        headers=headers,
-                        timeout=30.0,
-                        follow_redirects=False
-                    )
-
-            if resp.status_code >= 500:
-                raise httpx.HTTPStatusError("5xx", request=resp.request, response=resp)
-
-            self._update_cookie_from_response(resp)
-            
-            # Validación de contenido JSON
-            try:
-                data = resp.json()
-            except Exception:
-                # Intento de parsing de texto que parece JSON
-                text = resp.text or ""
-                if text.lstrip().startswith(("{", "[")):
-                    try:
-                        data = json.loads(text)
-                    except Exception:
-                        raise ValueError(f"Contenido no es JSON válido: {resp.headers.get('content-type', 'unknown')}")
-                else:
-                    raise ValueError(f"Respuesta no es JSON: {resp.headers.get('content-type', 'unknown')}")
-
-            # Detección de páginas de login disfrazadas
-            if isinstance(data, dict):
-                content_sample = json.dumps({k: data.get(k) for k in list(data.keys())[:10]}).lower()
-                suspicious_terms = ("login", "signin", "unauthorized", "forbidden", "expired", "csrf", "xsrf")
-                has_data_structure = any(k in (kk.lower() for kk in data.keys()) 
-                                       for k in ("data", "value", "items", "results", "rows", "records", "list", "columns"))
-                
-                if any(term in content_sample for term in suspicious_terms) and not has_data_structure:
-                    print("🔐 Contenido sospechoso de login, reautenticando...")
-                    raise httpx.HTTPStatusError("auth", request=resp.request, response=resp)
-
-            # Procesamiento exitoso
-            base = data.get("data") if isinstance(data, dict) and "data" in data else data
-            await apply_external_table(base)
-
-            # Actualización de estado exitoso
-            self._consec_fail = 0
-            self._last_ok = datetime.utcnow().isoformat(timespec="seconds") + "Z"
-            self._last_activity = time.time()
-            self._session_health_score = min(100, self._session_health_score + 5)
-            
-            self._status.update(
-                ok=True, 
-                last_ok=self._last_ok, 
-                last_error=None, 
-                fails=0, 
-                url=self.current_url
-            )
-            
-            await manager.broadcast({
-                "type": "external_status",
-                "ok_conn": True,                          # <— conexión OK
-                "ok_data": True,                          # <— hubo JSON válido y se volcó a tabla
-                "url": self.current_url,
-                "ts_conn": self._last_ok,                 # hora de conexión
-                **_external_data_summary(),               # hora/versión/filas del DATO
-            })
-
-
-        except Exception as e:
-            self._consec_fail += 1
-            self._session_health_score = max(0, self._session_health_score - 15)
-            
-            error_msg = str(e)
-            print(f"❌ External fetch error: {error_msg}")
-            
-            self._status.update(
-                ok=False, 
-                last_error=error_msg, 
-                fails=self._consec_fail, 
-                url=self.current_url
-            )
-            
-            await manager.broadcast({
-                "type": "external_status",
-                "ok_conn": False,
-                "ok_data": _external_data_is_fresh(),     # dato puede seguir fresco aunque ahora falle
-                "url": self.current_url,
-                "error": error_msg,
-                "fails": self._consec_fail,
-                "ts_conn": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-                **_external_data_summary(),
-            })
-
-            raise
-
-    async def run(self):
-        await self._ensure_client()
-        if self.settings.auth_mode == "LOGIN_POST":
-            await self._login_if_needed()
-
-        next_delay = 0
-        while True:
-            try:
-                await self._reload_env_if_changed()
-
-                # Keepalive más frecuente y agresivo
-                now = time.time()
-                should_keepalive = (
-                    now - self._last_keepalive >= self._keepalive_every or
-                    self._session_health_score < 50 or
-                    self._should_preemptive_refresh()
-                )
-                
-                if should_keepalive:
-                    await self._aggressive_keepalive()
-                    self._last_keepalive = now
-
-                await self._fetch_once()
-                
-                # Delay dinámico basado en salud de sesión
-                base_delay = self.settings.poll_seconds
-                if self._session_health_score > 80:
-                    next_delay = base_delay
-                elif self._session_health_score > 50:
-                    next_delay = max(10, base_delay // 2)
-                else:
-                    next_delay = max(5, base_delay // 4)  # Más agresivo si hay problemas
-
-            except Exception:
-                # Backoff exponencial mejorado
-                step = min(self._consec_fail, 6)
-                backoff = min(300, (2 ** step))
-                jitter = int(0.2 * backoff * (1 + (os.getpid() % 5)))
-                next_delay = max(5, backoff + (jitter % 7))  # Mínimo reducido a 5s
-                
-                # Acciones de recuperación más agresivas
-                if self._consec_fail % 2 == 0:
-                    await self._ensure_client(recycle=True)
-                if self._consec_fail % 3 == 0:
-                    self._rotate_url()
-                    await self._reauth()
-                    
-                print(f"🔄 Retry en {next_delay}s (intento {self._consec_fail})")
-
-            await asyncio.sleep(next_delay)
-
-    def _ssl_verify(self):
-        return _build_ssl_context_for(self.settings.verify_mode, self.settings.cafile)
-
-    async def _login_if_needed(self) -> bool:
-        if self.settings.auth_mode != "LOGIN_POST":
-            return True
-        if not (self.settings.login_url and self._client):
-            return False
-        
-        csrf = None
-        try:
-            r = await self._client.get(self.settings.login_url, timeout=30.0)
-            r.raise_for_status()
-            if self.settings.login_csrf_regex:
-                m = re.search(self.settings.login_csrf_regex, r.text)
-                if m: csrf = m.group(1)
-        except Exception as e:
-            print(f"❌ Login GET error: {e}")
-            return False
-
-        payload = {}
-        if self.settings.login_payload_json:
-            try: 
-                payload = json.loads(self.settings.login_payload_json)
-            except: 
-                payload = {}
-        
-        if payload:
-            payload = json.loads(json.dumps(payload)
-                                 .replace("{username}", self.settings.username)
-                                 .replace("{password}", self.settings.password)
-                                 .replace("{csrf}", csrf or ""))        
-        elif self.settings.username:
-            payload = {"username": self.settings.username, "password": self.settings.password}
-            if csrf: payload["csrf"] = csrf
-
-        try:
-            r = await self._client.post(self.settings.login_url, data=payload, timeout=30.0)
-            r.raise_for_status()
-            return True
-        except Exception as e:
-            print(f"❌ Login POST error: {e}")
-            return False
-
-    def status(self) -> dict[str, Any]:
-        return dict(self._status)
-
 
 
 # ---------------------------
@@ -2665,7 +2049,7 @@ async def _ws_heartbeat(interval_sec: int = 30):
             await manager.broadcast({
                 "type": "server_heartbeat",
                 "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-                **_external_data_summary(),  # incluye frescura del dato externo
+                
             })
         except Exception as e:
             print("⚠️ Heartbeat WS error:", repr(e))
@@ -2679,11 +2063,10 @@ async def lifespan(app: FastAPI):
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
-    load_external_from_disk()
+    
 
     app.state._roster = asyncio.create_task(_roster_watcher())
-    app.state._ext = ExternalConnector()
-    app.state._poller = asyncio.create_task(app.state._ext.run())
+   
     app.state._ena = EnablonConnector()
     app.state._ena_task = asyncio.create_task(app.state._ena.run())
 
@@ -2729,7 +2112,6 @@ def api_backup():
         "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "tasks": list(tasks_in_memory_store.values()),
         "attendance": attendance_store,
-        "external_table": latest_external_table,
         "incidents_table": latest_incidents_table,
         "last_briefing": _last_briefing_cache,
         # añade aquí lo que quieras incluir
@@ -2852,13 +2234,7 @@ async def api_restore(payload: Dict[str, Any], x_api_key: Optional[str] = Header
         attendance_store = att
 
     # Tablas
-    ext = payload.get("external_table")
-    if isinstance(ext, dict):
-        latest_external_table.update(ext)
-        latest_external_table["version"] = int(latest_external_table.get("version") or 0) + 1
-        await manager.broadcast({"type":"table_ping","table":"external","version":latest_external_table["version"],
-                                 "rows": len(latest_external_table.get("rows", [])),
-                                 "fetched_at": latest_external_table.get("fetched_at")})
+    
 
     inc = payload.get("incidents_table")
     if isinstance(inc, dict):
@@ -2877,10 +2253,7 @@ async def api_restore(payload: Dict[str, Any], x_api_key: Optional[str] = Header
     return {"status": "ok", "restored": True}
 
 # Endpoint opcional de estado para debug/monitorización
-@app.get("/api/external-status")
-def api_external_status():
-    ext = getattr(app.state, "_ext", None)
-    return ext.status() if ext else {"ok": False, "last_error": "not_started"}
+
 
 @app.get("/api/incidents-status")
 def api_incidents_status():
@@ -2935,54 +2308,10 @@ def get_briefing():
             pass
     return _last_briefing_cache or {}
 
-@app.get("/api/external/env-check")
-def api_external_env_check():
-    def yes(v): return bool(v and str(v).strip())
-    return {
-        "EXT_URLS": yes(os.getenv("EXT_URLS")) or yes(os.getenv("EXT_URL")),
-        "EXT_REFERER": yes(os.getenv("EXT_REFERER")),
-        "EXT_COOKIE_present": yes(os.getenv("EXT_COOKIE")),
-        "EXT_KEEPALIVE_URL": yes(os.getenv("EXT_KEEPALIVE_URL")),
-        "EXT_TRACK_URL": yes(os.getenv("EXT_TRACK_URL")),
-        "EXT_TRACK_BODY_JSON": yes(os.getenv("EXT_TRACK_BODY_JSON")),
-        "EXT_KEEPALIVE_EVERY": os.getenv("EXT_KEEPALIVE_EVERY", "auto"),
-        "EXT_HTTP2": os.getenv("EXT_HTTP2", "true"),
-        "EXT_VERIFY_MODE": os.getenv("EXT_VERIFY_MODE", "TRUSTSTORE"),
-    }
 
 
-@app.get("/api/external/probe")
-async def api_external_probe():
-    s = ExternalSettings.from_env()
-    if not s.urls:
-        return {"ok": False, "error": "EXT_URL(s) not configured"}
-    headers = {
-        "User-Agent": s.user_agent,
-        "Accept": "application/json, text/plain, */*",
-        "X-Requested-With": "XMLHttpRequest",
-    }
-    if s.referer: headers["Referer"] = s.referer
-    if s.cookie_header: headers["Cookie"] = s.cookie_header
-    try:
-        async with httpx.AsyncClient(verify=_build_ssl_context_for(s.verify_mode, s.cafile)) as client:
-            r = await client.get(s.urls[0], headers=headers, timeout=30.0, follow_redirects=False)
-            info = {"ok": r.status_code < 400, "status": r.status_code,
-                    "content_type": (r.headers.get("content-type") or "").lower(),
-                    "location": r.headers.get("location")}
-            if "application/json" in (info["content_type"] or ""):
-                try:
-                    pay = r.json()
-                    info["json_type"] = type(pay).__name__
-                    if isinstance(pay, dict): info["json_keys"] = list(pay.keys())[:20]
-                    if isinstance(pay, list): info["json_len"] = len(pay)
-                except Exception:
-                    info["json_error"] = "json_parse_failed"
-                    info["body_head"] = (r.text or "")[:500]
-            else:
-                info["body_head"] = (r.text or "")[:500]
-            return info
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+
+
 
 
 @app.post("/api/briefing")
@@ -3540,9 +2869,7 @@ async def update_task_completion(task_id: str, update_data: TaskCompletionUpdate
 # -----------------------------------
 # NUEVO: API tabla externa para el frontend (Carga/Planificación)
 # -----------------------------------
-@app.get("/api/external-table")
-async def get_external_table():
-    return latest_external_table
+
 
 # -----------------------------------
 # WebSocket (EXISTENTE, SIN CAMBIOS)
@@ -3551,7 +2878,7 @@ async def get_external_table():
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        await push_external_table_state(websocket)
+        
         await push_incidents_table_state(websocket)
 
         # Bucle pasivo: no exige tráfico del cliente
@@ -3727,6 +3054,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
