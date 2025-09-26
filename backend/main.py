@@ -195,7 +195,42 @@ from pydantic import BaseModel, Field
 import tempfile
 from pathlib import Path
 
-TASKS_DB = os.getenv("TASKS_DB", "./data/tasks.json")
+# Donde defines rutas
+TASKS_DB = os.getenv("GH_FILE_TASKS") or os.getenv("TASKS_DB", "./data/tasks.json")
+INCIDENTS_DB = os.getenv("INCIDENTS_DB", "./data/incidents_table.json")
+ATTENDANCE_DB = os.getenv("ATTENDANCE_DB", "./data/attendance.json")
+ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster_store.json")
+BRIEFING_DB = os.getenv("BRIEFING_DB", "./data/briefings.json")
+
+def save_tasks_to_disk():
+    try:
+        payload = [sanitize_task(t) for t in tasks_in_memory_store.values()]
+        store_write_json(TASKS_DB, payload, message="Update tasks.json")
+    except Exception as e:
+        print("⚠️ Error guardando tareas:", repr(e))
+
+def save_incidents_to_disk():
+    try:
+        store_write_json(INCIDENTS_DB, latest_incidents_table, message="Update incidents_table.json")
+    except Exception as e:
+        print("⚠️ Error guardando incidents_table:", repr(e))
+
+def save_attendance_to_disk():
+    try:
+        store_write_json(ATTENDANCE_DB, attendance_store, message="Update attendance.json")
+    except Exception as e:
+        print("⚠️ Error guardando asistencia:", repr(e))
+
+def save_roster_to_disk():
+    try:
+        store_write_json(ROSTER_DB, roster_store, message="Update roster_store.json")
+    except Exception as e:
+        print("⚠️ Error guardando roster_store:", repr(e))
+
+# En el POST /api/briefing usa append unificado:
+def _append_briefing(data: dict):
+    store_append_json(BRIEFING_DB, data, message="Append briefings.json")
+
 
 def _atomic_write_json(path: str, data: list[dict]):
     if USE_GITHUB and gh_store:
@@ -217,112 +252,14 @@ def _atomic_write_json(path: str, data: list[dict]):
         except Exception:
             pass
 
-def _atomic_write_json_any(path: str, data: Any):
-    if USE_GITHUB and gh_store:
-        gh_store.write_json(path, data, message=f"Update {Path(path).name}")
-        return
-    if not USE_DISK:
-        return
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_", suffix=".json")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False)
-        os.replace(tmp, path)
-    finally:
-        try:
-            if Path(tmp).exists():
-                os.remove(tmp)
-        except Exception:
-            pass
-
-
-def _atomic_append_json(path: str, item: dict):
-    if not USE_DISK:
-        # En memoria: simplemente añade al cache "último briefing"
-        global _last_briefing_cache
-        _last_briefing_cache = item
-        return
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    arr = []
-    if p.exists():
-        try:
-            with p.open("r", encoding="utf-8") as fh:
-                arr = json.load(fh) or []
-        except Exception:
-            arr = []
-    arr.append(item)
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".brief_", suffix=".json")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(arr, fh, ensure_ascii=False)
-        os.replace(tmp, path)
-    finally:
-        try:
-            if Path(tmp).exists():
-                os.remove(tmp)
-        except Exception:
-            pass
-
-
-def save_tasks_to_disk():
-    if not USE_DISK:
-        return
-    try:
-        payload = [sanitize_task(t) for t in tasks_in_memory_store.values()]
-        _atomic_write_json(TASKS_DB, payload)
-        # print(f"💾 Guardadas {len(payload)} tareas en {TASKS_DB}")
-    except Exception as e:
-        print("⚠️ Error guardando tareas:", repr(e))
-
-def _read_json_any(path: str, default: Any):
-    if USE_GITHUB and gh_store:
-        obj = gh_store.read_json(path)
-        return obj if obj is not None else default
-    if USE_DISK:
-        p = Path(path)
-        if p.exists():
-            try:
-                return json.load(p.open("r", encoding="utf-8"))
-            except Exception:
-                return default
-    return default
-
-
-def load_tasks_from_disk():
-    global tasks_in_memory_store, sp_last_update_ts
-    arr = _read_json_any(TASKS_DB, [])
-    tasks_in_memory_store.clear()
-    for t in arr or []:
-        t = sanitize_task(t)
-        if t.get("id") and t.get("task_type"):
-            tasks_in_memory_store[t["id"]] = t
-    print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas (backend={STORAGE_BACKEND}).")
-
-    # 👇 CLAVE: marcar como “fresco” si hay tareas persistidas
-    if tasks_in_memory_store and not sp_last_update_ts:
-        sp_last_update_ts = time.time()
 
 
 
 
-def load_incidents_from_disk():
-    global latest_incidents_table
-    obj = _read_json_any(INCIDENTS_DB, {})
-    if isinstance(obj, dict) and "columns" in obj and "rows" in obj:
-        latest_incidents_table.update(obj)
-        if not latest_incidents_table.get("version"):
-            latest_incidents_table["version"] = 1
-        print(f"🗂️ Incidentes: {len(latest_incidents_table.get('rows', []))} filas (backend={STORAGE_BACKEND}).")
+          
 
-def load_attendance_from_disk():
-    global attendance_store
-    attendance_store = _read_json_any(ATTENDANCE_DB, {}) or {}
-    if not isinstance(attendance_store, dict):
-        attendance_store = {}
-    print(f"🗂️ Asistencia cargada ({len(attendance_store)} claves) (backend={STORAGE_BACKEND}).")
+
+
 
 
 # -----------------------------------
@@ -379,6 +316,54 @@ def merge_preserve_server(existing: dict | None, incoming: dict | None) -> dict:
             if f in existing and f not in (incoming or {}):
                 base[f] = existing[f]  # preserva tick/nota si el lote no los trae
     return sanitize_task(base)
+
+# ==== Helpers de persistencia unificados (DISK o GITHUB) ====
+
+def store_read_json(path: str, default: Any):
+    if USE_GITHUB and gh_store:
+        obj = gh_store.read_json(path)
+        return default if obj is None else obj
+    # disco
+    p = Path(path)
+    if p.exists():
+        try:
+            return json.load(p.open("r", encoding="utf-8"))
+        except Exception:
+            return default
+    return default
+
+def store_write_json(path: str, data: Any, message: str | None = None):
+    if USE_GITHUB and gh_store:
+        gh_store.write_json(path, data, message=message or f"Update {Path(path).name}")
+        return
+    # disco
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        try:
+            if Path(tmp).exists():
+                os.remove(tmp)
+        except Exception:
+            pass
+
+def store_append_json(path: str, item: dict, message: str | None = None):
+    """Append seguro para arrays JSON (briefings, etc.). En GitHub: lee → añade → write."""
+    arr = []
+    try:
+        arr = store_read_json(path, []) or []
+        if not isinstance(arr, list):
+            arr = []
+    except Exception:
+        arr = []
+    arr.append(item)
+    store_write_json(path, arr, message=message or f"Append {Path(path).name}")
+
+
 
 from datetime import date  # si no lo tienes ya
 
@@ -1692,6 +1677,44 @@ class EnablonConnector:
 # ---------------------------
 
 
+def _read_json_any(path: str, default: Any):
+    # (opcional) puedes eliminar esta función y usar store_read_json directamente
+    return store_read_json(path, default)
+
+def load_tasks_from_disk():
+    global tasks_in_memory_store, sp_last_update_ts
+    arr = store_read_json(TASKS_DB, [])
+    tasks_in_memory_store.clear()
+    for t in arr or []:
+        t = sanitize_task(t)
+        if t.get("id") and t.get("task_type"):
+            tasks_in_memory_store[t["id"]] = t
+    print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas (backend={STORAGE_BACKEND}).")
+    if tasks_in_memory_store and not sp_last_update_ts:
+        sp_last_update_ts = time.time()
+
+def load_incidents_from_disk():
+    global latest_incidents_table
+    obj = store_read_json(INCIDENTS_DB, {}) or {}
+    if isinstance(obj, dict) and "columns" in obj and "rows" in obj:
+        latest_incidents_table.update(obj)
+        if not latest_incidents_table.get("version"):
+            latest_incidents_table["version"] = 1
+        print(f"🗂️ Incidentes: {len(latest_incidents_table.get('rows', []))} filas (backend={STORAGE_BACKEND}).")
+
+def load_attendance_from_disk():
+    global attendance_store
+    attendance_store = store_read_json(ATTENDANCE_DB, {}) or {}
+    if not isinstance(attendance_store, dict):
+        attendance_store = {}
+    print(f"🗂️ Asistencia cargada ({len(attendance_store)} claves) (backend={STORAGE_BACKEND}).")
+
+def load_roster_from_disk():
+    global roster_store
+    roster_store = store_read_json(ROSTER_DB, {}) or {}
+    if not isinstance(roster_store, dict):
+        roster_store = {}
+    print(f"🗂️ Roster persistente cargado ({len(roster_store)} fechas).")
 
 
 
@@ -1731,16 +1754,7 @@ class EnablonConnector:
 # Utilidades
 # -----------------------------------
 # === Persistencia tabla Incidentes (Enablon) ===
-INCIDENTS_DB = os.getenv("INCIDENTS_DB", "./data/incidents_table.json")
 
-def save_incidents_to_disk():
-    if not USE_DISK:
-        return
-    try:
-        _atomic_write_json_any(INCIDENTS_DB, latest_incidents_table)
-        # print(f"💾 Incidentes guardados en {INCIDENTS_DB}")
-    except Exception as e:
-        print("⚠️ Error guardando incidents_table:", repr(e))
 
 
 
@@ -1750,7 +1764,7 @@ def save_incidents_to_disk():
 from datetime import date  # si no lo tienes ya
 
 # ===== Asistencia / Presencia =====
-ATTENDANCE_DB = os.getenv("ATTENDANCE_DB", "./data/attendance.json")
+
 
 attendance_store: dict[str, dict[str, bool]] = {}  
 # Estructura: { "YYYY-MM-DD|Mañana": { "Apellidos, Nombre": true/false, ... }, ... }
@@ -1771,19 +1785,8 @@ def _atomic_write_json_any(path: str, data: Any):
 
 
 
-def save_attendance_to_disk():
-    if not USE_DISK:
-        return
-    try:
-        _atomic_write_json_any(ATTENDANCE_DB, attendance_store)
-    except Exception as e:
-        print("⚠️ Error guardando asistencia:", repr(e))
-
-def _att_key(d: datetime.date, shift: str) -> str:
-    return f"{d.isoformat()}|{shift}"
-
 # ===== ROSTER persistente =====
-ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster_store.json")
+
 
 # Estructura:
 # {
@@ -1801,19 +1804,6 @@ ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster_store.json")
 # }
 roster_store: dict[str, dict] = {}
 
-def save_roster_to_disk():
-    try:
-        _atomic_write_json_any(ROSTER_DB, roster_store)
-    except Exception as e:
-        print("⚠️ Error guardando roster_store:", repr(e))
-
-def load_roster_from_disk():
-    global roster_store
-    obj = _read_json_any(ROSTER_DB, {}) or {}
-    if not isinstance(obj, dict):
-        obj = {}
-    roster_store = obj
-    print(f"🗂️ Roster persistente cargado ({len(roster_store)} fechas).")
 
 
 
@@ -1822,32 +1812,9 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 import tempfile
 
-BRIEFING_DB = os.getenv("BRIEFING_DB", "./data/briefings.json")
 
-def _atomic_append_json(path: str, item: dict):
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    # lee existente
-    arr = []
-    if p.exists():
-        try:
-            with p.open("r", encoding="utf-8") as fh:
-                arr = json.load(fh) or []
-        except Exception:
-            arr = []
-    arr.append(item)
-    # guarda atómico
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".brief_", suffix=".json")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(arr, fh, ensure_ascii=False)
-        os.replace(tmp, path)
-    finally:
-        try:
-            if Path(tmp).exists():
-                os.remove(tmp)
-        except Exception:
-            pass
+
+
 
 class BriefingSection(BaseModel):
     status: Optional[str] = ""
@@ -1928,7 +1895,19 @@ import base64
 class GitHubStore:
     def __init__(self):
         self.api    = os.getenv("GH_API_URL", "https://api.github.com").rstrip("/")
-        self.repo   = os.getenv("GH_REPO", "")
+        owner       = os.getenv("GH_OWNER", "").strip()
+        repo_name   = os.getenv("GH_REPO", "").strip()
+        repo_full   = os.getenv("GH_REPO_FULL", "").strip()
+
+        if "/" in repo_name:
+            self.repo = repo_name
+        elif owner and repo_name:
+            self.repo = f"{owner}/{repo_name}"
+        elif repo_full:
+            self.repo = repo_full
+        else:
+            self.repo = ""  # se detectará más abajo
+
         self.branch = os.getenv("GH_BRANCH", "main")
         self.dir    = (os.getenv("GH_DIR", "data").strip("/"))
         self.token  = os.getenv("GH_TOKEN", "")
@@ -1936,14 +1915,20 @@ class GitHubStore:
         self.commit_email = os.getenv("GH_COMMIT_EMAIL", "ci@example.com")
         self._sha_cache: dict[str,str] = {}
 
+        print(f"📦 GitHubStore → repo='{self.repo}' branch='{self.branch}' dir='{self.dir or '(root)'}'")
+
     def _headers(self):
         if not self.token:
-            raise RuntimeError("GITHUB_TOKEN no configurado")
+            raise RuntimeError("GH_TOKEN no configurado")
+        if not self.repo:
+            raise RuntimeError("GH_OWNER/GH_REPO no configurados")
         return {
             "Authorization": f"Bearer {self.token}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
+
+
 
     def _gh_path(self, local_path: str) -> str:
         # mapea "./data/tasks.json" → "data/tasks.json" dentro del repo
@@ -2402,7 +2387,7 @@ def post_briefing(payload: BriefingPayload):
     data['saved_at'] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
     # guarda
     try:
-        _atomic_append_json(BRIEFING_DB, data)
+        _append_briefing(data)
         global _last_briefing_cache
         _last_briefing_cache = data
         # (opcional) notificar por WS
@@ -3158,6 +3143,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
