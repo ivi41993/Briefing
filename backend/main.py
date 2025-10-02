@@ -78,7 +78,6 @@ def _norm_key(txt: str) -> str:
     return s
 
 def _normalize_cols(cols):
-    # mapa normalizado -> nombre real de la hoja
     norm = {_norm_key(c): c for c in cols}
 
     def pick(*cands):
@@ -94,12 +93,21 @@ def _normalize_cols(cols):
         "apellidos, nombre": pick("apellidos, nombre","apellidos nombre","nombre completo"),
         "horario": pick("horario","turno","franja"),
         "observaciones": pick("observaciones","observacion","obs"),
-        # Por si más adelante quieres usarlo:
+
+        # 🔽 NUEVO: “Función diaria”
+        # acepta variantes con/ sin tilde y con/ sin espacios
+        "funcion_diaria": pick(
+            "funcion diaria", "función diaria", "funcion_diaria", "funciondiaria",
+            "funcion del dia", "función del día", "funciondía", "funcion dia", "función dia"
+        ),
+
+        # (ya estaban, las dejamos)
         "nomina": pick("nomina","nómina"),
         "contrato": pick("contrato"),
         "formacion": pick("formacion","formación"),
         "limitaciones": pick("limitaciones","limitacion"),
     }
+
 
 def _match_shift(horario: str, shift: str) -> bool:
     s = (horario or "").strip().lower()
@@ -147,6 +155,9 @@ def _read_sheet_people(xlsx_path: str, sheet_name: str, shift: str) -> list[dict
     ho_col        = cols.get("horario")
     ob_col        = cols.get("observaciones") or ho_col  # si no hay observaciones, no rompe
 
+    # 🔽 NUEVO: columna “Función diaria” (si existe)
+    fu_col        = cols.get("funcion_diaria")
+
     people = []
     for _, row in df.iterrows():
         # nombre completo
@@ -160,15 +171,26 @@ def _read_sheet_people(xlsx_path: str, sheet_name: str, shift: str) -> list[dict
         ho = str(row.get(ho_col) or "").strip() if ho_col else ""
         ob = str(row.get(ob_col) or "").strip()
 
+        # 🔽 NUEVO: función diaria (si la hoja la tiene)
+        fu = str(row.get(fu_col) or "").strip() if fu_col else ""
+
         # limpia "nan"
         if full_name.lower() == "nan": full_name = ""
         if ho.lower() == "nan": ho = ""
         if ob.lower() == "nan": ob = ""
+        if fu.lower() == "nan": fu = ""
 
         if not full_name:
             continue
         if not _match_shift(ho, shift):
             continue
+
+        # 🔽 NUEVO: si existe la columna “Función diaria”, filtra filas sin valor
+        if fu_col and not fu:
+            continue
+
+        # 🔽 NUEVO: si hay “Función diaria”, se mostrará en tarjeta en lugar de observaciones
+        ob_display = fu if fu_col and fu else ob
 
         ap_out, no_out = "", ""
         if "," in full_name:
@@ -181,11 +203,14 @@ def _read_sheet_people(xlsx_path: str, sheet_name: str, shift: str) -> list[dict
             "nombre": no_out,
             "nombre_completo": full_name,
             "horario": ho,
-            "observaciones": ob,
+            "observaciones": ob_display,   # 👈 mostrará la función diaria si aplica
+            "funcion_diaria": fu,          # 👈 guardamos el valor explícitamente también
         })
 
-    print(f"👥 Roster: {len(people)} personas tras filtrar por turno='{shift}' en hoja='{sheet_name}'")
+    print(f"👥 Roster: {len(people)} personas tras filtrar por turno='{shift}' en hoja='{sheet_name}'"
+          f"{' (con filtro de Función diaria)' if fu_col else ''}")
     return people
+
 
 
 from dotenv import load_dotenv
@@ -3143,6 +3168,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
