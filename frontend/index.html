@@ -999,62 +999,73 @@ color: var(--text-muted);
 <section class="col-middle">
 <!-- CHECKLIST DE BRIEFING -->
 <div class="widget" id="brief-check">
+  <div id="brief-check-explain" class="br-explain" aria-live="polite">
+  Pasa el ratón por cada punto para ver una explicación.
+</div>
+
 <h2 class="widget-title">
 <span>Checklist</span>
 </h2>
 <span id="shift-badge" class="shift-chip">—</span>
   
 <div class="check-grid">
-<div class="check-card">
-<span class="check-title">1) Highlights del turno anterior</span>
+<div class="check-card" tabindex="0"
+     data-help="Repasa incidencias, bloqueos y aprendizajes clave del turno anterior del bloque de "Información del turno anterior".">
+  <span class="check-title">1) Highlights del turno anterior</span>
 <div class="check-actions" role="group" aria-label="Bloque 1">
 <input id="c1ok"  type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
 <input id="c1no"  type="radio" name="c1" value="NO"><label for="c1no">NO</label>
 </div>
 </div>
 
-<div class="check-card">
-<span class="check-title">2) Actualizaciones operativas</span>
+<div class="check-card" tabindex="0"
+     data-help="Cambios operativos: revisar CQC o WWM">
+  <span class="check-title">2) Actualizaciones operativas</span>
 <div class="check-actions" role="group" aria-label="Bloque 2">
 <input id="c2ok"  type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
 <input id="c2no"  type="radio" name="c2" value="NO"><label for="c2no">NO</label>
 </div>
 </div>
 
-<div class="check-card">
-<span class="check-title">3) Dotación y recursos</span>
+<div class="check-card" tabindex="0"
+     data-help="Dotación: presentes/ausentes, zonas asignadas y coberturas; pedir refuerzos si falta.">
+  <span class="check-title">3) Dotación y recursos</span>
 <div class="check-actions" role="group" aria-label="Bloque 3">
 <input id="c3ok"  type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
 <input id="c3no"  type="radio" name="c3" value="NO"><label for="c3no">NO</label>
 </div>
 </div>
 
-<div class="check-card">
-<span class="check-title">4) Seguridad y protección</span>
+<div class="check-card" tabindex="0"
+     data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad.">
+  <span class="check-title">4) Seguridad y protección</span>
 <div class="check-actions" role="group" aria-label="Bloque 4">
 <input id="c4ok"  type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
 <input id="c4no"  type="radio" name="c4" value="NO"><label for="c4no">NO</label>
 </div>
 </div>
 
-<div class="check-card">
-<span class="check-title">5) Preparación/reportes incidentes</span>
+<div class="check-card" tabindex="0"
+     data-help="Cómo reportar incidentes: canales, tiempos, responsables y material de emergencia.">
+  <span class="check-title">5) Preparación/reportes incidentes</span>
 <div class="check-actions" role="group" aria-label="Bloque 5">
 <input id="c5ok"  type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
 <input id="c5no"  type="radio" name="c5" value="NO"><label for="c5no">NO</label>
 </div>
 </div>
 
-<div class="check-card">
-<span class="check-title">6) Revisión Kpis</span>
+<<div class="check-card" tabindex="0"
+     data-help="KPIs del día: Ocupaciones de Uniwing, DG Autocheck, CargoMobile; revisar tendencia vs objetivo.">
+  <span class="check-title">6) Revisión Kpis</span>
 <div class="check-actions" role="group" aria-label="Bloque 6">
 <input id="c6ok"  type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
 <input id="c6no"  type="radio" name="c6" value="NO"><label for="c6no">NO</label>
 </div>
 </div>
   
-<div class="check-card">
-<span class="check-title">7) Feedback → Acciones</span>
+<div class="check-card" tabindex="0"
+     data-help="Recoge feedback del equipo y tradúcelo en acciones claras en el Kanban.">
+  <span class="check-title">7) Feedback → Acciones</span>
 <div class="check-actions" role="group" aria-label="Bloque 7">
 <input id="c7ok"  type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
 <input id="c7no"  type="radio" name="c7" value="NO"><label for="c7no">NO</label>
@@ -2725,6 +2736,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
