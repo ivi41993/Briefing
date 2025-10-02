@@ -943,6 +943,47 @@ color: var(--text-muted);
   border-radius: 10px;
 }
 
+/* Caja de explicación con alto contraste */
+#brief-check .br-explain{
+  display:flex; align-items:center; gap:8px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  background:#fff;                               /* fondo blanco para legibilidad */
+  color: var(--brand-red-700);                   /* texto rojo oscuro */
+  border: 2px solid var(--brand-red-600);        /* borde rojo marca */
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(239,68,68,.12);    /* leve sombra rojiza */
+  font-size: .95rem;
+  line-height: 1.35;
+  min-height: 44px;                              /* cómodo táctil */
+}
+
+/* Icono dentro de una píldora */
+#brief-check .br-explain-ico{
+  display:inline-flex; align-items:center; justify-content:center;
+  width: 26px; height: 26px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+  color:#fff;
+  box-shadow: 0 4px 10px rgba(239,68,68,.25);
+  flex: 0 0 26px;
+}
+
+#brief-check .br-explain-label{
+  font-weight: 800; letter-spacing:.2px;
+}
+
+#brief-check .br-explain-text{
+  font-weight: 600;
+}
+
+/* Mejoras de foco/teclado */
+#brief-check .check-card:focus,
+#brief-check .check-card:focus-visible{
+  outline: 2px solid rgba(239,68,68,.5);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
   
 </style>
 </head>
@@ -1016,8 +1057,16 @@ color: var(--text-muted);
 <!-- CHECKLIST DE BRIEFING -->
 <div class="widget" id="brief-check">
   <div id="brief-check-explain" class="br-explain" aria-live="polite">
-  Pasa el ratón por cada punto para ver una explicación.
+  <span class="br-explain-ico" aria-hidden="true">
+    <!-- icono info -->
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+      <path d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+    </svg>
+  </span>
+  <strong class="br-explain-label">Guía</strong>
+  <span class="br-explain-text">Pasa el ratón por cada punto para ver una explicación.</span>
 </div>
+
 
 <h2 class="widget-title">
 <span>Checklist</span>
@@ -2724,10 +2773,11 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   const host   = document.getElementById('brief-check');
   if (!host) return;
 
-  const banner = host.querySelector('#brief-check-explain');
+  const wrap   = host.querySelector('#brief-check-explain');
+  const target = host.querySelector('#brief-check-explain .br-explain-text');
   const DEF    = 'Pasa el ratón por cada punto para ver una explicación.';
 
-  const setText = (t)=> { if (banner) banner.textContent = t || DEF; };
+  const setText = (t)=> { if (target) target.textContent = t || DEF; };
 
   host.querySelectorAll('.check-card').forEach(card=>{
     const msg = card.getAttribute('data-help')
@@ -2738,12 +2788,11 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
     card.addEventListener('mouseenter', ()=> setText(msg));
     card.addEventListener('mouseleave', ()=> setText());
 
-    // Teclado (si se enfocan con Tab)
+    // Teclado (enfoque con Tab)
     card.addEventListener('focusin',  ()=> setText(msg));
     card.addEventListener('focusout', ()=> setText());
   });
 
-  // Mensaje por defecto al cargar
   setText();
 })();
   
@@ -2778,6 +2827,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
