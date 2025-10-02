@@ -928,6 +928,22 @@ color: var(--text-muted);
   }
 }
 
+#brief-check .br-explain{
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fafafa;
+  font-size: .9rem;
+  min-height: 1.6em;            /* evita “saltos” de altura */
+}
+#brief-check .check-card:focus{
+  outline: 2px solid rgba(239,68,68,.35);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+  
 </style>
 </head>
 <body>
@@ -2704,7 +2720,33 @@ setSpotlight([]);
 }
 window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
+(function initBriefExplain(){
+  const host   = document.getElementById('brief-check');
+  if (!host) return;
 
+  const banner = host.querySelector('#brief-check-explain');
+  const DEF    = 'Pasa el ratón por cada punto para ver una explicación.';
+
+  const setText = (t)=> { if (banner) banner.textContent = t || DEF; };
+
+  host.querySelectorAll('.check-card').forEach(card=>{
+    const msg = card.getAttribute('data-help')
+             || card.querySelector('.check-title')?.textContent
+             || '';
+
+    // Ratón
+    card.addEventListener('mouseenter', ()=> setText(msg));
+    card.addEventListener('mouseleave', ()=> setText());
+
+    // Teclado (si se enfocan con Tab)
+    card.addEventListener('focusin',  ()=> setText(msg));
+    card.addEventListener('focusout', ()=> setText());
+  });
+
+  // Mensaje por defecto al cargar
+  setText();
+})();
+  
 /* Init */
 document.addEventListener('DOMContentLoaded', ()=>{
 console.log('Inicializando dashboard...');
@@ -2736,6 +2778,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
