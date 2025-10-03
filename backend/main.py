@@ -460,18 +460,7 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
         "matches": matches
     }
 
-from fastapi import UploadFile, File
 
-@app.post("/api/incidents/scan-pdf")
-async def incidents_scan_pdf(file: UploadFile = File(...), station: str = "Madrid Cargo WFS4"):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Sube un PDF")
-    raw = await file.read()
-    try:
-        result = extract_incidents_from_pdf(raw, target_station=station)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"parse_failed: {e}")
 
 
 # ==== Helpers de persistencia unificados (DISK o GITHUB) ====
@@ -2358,7 +2347,19 @@ async def upload_roster(file: UploadFile = File(...)):
         "hint": "Indexado y persistido por fecha; ya se sirve desde el almacén.",
     }
 
+from fastapi import UploadFile, File
 
+@app.post("/api/incidents/scan-pdf")
+async def incidents_scan_pdf(file: UploadFile = File(...), station: str = "Madrid Cargo WFS4"):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Sube un PDF")
+    raw = await file.read()
+    try:
+        result = extract_incidents_from_pdf(raw, target_station=station)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"parse_failed: {e}")
+        
 from fastapi import Query
 
 @app.get("/api/roster/by")
@@ -3300,6 +3301,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
