@@ -1,5 +1,7 @@
 from __future__ import annotations
 import asyncio
+import io
+import pdfplumber
 import ssl
 import time
 import os
@@ -341,6 +343,136 @@ def merge_preserve_server(existing: dict | None, incoming: dict | None) -> dict:
             if f in existing and f not in (incoming or {}):
                 base[f] = existing[f]  # preserva tick/nota si el lote no los trae
     return sanitize_task(base)
+
+DATE_RE = re.compile(
+    r'(?P<d>\d{1,2})[\/\-\.\s](?P<m>\d{1,2})[\/\-\.\s](?P<y>\d{2,4})'
+)
+
+def _parse_date_es(txt: str) -> str | None:
+    """
+    Intenta dd/mm/yyyy, d-m-yy, etc. Devuelve ISO YYYY-MM-DD o None.
+    """
+    if not txt:
+        return None
+    s = str(txt).strip()
+    m = DATE_RE.search(s)
+    if not m: 
+        return None
+    d, mo, y = int(m.group('d')), int(m.group('m')), int(m.group('y'))
+    if y < 100:
+        y += 2000 if y < 70 else 1900
+    try:
+        return date(y, mo, d).isoformat()
+    except ValueError:
+        return None
+def _likely_header_row(rows: list[list[str]]) -> int | None:
+    """
+    Devuelve el índice de la fila que parece cabecera (contiene 'Station' o afines).
+    """
+    for i, r in enumerate(rows):
+        joined = " ".join([str(c or "") for c in r]).lower()
+        if "station" in joined:
+            return i
+    return None
+
+def _normalize_headers(cells: list[str]) -> list[str]:
+    """
+    Normaliza nombres como en _norm_key, manteniendo un 'mapeo' predecible.
+    """
+    mapping = {
+        "station": "station",
+        "eventtype": "event_type",
+        "event type": "event_type",
+        "tipoevento": "event_type",
+        "fechaaccidente": "fecha_accidente",
+        "fechadelaccidente": "fecha_accidente",
+        "fecha accidente": "fecha_accidente",
+        "accidentdate": "fecha_accidente",
+        "dateofaccident": "fecha_accidente",
+        "fecha": "fecha_accidente",
+    }
+    out = []
+    for c in cells:
+        k = _norm_key(str(c or ""))
+        out.append(mapping.get(k, k))
+    return out
+
+def _station_matches(val: str, target="Madrid Cargo WFS4") -> bool:
+    a = _norm_key(val or "")
+    b = _norm_key(target)
+    return a == b
+
+def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4") -> dict:
+    """
+    Recorre todas las páginas/tables y devuelve coincidencias.
+    """
+    matches = []
+    pages_scanned = 0
+    with pdfplumber.open(io.BytesIO(raw_pdf)) as pdf:
+        for p in pdf.pages:
+            pages_scanned += 1
+            # intentamos primero 'lattice' (para tablas con líneas) y luego 'stream'
+            for table in (p.extract_table(table_settings={"vertical_strategy":"lines", "horizontal_strategy":"lines"}),
+                          p.extract_table(table_settings={"vertical_strategy":"text",  "horizontal_strategy":"text"})):
+                if not table:
+                    continue
+                # table es una matriz [filas][columnas]
+                rows = [[(c or "").strip() for c in row] for row in table if row]
+                if not rows:
+                    continue
+                hdr_idx = _likely_header_row(rows)
+                if hdr_idx is None:
+                    continue
+                headers_raw = rows[hdr_idx]
+                headers = _normalize_headers(headers_raw)
+                # índices útiles
+                try:
+                    idx_station = headers.index("station")
+                except ValueError:
+                    continue
+                idx_ev = headers.index("event_type") if "event_type" in headers else None
+                # fecha puede tener varios alias normalizados, todos mapean a 'fecha_accidente'
+                idx_dt = headers.index("fecha_accidente") if "fecha_accidente" in headers else None
+
+                # recorrer filas de datos (después de header)
+                for r in rows[hdr_idx+1:]:
+                    # fila de cabecera repetida → saltar
+                    if any(_norm_key(x) == "station" for x in r):
+                        continue
+                    if idx_station >= len(r):
+                        continue
+                    st_val = r[idx_station]
+                    if not _station_matches(st_val, target_station):
+                        continue
+                    ev_val = r[idx_ev] if (idx_ev is not None and idx_ev < len(r)) else ""
+                    dt_val = r[idx_dt] if (idx_dt is not None and idx_dt < len(r)) else ""
+                    dt_iso = _parse_date_es(dt_val) or _parse_date_es(ev_val)  # por si viene mezclado
+                    matches.append({
+                        "event_type": (ev_val or "").strip(),
+                        "fecha_accidente": dt_iso or (dt_val or "").strip(),
+                        "source_page": p.page_number
+                    })
+    return {
+        "ok": True,
+        "target_station": target_station,
+        "pages_scanned": pages_scanned,
+        "found_rows": len(matches),
+        "matches": matches
+    }
+
+from fastapi import UploadFile, File
+
+@app.post("/api/incidents/scan-pdf")
+async def incidents_scan_pdf(file: UploadFile = File(...), station: str = "Madrid Cargo WFS4"):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Sube un PDF")
+    raw = await file.read()
+    try:
+        result = extract_incidents_from_pdf(raw, target_station=station)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"parse_failed: {e}")
+
 
 # ==== Helpers de persistencia unificados (DISK o GITHUB) ====
 
@@ -3168,6 +3300,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
