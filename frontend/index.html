@@ -1196,6 +1196,18 @@ RECORDAR: En caso de accidente…
 <li class="title-chip" title="Dónde están las herramientas">Dónde están las herramientas</li>
 </ul>
 
+<!-- Subida de PDF (Incidentes) -->
+<form id="incidents-pdf-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+  <input type="file" id="incidents-pdf-file" accept="application/pdf" required
+         style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+  <button class="btn-primary" type="submit">Subir PDF</button>
+</form>
+<small id="incidents-pdf-status" class="kpi-text">—</small>
+
+<!-- Resultados del PDF -->
+<div class="table-scroll" id="incidentes-pdf-wrap" style="display:none; margin-top:6px;">
+  <table id="incidentes-pdf-table"></table>
+</div>
 <small class="kpi-text" id="incidentes-meta">—</small>
 <div class="table-scroll">
 <table id="incidentes-table"></table>
@@ -1321,6 +1333,97 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
+// === PDF Incidentes: subida y render ===
+(function initIncidentsPdfUpload(){
+  const form   = document.getElementById('incidents-pdf-form');
+  const input  = document.getElementById('incidents-pdf-file');
+  const status = document.getElementById('incidents-pdf-status');
+  const wrap   = document.getElementById('incidentes-pdf-wrap');
+  const table  = document.getElementById('incidentes-pdf-table');
+  if (!form) return;
+
+  function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); }
+
+  function renderIncidentesPdf(payload){
+    if (!payload || !Array.isArray(payload.matches) || payload.matches.length === 0){
+      wrap.style.display = 'none';
+      table.innerHTML = '';
+      return;
+    }
+    wrap.style.display = '';
+    const rows = payload.matches;
+
+    // Claves preferidas primero; el resto después
+    const prefer = ['event_type','tipo','categoria','fecha_accidente','fecha','hora','station','ubicacion','source_page','pagina','descripcion','detalle'];
+    const keysSet = new Set();
+    rows.forEach(r => Object.keys(r||{}).forEach(k => keysSet.add(k)));
+    const keys = [
+      ...prefer.filter(k => keysSet.has(k)),
+      ...[...keysSet].filter(k => !prefer.includes(k))
+    ];
+    if (keys.length === 0){
+      wrap.style.display = 'none';
+      table.innerHTML = '';
+      return;
+    }
+
+    // Cabecera
+    let thead = '<thead><tr>' + keys.map(k => `<th>${esc(k)}</th>`).join('') + '</tr></thead>';
+
+    // Cuerpo (limita por seguridad)
+    const MAX = 300;
+    let tbody = '<tbody>';
+    rows.slice(0, MAX).forEach(r => {
+      tbody += '<tr>' + keys.map(k => `<td>${r[k] == null ? '' : esc(String(r[k]))}</td>`).join('') + '</tr>';
+    });
+    if (rows.length > MAX){
+      tbody += `<tr><td colspan="${keys.length}" style="color:var(--text-muted)">Mostrando ${MAX} de ${rows.length} filas…</td></tr>`;
+    }
+    tbody += '</tbody>';
+
+    table.innerHTML = thead + tbody;
+  }
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const f = input.files?.[0];
+    if (!f){ status.textContent = 'Selecciona un PDF.'; return; }
+
+    const fd = new FormData();
+    fd.append('file', f);
+
+    status.textContent = 'Leyendo PDF…';
+    try {
+      // Usa el código de estación que ya calculas (STATION_CODE)
+      const url = `/api/incidents/scan-pdf?station=${encodeURIComponent(STATION_CODE)}`;
+      const res = await fetch(url, { method:'POST', body: fd });
+      if (!res.ok){
+        const err = await res.json().catch(()=>({detail: res.statusText}));
+        throw new Error(err.detail || 'Error al analizar el PDF');
+      }
+      const data = await res.json();
+
+      // Estado textual
+      const found = Array.isArray(data.matches) ? data.matches.length : 0;
+      status.textContent =
+        `PDF: ${esc(f.name)} • Estación: ${esc(data.target_station || STATION_CODE)} • Páginas: ${data.pages_scanned ?? '—'} • Coincidencias: ${found}`;
+
+      // Pinta resultados en la tabla superior
+      renderIncidentesPdf(data);
+
+      // (opcional) refresca la tabla oficial si tu backend la alimenta tras el parseo
+      try { await loadIncidentes(); } catch {}
+
+    } catch (err){
+      status.textContent = `Error: ${err.message || err}`;
+      // oculta resultados si falló
+      wrap.style.display = 'none';
+      table.innerHTML = '';
+    } finally {
+      input.value = '';
+    }
+  });
+})();
 const ANIM_ON = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 (function initRosterUpload(){
@@ -2827,6 +2930,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
