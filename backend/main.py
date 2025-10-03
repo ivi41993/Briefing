@@ -2501,19 +2501,90 @@ def api_enablon_env_check():
     }
 
 
-@app.get("/api/incidents-table")
-async def get_incidents_table():
-    return latest_incidents_table
+# FastAPI (ejemplo)
+from fastapi import APIRouter
+from typing import List, Dict, Any
+from datetime import datetime
 
-def _compute_briefing_metrics(sections: Dict[str, Any], duration_sec: int) -> tuple[int, float, bool]:
-    keys = ['s1','s2','s3','s4','s5','s6']
-    ok_blocks = sum(1 for k in keys if (sections.get(k) or {}).get('status') == 'OK' or
-                    (isinstance(sections.get(k), dict) and sections.get(k).get('status') == 'OK'))
-    cov = round((ok_blocks/6)*100)
-    std = (cov >= 95) and (int(duration_sec or 0) <= 600)
-    return ok_blocks, cov, std
+router = APIRouter()
 
-_last_briefing_cache: dict[str, Any] = {}
+def to_table_payload(data: List[Dict[str, Any]] | List[List[Any]]):
+    # Si ya viene como arrays + columns, respeta.
+    if isinstance(data, dict) and 'columns' in data and 'rows' in data:
+        return data
+
+    # Si viene lista de objetos: unifica columnas en el orden estable
+    if data and isinstance(data[0], dict):
+        # columnas = unión ordenada por primera aparición
+        seen, columns = set(), []
+        for row in data:
+            for k in row.keys():
+                if k not in seen:
+                    seen.add(k); columns.append(k)
+        rows = [[row.get(c, None) for c in columns] for row in data]
+        return {"columns": columns, "rows": rows, "fetched_at": datetime.utcnow().isoformat()}
+
+    # Si ya es lista de listas pero sin columns, crea columnas genéricas
+    if data and isinstance(data[0], (list, tuple)):
+        maxlen = max(len(r) for r in data)
+        columns = [f"Col{idx+1}" for idx in range(maxlen)]
+        rows = [list(r) + [None]*(maxlen-len(r)) for r in data]
+        return {"columns": columns, "rows": rows, "fetched_at": datetime.utcnow().isoformat()}
+
+    # Vacío
+    return {"columns": [], "rows": [], "fetched_at": datetime.utcnow().isoformat()}
+
+@router.get("/api/incidents-table")
+def incidents_table():
+    raw = load_incidents_from_cache_or_source()  # ← lo que ya tengas
+    payload = to_table_payload(raw)
+    return payload
+import pdfplumber, io
+from PIL import Image
+import pytesseract
+
+def extract_text_robust(pdf_bytes: bytes) -> str:
+    # 1) Intenta texto embebido
+    text = ""
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for page in pdf.pages:
+            text += (page.extract_text() or "") + "\n"
+
+    if len(text.strip()) >= 50:
+        return text
+
+    # 2) OCR por página
+    ocr_text = []
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for page in pdf.pages:
+            pil = page.to_image(resolution=200).original  # rasterizar
+            ocr_text.append(pytesseract.image_to_string(pil, lang="spa+eng"))
+    return "\n".join(ocr_text)
+import re
+def norm(s: str) -> str:
+    return re.sub(r'\s+', ' ', s.lower()).strip()
+
+PATTERNS = {
+    "id": re.compile(r'\b(incident\s*id|case\s*(?:no|num)|n[ºo]\s*expediente)\b[:\-]?\s*([A-Z0-9\-\/]+)', re.I),
+    "status": re.compile(r'\b(status|estado)\b[:\-]?\s*([A-Z][a-zA-Z ]+)', re.I),
+    "title": re.compile(r'\b(title|asunto|resumen|descripcion)\b[:\-]?\s*(.+)', re.I),
+    # añade los que necesites
+}
+
+def parse_incidents_from_text(txt: str) -> list[dict]:
+    items = []
+    # ejemplo básico: parte por saltos grandes/delimitadores
+    chunks = re.split(r'(?:\n\s*\n|^-{3,}$)', txt, flags=re.M)
+    for ch in chunks:
+        d = {}
+        for k, rgx in PATTERNS.items():
+            m = rgx.search(ch)
+            if m:
+                d[k] = m.group(m.lastindex or 2).strip()
+        if d:
+            items.append(d)
+    return items
+
 
 @app.get("/api/briefing")
 def get_briefing():
@@ -3302,6 +3373,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
