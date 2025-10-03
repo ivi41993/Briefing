@@ -1348,72 +1348,81 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 function renderIncidentes(state){
   const tbl  = document.getElementById('incidentes-table');
   const meta = document.getElementById('incidentes-meta');
-  if(!tbl) return;
+  if (!tbl) return;
 
   const cols = Array.isArray(state?.columns) ? state.columns : [];
   const rows = Array.isArray(state?.rows) ? state.rows : [];
   const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
 
-  // ¿Las filas vienen como objetos? (p. ej. [{Id:..., Title:...}])
+  // Normalizador de claves (quita espacios, acentos, may/min)
+  const norm = (s)=> String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'')
+                    .replace(/\s+/g,' ').trim();
+
   const rowsAreObjects = rows[0] && !Array.isArray(rows[0]) && typeof rows[0] === 'object';
 
-  // Helper para elegir la PRIMERA columna que exista
-  const pick = (...cands) => {
-    for (const name of cands){
-      const exists = rowsAreObjects ? rows.some(r => r && Object.prototype.hasOwnProperty.call(r, name))
-                                    : cols.includes(name);
-      if (exists) {
-        const idx = cols.indexOf(name); // -1 si no aplica a arrays
-        return { name, idx };
+  // Si las filas son objetos y no nos sirven las "columns", calcúlalas de las claves reales
+  const candidateCols = rowsAreObjects
+    ? Array.from(new Set(rows.flatMap(r => Object.keys(r||{}))))
+    : cols.slice();
+
+  // Mapa normalizado → nombre real (para lookup flexible)
+  const colNameByNorm = new Map(candidateCols.map(c => [norm(c).toLowerCase(), c]));
+
+  // Helper: elige la PRIMERA columna que exista (por varios alias)
+  const pick = (...aliases) => {
+    for (const a of aliases){
+      const key = norm(a).toLowerCase();
+      if (rowsAreObjects && colNameByNorm.has(key)) return { name: colNameByNorm.get(key), idx: cols.indexOf(colNameByNorm.get(key)) };
+      if (!rowsAreObjects){
+        const i = cols.findIndex(c => norm(c).toLowerCase() === key);
+        if (i !== -1) return { name: cols[i], idx: i };
       }
     }
     return null;
   };
 
-  // Candidatas típicas
+  // Candidatas típicas (cubre Enablon/EHS comunes)
   let selected = [
-    pick('Id','ID','IncidentId','IncidentID','Number','Reference','IncidentNo','CaseNumber'),
-    pick('Title','Name','ShortDescription','Subject','Summary','Description'),
-    pick('Status','State','WorkflowStatus','CurrentStatus'),
-    pick('Priority','Severity','RiskLevel','Criticality'),
-    pick('Category','Type','IncidentType','SubType','Classification'),
+    pick('Id','ID','Incident Id','IncidentId','Number','Reference','Case Number','Incident No'),
+    pick('Title','Name','Short Description','Subject','Summary','Description'),
+    pick('Status','State','Workflow Status','Current Status'),
+    pick('Priority','Severity','Risk Level','Criticality'),
+    pick('Category','Type','Incident Type','SubType','Classification'),
     pick('Site','Location','Area','Department','Plant'),
-    pick('Created','CreatedAt','CreationDate','Date','CreatedOn','ReportedOn','ReportDate','StartDate'),
-    pick('DueDate','TargetDate','Deadline','ExpirationDate'),
-    pick('Owner','AssignedTo','Assignee','Responsible','Manager')
+    pick('Created','Created At','Creation Date','Date','Reported On','Report Date','Start Date'),
+    pick('Due Date','Target Date','Deadline','Expiration Date'),
+    pick('Owner','Assigned To','Assignee','Responsible','Manager')
   ].filter(Boolean);
 
-  // Si no hay selección, usa primeras 6 columnas conocidas
-  if (selected.length === 0) {
-    const names = rowsAreObjects
-      ? Array.from(new Set(rows.flatMap(r => Object.keys(r || {})))).slice(0, 6)
-      : cols.slice(0, 6);
-    selected = names.map((n) => ({ name: n, idx: cols.indexOf(n) }));
-  }
-
+  // Si no salió nada, toma las primeras 6 que existan de verdad
   if (selected.length === 0){
-    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
-    if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
-    return;
+    const base = candidateCols.slice(0, 6);
+    selected = base.map(n => ({ name:n, idx: cols.indexOf(n) }));
   }
 
   const esc = (s)=> String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
                                    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
                                    .replace(/'/g,"&#39;");
 
+  // Si aun así no hay columnas visibles, muestra mensaje claro
+  if (selected.length === 0){
+    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
+    if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+    console.warn('[Incidentes] Sin columnas seleccionables', { state });
+    return;
+  }
+
   // Cabecera
   let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
 
-  // Cuerpo
+  // Cuerpo (hasta 200 filas)
   const MAX_ROWS = 200;
   const slice = rows.slice(0, MAX_ROWS);
   let tbody = '<tbody>';
   for (const r of slice){
     if (rowsAreObjects){
-      // Leer por nombre de columna
       tbody += '<tr>' + selected.map(c => `<td>${r?.[c.name] == null ? '' : esc(String(r[c.name]))}</td>`).join('') + '</tr>';
     } else {
-      // Leer por índice
       tbody += '<tr>' + selected.map(c => `<td>${r?.[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
     }
   }
@@ -1423,9 +1432,12 @@ function renderIncidentes(state){
   tbody += '</tbody>';
 
   tbl.innerHTML = thead + tbody;
-  if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+  if (meta) meta.textContent = `Columnas reales: ${candidateCols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+
+  // DEBUG útil (lo puedes quitar luego)
+  console.debug('[Incidentes] Render OK', { rowsAreObjects, selected, candidateCols, previewRow: rows[0] });
 }
-const ANIM_ON = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 
 (function initRosterUpload(){
 const form   = document.getElementById('roster-upload-form');
@@ -2931,6 +2943,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
