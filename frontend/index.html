@@ -1339,10 +1339,42 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
   const input  = document.getElementById('incidents-pdf-file');
   const status = document.getElementById('incidents-pdf-status');
   const wrap   = document.getElementById('incidentes-pdf-wrap');
-  const table  = document.getElementById('incidentes-pdf-table');
+
   if (!form) return;
 
-  function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); }
+  function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                                   .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+                                   .replace(/'/g,"&#39;"); }
+
+  // ⬇️ ESTE SUBMIT ES LO QUE FALTABA
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();                           // 👈 evita recargar la página
+    const f = input.files?.[0];
+    if (!f) { status.textContent = 'Selecciona un PDF'; return; }
+
+    const fd = new FormData();
+    fd.append('file', f);                          // 👈 el backend espera name="file"
+
+    status.textContent = 'Subiendo…';
+    try {
+      const res = await fetch('/api/incidents-table', { method:'POST', body: fd });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al subir');
+
+      status.textContent = `OK: ${Array.isArray(data.rows) ? data.rows.length : data.rows} filas`;
+      wrap.style.display = 'block';
+
+      // Si el backend devuelve {columns, rows}, reusa tu renderer de la tabla principal:
+      if (data.columns && data.rows) {
+        renderIncidentes(data);
+      }
+    } catch (err) {
+      status.textContent = `Error: ${err.message || err}`;
+      console.error(err);
+    } finally {
+      input.value = '';
+    }
+  });
 
   
 function renderIncidentes(state){
@@ -2944,6 +2976,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
