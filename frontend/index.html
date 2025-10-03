@@ -1437,7 +1437,8 @@ function renderIncidentes(state){
   // DEBUG útil (lo puedes quitar luego)
   console.debug('[Incidentes] Render OK', { rowsAreObjects, selected, candidateCols, previewRow: rows[0] });
 }
-
+  // (Te falta también enganchar el submit; véase punto 2)
+})();  // ✅ CIERRE NECESARIO
 
 (function initRosterUpload(){
 const form   = document.getElementById('roster-upload-form');
@@ -2943,6 +2944,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
