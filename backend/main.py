@@ -3279,6 +3279,87 @@ async def api_enablon_candidates():
         out.sort(key=lambda c: (prefer.index(c["path"].split(".")[-1].lower()) if c["path"].split(".")[-1].lower() in prefer else 999, -c["rows"], c["path"]))
         return {"candidates": out}
 
+function renderIncidentes(state){
+  const tbl  = document.getElementById('incidentes-table');
+  const meta = document.getElementById('incidentes-meta');
+  if(!tbl) return;
+
+  const cols = Array.isArray(state?.columns) ? state.columns : [];
+  const rows = Array.isArray(state?.rows) ? state.rows : [];
+  const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
+
+  // ¿Las filas vienen como objetos? (p. ej. [{Id:..., Title:...}])
+  const rowsAreObjects = rows[0] && !Array.isArray(rows[0]) && typeof rows[0] === 'object';
+
+  // Helper para elegir la PRIMERA columna que exista
+  const pick = (...cands) => {
+    for (const name of cands){
+      const exists = rowsAreObjects ? rows.some(r => r && Object.prototype.hasOwnProperty.call(r, name))
+                                    : cols.includes(name);
+      if (exists) {
+        const idx = cols.indexOf(name); // -1 si no aplica a arrays
+        return { name, idx };
+      }
+    }
+    return null;
+  };
+
+  // Candidatas típicas
+  let selected = [
+    pick('Id','ID','IncidentId','IncidentID','Number','Reference','IncidentNo','CaseNumber'),
+    pick('Title','Name','ShortDescription','Subject','Summary','Description'),
+    pick('Status','State','WorkflowStatus','CurrentStatus'),
+    pick('Priority','Severity','RiskLevel','Criticality'),
+    pick('Category','Type','IncidentType','SubType','Classification'),
+    pick('Site','Location','Area','Department','Plant'),
+    pick('Created','CreatedAt','CreationDate','Date','CreatedOn','ReportedOn','ReportDate','StartDate'),
+    pick('DueDate','TargetDate','Deadline','ExpirationDate'),
+    pick('Owner','AssignedTo','Assignee','Responsible','Manager')
+  ].filter(Boolean);
+
+  // Si no hay selección, usa primeras 6 columnas conocidas
+  if (selected.length === 0) {
+    const names = rowsAreObjects
+      ? Array.from(new Set(rows.flatMap(r => Object.keys(r || {})))).slice(0, 6)
+      : cols.slice(0, 6);
+    selected = names.map((n) => ({ name: n, idx: cols.indexOf(n) }));
+  }
+
+  if (selected.length === 0){
+    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
+    if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+    return;
+  }
+
+  const esc = (s)=> String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                                   .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+                                   .replace(/'/g,"&#39;");
+
+  // Cabecera
+  let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
+
+  // Cuerpo
+  const MAX_ROWS = 200;
+  const slice = rows.slice(0, MAX_ROWS);
+  let tbody = '<tbody>';
+  for (const r of slice){
+    if (rowsAreObjects){
+      // Leer por nombre de columna
+      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.name] == null ? '' : esc(String(r[c.name]))}</td>`).join('') + '</tr>';
+    } else {
+      // Leer por índice
+      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
+    }
+  }
+  if (rows.length > MAX_ROWS){
+    tbody += `<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length} incidentes…</td></tr>`;
+  }
+  tbody += '</tbody>';
+
+  tbl.innerHTML = thead + tbody;
+  if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+}
+
 
 async def _roster_watcher():
     # primera carga
@@ -3301,6 +3382,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
