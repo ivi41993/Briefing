@@ -2543,8 +2543,33 @@ import pdfplumber, io
 from PIL import Image
 import pytesseract
 
-def extract_text_robust(pdf_bytes: bytes) -> str:
-    # 1) Intenta texto embebido
+import io, pdfplumber
+from PIL import Image  # Pillow sí puede estar importado a nivel de módulo
+
+def _ocr_available() -> tuple[bool, str]:
+    """
+    Devuelve (disponible, detalle). Comprueba módulo pytesseract y binario tesseract.
+    """
+    try:
+        import pytesseract  # noqa
+        try:
+            # Comprueba binario (no lanza si existe)
+            _ = pytesseract.get_tesseract_version()
+            return True, "pytesseract + binario tesseract OK"
+        except Exception as e:
+            return False, f"pytesseract está pero falta binario tesseract: {e}"
+    except Exception as e:
+        return False, f"pytesseract no instalado: {e}"
+
+def extract_text_robust(pdf_bytes: bytes, ocr_langs: str | None = None) -> str:
+    """
+    1) Lee texto embebido del PDF (pdfplumber).
+    2) Si es escaso, intenta OCR por página si hay pytesseract + tesseract instalados.
+       Si no hay OCR disponible, devuelve lo que haya sin romper el servidor.
+    """
+    ocr_langs = ocr_langs or os.getenv("OCR_LANGS", "spa+eng")
+
+    # 1) Texto embebido
     text = ""
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         for page in pdf.pages:
@@ -2553,17 +2578,26 @@ def extract_text_robust(pdf_bytes: bytes) -> str:
     if len(text.strip()) >= 50:
         return text
 
-    # 2) OCR por página
-    ocr_text = []
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page in pdf.pages:
-            pil = page.to_image(resolution=200).original  # rasterizar
-            ocr_text.append(pytesseract.image_to_string(pil, lang="spa+eng"))
-    return "\n".join(ocr_text)
-import re
-def norm(s: str) -> str:
-    return re.sub(r'\s+', ' ', s.lower()).strip()
+    # 2) OCR (solo si está disponible)
+    ok, reason = _ocr_available()
+    if not ok:
+        print(f"ℹ️ OCR desactivado: {reason}. Devuelvo texto embebido (posiblemente vacío).")
+        return text  # puede ser vacío; arriba ya lo intentamos
 
+    try:
+        import pytesseract  # import local, ya verificado
+        ocr_text = []
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for page in pdf.pages:
+                # rasteriza a 200 dpi (suficiente para OCR)
+                pil = page.to_image(resolution=200).original
+                ocr_text.append(pytesseract.image_to_string(pil, lang=ocr_langs))
+        joined = "\n".join(ocr_text)
+        # si OCR tampoco saca gran cosa, al menos devolvemos lo embebido
+        return joined if len(joined.strip()) >= len(text.strip()) else text
+    except Exception as e:
+        print(f"⚠️ OCR falló: {e}. Devuelvo texto embebido.")
+        return text
 PATTERNS = {
     "id": re.compile(r'\b(incident\s*id|case\s*(?:no|num)|n[ºo]\s*expediente)\b[:\-]?\s*([A-Z0-9\-\/]+)', re.I),
     "status": re.compile(r'\b(status|estado)\b[:\-]?\s*([A-Z][a-zA-Z ]+)', re.I),
@@ -3373,6 +3407,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
