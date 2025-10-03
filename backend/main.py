@@ -2534,11 +2534,115 @@ def to_table_payload(data: List[Dict[str, Any]] | List[List[Any]]):
     # Vacío
     return {"columns": [], "rows": [], "fetched_at": datetime.utcnow().isoformat()}
 
-@router.get("/api/incidents-table")
-def incidents_table():
-    raw = load_incidents_from_cache_or_source()  # ← lo que ya tengas
-    payload = to_table_payload(raw)
-    return payload
+from fastapi import UploadFile, File
+
+def _best_table_from_pdf(raw_pdf: bytes) -> dict:
+    """
+    Extrae la 'mejor' tabla (más grande) del PDF y la devuelve como
+    {columns: [...], rows: [[...], ...]}.
+    - Primera fila = cabecera.
+    - Si no hay cabecera clara, genera Col1..ColN.
+    """
+    import io, pdfplumber
+    best = None  # (rows_count * cols_count, columns, rows)
+
+    with pdfplumber.open(io.BytesIO(raw_pdf)) as pdf:
+        for page in pdf.pages:
+            # probamos con líneas (lattice) y con flujo de texto (stream)
+            for table in (
+                page.extract_table(table_settings={"vertical_strategy": "lines",
+                                                   "horizontal_strategy": "lines"}),
+                page.extract_table(table_settings={"vertical_strategy": "text",
+                                                   "horizontal_strategy": "text"}),
+            ):
+                if not table:
+                    continue
+                # normaliza a strings
+                rows = [[(c or "").strip() for c in r] for r in table if r]
+                if not rows:
+                    continue
+
+                # cabecera = primera fila
+                header = rows[0]
+                data_rows = rows[1:] if len(rows) > 1 else []
+
+                # si cabecera está vacía/numérica… genera nombres
+                if not any(h for h in header):
+                    n = max(len(r) for r in rows)
+                    header = [f"Col{i+1}" for i in range(n)]
+                    # rellena filas a n columnas
+                    fixed = []
+                    for r in rows:
+                        rr = list(r) + [""] * (n - len(r))
+                        fixed.append(rr)
+                    data_rows = fixed  # incluye primera fila como datos también
+                    # si prefieres, descarta la primera fila si es redundante
+
+                score = len(data_rows) * max(1, len(header))
+                if best is None or score > best[0]:
+                    # homogeneiza longitud de filas a header
+                    n = len(header)
+                    fixed_rows = []
+                    for r in data_rows:
+                        rr = (r + [""] * n)[:n]
+                        fixed_rows.append(rr)
+                    best = (score, header, fixed_rows)
+
+    if not best:
+        return {"columns": [], "rows": []}
+
+    _, columns, rows = best
+    return {"columns": columns, "rows": rows}
+
+
+@app.post("/api/incidents-table")
+async def upload_incidents_table(file: UploadFile = File(...)):
+    """
+    Sube un PDF con una tabla. Se parsea y se guarda como tabla actual de incidentes.
+    """
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Sube un archivo .pdf")
+
+    raw = await file.read()
+    tbl = _best_table_from_pdf(raw)
+
+    if not tbl["columns"] and not tbl["rows"]:
+        raise HTTPException(status_code=422, detail="No se encontró ninguna tabla utilizable en el PDF")
+
+    # persistimos en el estado global y en disco
+    ts = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    latest_incidents_table["columns"] = tbl["columns"]
+    latest_incidents_table["rows"] = tbl["rows"]
+    latest_incidents_table["fetched_at"] = ts
+    latest_incidents_table["version"] = int(latest_incidents_table.get("version", 0)) + 1
+
+    save_incidents_to_disk()
+
+    # ping opcional a los clientes
+    await manager.broadcast({
+        "type": "table_ping",
+        "table": "incidents",
+        "version": latest_incidents_table["version"],
+        "rows": len(tbl["rows"]),
+        "fetched_at": ts,
+    })
+
+    return {
+        "ok": True,
+        "columns": tbl["columns"],
+        "rows": len(tbl["rows"]),
+        "version": latest_incidents_table["version"],
+        "fetched_at": ts,
+    }
+
+
+@app.get("/api/incidents-table")
+def get_incidents_table():
+    """
+    Devuelve la última tabla parseada desde PDF (en memoria/disco).
+    """
+    return latest_incidents_table
+
 import pdfplumber, io
 from PIL import Image
 import pytesseract
@@ -3407,6 +3511,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
