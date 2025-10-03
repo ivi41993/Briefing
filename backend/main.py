@@ -2572,40 +2572,51 @@ def _best_table_from_pdf(raw_pdf: bytes) -> dict:
     _, columns, rows = best
     return {"columns": columns, "rows": rows}
 
+from fastapi import UploadFile, File, HTTPException
+
 @app.post("/api/incidents-table")
 async def upload_incidents_table(file: UploadFile = File(...)):
-    # nombre del campo debe ser "file"
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Sube un archivo .pdf")
+
     raw = await file.read()
     print(f"📥 PDF recibido: {file.filename} ({len(raw)} bytes)")
-    tbl = _best_table_from_pdf(raw)
-    print(f"🧮 Tabla detectada: cols={len(tbl['columns'])}, rows={len(tbl['rows'])}")
-    if not tbl["columns"] and not tbl["rows"]:
-        raise HTTPException(status_code=422, detail="No se encontró ninguna tabla utilizable en el PDF")
 
-    ts = datetime.utcnow().isoformat(timespec="seconds") + "Z"
-    latest_incidents_table["columns"] = tbl["columns"]
-    latest_incidents_table["rows"] = tbl["rows"]
-    latest_incidents_table["fetched_at"] = ts
-    latest_incidents_table["version"] = int(latest_incidents_table.get("version", 0)) + 1
-    save_incidents_to_disk()
+    try:
+        # Usa tu extractor actual:
+        found = extract_incidents_from_pdf(raw, target_station="Madrid Cargo WFS4")
+        # Estandariza a columns/rows para el front:
+        cols = ["event_type", "fecha_accidente", "source_page"]
+        rows = [[m.get("event_type",""), m.get("fecha_accidente",""), m.get("source_page","")] 
+                for m in (found.get("matches") or [])]
 
-    await manager.broadcast({
-        "type": "table_ping",
-        "table": "incidents",
-        "version": latest_incidents_table["version"],
-        "rows": len(tbl["rows"]),
-        "fetched_at": ts,
-    })
+        ts = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        latest_incidents_table["columns"] = cols
+        latest_incidents_table["rows"] = rows
+        latest_incidents_table["fetched_at"] = ts
+        latest_incidents_table["version"] = int(latest_incidents_table.get("version", 0)) + 1
+        save_incidents_to_disk()
 
-    return {
-        "ok": True,
-        "columns": tbl["columns"],
-        "rows": len(tbl["rows"]),
-        "version": latest_incidents_table["version"],
-        "fetched_at": ts,
-    }
+        await manager.broadcast({
+            "type": "table_ping",
+            "table": "incidents",
+            "version": latest_incidents_table["version"],
+            "rows": len(rows),
+            "fetched_at": ts,
+        })
+
+        print(f"🧮 Tabla detectada: cols={len(cols)}, rows={len(rows)}")
+        return {
+            "ok": True,
+            "columns": cols,
+            "rows": rows,
+            "version": latest_incidents_table["version"],
+            "fetched_at": ts,
+        }
+    except Exception as e:
+        print("💥 Error procesando PDF:", repr(e))
+        raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {e}")
+
 
 @app.get("/api/incidents-table")
 def get_incidents_table():
@@ -3480,6 +3491,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
