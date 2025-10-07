@@ -396,62 +396,118 @@ def _normalize_headers(cells: list[str]) -> list[str]:
         k = _norm_key(str(c or ""))
         out.append(mapping.get(k, k))
     return out
+def _iter_pdf_tables(page):
+    """
+    Devuelve distintas interpretaciones de una misma página:
+    1) lattice (con líneas), 2) stream (por texto), 3) find_tables() (auto).
+    """
+    # 1) líneas
+    yield page.extract_table(table_settings={
+        "vertical_strategy": "lines",
+        "horizontal_strategy": "lines",
+        "intersection_tolerance": 5,
+    })
+    # 2) stream
+    yield page.extract_table(table_settings={
+        "vertical_strategy": "text",
+        "horizontal_strategy": "text",
+        "snap_tolerance": 6,
+        "join_tolerance": 6,
+        "edge_min_length": 3,
+        "text_x_tolerance": 2,
+        "text_y_tolerance": 2,
+    })
+    # 3) find_tables() (más tolerante)
+    try:
+        for t in page.find_tables(table_settings={
+            "intersection_tolerance": 5,
+            "snap_tolerance": 6,
+            "join_tolerance": 6,
+            "edge_min_length": 3,
+        }):
+            yield t.extract()
+    except Exception:
+        pass
 
 def _station_matches(val: str, target="Madrid Cargo WFS4") -> bool:
+    # Si target viene vacío o "*", no filtra por estación
+    if not target or target == "*":
+        return True
     a = _norm_key(val or "")
-    b = _norm_key(target)
-    return a == b
+    b = _norm_key(target or "")
+    # Igual, sin espacios, o contiene/está contenido (para variantes tipo "WFS 4", "WFS4", etc.)
+    return (a == b) or (a.replace(" ", "") == b.replace(" ", "")) or (a in b) or (b in a)
+
 
 def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4") -> dict:
     """
-    Recorre todas las páginas/tables y devuelve coincidencias.
+    Recorre todas las páginas/tables, detecta la fila de cabecera por presencia de 'Station'
+    (o semejantes), normaliza encabezados y extrae event_type/fecha_accidente.
+    - Usa _iter_pdf_tables() (lattice/stream/find_tables)
+    - No aborta si la tabla de una página no trae 'station'
+    - El filtro de estación puede relajarse o desactivarse (station="*")
     """
     matches = []
     pages_scanned = 0
+
     with pdfplumber.open(io.BytesIO(raw_pdf)) as pdf:
         for p in pdf.pages:
             pages_scanned += 1
-            # intentamos primero 'lattice' (para tablas con líneas) y luego 'stream'
-            for table in (p.extract_table(table_settings={"vertical_strategy":"lines", "horizontal_strategy":"lines"}),
-                          p.extract_table(table_settings={"vertical_strategy":"text",  "horizontal_strategy":"text"})):
+
+            for table in _iter_pdf_tables(p):
                 if not table:
                     continue
-                # table es una matriz [filas][columnas]
+
+                # Matriz filas x columnas a str
                 rows = [[(c or "").strip() for c in row] for row in table if row]
                 if not rows:
                     continue
+
+                # Encuentra cabecera "probable" (donde aparezca Station o similares)
                 hdr_idx = _likely_header_row(rows)
                 if hdr_idx is None:
-                    continue
+                    # Si no encontramos "cabecera", prueba a usar la primera fila como encabezado
+                    hdr_idx = 0
+
                 headers_raw = rows[hdr_idx]
                 headers = _normalize_headers(headers_raw)
-                # índices útiles
+
+                # Índices útiles (no abortamos si faltan)
                 try:
                     idx_station = headers.index("station")
                 except ValueError:
-                    continue
+                    idx_station = None
+
                 idx_ev = headers.index("event_type") if "event_type" in headers else None
-                # fecha puede tener varios alias normalizados, todos mapean a 'fecha_accidente'
                 idx_dt = headers.index("fecha_accidente") if "fecha_accidente" in headers else None
 
-                # recorrer filas de datos (después de header)
-                for r in rows[hdr_idx+1:]:
-                    # fila de cabecera repetida → saltar
+                # Recorre filas de datos (desde la siguiente a header)
+                for r in rows[hdr_idx + 1:]:
+                    # Saltar si es una cabecera repetida
                     if any(_norm_key(x) == "station" for x in r):
                         continue
-                    if idx_station >= len(r):
+
+                    st_val = r[idx_station] if (idx_station is not None and idx_station < len(r)) else ""
+
+                    # Si hay columna de estación y no coincide con el filtro, salta
+                    if idx_station is not None and not _station_matches(st_val, target_station):
                         continue
-                    st_val = r[idx_station]
-                    if not _station_matches(st_val, target_station):
-                        continue
+
                     ev_val = r[idx_ev] if (idx_ev is not None and idx_ev < len(r)) else ""
                     dt_val = r[idx_dt] if (idx_dt is not None and idx_dt < len(r)) else ""
-                    dt_iso = _parse_date_es(dt_val) or _parse_date_es(ev_val)  # por si viene mezclado
-                    matches.append({
-                        "event_type": (ev_val or "").strip(),
-                        "fecha_accidente": dt_iso or (dt_val or "").strip(),
-                        "source_page": p.page_number
-                    })
+
+                    # A veces la fecha está en otra columna o pegada al event_type
+                    dt_iso = _parse_date_es(dt_val) or _parse_date_es(ev_val)
+
+                    # Guarda solo si tenemos al menos algún dato significativo
+                    if any((ev_val, dt_val, dt_iso, st_val)):
+                        matches.append({
+                            "event_type": (ev_val or "").strip(),
+                            "fecha_accidente": (dt_iso or (dt_val or "").strip()),
+                            "station": st_val,
+                            "source_page": p.page_number,
+                        })
+
     return {
         "ok": True,
         "target_station": target_station,
@@ -459,6 +515,7 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
         "found_rows": len(matches),
         "matches": matches
     }
+
 
 
 
@@ -3491,6 +3548,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
