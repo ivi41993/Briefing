@@ -2627,6 +2627,8 @@ from fastapi import UploadFile, File, HTTPException
 
 from fastapi import Query
 
+from fastapi import Query, UploadFile, File, HTTPException
+
 @app.post("/api/incidents-table")
 async def upload_incidents_table(
     file: UploadFile = File(...),
@@ -2640,7 +2642,7 @@ async def upload_incidents_table(
 
     try:
         # Pasa el filtro de estación (o * para no filtrar)
-         found = extract_incidents_from_pdf(raw, target_station=station or "*")
+        found = extract_incidents_from_pdf(raw, target_station=station or "*")
 
         # 🟣 Cambiamos a Título del accidente
         cols = ["Título del accidente", "Fecha del accidente", "Página"]
@@ -2649,14 +2651,14 @@ async def upload_incidents_table(
             m.get("fecha_accidente",""),
             m.get("source_page","")
         ] for m in (found.get("matches") or [])]
-    
+
         ts = datetime.utcnow().isoformat(timespec="seconds") + "Z"
         latest_incidents_table["columns"] = cols
         latest_incidents_table["rows"] = rows
         latest_incidents_table["fetched_at"] = ts
         latest_incidents_table["version"] = int(latest_incidents_table.get("version", 0)) + 1
         save_incidents_to_disk()
-    
+
         await manager.broadcast({
             "type": "table_ping",
             "table": "incidents",
@@ -2664,7 +2666,7 @@ async def upload_incidents_table(
             "rows": len(rows),
             "fetched_at": ts,
         })
-    
+
         return {
             "ok": True,
             "columns": cols,
@@ -2673,6 +2675,9 @@ async def upload_incidents_table(
             "fetched_at": ts,
             "debug_found": found,  # opcional
         }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"parse_failed: {e}")
 
 
 
@@ -3549,6 +3554,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
