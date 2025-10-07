@@ -376,14 +376,23 @@ def _likely_header_row(rows: list[list[str]]) -> int | None:
     return None
 
 def _normalize_headers(cells: list[str]) -> list[str]:
-    """
-    Normaliza nombres como en _norm_key, manteniendo un 'mapeo' predecible.
-    """
     mapping = {
         "station": "station",
         "eventtype": "event_type",
         "event type": "event_type",
         "tipoevento": "event_type",
+
+        # 👇 NUEVO: título del accidente
+        "titulodelaccidente": "titulo_accidente",
+        "titulo del accidente": "titulo_accidente",
+        "título del accidente": "titulo_accidente",
+        "accidenttitle": "titulo_accidente",
+        "title": "titulo_accidente",
+        "asunto": "titulo_accidente",
+        "resumen": "titulo_accidente",
+        "descripcion": "titulo_accidente",
+        "descripción": "titulo_accidente",
+
         "fechaaccidente": "fecha_accidente",
         "fechadelaccidente": "fecha_accidente",
         "fecha accidente": "fecha_accidente",
@@ -396,6 +405,7 @@ def _normalize_headers(cells: list[str]) -> list[str]:
         k = _norm_key(str(c or ""))
         out.append(mapping.get(k, k))
     return out
+
 def _iter_pdf_tables(page):
     """
     Devuelve distintas interpretaciones de una misma página:
@@ -440,69 +450,53 @@ def _station_matches(val: str, target="Madrid Cargo WFS4") -> bool:
 
 
 def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4") -> dict:
-    """
-    Recorre todas las páginas/tables, detecta la fila de cabecera por presencia de 'Station'
-    (o semejantes), normaliza encabezados y extrae event_type/fecha_accidente.
-    - Usa _iter_pdf_tables() (lattice/stream/find_tables)
-    - No aborta si la tabla de una página no trae 'station'
-    - El filtro de estación puede relajarse o desactivarse (station="*")
-    """
     matches = []
     pages_scanned = 0
-
     with pdfplumber.open(io.BytesIO(raw_pdf)) as pdf:
         for p in pdf.pages:
             pages_scanned += 1
-
             for table in _iter_pdf_tables(p):
                 if not table:
                     continue
-
-                # Matriz filas x columnas a str
                 rows = [[(c or "").strip() for c in row] for row in table if row]
                 if not rows:
                     continue
 
-                # Encuentra cabecera "probable" (donde aparezca Station o similares)
                 hdr_idx = _likely_header_row(rows)
                 if hdr_idx is None:
-                    # Si no encontramos "cabecera", prueba a usar la primera fila como encabezado
                     hdr_idx = 0
 
                 headers_raw = rows[hdr_idx]
                 headers = _normalize_headers(headers_raw)
 
-                # Índices útiles (no abortamos si faltan)
                 try:
                     idx_station = headers.index("station")
                 except ValueError:
                     idx_station = None
 
-                idx_ev = headers.index("event_type") if "event_type" in headers else None
-                idx_dt = headers.index("fecha_accidente") if "fecha_accidente" in headers else None
+                idx_title = headers.index("titulo_accidente") if "titulo_accidente" in headers else None
+                idx_ev    = headers.index("event_type") if "event_type" in headers else None
+                idx_dt    = headers.index("fecha_accidente") if "fecha_accidente" in headers else None
 
-                # Recorre filas de datos (desde la siguiente a header)
                 for r in rows[hdr_idx + 1:]:
-                    # Saltar si es una cabecera repetida
                     if any(_norm_key(x) == "station" for x in r):
                         continue
 
                     st_val = r[idx_station] if (idx_station is not None and idx_station < len(r)) else ""
-
-                    # Si hay columna de estación y no coincide con el filtro, salta
                     if idx_station is not None and not _station_matches(st_val, target_station):
                         continue
 
-                    ev_val = r[idx_ev] if (idx_ev is not None and idx_ev < len(r)) else ""
+                    # 🟣 Título del accidente con fallback a event_type
+                    title_val = r[idx_title] if (idx_title is not None and idx_title < len(r)) else ""
+                    ev_val    = r[idx_ev] if (idx_ev is not None and idx_ev < len(r)) else ""
+                    titulo    = (title_val or ev_val or "").strip()
+
                     dt_val = r[idx_dt] if (idx_dt is not None and idx_dt < len(r)) else ""
+                    dt_iso = _parse_date_es(dt_val) or _parse_date_es(ev_val) or _parse_date_es(title_val)
 
-                    # A veces la fecha está en otra columna o pegada al event_type
-                    dt_iso = _parse_date_es(dt_val) or _parse_date_es(ev_val)
-
-                    # Guarda solo si tenemos al menos algún dato significativo
-                    if any((ev_val, dt_val, dt_iso, st_val)):
+                    if any((titulo, dt_val, dt_iso, st_val)):
                         matches.append({
-                            "event_type": (ev_val or "").strip(),
+                            "titulo_accidente": titulo,
                             "fecha_accidente": (dt_iso or (dt_val or "").strip()),
                             "station": st_val,
                             "source_page": p.page_number,
@@ -2646,19 +2640,23 @@ async def upload_incidents_table(
 
     try:
         # Pasa el filtro de estación (o * para no filtrar)
-        found = extract_incidents_from_pdf(raw, target_station=station or "*")
+         found = extract_incidents_from_pdf(raw, target_station=station or "*")
 
-        cols = ["event_type", "fecha_accidente", "source_page"]
-        rows = [[m.get("event_type",""), m.get("fecha_accidente",""), m.get("source_page","")] 
-                for m in (found.get("matches") or [])]
-
+        # 🟣 Cambiamos a Título del accidente
+        cols = ["Título del accidente", "Fecha del accidente", "Página"]
+        rows = [[
+            m.get("titulo_accidente",""),
+            m.get("fecha_accidente",""),
+            m.get("source_page","")
+        ] for m in (found.get("matches") or [])]
+    
         ts = datetime.utcnow().isoformat(timespec="seconds") + "Z"
         latest_incidents_table["columns"] = cols
         latest_incidents_table["rows"] = rows
         latest_incidents_table["fetched_at"] = ts
         latest_incidents_table["version"] = int(latest_incidents_table.get("version", 0)) + 1
         save_incidents_to_disk()
-
+    
         await manager.broadcast({
             "type": "table_ping",
             "table": "incidents",
@@ -2666,19 +2664,15 @@ async def upload_incidents_table(
             "rows": len(rows),
             "fetched_at": ts,
         })
-
-        print(f"🧮 Tabla detectada: cols={len(cols)}, rows={len(rows)}  (station={station!r})")
+    
         return {
             "ok": True,
             "columns": cols,
             "rows": rows,
             "version": latest_incidents_table["version"],
             "fetched_at": ts,
-            "debug_found": found,   # opcional: quítalo si no quieres devolverlo
+            "debug_found": found,  # opcional
         }
-    except Exception as e:
-        print("💥 Error procesando PDF:", repr(e))
-        raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {e}")
 
 
 
@@ -3555,6 +3549,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
