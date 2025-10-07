@@ -2631,18 +2631,23 @@ def _best_table_from_pdf(raw_pdf: bytes) -> dict:
 
 from fastapi import UploadFile, File, HTTPException
 
+from fastapi import Query
+
 @app.post("/api/incidents-table")
-async def upload_incidents_table(file: UploadFile = File(...)):
+async def upload_incidents_table(
+    file: UploadFile = File(...),
+    station: str = Query("*", description="Nombre exacto o * para no filtrar")
+):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Sube un archivo .pdf")
 
     raw = await file.read()
-    print(f"📥 PDF recibido: {file.filename} ({len(raw)} bytes)")
+    print(f"📥 PDF recibido: {file.filename} ({len(raw)} bytes)  station={station!r}")
 
     try:
-        # Usa tu extractor actual:
-        found = extract_incidents_from_pdf(raw, target_station="Madrid Cargo WFS4")
-        # Estandariza a columns/rows para el front:
+        # Pasa el filtro de estación (o * para no filtrar)
+        found = extract_incidents_from_pdf(raw, target_station=station or "*")
+
         cols = ["event_type", "fecha_accidente", "source_page"]
         rows = [[m.get("event_type",""), m.get("fecha_accidente",""), m.get("source_page","")] 
                 for m in (found.get("matches") or [])]
@@ -2662,17 +2667,19 @@ async def upload_incidents_table(file: UploadFile = File(...)):
             "fetched_at": ts,
         })
 
-        print(f"🧮 Tabla detectada: cols={len(cols)}, rows={len(rows)}")
+        print(f"🧮 Tabla detectada: cols={len(cols)}, rows={len(rows)}  (station={station!r})")
         return {
             "ok": True,
             "columns": cols,
             "rows": rows,
             "version": latest_incidents_table["version"],
             "fetched_at": ts,
+            "debug_found": found,   # opcional: quítalo si no quieres devolverlo
         }
     except Exception as e:
         print("💥 Error procesando PDF:", repr(e))
         raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {e}")
+
 
 
 @app.get("/api/incidents-table")
@@ -3548,6 +3555,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
