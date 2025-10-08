@@ -1088,15 +1088,64 @@ def _merge_set_cookie_with_expiry(existing_cookie: str, set_cookie_headers: list
 
 # --- reemplaza tu apply_external_table por esta versión ---
 
+def _pick_idx(cols: list[str], *cands: str) -> int | None:
+    norm = {_norm_key(c): i for i, c in enumerate(cols)}
+    for cand in cands:
+        i = norm.get(_norm_key(cand))
+        if i is not None:
+            return i
+    return None
+
+def _harmonize_incidents_columns(cols: list[str], rows: list[list[Any]]) -> tuple[list[str], list[list[Any]]]:
+    """
+    Fuerza la tabla de incidentes a columnas en español, priorizando 'Título del accidente'.
+    Busca múltiples alias (incl. 'event_type') y reordena/renombra sin perder datos.
+    """
+    i_title = _pick_idx(cols,
+        "titulo_accidente","título del accidente","titulo del accidente",
+        "accidenttitle","title","asunto","resumen","descripcion","descripción",
+        "event_type","event type","tipoevento"
+    )
+    i_date = _pick_idx(cols,
+        "fecha_accidente","fecha del accidente","accidentdate","dateofaccident","fecha"
+    )
+    i_station = _pick_idx(cols, "station","estacion","estación","site","ubicacion","ubicación")
+    i_page = _pick_idx(cols, "source_page","pagina","página","page")
+
+    new_cols = []
+    pickers  = []
+
+    if i_title is not None:
+        new_cols.append("Título del accidente"); pickers.append(i_title)
+    if i_date is not None:
+        new_cols.append("Fecha del accidente"); pickers.append(i_date)
+    if i_station is not None:
+        new_cols.append("Estación"); pickers.append(i_station)
+    if i_page is not None:
+        new_cols.append("Página"); pickers.append(i_page)
+
+    # Si no encontramos título, mantenemos todas las columnas originales para no perder información
+    if not new_cols:
+        return cols, rows
+
+    new_rows = []
+    for r in rows:
+        rr = []
+        for idx in pickers:
+            rr.append(r[idx] if idx is not None and idx < len(r) else None)
+        new_rows.append(rr)
+    return new_cols, new_rows
 
 
 async def apply_incidents_table(payload: Any):
     cols, rows = _table_from_json(payload)
 
-    # ⛔ Si no pudimos parsear nada, no machacamos el último bueno
     if not cols and not rows:
         print("ℹ️ Incidentes: payload vacío/ilegible; se conserva último estado.")
         return
+
+    # 🔽 Normaliza SIEMPRE a español y prioriza 'Título del accidente'
+    cols, rows = _harmonize_incidents_columns(cols, rows)
 
     ts = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     latest_incidents_table["columns"]    = cols
@@ -1104,7 +1153,7 @@ async def apply_incidents_table(payload: Any):
     latest_incidents_table["fetched_at"] = ts
     latest_incidents_table["version"]    = int(latest_incidents_table.get("version", 0)) + 1
 
-    save_incidents_to_disk()  # ← persistir
+    save_incidents_to_disk()
 
     await manager.broadcast({
         "type": "table_ping",
@@ -1113,6 +1162,7 @@ async def apply_incidents_table(payload: Any):
         "rows": len(rows),
         "fetched_at": ts,
     })
+
 
 
 async def push_incidents_table_state(websocket: WebSocket):
@@ -3554,6 +3604,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
