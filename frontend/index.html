@@ -2395,46 +2395,132 @@ socket.onerror=(err)=>{ console.error('WS error:',err); socket.close(); };
 
 /* ===== Incidentes (Enablon) usando /api/external-table ===== */
 const INC_CACHE_KEY = 'incidents_cache_v1';
-function cacheIncidentes(state){
-try { localStorage.setItem(INC_CACHE_KEY, JSON.stringify(state)); } catch {}
-}
-function getCachedIncidentes(){
-try { return JSON.parse(localStorage.getItem(INC_CACHE_KEY) || 'null'); } catch { return null; }
+function cacheIncidentes(state){ try { localStorage.setItem(INC_CACHE_KEY, JSON.stringify(state)); } catch {} }
+function getCachedIncidentes(){ try { return JSON.parse(localStorage.getItem(INC_CACHE_KEY) || 'null'); } catch { return null; } }
+
+function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); }
+// normaliza (espacios, acentos, may/min) para buscar columnas por alias
+const norm = (s)=> String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' ').trim().toLowerCase();
+
+function renderIncidentes(state){
+  const tbl  = document.getElementById('incidentes-table');
+  const meta = document.getElementById('incidentes-meta');
+  if (!tbl) return;
+
+  const cols = Array.isArray(state?.columns) ? state.columns : [];
+  const rows = Array.isArray(state?.rows) ? state.rows : [];
+  const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
+
+  // ¿filas como objetos?
+  const rowsAreObjects = rows[0] && typeof rows[0] === 'object' && !Array.isArray(rows[0]);
+
+  // set de columnas candidatas reales
+  const candidateCols = rowsAreObjects
+    ? Array.from(new Set(rows.flatMap(r => Object.keys(r||{}))))
+    : cols.slice();
+
+  const colNameByNorm = new Map(candidateCols.map(c => [norm(c), c]));
+
+  // helper para elegir primera columna existente por alias
+  const pick = (...aliases) => {
+    for (const a of aliases){
+      const key = norm(a);
+      if (rowsAreObjects && colNameByNorm.has(key)) return { name: colNameByNorm.get(key), idx: cols.indexOf(colNameByNorm.get(key)) };
+      if (!rowsAreObjects){
+        const i = cols.findIndex(c => norm(c) === key);
+        if (i !== -1) return { name: cols[i], idx: i };
+      }
+    }
+    return null;
+  };
+
+  // —— Selección priorizando “título de accidente” ——
+  let selected = [
+    // ID
+    pick('Id','ID','Incident Id','IncidentId','Number','Reference','Case Number','Incident No'),
+    // Título del accidente (ES/EN) — PRIORIDAD SOBRE event_type
+    pick('Accidente','Título Accidente','Titulo Accidente','Accident Title','accident_title','incident_title','Title','Name','Short Description','Subject','Summary','Description'),
+    // Estado
+    pick('Status','State','Workflow Status','Current Status'),
+    // Severidad / Prioridad
+    pick('Priority','Severity','Risk Level','Criticality'),
+    // Categoría / Tipo — incluye event_type como alias
+    pick('Category','Type','Incident Type','SubType','Classification','event_type'),
+    // Ubicación
+    pick('Site','Location','Area','Department','Plant'),
+    // Fechas
+    pick('Created','Created At','Creation Date','Date','Reported On','Report Date','Start Date'),
+    pick('Due Date','Target Date','Deadline','Expiration Date'),
+    // Responsable
+    pick('Owner','Assigned To','Assignee','Responsible','Manager')
+  ].filter(Boolean);
+
+  if (selected.length === 0){
+    const base = candidateCols.slice(0, 6);
+    selected = base.map(n => ({ name:n, idx: cols.indexOf(n) }));
+  }
+
+  if (selected.length === 0){
+    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
+    if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+    return;
+  }
+
+  // Cabecera
+  let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
+
+  // Cuerpo (hasta 200)
+  const MAX_ROWS = 200;
+  const slice = rows.slice(0, MAX_ROWS);
+  let tbody = '<tbody>';
+  for (const r of slice){
+    if (rowsAreObjects){
+      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.name] == null ? '' : esc(String(r[c.name]))}</td>`).join('') + '</tr>';
+    } else {
+      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
+    }
+  }
+  if (rows.length > MAX_ROWS){
+    tbody += `<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length} incidentes…</td></tr>`;
+  }
+  tbody += '</tbody>';
+
+  tbl.innerHTML = thead + tbody;
+  if (meta) meta.textContent = `Columnas reales: ${candidateCols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
 }
 
 async function loadIncidentes(){
-const tbl  = document.getElementById('incidentes-table');
-const meta = document.getElementById('incidentes-meta');
+  const tbl  = document.getElementById('incidentes-table');
+  const meta = document.getElementById('incidentes-meta');
 
-// 1) Pinta rápido desde caché si hay algo y la tabla está vacía
-const cached = getCachedIncidentes();
-if (cached && (!tbl || !tbl.tBodies || !tbl.tBodies.length)) {
-renderIncidentes(cached);
+  // 1) pinta caché si la tabla está vacía
+  const cached = getCachedIncidentes();
+  if (cached && (!tbl || !tbl.tBodies || !tbl.tBodies.length)) {
+    renderIncidentes(cached);
+  }
+
+  // 2) servidor
+  try{
+    const r = await fetch('/api/incidents-table', { cache:'no-store' });
+    if(!r.ok) throw new Error('GET /api/incidents-table failed');
+    const state = await r.json();
+
+    if (Array.isArray(state.columns) && state.columns.length){
+      renderIncidentes(state);
+      cacheIncidentes(state);
+    } else if (cached){
+      renderIncidentes(cached);
+      if (meta) meta.textContent += ' • fuente offline';
+    }
+  }catch(e){
+    console.error('Incidentes load error', e);
+    if (cached){
+      renderIncidentes(cached);
+      if (meta) meta.textContent += ' • fuente offline';
+    }
+  }
 }
 
-// 2) Intenta servidor
-try{
-const r = await fetch('/api/incidents-table', { cache:'no-store' });
-if(!r.ok) throw new Error('GET /api/incidents-table failed');
-const state = await r.json();
-
-// Sólo actualiza si hay contenido real; si viene vacío, conserva el último bueno
-if (Array.isArray(state.columns) && state.columns.length){
-renderIncidentes(state);
-cacheIncidentes(state);
-} else if (cached){
-renderIncidentes(cached);
-if (meta) meta.textContent += ' • fuente offline';
-}
-}catch(e){
-console.error('Incidentes load error', e);
-// 3) En error: NO borres la tabla. Si hay caché, úsala, si no, deja lo que hubiera
-if (cached){
-renderIncidentes(cached);
-if (meta) meta.textContent += ' • fuente offline';
-}
-}
-}
 
 function renderIncidentes(state){
 const tbl  = document.getElementById('incidentes-table');
@@ -2976,6 +3062,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
