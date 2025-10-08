@@ -1106,23 +1106,25 @@ def _harmonize_incidents_columns(cols: list[str], rows: list[list[Any]]) -> tupl
     Fuerza la tabla de incidentes a columnas en español, priorizando 'Título del accidente'.
     Busca múltiples alias (incl. 'event_type') y reordena/renombra sin perder datos.
     """
-    i_title = _pick_idx(cols,
-        "titulo_accidente","título del accidente","titulo del accidente",
-        "accidenttitle","title","asunto","resumen","descripcion","descripción",
-        "event_type","event type","tipoevento"
+    # Índices de columnas relevantes
+    i_title = _pick_idx(
+        cols,
+        "titulo_accidente", "título del accidente", "titulo del accidente",
+        "título de accidente", "titulo de accidente",
+        "accidenttitle", "title", "asunto", "resumen", "descripcion", "descripción",
+        "event_type", "event type", "tipoevento"
     )
-        i_title = _pick_idx(cols,
-        "titulo_accidente","título del accidente","titulo del accidente",
-        "título de accidente","titulo de accidente",   # ← añade estas dos
-        "accidenttitle","title","asunto","resumen","descripcion","descripción",
-        "event_type","event type","tipoevento"
+    i_date = _pick_idx(
+        cols,
+        "fecha_accidente", "fecha del accidente", "fecha accidente",
+        "accidentdate", "dateofaccident", "fecha"
     )
+    i_station = _pick_idx(cols, "station", "estacion", "estación", "site", "ubicacion", "ubicación")
+    i_page = _pick_idx(cols, "source_page", "pagina", "página", "page")
 
-    i_station = _pick_idx(cols, "station","estacion","estación","site","ubicacion","ubicación")
-    i_page = _pick_idx(cols, "source_page","pagina","página","page")
-
-    new_cols = []
-    pickers  = []
+    # Construimos nuevas columnas y un "picker" de índices en ese orden
+    new_cols: list[str] = []
+    pickers: list[int | None] = []
 
     if i_title is not None:
         new_cols.append("Título del accidente"); pickers.append(i_title)
@@ -1133,17 +1135,20 @@ def _harmonize_incidents_columns(cols: list[str], rows: list[list[Any]]) -> tupl
     if i_page is not None:
         new_cols.append("Página"); pickers.append(i_page)
 
-    # Si no encontramos título, mantenemos todas las columnas originales para no perder información
+    # Si no encontramos ninguna de las columnas clave, devolvemos la tabla original
     if not new_cols:
         return cols, rows
 
-    new_rows = []
+    # Reordenamos/filtramos filas según los índices seleccionados
+    new_rows: list[list[Any]] = []
     for r in rows:
         rr = []
         for idx in pickers:
             rr.append(r[idx] if idx is not None and idx < len(r) else None)
         new_rows.append(rr)
+
     return new_cols, new_rows
+
 
 
 async def apply_incidents_table(payload: Any):
@@ -3613,6 +3618,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
