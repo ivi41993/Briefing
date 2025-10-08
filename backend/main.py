@@ -399,6 +399,11 @@ def _normalize_headers(cells: list[str]) -> list[str]:
         "accidentdate": "fecha_accidente",
         "dateofaccident": "fecha_accidente",
         "fecha": "fecha_accidente",
+                # variantes sin "del"
+        "titulodeaccidente": "titulo_accidente",
+        "titulo de accidente": "titulo_accidente",
+        "título de accidente": "titulo_accidente",
+
     }
     out = []
     for c in cells:
@@ -1106,9 +1111,13 @@ def _harmonize_incidents_columns(cols: list[str], rows: list[list[Any]]) -> tupl
         "accidenttitle","title","asunto","resumen","descripcion","descripción",
         "event_type","event type","tipoevento"
     )
-    i_date = _pick_idx(cols,
-        "fecha_accidente","fecha del accidente","accidentdate","dateofaccident","fecha"
+        i_title = _pick_idx(cols,
+        "titulo_accidente","título del accidente","titulo del accidente",
+        "título de accidente","titulo de accidente",   # ← añade estas dos
+        "accidenttitle","title","asunto","resumen","descripcion","descripción",
+        "event_type","event type","tipoevento"
     )
+
     i_station = _pick_idx(cols, "station","estacion","estación","site","ubicacion","ubicación")
     i_page = _pick_idx(cols, "source_page","pagina","página","page")
 
@@ -3604,6 +3613,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
