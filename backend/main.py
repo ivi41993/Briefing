@@ -367,13 +367,25 @@ def _parse_date_es(txt: str) -> str | None:
         return None
 def _likely_header_row(rows: list[list[str]]) -> int | None:
     """
-    Devuelve el índice de la fila que parece cabecera (contiene 'Station' o afines).
+    Intenta localizar la fila de cabecera buscando tokens típicos de columnas:
+    Station / Event Type / Title / Descripción / Fecha...
     """
-    for i, r in enumerate(rows):
+    TOKENS = (
+        "station", "event type", "eventtype", "tipo evento",
+        "title", "accident title", "título del accidente", "titulo del accidente",
+        "asunto", "resumen", "descripcion", "descripción",
+        "fecha", "accident date", "date of accident", "fecha del accidente",
+    )
+    for i, r in enumerate(rows[:8]):  # mira las primeras filas razonables
         joined = " ".join([str(c or "") for c in r]).lower()
-        if "station" in joined:
+        # heurística: si contiene 2+ tokens distintos es casi seguro que es cabecera
+        hits = sum(1 for t in TOKENS if t in joined)
+        if hits >= 2:
+            return i
+        if "station" in joined:  # compat: tu heurística original
             return i
     return None
+
 
 def _normalize_headers(cells: list[str]) -> list[str]:
     mapping = {
@@ -448,6 +460,42 @@ def _station_matches(val: str, target="Madrid Cargo WFS4") -> bool:
     # Igual, sin espacios, o contiene/está contenido (para variantes tipo "WFS 4", "WFS4", etc.)
     return (a == b) or (a.replace(" ", "") == b.replace(" ", "")) or (a in b) or (b in a)
 
+_BAD_EVENT_TYPES = {
+    "near miss","nearmiss","injury","first aid","firstaid","spill",
+    "property damage","propertydamage","unsafe act","unsafe condition",
+    "incident","accident","observation","inspection",
+}
+
+def _choose_best_title(title_val: str, ev_val: str) -> str:
+    """
+    Prefiere un texto descriptivo (título) frente a categorías cortas (event type).
+    """
+    s1 = (title_val or "").strip()
+    s2 = (ev_val or "").strip()
+
+    # si no hay nada en título, usa event type
+    if not s1:
+        return s2
+
+    s1n = _norm_key(s1)
+    s2n = _norm_key(s2)
+
+    # si el título es claramente más largo/descriptivo, úsalo
+    if len(s1) >= max(12, len(s2) + 3):
+        return s1
+
+    # si el event type es una categoría 'corta' conocida, prioriza s1
+    if s2n in _BAD_EVENT_TYPES or len(s2) <= 10:
+        return s1
+
+    # si ambos son iguales tras normalizar, cualquiera (mantén s1)
+    if s1n == s2n:
+        return s1
+
+    # por defecto: título si existe
+    return s1
+
+
 
 def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4") -> dict:
     matches = []
@@ -474,33 +522,36 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
                 except ValueError:
                     idx_station = None
 
-                idx_title = headers.index("titulo_accidente") if "titulo_accidente" in headers else None
-                idx_ev    = headers.index("event_type") if "event_type" in headers else None
-                idx_dt    = headers.index("fecha_accidente") if "fecha_accidente" in headers else None
+               
+                    idx_title = headers.index("titulo_accidente") if "titulo_accidente" in headers else None
+                    idx_ev    = headers.index("event_type") if "event_type" in headers else None
+                    idx_dt    = headers.index("fecha_accidente") if "fecha_accidente" in headers else None
+                    
+                    for r in rows[hdr_idx + 1:]:
+                        if any(_norm_key(x) == "station" for x in r):
+                            continue
+                    
+                        st_val = r[idx_station] if (idx_station is not None and idx_station < len(r)) else ""
+                        if idx_station is not None and not _station_matches(st_val, target_station):
+                            continue
+                    
+                        # 🟣 Toma ambos candidatos y elige el mejor
+                        title_val = r[idx_title] if (idx_title is not None and idx_title < len(r)) else ""
+                        ev_val    = r[idx_ev] if (idx_ev is not None and idx_ev < len(r)) else ""
+                        titulo    = _choose_best_title(title_val, ev_val)
+                    
+                        dt_val = r[idx_dt] if (idx_dt is not None and idx_dt < len(r)) else ""
+                        dt_iso = _parse_date_es(dt_val) or _parse_date_es(ev_val) or _parse_date_es(title_val)
+                    
+                        if any((titulo, dt_val, dt_iso, st_val)):
+                            matches.append({
+                                "titulo_accidente": titulo,
+                                "fecha_accidente": (dt_iso or (dt_val or "").strip()),
+                                "station": st_val,
+                                "source_page": p.page_number,
+                            })
 
-                for r in rows[hdr_idx + 1:]:
-                    if any(_norm_key(x) == "station" for x in r):
-                        continue
 
-                    st_val = r[idx_station] if (idx_station is not None and idx_station < len(r)) else ""
-                    if idx_station is not None and not _station_matches(st_val, target_station):
-                        continue
-
-                    # 🟣 Título del accidente con fallback a event_type
-                    title_val = r[idx_title] if (idx_title is not None and idx_title < len(r)) else ""
-                    ev_val    = r[idx_ev] if (idx_ev is not None and idx_ev < len(r)) else ""
-                    titulo    = (title_val or ev_val or "").strip()
-
-                    dt_val = r[idx_dt] if (idx_dt is not None and idx_dt < len(r)) else ""
-                    dt_iso = _parse_date_es(dt_val) or _parse_date_es(ev_val) or _parse_date_es(title_val)
-
-                    if any((titulo, dt_val, dt_iso, st_val)):
-                        matches.append({
-                            "titulo_accidente": titulo,
-                            "fecha_accidente": (dt_iso or (dt_val or "").strip()),
-                            "station": st_val,
-                            "source_page": p.page_number,
-                        })
 
     return {
         "ok": True,
@@ -3604,6 +3655,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
