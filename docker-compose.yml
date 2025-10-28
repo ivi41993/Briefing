@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  wfs-dashboard:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: registry.empresa.local/wfs/wfs-dashboard:1.0.0
+    container_name: wfs-dashboard
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Fuerza TZ dentro del contenedor (además de .env)
+      - TZ=Europe/Madrid
+    ports:
+      - "8000:8000"   # o solo interno si usas proxy inverso
+    volumes:
+      # Persistencia de datos
+      - wfs_data:/data
+      # Certificados corporativos si usas CAFILE
+      - ./certs:/certs:ro
+      # MUY IMPORTANTE: montar el build estático en /app/frontend
+      - ./frontend:/app/frontend:ro
+      # Montar el Excel de roster si lo gestionáis fuera
+      - ./roster/roster.xlsx:/data/roster.xlsx:ro
+
+volumes:
+  wfs_data:
