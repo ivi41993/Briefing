@@ -31,6 +31,8 @@ html{ font-size: calc(16px * var(--ui-scale)); }
 --cat-seg:#fee2e2;
 --cat-inc:#fff1e6;
 --cat-man:#eaf8f0;
+--cat-cal:#EE27F5;
+--cat-ser:#F5EE27;  
 }
 
 /* Base */
@@ -127,6 +129,8 @@ vertical-align:middle; background:rgba(255,255,255,.7);
 #kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
 #kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
 #kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
+#kanban-widget .card.cat-calidad { background: var(--cat-cal); }
+#kanban-widget .card.cat-servicio { background: var(--cat-ser); }  
 
 /* 5S & GW */
 .checkbox-item{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.9rem; }
@@ -1173,6 +1177,8 @@ color: var(--text-muted);
 <option value="seguridad">Seguridad</option>
 <option value="incidencias">Incidencias</option>
 <option value="mantenimiento">Mantenimiento</option>
+<option value="calidad">Calidad</option>
+<option value="servicio">Servicio</option>
 </select>
 <input type="text" name="title" placeholder="Tipo de problema" required>
 <input type="date" name="due_date" required>
@@ -3062,6 +3068,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
