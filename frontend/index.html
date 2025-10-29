@@ -1448,7 +1448,7 @@ function renderIncidentes(state){
   let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
 
   // Cuerpo (hasta 200 filas)
-  const MAX_ROWS = 200;
+  const MAX_ROWS = 4;
   const slice = rows.slice(0, MAX_ROWS);
   let tbody = '<tbody>';
   for (const r of slice){
@@ -2470,7 +2470,7 @@ function renderIncidentes(state){
   let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
 
   // Cuerpo (hasta 200)
-  const MAX_ROWS = 200;
+  const MAX_ROWS = 4;
   const slice = rows.slice(0, MAX_ROWS);
   let tbody = '<tbody>';
   for (const r of slice){
@@ -3062,6 +3062,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
