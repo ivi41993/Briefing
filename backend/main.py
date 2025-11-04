@@ -33,6 +33,7 @@ STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
 USE_DISK    = (STORAGE_BACKEND == "file")
 USE_GITHUB  = (STORAGE_BACKEND == "github")
 
+INCIDENTS_VISIBLE_LIMIT = int(os.getenv("INCIDENTS_VISIBLE_LIMIT", "3"))
 
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
@@ -2745,9 +2746,32 @@ async def upload_incidents_table(
 
 
 
+from fastapi import Query
+
 @app.get("/api/incidents-table")
-def get_incidents_table():
-    return latest_incidents_table
+def get_incidents_table(limit: int = Query(None, ge=1, le=100)):
+    """
+    Devuelve la tabla de incidentes, pero solo las primeras `limit` filas.
+    Por defecto usa INCIDENTS_VISIBLE_LIMIT (3). Se mantiene `total_rows`
+    con el total real para depurar/mostrar un 'ver más' en el front.
+    """
+    lim = limit if limit is not None else INCIDENTS_VISIBLE_LIMIT
+
+    table = latest_incidents_table or {}
+    rows_all = table.get("rows", []) or []
+    limited_rows = rows_all[:lim]
+
+    # no tocamos el objeto original en memoria; devolvemos una copia limitada
+    return {
+        "columns": table.get("columns", []),
+        "rows": limited_rows,
+        "fetched_at": table.get("fetched_at"),
+        "version": table.get("version", 0),
+        "total_rows": len(rows_all),
+        "limit": lim,
+        "limited": True,
+    }
+
 
 
 import pdfplumber, io
@@ -3618,6 +3642,7 @@ app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
