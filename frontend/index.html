@@ -988,6 +988,18 @@ color: var(--text-muted);
   border-radius: 10px;
 }
 
+/* === Chips de categoría con color distinto === */
+#kanban-widget .cat-chip{ font-weight:800; }
+#kanban-widget .cat-chip.is-seguridad   { background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+#kanban-widget .cat-chip.is-incidencias { background:#fff1e6; color:#7a3800; border-color:#ffd7b5; }
+#kanban-widget .cat-chip.is-mantenimiento{background:#eaf8f0; color:#065f46; border-color:#b7f0d3; }
+#kanban-widget .cat-chip.is-calidad     { background:#fce7ff; color:#6b21a8; border-color:#f0abfc; }
+#kanban-widget .cat-chip.is-servicio    { background:#fef9c3; color:#854d0e; border-color:#fde68a; }
+
+/* (opcional) fondo completo por categoría ya existente, añade faltantes */
+#kanban-widget .card.cat-calidad  { background: var(--cat-cal); }
+#kanban-widget .card.cat-servicio { background: var(--cat-ser); }
+
   
 </style>
 </head>
@@ -1182,7 +1194,17 @@ color: var(--text-muted);
 </select>
 <input type="text" name="title" placeholder="Tipo de problema" required>
 <input type="date" name="due_date" required>
-<input type="text" name="assigned_to" placeholder="Equipo responsable" required>
+<<select name="assigned_to" required title="Equipo de soporte">
+  <option value="" disabled selected>Equipo de soporte…</option>
+  <option>Mantenimiento</option>
+  <option>IT</option>
+  <option>Calidad</option>
+  <option>Compras</option>
+  <option>CI</option>
+  <option>QHSSE</option>
+  <option>Ops</option>
+</select>
+
 <button type="submit" class="btn-primary">Añadir</button>
 </form>
 </div>
@@ -2192,16 +2214,25 @@ card.dataset.status=safeStatus;
 card.dataset.taskType='kanban_rapida';
 
 // categoría = color de fondo
-const catKey=(task.category||'').toLowerCase();
-card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
-if(['seguridad','incidencias','mantenimiento'].includes(catKey)) card.classList.add(`cat-${catKey}`);
+// categoría = color de fondo + chip
+const catKey = String(task.category || '').toLowerCase();
+card.classList.remove(
+  'cat-seguridad','cat-incidencias','cat-mantenimiento','cat-calidad','cat-servicio'
+);
+if (['seguridad','incidencias','mantenimiento','calidad','servicio'].includes(catKey)){
+  card.classList.add(`cat-${catKey}`);
+}
 
-if(card.parentElement!==column) column.prepend(card);
+// Etiqueta legible para el chip
+const CAT_LABELS = {
+  seguridad: 'Seguridad',
+  incidencias: 'Incidencias',
+  mantenimiento: 'Mantenimiento',
+  calidad: 'Calidad',
+  servicio: 'Servicio'
+};
+const catLabel = CAT_LABELS[catKey] || 'General';
 
-const creationDate = task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : '—';
-const dueHuman     = task.due_date ? new Date(task.due_date).toLocaleDateString('es-ES') : '—';
-const dueISO       = task.due_date  ? new Date(task.due_date).toISOString().split('T')[0] : '';
-const catLabel = catKey? (catKey==='seguridad'?'Seguridad':(catKey==='incidencias'?'Incidencias':'Mantenimiento')) : 'General';
 
 card.innerHTML = `
    ${GRIP}
@@ -3068,6 +3099,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
