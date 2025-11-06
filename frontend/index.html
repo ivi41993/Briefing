@@ -1194,7 +1194,7 @@ color: var(--text-muted);
 </select>
 <input type="text" name="title" placeholder="Tipo de problema" required>
 <input type="date" name="due_date" required>
-<<select name="assigned_to" required title="Equipo de soporte">
+<select name="assigned_to" required title="Equipo de soporte">
   <option value="" disabled selected>Equipo de soporte…</option>
   <option>Mantenimiento</option>
   <option>IT</option>
@@ -1984,27 +1984,32 @@ rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ c
 }
 
 async function handleKanbanSubmit(e){
-e.preventDefault();
-const f=e.target;
-const taskData={
-task_type:'kanban_rapida',
-status:'Abiertas',
-category:f.elements.category.value,
-title:f.elements.title.value.trim(),
-due_date:f.elements.due_date.value,
-assigned_to:f.elements.assigned_to.value.trim(),
-station: STATION_CODE
-};
-if(!taskData.category || !taskData.title || !taskData.due_date) return;
-try{
-await createTaskOnServer(taskData);
-f.reset();
-document.getElementById('problem-category').selectedIndex=0;
-updateAllColumnCounts();                 // 👈
-}catch{
-alert('Error: No se pudo crear la tarjeta.');
+  e.preventDefault();
+  const f = e.target;
+
+  const taskData = {
+    task_type: 'kanban_rapida',
+    status: 'Abiertas',
+    category: (f.elements.category?.value || '').trim().toLowerCase(),
+    title: (f.elements.title?.value || '').trim(),
+    due_date: f.elements.due_date?.value || null,
+    assigned_to: (f.elements.assigned_to?.value || '').trim() || null,
+    station: STATION_CODE
+  };
+
+  if (!taskData.category || !taskData.title || !taskData.due_date) return;
+
+  try {
+    await createTaskOnServer(taskData);
+    f.reset();
+    document.getElementById('problem-category').selectedIndex = 0;
+    updateAllColumnCounts();
+  } catch (err) {
+    console.error(err);
+    alert('Error: No se pudo crear la tarjeta.');
+  }
 }
-}
+
 
 function handleDeleteClick(e){
 const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
@@ -2202,121 +2207,133 @@ default: console.warn('task_type desconocido:', data.task_type);
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
 function renderBoardCard(task, elementId){
-const safeStatus = (task.status||'Abiertas').replace(/\s+/g,'-');
-const columnId   = `${task.task_type}-${safeStatus}`;
-const column     = document.getElementById(columnId); 
-if(!column) return;
+  const safeStatus = (task.status || 'Abiertas').replace(/\s+/g,'-');
+  const columnId   = `${task.task_type}-${safeStatus}`;
+  const column     = document.getElementById(columnId);
+  if (!column) return;
 
-let card = document.getElementById(elementId);
-if(!card){ card=document.createElement('div'); card.id=elementId; }
-card.className='card'; 
-card.dataset.status=safeStatus;
-card.dataset.taskType='kanban_rapida';
+  // Fechas seguras
+  const createdAt   = task.created_at ? new Date(task.created_at) : null;
+  const creationDate= (createdAt && !isNaN(createdAt)) ? createdAt.toLocaleDateString('es-ES') : '—';
+  const dueISO      = task.due_date || null;
+  const dueDate     = dueISO ? new Date(dueISO) : null;
+  const dueHuman    = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES') : '';
 
-// categoría = color de fondo
-// categoría = color de fondo + chip
-const catKey = String(task.category || '').toLowerCase();
-card.classList.remove(
-  'cat-seguridad','cat-incidencias','cat-mantenimiento','cat-calidad','cat-servicio'
-);
-if (['seguridad','incidencias','mantenimiento','calidad','servicio'].includes(catKey)){
-  card.classList.add(`cat-${catKey}`);
+  // Elemento tarjeta
+  let card = document.getElementById(elementId);
+  if (!card){ 
+    card = document.createElement('div'); 
+    card.id = elementId; 
+  }
+  card.className = 'card';
+  card.dataset.status = safeStatus;
+  card.dataset.taskType = 'kanban_rapida';
+
+  // Color por categoría + chip
+  const catKey = String(task.category || '').toLowerCase();
+  card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento','cat-calidad','cat-servicio');
+  if (['seguridad','incidencias','mantenimiento','calidad','servicio'].includes(catKey)){
+    card.classList.add(`cat-${catKey}`);
+  }
+  const CAT_LABELS = {
+    seguridad: 'Seguridad',
+    incidencias: 'Incidencias',
+    mantenimiento: 'Mantenimiento',
+    calidad: 'Calidad',
+    servicio: 'Servicio'
+  };
+  const catLabel = CAT_LABELS[catKey] || 'General';
+
+  card.innerHTML = `
+    ${GRIP}
+    <div class="card-content">
+      <div class="card-title" data-edit="title" title="Tocar para editar">${esc(task.title || '')}</div>
+      <div class="card-details">
+        Alta: ${creationDate} • Objetivo:
+        <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
+      </div>
+      <div class="card-assignee">Responsable:
+        <span class="assignee" data-edit="assigned_to" title="Tocar para editar">${esc(task.assigned_to || 'Sin asignar')}</span>
+      </div>
+      <div style="margin-top:6px;">
+        <button class="btn-compact" data-edit="category">${catLabel}</button>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Eliminar">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </svg>
+      </button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+
+  // Inserta en la columna si aún no está
+  if (card.parentElement !== column){
+    column.prepend(card);
+  }
+
+  // —— Edición rápida —— //
+  const id = task.id;
+
+  // Título
+  const titleEl = card.querySelector('[data-edit="title"]');
+  titleEl?.addEventListener('click', async ()=>{
+    const prev = titleEl.textContent.trim();
+    const next = (prompt('Nuevo título', prev) || '').trim();
+    if (next && next !== prev){
+      try { await updateTaskOnServer(id, { title: next }); } 
+      catch { alert('No se pudo actualizar el título'); }
+    }
+  });
+
+  // Responsable
+  const asgEl = card.querySelector('[data-edit="assigned_to"]');
+  asgEl?.addEventListener('click', async ()=>{
+    const prev = asgEl.textContent.trim();
+    const next = (prompt('Responsable', prev === 'Sin asignar' ? '' : prev) || '').trim();
+    if (next !== prev){
+      try { await updateTaskOnServer(id, { assigned_to: next || null }); }
+      catch { alert('No se pudo actualizar el responsable'); }
+    }
+  });
+
+  // Fecha objetivo
+  const dueBtn = card.querySelector('[data-edit="due"]');
+  dueBtn?.addEventListener('click', async ()=>{
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = dueISO || '';
+    input.style.position='fixed'; input.style.opacity='0';
+    document.body.appendChild(input);
+    input.addEventListener('change', async ()=>{
+      const newISO = input.value || null;
+      document.body.removeChild(input);
+      if ((newISO||'') !== (dueISO||'')){
+        try { await updateTaskOnServer(id, { due_date: newISO }); }
+        catch { alert('No se pudo actualizar la fecha'); }
+      }
+    }, { once:true });
+    input.click();
+  });
+
+  // Categoría (ciclo simple por prompt)
+  const catBtn = card.querySelector('[data-edit="category"]');
+  catBtn?.addEventListener('click', async ()=>{
+    const opts = ['Seguridad','Incidencias','Mantenimiento','Calidad','Servicio','General'];
+    const prev = catLabel;
+    const next = prompt(`Categoría (${opts.join(' / ')})`, prev) || prev;
+    const map = { Seguridad:'seguridad', Incidencias:'incidencias', Mantenimiento:'mantenimiento', Calidad:'calidad', Servicio:'servicio', General:'' };
+    const val = map[next] ?? map[prev];
+    if (val !== (task.category||'')){
+      try { await updateTaskOnServer(id, { category: val }); }
+      catch { alert('No se pudo actualizar la categoría'); }
+    }
+  });
 }
 
-// Etiqueta legible para el chip
-const CAT_LABELS = {
-  seguridad: 'Seguridad',
-  incidencias: 'Incidencias',
-  mantenimiento: 'Mantenimiento',
-  calidad: 'Calidad',
-  servicio: 'Servicio'
-};
-const catLabel = CAT_LABELS[catKey] || 'General';
-
-
-card.innerHTML = `
-   ${GRIP}
-   <div class="card-content">
-     <div class="card-title" data-edit="title" title="Tocar para editar">${esc(task.title||'')}</div>
-     <div class="card-details">
-       Alta: ${creationDate} • Objetivo: 
-       <button class="btn-compact" data-edit="due">${dueHuman||'—'}</button>
-     </div>
-     <div class="card-assignee">Responsable: 
-       <span class="assignee" data-edit="assigned_to" title="Tocar para editar">${esc(task.assigned_to||'Sin asignar')}</span>
-     </div>
-     <div style="margin-top:6px;">
-       <button class="btn-compact" data-edit="category">${catLabel}</button>
-     </div>
-   </div>
-   <div class="card-actions">
-     <button class="delete-card-btn" title="Eliminar">
-       <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-         <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-       </svg>
-     </button>
-   </div>
- `;
-ensureFullscreenBtn(card);
-
-// —— Edición táctil/rápida ——
-const id = task.id;
-
-// Editar título (tap → input)
-const titleEl = card.querySelector('[data-edit="title"]');
-titleEl.addEventListener('click', async ()=>{
-const prev = titleEl.textContent.trim();
-const next = (prompt('Nuevo título', prev) || '').trim();
-if(next && next !== prev){
-try{ await updateTaskOnServer(id, { title: next }); }
-catch{ alert('No se pudo actualizar el título'); }
-}
-});
-
-// Editar responsable
-const asgEl = card.querySelector('[data-edit="assigned_to"]');
-asgEl.addEventListener('click', async ()=>{
-const prev = asgEl.textContent.trim();
-const next = (prompt('Responsable', prev==='Sin asignar'?'':prev) || '').trim();
-if(next !== prev){
-try{ await updateTaskOnServer(id, { assigned_to: next || null }); }
-catch{ alert('No se pudo actualizar el responsable'); }
-}
-});
-
-// Editar fecha objetivo (abre selector nativo)
-const dueBtn = card.querySelector('[data-edit="due"]');
-dueBtn.addEventListener('click', async ()=>{
-const input = document.createElement('input');
-input.type = 'date';
-input.value = dueISO || '';
-input.style.position='fixed'; input.style.opacity='0'; document.body.appendChild(input);
-input.addEventListener('change', async ()=>{
-const newISO = input.value || null;
-document.body.removeChild(input);
-if((newISO||'') !== (dueISO||'')){
-try{ await updateTaskOnServer(id, { due_date: newISO }); }
-catch{ alert('No se pudo actualizar la fecha'); }
-}
-}, { once:true });
-input.click();
-});
-
-// Cambiar categoría (ciclo)
-const catBtn = card.querySelector('[data-edit="category"]');
-catBtn.addEventListener('click', async ()=>{
-const opts = ['Seguridad','Incidencias','Mantenimiento','General'];
-const prev = catLabel;
-const next = prompt(`Categoría (${opts.join(' / ')})`, prev) || prev;
-const map = { 'Seguridad':'seguridad', 'Incidencias':'incidencias', 'Mantenimiento':'mantenimiento', 'General':'' };
-const val = map[next] ?? map[prev];
-if(val !== (task.category||'')){
-try{ await updateTaskOnServer(id, { category: val }); }
-catch{ alert('No se pudo actualizar la categoría'); }
-}
-});
-}
 
 
 function renderKaizenCard(task, elementId){
@@ -3099,6 +3116,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
