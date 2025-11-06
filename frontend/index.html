@@ -1091,7 +1091,8 @@ color: var(--text-muted);
   
 <div class="check-grid">
 <div class="check-card" tabindex="0"
-     data-help="Repasa incidencias, bloqueos y aprendizajes clave del turno anterior del bloque de Información del turno anterior.">
+     data-help="Repasa incidencias, bloqueos y aprendizajes clave del turno anterior del bloque de Información del turno anterior."
+     data-target="prev-shift-widget">
   <span class="check-title">1) Highlights del turno anterior</span>
 <div class="check-actions" role="group" aria-label="Bloque 1">
 <input id="c1ok"  type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
@@ -1100,7 +1101,8 @@ color: var(--text-muted);
 </div>
 
 <div class="check-card" tabindex="0"
-     data-help="Cambios operativos: revisar CQC o WWM">
+     data-help="Cambios operativos: revisar CQC o WWM"
+     data-targer="kanban-widget">
   <span class="check-title">2) Actualizaciones operativas</span>
 <div class="check-actions" role="group" aria-label="Bloque 2">
 <input id="c2ok"  type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
@@ -1109,7 +1111,8 @@ color: var(--text-muted);
 </div>
 
 <div class="check-card" tabindex="0"
-     data-help="Dotación: presentes/ausentes, zonas asignadas y coberturas; pedir refuerzos si falta.">
+     data-help="Dotación: presentes/ausentes, zonas asignadas y coberturas; pedir refuerzos si falta."
+     data-target="team-widget">
   <span class="check-title">3) Dotación y recursos</span>
 <div class="check-actions" role="group" aria-label="Bloque 3">
 <input id="c3ok"  type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
@@ -1118,7 +1121,8 @@ color: var(--text-muted);
 </div>
 
 <div class="check-card" tabindex="0"
-     data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad.">
+     data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad."
+     data-target="rotativas-widget">
   <span class="check-title">4) Seguridad y protección</span>
 <div class="check-actions" role="group" aria-label="Bloque 4">
 <input id="c4ok"  type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
@@ -1127,7 +1131,8 @@ color: var(--text-muted);
 </div>
 
 <div class="check-card" tabindex="0"
-     data-help="Cómo reportar incidentes: canales, tiempos, responsables y material de emergencia.">
+     data-help="Cómo reportar incidentes: canales, tiempos, responsables y material de emergencia."
+     data-target="incidentes-widget">
   <span class="check-title">5) Preparación/reportes incidentes</span>
 <div class="check-actions" role="group" aria-label="Bloque 5">
 <input id="c5ok"  type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
@@ -1136,7 +1141,8 @@ color: var(--text-muted);
 </div>
 
 <div class="check-card" tabindex="0"
-     data-help="KPIs del día: Ocupaciones de Uniwing, DG Autocheck, CargoMobile; revisar tendencia vs objetivo.">
+     data-help="KPIs del día: Ocupaciones de Uniwing, DG Autocheck, CargoMobile; revisar tendencia vs objetivo."
+     data-target="kpi-center">
   <span class="check-title">6) Revisión Kpis</span>
 <div class="check-actions" role="group" aria-label="Bloque 6">
 <input id="c6ok"  type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
@@ -1145,7 +1151,8 @@ color: var(--text-muted);
 </div>
   
 <div class="check-card" tabindex="0"
-     data-help="Recoge feedback del equipo y tradúcelo en acciones claras en el Kanban.">
+     data-help="Recoge feedback del equipo y tradúcelo en acciones claras en el Kanban."
+     data-target="kanban-widget">
   <span class="check-title">7) Feedback → Acciones</span>
 <div class="check-actions" role="group" aria-label="Bloque 7">
 <input id="c7ok"  type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
@@ -1738,6 +1745,29 @@ document.getElementById('present-btn')?.addEventListener('click', async ()=>{
 });
 }
 
+function openWidgetFromChecklist(targetId){
+  if (!targetId) return;
+  const el = document.getElementById(targetId);
+  if (!el) {
+    console.warn('Checklist target no encontrado:', targetId);
+    return;
+  }
+
+  // Llevarlo a la vista
+  el.scrollIntoView({ behavior:'smooth', block:'center' });
+
+  // Asegurar que tiene botón/estilo fullscreen disponible
+  try { ensureFullscreenBtn(el); } catch {}
+
+  // Intentar fullscreen real
+  if (el.requestFullscreen) {
+    el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
+      // Si falla (permisos/navegador), al menos queda centrado.
+    });
+  }
+}
+
+  
 /* Formatos / KPI */
 function formatEuro(n){ if (n==null || Number.isNaN(n)) return '—'; return new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n); }
 function updateKpiTotalCost(value, ts){
@@ -3069,21 +3099,35 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   const setText = (t)=> { if (target) target.textContent = t || DEF; };
 
   host.querySelectorAll('.check-card').forEach(card=>{
-    const msg = card.getAttribute('data-help')
-             || card.querySelector('.check-title')?.textContent
-             || '';
+    const msg      = card.getAttribute('data-help')
+                   || card.querySelector('.check-title')?.textContent
+                   || '';
+    const targetId = card.getAttribute('data-target');
 
-    // Ratón
+    // Tooltip / ayuda
     card.addEventListener('mouseenter', ()=> setText(msg));
     card.addEventListener('mouseleave', ()=> setText());
-
-    // Teclado (enfoque con Tab)
     card.addEventListener('focusin',  ()=> setText(msg));
     card.addEventListener('focusout', ()=> setText());
+
+    // 🔹 Click en la tarjeta → abrir widget (sin interferir con los radios)
+    card.addEventListener('click', (e)=>{
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+      if (targetId) openWidgetFromChecklist(targetId);
+    });
+
+    // 🔹 Teclado: Enter o Space cuando la tarjeta tiene foco
+    card.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (targetId) openWidgetFromChecklist(targetId);
+      }
+    });
   });
 
   setText();
 })();
+
   
 /* Init */
 document.addEventListener('DOMContentLoaded', ()=>{
@@ -3116,6 +3160,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
