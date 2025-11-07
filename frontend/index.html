@@ -1374,6 +1374,11 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 </section>
 </div>
 
+<script>
+  window.STATION_OVERRIDE = 'MAD';
+</script>
+
+  
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
@@ -1606,11 +1611,12 @@ input.value = '';
 
 // === Contexto de estación (MAD por defecto; puedes pasar ?station=MAD/BCN en la URL) ===
 const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
+
 const STATION_CODE =
-(new URLSearchParams(location.search).get('station') || '')
-.toUpperCase() ||
-// intenta deducirlo del <title> (p.ej. "WFS4 MAD")
-((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || [,'MAD'])[1]).toUpperCase();
+  (window.STATION_OVERRIDE || new URLSearchParams(location.search).get('station') || '')
+    .toUpperCase()
+  || ((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || [,'MAD'])[1]).toUpperCase();
+
 
 function isForThisStation(obj){
 const st = (obj && obj.station ? String(obj.station) : '').toUpperCase();
@@ -3281,6 +3287,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
