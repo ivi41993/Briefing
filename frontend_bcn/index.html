@@ -1,2217 +1,2453 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Factory Floor Dashboard - BCN</title>
-
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
-
-  <!-- SortableJS -->
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-
-  <style>
-    :root {
-      --bg-main: #060814;
-      --bg-elevated: #0c1020;
-      --bg-elevated-soft: #15192a;
-      --accent-bcn: #2f8fff;
-      --accent-bcn-soft: rgba(47, 143, 255, 0.16);
-      --accent-ok: #35c759;
-      --accent-warn: #ffcc00;
-      --accent-bad: #ff3b30;
-      --accent-info: #5ac8fa;
-      --border-subtle: rgba(255,255,255,0.08);
-      --text-main: #ffffff;
-      --text-soft: rgba(255,255,255,0.72);
-      --radius-xl: 18px;
-      --radius-lg: 14px;
-      --shadow-soft: 0 14px 40px rgba(0,0,0,0.32);
-      --transition-fast: 0.18s ease-out;
-      --transition-med: 0.28s ease-out;
-      --ui-scale: 1;
-      --widget-gap: 14px;
-      --header-height: 82px;
-      --touch-min: 44px;
-      --font-main: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-title: "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background-color: var(--bg-main);
-      color: var(--text-main);
-      font-family: var(--font-main);
-      -webkit-font-smoothing: antialiased;
-      text-rendering: optimizeLegibility;
-    }
-
-    body {
-      padding: max(10px, env(safe-area-inset-top)) 
-               max(10px, env(safe-area-inset-right))
-               max(10px, env(safe-area-inset-bottom))
-               max(10px, env(safe-area-inset-left));
-      transform-origin: top left;
-      transform: scale(var(--ui-scale));
-      transform-box: border-box;
-    }
-
-    .app-shell {
-      max-width: 1920px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    /* =======================
-       HEADER
-    ======================== */
-    header.app-header {
-      display: grid;
-      grid-template-columns: minmax(0, 3fr) minmax(260px, 380px) auto;
-      align-items: center;
-      gap: 14px;
-      padding: 12px 16px;
-      background: radial-gradient(circle at top left, rgba(47,143,255,0.16), transparent) #050814;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.06);
-      box-shadow: var(--shadow-soft);
-      position: sticky;
-      top: 0;
-      z-index: 40;
-      backdrop-filter: blur(14px);
-    }
-
-    .app-title-block {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .app-title {
-      font-family: var(--font-title);
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .app-title span.station {
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      background: var(--accent-bcn-soft);
-      color: var(--accent-bcn);
-      border: 1px solid rgba(47,143,255,0.5);
-    }
-
-    .app-subtitle {
-      font-size: 12px;
-      color: var(--text-soft);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .shift-pill {
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 11px;
-      border: 1px solid rgba(255,255,255,0.18);
-      color: var(--accent-info);
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .clock-display {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 8px;
-      font-size: 14px;
-      color: var(--text-soft);
-    }
-
-    .clock-display span.time {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text-main);
-    }
-
-    /* Timer widget */
-    #timer-widget {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 4px;
-    }
-
-    #big-timer-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: var(--text-soft);
-    }
-
-    #big-timer-display {
-      font-family: var(--font-title);
-      font-size: 26px;
-      line-height: 1;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 10px;
-      background: rgba(5, 10, 25, 0.96);
-      border: 1px solid rgba(47,143,255,0.5);
-      cursor: pointer;
-      user-select: none;
-      min-width: 130px;
-      text-align: center;
-    }
-
-    #timer-controls {
-      display: flex;
-      gap: 6px;
-    }
-
-    #timer-reset-btn {
-      border: none;
-      border-radius: 8px;
-      padding: 4px 8px;
-      font-size: 10px;
-      cursor: pointer;
-      background: rgba(255,255,255,0.06);
-      color: var(--text-soft);
-      min-height: var(--touch-min);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* Header controls */
-    .header-controls {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      align-items: flex-end;
-      justify-content: center;
-    }
-
-    .scale-select-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 10px;
-      color: var(--text-soft);
-    }
-
-    #scale-select {
-      background: rgba(255,255,255,0.06);
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.16);
-      color: var(--text-main);
-      padding: 3px 8px;
-      font-size: 11px;
-      min-height: var(--touch-min);
-      cursor: pointer;
-    }
-
-    #present-btn {
-      border: none;
-      border-radius: 999px;
-      padding: 8px 14px;
-      font-size: 11px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-      background: linear-gradient(90deg, var(--accent-bcn), #7b5cff);
-      color: #fff;
-      min-height: var(--touch-min);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.45);
-    }
-
-    #present-btn span.icon {
-      font-size: 14px;
-      line-height: 1;
-    }
-
-    /* =======================
-       GRID 3 COLUMNAS
-    ======================== */
-    .dashboard-3col {
-      display: grid;
-      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(300px, 360px);
-      gap: var(--widget-gap);
-      align-items: flex-start;
-      margin-top: 4px;
-    }
-
-    @media (max-width: 1180px) {
-      .dashboard-3col {
-        grid-template-columns: minmax(0, 1fr);
-      }
-    }
-
-    .col {
-      display: flex;
-      flex-direction: column;
-      gap: var(--widget-gap);
-    }
-
-    /* =======================
-       WIDGETS BASE
-    ======================== */
-    .widget {
-      background: var(--bg-elevated);
-      border-radius: var(--radius-xl);
-      padding: 10px 10px 9px;
-      border: 1px solid var(--border-subtle);
-      box-shadow: var(--shadow-soft);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      position: relative;
-      min-height: 40px;
-    }
-
-    .widget-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 6px;
-    }
-
-    .widget-title {
-      font-family: var(--font-title);
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--accent-bcn);
-    }
-
-    .widget-subtitle {
-      font-size: 10px;
-      color: var(--text-soft);
-    }
-
-    .widget-actions {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .pill {
-      font-size: 9px;
-      padding: 2px 7px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.15);
-      color: var(--text-soft);
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      white-space: nowrap;
-    }
-
-    .fs-toggle {
-      border: none;
-      background: transparent;
-      color: var(--text-soft);
-      cursor: pointer;
-      padding: 2px 4px;
-      min-height: var(--touch-min);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-    }
-
-    .widget-body {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 10px;
-      color: var(--text-soft);
-    }
-
-    .tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 9px;
-      padding: 1px 6px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.04);
-      color: var(--text-soft);
-    }
-
-    /* =======================
-       TEAM / ROSTER
-    ======================== */
-    #team-widget {
-      background: radial-gradient(circle at top, rgba(47,143,255,0.12), transparent) var(--bg-elevated);
-    }
-
-    #team-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      font-size: 9px;
-      color: var(--text-soft);
-    }
-
-    #team-list {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-top: 2px;
-      max-height: 260px;
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-
-    .team-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1.6fr) 0.9fr 0.6fr 0.7fr;
-      gap: 4px;
-      align-items: center;
-      padding: 4px 5px;
-      border-radius: 9px;
-      background: rgba(9,12,25,0.96);
-      border: 1px solid rgba(255,255,255,0.04);
-      font-size: 9px;
-    }
-
-    .team-name {
-      font-size: 10px;
-      color: var(--text-main);
-    }
-
-    .presence-toggle {
-      width: 26px;
-      height: 18px;
-      border-radius: 999px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      cursor: pointer;
-      border: 1px solid rgba(255,255,255,0.24);
-      color: var(--accent-ok);
-      background: rgba(0,0,0,0.7);
-      user-select: none;
-    }
-
-    .presence-toggle.off {
-      color: var(--accent-bad);
-      opacity: 0.7;
-    }
-
-    .zone-select {
-      width: 100%;
-      border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.16);
-      background: rgba(255,255,255,0.02);
-      color: var(--text-soft);
-      font-size: 9px;
-      padding: 2px 4px;
-      min-height: 22px;
-      cursor: pointer;
-    }
-
-    #roster-upload {
-      font-size: 8px;
-      color: var(--text-soft);
-      margin-top: 2px;
-    }
-
-    /* =======================
-       BRIEFING CHECKLIST BCN
-    ======================== */
-    #brief-check {
-      background: radial-gradient(circle at top right, rgba(47,143,255,0.10), transparent) var(--bg-elevated);
-    }
-
-    .checklist-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap: 6px;
-    }
-
-    .check-card {
-      padding: 6px;
-      border-radius: 10px;
-      background: rgba(5,8,18,0.98);
-      border: 1px solid rgba(255,255,255,0.05);
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      cursor: pointer;
-      position: relative;
-    }
-
-    .check-label {
-      font-size: 9px;
-      color: var(--text-main);
-      font-weight: 500;
-    }
-
-    .check-meta {
-      font-size: 8px;
-      color: var(--text-soft);
-    }
-
-    .check-options {
-      display: flex;
-      gap: 4px;
-      margin-top: 2px;
-      font-size: 8px;
-      align-items: center;
-    }
-
-    .check-options label {
-      display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      cursor: pointer;
-    }
-
-    .check-options input {
-      margin: 0;
-      width: 10px;
-      height: 10px;
-    }
-
-    #brief-help {
-      margin-top: 2px;
-      font-size: 8px;
-      color: var(--accent-info);
-      min-height: 12px;
-    }
-
-    /* =======================
-       KANBAN RAPIDA BCN
-    ======================== */
-    #kanban-widget {
-      background: var(--bg-elevated-soft);
-    }
-
-    .kanban-layout {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 6px;
-      margin-top: 4px;
-    }
-
-    .kanban-col {
-      background: rgba(0,0,0,0.6);
-      border-radius: 10px;
-      padding: 4px;
-      border: 1px solid rgba(255,255,255,0.06);
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 8px;
-    }
-
-    .kanban-col-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 4px;
-      align-items: center;
-      font-size: 8px;
-      color: var(--text-soft);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    .kanban-list {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-height: 40px;
-    }
-
-    .kanban-card {
-      padding: 4px;
-      border-radius: 8px;
-      background: rgba(9,15,30,0.98);
-      border: 1px solid rgba(255,255,255,0.06);
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      cursor: grab;
-      position: relative;
-    }
-
-    .kanban-title {
-      font-size: 9px;
-      color: var(--text-main);
-      font-weight: 500;
-    }
-
-    .kanban-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px;
-      font-size: 7px;
-      color: var(--text-soft);
-      align-items: center;
-    }
-
-    .badge {
-      padding: 1px 4px;
-      border-radius: 999px;
-      font-size: 7px;
-      background: rgba(255,255,255,0.04);
-    }
-
-    .badge-cat-seguridad { background-color: rgba(255, 59, 48, 0.16); color: #ff3b30; }
-    .badge-cat-incidencias { background-color: rgba(255, 204, 0, 0.18); color: #ffcc00; }
-    .badge-cat-mantenimiento { background-color: rgba(88, 86, 214, 0.20); color: #8e8aff; }
-    .badge-cat-calidad { background-color: rgba(52, 199, 89, 0.18); color: #34c759; }
-    .badge-cat-servicio { background-color: rgba(90, 200, 250, 0.18); color: #5ac8fa; }
-
-    .btn-delete {
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      border: none;
-      background: transparent;
-      color: rgba(255,255,255,0.34);
-      font-size: 9px;
-      cursor: pointer;
-    }
-
-    .kanban-form {
-      margin-top: 4px;
-      display: grid;
-      grid-template-columns: 0.9fr 1.4fr 0.9fr 0.9fr auto;
-      gap: 4px;
-      align-items: center;
-      font-size: 8px;
-    }
-
-    .kanban-form input,
-    .kanban-form select {
-      width: 100%;
-      padding: 3px 4px;
-      border-radius: 7px;
-      border: 1px solid rgba(255,255,255,0.16);
-      background: rgba(0,0,0,0.7);
-      color: var(--text-main);
-      font-size: 9px;
-      min-height: 22px;
-    }
-
-    .kanban-form button {
-      padding: 4px 7px;
-      border-radius: 8px;
-      border: none;
-      background: var(--accent-bcn);
-      color: #fff;
-      font-size: 9px;
-      cursor: pointer;
-      min-height: 22px;
-      white-space: nowrap;
-    }
-
-    /* =======================
-       KAIZEN
-    ======================== */
-    #kaizen-widget .kaizen-layout {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap: 6px;
-      font-size: 8px;
-      margin-top: 4px;
-    }
-
-    .kaizen-col {
-      background: rgba(0,0,0,0.7);
-      border-radius: 10px;
-      padding: 4px;
-      border: 1px solid rgba(255,255,255,0.06);
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .kaizen-col-title {
-      font-size: 8px;
-      color: var(--text-soft);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 2px;
-    }
-
-    .kaizen-list {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-height: 32px;
-    }
-
-    .kaizen-card {
-      padding: 3px 4px;
-      border-radius: 8px;
-      background: rgba(9,14,25,0.98);
-      border: 1px solid rgba(255,255,255,0.06);
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      cursor: grab;
-      font-size: 8px;
-    }
-
-    .kaizen-form {
-      margin-top: 4px;
-      display: grid;
-      grid-template-columns: 1.6fr 1fr auto;
-      gap: 4px;
-      font-size: 8px;
-    }
-
-    .kaizen-form input {
-      width: 100%;
-      padding: 3px 4px;
-      border-radius: 7px;
-      border: 1px solid rgba(255,255,255,0.16);
-      background: rgba(0,0,0,0.7);
-      color: var(--text-main);
-      font-size: 9px;
-      min-height: 22px;
-    }
-
-    .kaizen-form button {
-      padding: 4px 7px;
-      border-radius: 8px;
-      border: none;
-      background: #34c759;
-      color: #000;
-      font-size: 9px;
-      cursor: pointer;
-      min-height: 22px;
-      white-space: nowrap;
-    }
-
-    /* =======================
-       5S & GW (TOP 3)
-    ======================== */
-    #rotativas-widget {
-      background: var(--bg-elevated-soft);
-    }
-
-    .s5-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-bottom: 2px;
-    }
-
-    .s5-pill {
-      padding: 3px 7px;
-      border-radius: 999px;
-      font-size: 8px;
-      border: 1px solid rgba(255,255,255,0.18);
-      cursor: pointer;
-      color: var(--text-soft);
-      background: rgba(0,0,0,0.7);
-      min-height: 22px;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .s5-pill.active {
-      background: var(--accent-ok);
-      color: #000;
-      border-color: var(--accent-ok);
-    }
-
-    .s5-meta {
-      font-size: 8px;
-      color: var(--text-soft);
-    }
-
-    .gw-list {
-      margin-top: 4px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      font-size: 8px;
-    }
-
-    .gw-item {
-      padding: 3px 4px;
-      border-radius: 7px;
-      background: rgba(0,0,0,0.8);
-      border: 1px solid rgba(255,255,255,0.08);
-      display: grid;
-      grid-template-columns: auto minmax(0,1.9fr) minmax(0, 2.2fr);
-      gap: 4px;
-      align-items: center;
-    }
-
-    .gw-item input[type="checkbox"] {
-      width: 11px;
-      height: 11px;
-      margin: 0;
-    }
-
-    .gw-note {
-      width: 100%;
-      border-radius: 6px;
-      border: 1px solid rgba(255,255,255,0.16);
-      background: rgba(0,0,0,0.9);
-      color: var(--text-main);
-      font-size: 8px;
-      padding: 2px 4px;
-      min-height: 18px;
-    }
-
-    .gw-note:disabled {
-      opacity: 0.45;
-    }
-
-    /* =======================
-       KPI COSTES BCN
-    ======================== */
-    #kpi-costes {
-      background: radial-gradient(circle at top, rgba(47,143,255,0.14), transparent) var(--bg-elevated);
-    }
-
-    .kpi-main {
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
-      font-family: var(--font-title);
-    }
-
-    #kpi-costes-value {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--accent-bcn);
-    }
-
-    .kpi-label {
-      font-size: 9px;
-      color: var(--text-soft);
-      max-width: 150px;
-    }
-
-    .kpi-updated {
-      font-size: 7px;
-      color: var(--text-soft);
-    }
-
-    .flash {
-      animation: flash 0.5s ease-out;
-    }
-
-    @keyframes flash {
-      0% { box-shadow: 0 0 0 rgba(47,143,255,0.0); }
-      40% { box-shadow: 0 0 22px rgba(47,143,255,0.65); }
-      100% { box-shadow: 0 0 0 rgba(47,143,255,0.0); }
-    }
-
-    /* =======================
-       EHS
-    ======================== */
-    #ehs-widget .ehs-body {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 9px;
-    }
-
-    .ehs-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .ehs-value {
-      font-size: 16px;
-      font-weight: 700;
-      min-width: 38px;
-      text-align: center;
-    }
-
-    .ehs-btn {
-      padding: 3px 6px;
-      border-radius: 7px;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(0,0,0,0.8);
-      color: var(--text-soft);
-      font-size: 9px;
-      cursor: pointer;
-      min-height: 22px;
-    }
-
-    /* =======================
-       PLANIFICACIÓN EXTERNA
-    ======================== */
-    #planificacion-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 8px;
-    }
-
-    #planificacion-table th,
-    #planificacion-table td {
-      padding: 3px 4px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      text-align: left;
-      white-space: nowrap;
-    }
-
-    #planificacion-table th {
-      color: var(--accent-info);
-      font-weight: 500;
-      position: sticky;
-      top: 0;
-      background: rgba(5,8,18,0.98);
-      z-index: 1;
-    }
-
-    .scroll-y {
-      max-height: 200px;
-      overflow-y: auto;
-      padding-right: 2px;
-    }
-
-    /* =======================
-       INFO TURNO ANTERIOR
-    ======================== */
-    #prev-shift-body {
-      font-size: 9px;
-      color: var(--text-soft);
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    /* Fullscreen util */
-    .fullscreen-target:fullscreen,
-    :fullscreen .fullscreen-target {
-      z-index: 999;
-    }
-  </style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="UTF-8" />
+<title>Factory Floor Dashboard - BCN</title>
+
+<!-- Fuentes -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{ --ui-scale: 1; }                  /* 1 = 100% */
+html{ font-size: calc(16px * var(--ui-scale)); }
+@media (min-width: 1600px){
+  :root{ --ui-scale: 1.15; }             /* TVs grandes: sube ligeramente por defecto */
+}
+
+:root{
+  --brand-red-900:#7f1d1d; --brand-red-800:#991b1b; --brand-red-700:#b91c1c;
+  --brand-red-600:#dc2626; --brand-red-500:#ef4444; --brand-red-400:#f87171;
+
+  --bg-page:#f7f8fa;
+  --bg-card:#ffffff;
+  --border:#e6e8ec;
+  --text:#1f2937;
+  --text-muted:#6b7280;
+
+  /* Categorías Kanban (fondo completo) */
+  --cat-seg:#fee2e2;
+  --cat-inc:#fff1e6;
+  --cat-man:#eaf8f0;
+  --cat-cal:#fce7ff;
+  --cat-ser:#fef9c3;
+}
+
+/* Base */
+html,body{ background:var(--bg-page); color:var(--text); height:100%; }
+body{
+  margin:0;
+  font:14px "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+h1,h2,h3,.widget-title,.column-title .count{
+  font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+  letter-spacing:.2px;
+}
+
+/* Header */
+header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+header h1{
+  margin:0;
+  color:var(--brand-red-600);
+  font-weight:700;
+  font-size: clamp(1.6rem, 1vw + 1rem, 2.2rem);
+}
+.header-left{ display:flex; flex-direction:column; gap:2px; }
+#now-header{
+  font-size:.95rem;
+  color:var(--text-muted);
+}
+.shift-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px; border:1px solid var(--border);
+  border-radius:999px; background:#fff;
+  font-weight:600; font-size:.85rem;
+}
+
+/* Turnos colores */
+.shift-chip[data-shift="Mañana"]{
+  background:#ecfdf5; color:#065f46; border-color:#a7f3d0;
+}
+.shift-chip[data-shift="Tarde"]{
+  background:#fff7ed; color:#9a3412; border-color:#fed7aa;
+}
+.shift-chip[data-shift="Noche"]{
+  background:#eef2ff; color:#3730a3; border-color:#c7d2fe;
+}
+
+.header-controls{
+  display:flex; gap:12px; align-items:center;
+}
+.header-controls input{
+  padding:6px 10px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  font-size:.9rem;
+  background:#fff;
+}
+.btn-primary{
+  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+  color:#fff; border:none; border-radius:10px; padding:10px 16px;
+  box-shadow:0 6px 16px rgba(220,38,38,.25);
+  transition:.15s transform,.2s box-shadow,.2s filter;
+  cursor:pointer;
+}
+.btn-primary:hover{
+  transform:translateY(-1px);
+  filter:saturate(110%);
+}
+
+/* ======= Layout 3 columnas ======= */
+.dashboard-3col{
+  min-height: 100svh;
+  display:grid;
+  grid-template-columns: 320px 1fr 380px;  /* IZQ / CENTRO / DER */
+  grid-template-rows: auto 1fr;
+  gap:16px;
+  padding:
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-top))
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-right))
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom))
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+}
+header{ grid-column: 1 / -1; }
+.col-left, .col-middle, .col-right{
+  min-height:0;
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
+
+/* Widgets / tarjetas */
+.widget,.card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:12px;
+  box-shadow: 0 6px 18px rgba(17,24,39,.06);
+  padding:16px;
+  position:relative;
+}
+.widget-title{
+  font-size:1.05rem;
+  font-weight:700;
+  margin:0 0 12px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.widget-title-icon{ width:16px; height:16px; color:var(--text-muted); }
+
+/* Kanban / Kaizen */
+.board-container{ display:grid; gap:12px; }
+.board-container.kanban{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+.board-container.kaizen{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+.board-container.kaizen.compact{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+
+.kanban-column{ display:flex; flex-direction:column; min-width:0; }
+.column-title{
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-size:.85rem; font-weight:600; color:var(--text-muted);
+  margin:0 0 6px; padding-bottom:8px; border-bottom:2px solid #e9ecef;
+}
+.column-title .count{
+  background:#eef1f4; color:var(--text-muted);
+  padding:2px 6px; border-radius:6px; font-size:.8rem;
+}
+.cards-container{
+  min-height:120px;
+  max-height: clamp(280px, 48svh, 70vh);
+  overflow:auto;
+  padding-top:4px;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
+
+.card{
+  margin-bottom:8px;
+  padding:10px 12px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  cursor:grab;
+}
+.card:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.card-content{ flex:1 1 auto; min-width:0; }
+.card-title{
+  font-weight:600; font-size:.95rem; margin:0 0 4px; line-height:1.25;
+  overflow:hidden; max-height:2.5em;
+}
+.card-details,.card-assignee{
+  font-size:.8rem; color:var(--text-muted);
+}
+.card-assignee{ margin-top:4px; }
+
+.card-actions .icon{ width:14px; height:14px; }
+.delete-card-btn{
+  background:none; border:none; color:#9ca3af;
+  display:none; cursor:pointer;
+}
+.card:hover .delete-card-btn{ display:block; }
+
+.sortable-ghost{ opacity:.4; background:#dee2e6; }
+.sortable-drag{
+  opacity:1 !important;
+  transform:rotate(2deg);
+  box-shadow:0 8px 24px rgba(0,0,0,.15);
+}
+
+/* Asa de arrastre */
+.drag-handle{
+  align-self:stretch;
+  display:flex; align-items:center; justify-content:center;
+  padding:6px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--bg-card);
+  cursor:grab;
+  opacity:.7;
+}
+.card:active .drag-handle{ cursor:grabbing; opacity:1; }
+.drag-handle svg{ width:14px; height:14px; }
+
+/* Chips de categoría */
+.cat-chip{
+  display:inline-block; margin-left:8px; font-size:.7rem; font-weight:700;
+  padding:2px 6px; border-radius:999px; border:1px solid rgba(0,0,0,.08);
+  vertical-align:middle; background:rgba(255,255,255,.7);
+}
+
+/* KANBAN: fondo por categoría */
+#kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
+#kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
+#kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
+#kanban-widget .card.cat-calidad       { background: var(--cat-cal); }
+#kanban-widget .card.cat-servicio      { background: var(--cat-ser); }
+
+#kanban-widget .cat-chip{ font-weight:800; }
+#kanban-widget .cat-chip.is-seguridad   { background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+#kanban-widget .cat-chip.is-incidencias { background:#fff1e6; color:#7a3800; border-color:#ffd7b5; }
+#kanban-widget .cat-chip.is-mantenimiento{background:#eaf8f0; color:#065f46; border-color:#b7f0d3; }
+#kanban-widget .cat-chip.is-calidad     { background:#fce7ff; color:#6b21a8; border-color:#f0abfc; }
+#kanban-widget .cat-chip.is-servicio    { background:#fef9c3; color:#854d0e; border-color:#fde68a; }
+
+/* 5S & GW */
+.checkbox-item{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.9rem; }
+.gw-task-item{
+  display:flex; align-items:center; gap:8px;
+  padding:6px 4px;
+  font-size:.9rem;
+  border-bottom:1px solid var(--border);
+  cursor:pointer;
+}
+.gw-task-item:last-child{ border-bottom:none; }
+.gw-task-item.completed label{
+  color:var(--text-muted);
+  text-decoration:line-through;
+}
+.gw-note{
+  font-size:.85rem;
+  width:100%; margin-top:4px;
+  padding:6px 8px;
+  border:1px solid var(--border);
+  border-radius:6px;
+}
+.gw-note:disabled{
+  background:#f8f9fa;
+  color:var(--text-muted);
+}
+.highlight-gw{ animation: highlight-gw 2s ease-out; }
+@keyframes highlight-gw {
+  from{ background:#dbe4ff; }
+  to{ background:transparent; }
+}
+
+/* 5S compacto */
+.s5-compact{
+  display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+}
+.s5-pill{
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid var(--border); background:#fff;
+  border-radius:999px; padding:6px 10px;
+  font-size:.8rem; line-height:1;
+  cursor:pointer; user-select:none;
+  transition:transform .06s, box-shadow .12s, border-color .12s, background .12s;
+}
+.s5-pill:hover{ transform:translateY(-1px); }
+.s5-pill:active{ transform:translateY(0); }
+.s5-dot{
+  width:8px; height:8px; border-radius:50%; background:#d1d5db;
+}
+.s5-pill.on{
+  background:linear-gradient(135deg, #ecfdf5, #ffffff);
+  border-color: rgba(16,185,129,.55);
+  box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+}
+.s5-pill.on .s5-dot{ background:#10b981; }
+@keyframes s5-bump{
+  0%{transform:scale(1);}
+  50%{transform:scale(1.05);}
+  100%{transform:scale(1);}
+}
+.s5-pill.bump{ animation:s5-bump .18s ease-out; }
+#s5-meta{ margin-top:4px; font-size:.78rem; }
+
+/* EHS simple */
+#ehs-widget{ display:flex; flex-direction:column; gap:8px; }
+#ehs-month{ color:var(--text-muted); font-size:.95rem; }
+.ehs-controls{
+  display:flex; align-items:center; gap:14px;
+  border:1px solid var(--border); border-radius:12px; padding:8px 10px;
+}
+.ehs-btn{
+  width:42px; height:42px; border:none; border-radius:10px; cursor:pointer;
+  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+  color:#fff; font-size:1.3rem; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+}
+.ehs-big{
+  font-size: clamp(2rem, 2.2vw + .8rem, 3rem);
+  font-weight:800; line-height:1;
+  color:var(--brand-red-600);
+  min-width:3ch; text-align:center;
+}
+
+/* KPI Costes */
+#kpi-costes .kpi-value.large{
+  font-size: clamp(2.1rem, 2.3vw + 1rem, 3.2rem);
+  line-height:1; font-weight:700;
+}
+#kpi-total-cost{
+  color:var(--brand-red-600); font-weight:800;
+}
+.kpi-text{
+  color:var(--text-muted); margin:0; font-size:.9rem;
+}
+.kpi-currency{
+  font-size:1rem; font-weight:600;
+  margin-left:4px; vertical-align:super;
+  color:var(--brand-red-600);
+}
+.flash{ animation: flash-kpi 900ms ease-out; }
+@keyframes flash-kpi{
+  from{ background:#fff3cd; }
+  to{ background:transparent; }
+}
+
+/* KPIs grid */
+.kpi-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap:12px;
+}
+.kpi-tile{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  padding:14px;
+  box-shadow:0 6px 18px rgba(17,24,39,.06);
+}
+.kpi-label{
+  font-weight:700;
+  font-size:.9rem;
+  color:var(--text-muted);
+  margin-bottom:4px;
+}
+.kpi-value{
+  font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+  font-weight:800;
+  font-size: clamp(1.6rem, 2.6vw + .4rem, 2.6rem);
+  line-height:1;
+  color:var(--brand-red-600);
+}
+
+/* Planificación / tablas */
+.table-scroll{
+  overflow-x:auto;
+  max-width:100%;
+  padding-bottom:8px;
+}
+#planif-table, #incidentes-table, #incidentes-pdf-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:.9rem;
+}
+#planif-table thead th,
+#incidentes-table thead th,
+#incidentes-pdf-table thead th{
+  position:sticky; top:0;
+  background:#fafafa;
+  border-bottom:1px solid var(--border);
+  text-align:left;
+  padding:8px;
+  z-index:2;
+}
+#planif-table tbody td,
+#incidentes-table tbody td,
+#incidentes-pdf-table tbody td{
+  padding:8px;
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+
+/* Fullscreen helpers */
+.fs-toggle{
+  position:absolute; top:10px; right:10px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.95);
+  border-radius:12px;
+  padding:10px;
+  cursor:pointer; line-height:0; opacity:.8;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition: opacity .15s, transform .15s, box-shadow .15s;
+  box-shadow:0 4px 12px rgba(0,0,0,.10);
+  min-width:44px; min-height:44px;
+}
+.fs-toggle:hover{ opacity:1; transform:scale(1.06); }
+.fs-toggle svg{ width:18px; height:18px; display:block; }
+
+.widget:fullscreen, .card:fullscreen{
+  background:#fff; border-radius:0; box-shadow:none; padding:24px;
+}
+:fullscreen{ overflow:auto; }
+html.fs-zoom{ font-size:18px; }
+@media (min-width:1280px){ html.fs-zoom{ font-size:20px; } }
+
+/* Spotlight checklist */
+#brief-check{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  border: 2px solid rgba(239,68,68,.45);
+  box-shadow:
+    0 14px 36px rgba(239,68,68,.18),
+    0 2px 0 rgba(255,255,255,.9) inset;
+  background:
+    radial-gradient(1200px 200px at 50% -60px, rgba(239,68,68,.06), transparent),
+    #fff;
+  animation: brief-pop .25s ease-out;
+  backdrop-filter: saturate(105%) blur(2px);
+}
+#brief-check .widget-title{
+  font-size: 1.25rem;
+  color: var(--brand-red-700);
+}
+#brief-check .check-grid{
+  display:grid; gap:8px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+#brief-check .check-card{
+  display:flex; flex-direction:column;
+  align-items:flex-start; gap:10px;
+  padding:14px 16px;
+  min-height:96px;
+  border:1px solid var(--border);
+  box-shadow:0 6px 16px rgba(17,24,39,.06);
+}
+.check-title{
+  font-weight:600;
+  font-size:.95rem;
+  line-height:1.25;
+  word-break:break-word;
+}
+.check-actions{
+  width:100%;
+  display:flex; flex-wrap:wrap;
+  gap:8px;
+}
+.check-actions label{
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:.78rem;
+  border:1px solid var(--border);
+  cursor:pointer;
+}
+.check-actions input{ display:none; }
+.check-actions input:checked + label{
+  background:#ecfdf5;
+  border-color:rgba(16,185,129,.6);
+  box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+}
+#brief-check .shift-chip{
+  margin:6px auto 10px;
+}
+
+/* Caja explicación */
+#brief-check .br-explain{
+  display:flex; align-items:center; gap:8px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  background:#fff;
+  color: var(--brand-red-700);
+  border: 2px solid var(--brand-red-600);
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(239,68,68,.12);
+  font-size: .95rem;
+  line-height: 1.35;
+  min-height: 44px;
+}
+#brief-check .br-explain-ico{
+  display:inline-flex; align-items:center; justify-content:center;
+  width: 26px; height: 26px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+  color:#fff;
+  box-shadow: 0 4px 10px rgba(239,68,68,.25);
+}
+#brief-check .br-explain-label{
+  font-weight: 800; letter-spacing:.2px;
+}
+#brief-check .br-explain-text{
+  font-weight: 600;
+}
+
+/* Spotlight parpadeo */
+.spotlight-blink{
+  position: relative;
+  border-color: rgba(239,68,68,.6) !important;
+  box-shadow:
+    0 0 0 3px rgba(239,68,68,.20),
+    0 14px 36px rgba(239,68,68,.12);
+  animation: blink-glow 1.2s ease-in-out infinite;
+}
+@keyframes blink-glow{
+  0%,100%{
+    box-shadow:
+      0 0 0 2px rgba(239,68,68,.18),
+      0 8px 22px rgba(239,68,68,.10);
+    transform: scale(1);
+  }
+  50%{
+    box-shadow:
+      0 0 0 5px rgba(239,68,68,.28),
+      0 18px 44px rgba(239,68,68,.18);
+    transform: scale(1.01);
+  }
+}
+
+/* Incidentes BCN */
+#incidentes-widget .incident-remember{
+  margin:6px 0 8px;
+  padding:10px 12px;
+  background:#fff !important;
+  color: var(--brand-red-700) !important;
+  border: 2px solid var(--brand-red-600) !important;
+  border-radius: 12px;
+  box-shadow:none !important;
+  font-weight:800;
+  letter-spacing:.2px;
+}
+#incidentes-widget .title-bullets{
+  list-style:none; margin:0 0 10px; padding:0;
+  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+}
+#incidentes-widget .title-chip{
+  display:inline-flex; align-items:center;
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:.8rem; font-weight:700;
+  background:#fff !important;
+  color:var(--brand-red-700) !important;
+  border:2px solid var(--brand-red-600) !important;
+  box-shadow:none !important;
+}
+#incidentes-widget .title-chip:hover{
+  box-shadow:0 0 0 3px rgba(239,68,68,.12);
+}
+
+/* Equipo / presencia */
+.presence-toggle{
+  display:inline-flex; align-items:center;
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:hidden;
+  background:#fff;
+}
+.presence-toggle input{ display:none; }
+.presence-toggle label{
+  padding:6px 10px;
+  font-size:.82rem; font-weight:700;
+  cursor:pointer; user-select:none;
+  display:inline-flex; align-items:center; gap:6px;
+}
+.presence-toggle label + input + label{
+  border-left:1px solid var(--border);
+}
+.presence-toggle .yes{ color:#166534; }
+.presence-toggle .no { color:#991b1b; }
+.presence-toggle input[value="yes"]:checked + label.yes{
+  background:#e3f9e5; box-shadow: inset 0 0 0 2px rgba(16,185,129,.12);
+}
+.presence-toggle input[value="no"]:checked + label.no{
+  background:#ffe3e3; box-shadow: inset 0 0 0 2px rgba(239,68,68,.12);
+}
+.team-right .zone-select{
+  padding:6px 10px; border:1px solid var(--border);
+  border-radius:8px; background:#fff; font-size:.85rem;
+}
+.chip-zone{
+  display:inline-block; margin-left:6px; padding:2px 8px;
+  border-radius:999px; font-size:.72rem; font-weight:700;
+  color:#3730a3; background:#eef2ff; border:1px solid #c7d2fe;
+}
+
+/* Split Kaizen + 5S/GW */
+.actions-split{
+  display:grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap:20px;
+  align-items:start;
+}
+@media (max-width:1100px){
+  .actions-split{ grid-template-columns:1fr; }
+}
+
+/* Responsive layout ajustes */
+@media (min-width:980px) and (max-width:1280px){
+  .dashboard-3col{
+    grid-template-columns:
+      clamp(260px, 28vw, 320px)
+      minmax(0, 1fr);
+    grid-template-rows:auto 1fr auto;
+    gap:16px;
+  }
+  .col-left{ order:1; grid-column:1; }
+  .col-middle{ order:2; grid-column:2; }
+  .col-right{
+    order:3; grid-column:1 / -1;
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap:16px;
+  }
+}
+
+@media (max-width:960px){
+  .dashboard-3col{
+    grid-template-columns:1fr;
+    grid-template-rows:auto auto auto auto;
+  }
+  .col-left,.col-right{ order:2; }
+  .col-middle{ order:1; }
+  #brief-check{
+    position:static !important;
+    max-height:none !important;
+    overflow:visible !important;
+  }
+  #brief-check .check-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+/* iOS: evita zoom en inputs */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea {
+    font-size:16px !important;
+  }
+}
+
+/* Táctil */
+* { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
+  touch-action: manipulation;
+  min-height:44px;
+}
+
+/* Accesibilidad / motion */
+@media (prefers-reduced-motion: reduce){
+  * { animation:none !important; transition:none !important; }
+}
+</style>
 </head>
 <body>
-<div class="app-shell">
+<!-- Selector escala -->
+<select id="scale-select" aria-label="Escala UI">
+  <option value="1">100%</option>
+  <option value="1.15" selected>115%</option>
+  <option value="1.3">130%</option>
+  <option value="1.5">150%</option>
+</select>
+<button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">Presentar</button>
 
-  <!-- ================= HEADER ================= -->
-  <header class="app-header">
-    <div class="app-title-block">
-      <div class="app-title">
-        Factory Floor Dashboard
-        <span class="station">BCN</span>
-      </div>
-      <div class="app-subtitle">
-        <span>Operación en tiempo real • Export / Import • Handling BCN</span>
-        <span class="shift-pill" id="shift-pill">
-          Turno actual: <strong id="shift-label">N/A</strong>
-        </span>
-        <span class="clock-display">
-          <span class="time" id="clock-time">--:--</span>
-          <span id="clock-date">--/--/----</span>
-        </span>
-      </div>
+<div class="dashboard-3col">
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <h1>Factory Floor Dashboard - BCN</h1>
+      <div id="now-header">—</div>
+      <span id="shift-badge-header" class="shift-chip">—</span>
     </div>
 
-    <div id="timer-widget">
-      <div id="big-timer-label">Cronómetro briefing / incidencias</div>
-      <div id="big-timer-display" aria-label="Cronómetro de sala">00:00:00</div>
-      <div id="timer-controls">
-        <button id="timer-reset-btn">Reiniciar</button>
+    <!-- Cronómetro -->
+    <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
+      <div class="timer-face" id="timer-face">
+        <div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
+        <span class="timer-dot" aria-hidden="true"></span>
       </div>
+      <button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
     </div>
 
     <div class="header-controls">
-      <div class="scale-select-wrap">
-        Escala UI:
-        <select id="scale-select">
-          <option value="0.9">90%</option>
-          <option value="1" selected>100%</option>
-          <option value="1.1">110%</option>
-          <option value="1.2">120%</option>
-        </select>
-      </div>
-      <button id="present-btn">
-        <span class="icon">⤢</span>
-        Presentar BCN
-      </button>
+      <input type="text" class="date-picker" value="julio de 2025">
+      <input type="text" placeholder="Filtro...">
+      <button class="btn-primary" type="button">Generar Resumen</button>
     </div>
   </header>
 
-  <!-- ================= GRID 3 COL ================= -->
-  <main class="dashboard-3col fullscreen-target" id="dashboard-root">
-    <!-- COL IZQUIERDA -->
-    <section class="col" id="left-col">
+  <!-- IZQUIERDA: EQUIPO -->
+  <section class="col-left">
+    <div class="widget" id="team-widget">
+      <h2 class="widget-title">Equipo / Turno BCN</h2>
+      <small class="kpi-text" id="team-meta">—</small>
 
-      <!-- TEAM / TURNO -->
-      <section class="widget" id="team-widget">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">Equipo / Turno BCN</div>
-            <div class="widget-subtitle">Roster operativo en vivo desde SAP / Excel</div>
-          </div>
-          <div class="widget-actions">
-            <div class="pill" id="team-count-pill">0 personas</div>
-            <button class="fs-toggle" data-fs-target="#team-widget">⤢</button>
-          </div>
-        </div>
-        <div class="widget-body">
-          <div id="team-meta">
-            <span>Fecha hoja: <span id="team-sheet-date">--/--</span></span>
-            <span>Shift: <span id="team-shift">--</span></span>
-            <span>Ventana: <span id="team-window">--</span></span>
-          </div>
-          <div id="team-list"></div>
-          <div id="roster-upload">
-            <label>
-              Actualizar roster BCN:
-              <input type="file" id="roster-file" accept=".xlsx,.xls" />
-            </label>
-          </div>
-        </div>
-      </section>
+      <!-- Alta manual rápida (local / opcional) -->
+      <form id="team-form" class="team-form" autocomplete="off"
+            style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+        <input type="text" id="team-name" placeholder="Añadir persona…" required
+               style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
+        <button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
+      </form>
 
-      <!-- INFO TURNO ANTERIOR -->
-      <section class="widget" id="prev-shift-widget">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">Turno anterior BCN</div>
-            <div class="widget-subtitle">Resumen rápido para handover</div>
-          </div>
-          <div class="widget-actions">
-            <button class="fs-toggle" data-fs-target="#prev-shift-widget">⤢</button>
-          </div>
-        </div>
-        <div class="widget-body" id="prev-shift-body">
-          <div id="prev-shift-notes">Sin datos aún. Sincronizar con backend para mostrar incidencias clave.</div>
-        </div>
-      </section>
+      <!-- Subida Excel roster -->
+      <form id="roster-upload-form"
+            style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+        <input type="file" id="roster-file" accept=".xlsx,.xls" required
+               style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+        <button class="btn-primary" type="submit">Subir Excel</button>
+      </form>
+      <small id="roster-upload-result" class="kpi-text">—</small>
 
-      <!-- EHS -->
-      <section class="widget" id="ehs-widget">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">EHS BCN</div>
-            <div class="widget-subtitle">Días sin incidentes / con incidentes</div>
-          </div>
-          <div class="widget-actions">
-            <button class="fs-toggle" data-fs-target="#ehs-widget">⤢</button>
-          </div>
-        </div>
-        <div class="widget-body ehs-body">
-          <div class="ehs-row">
-            <span>Días sin incidentes (mes actual)</span>
-            <span class="ehs-value" id="ehs-days-safe">0</span>
-            <button class="ehs-btn" data-ehs-delta="safe:-1">-</button>
-            <button class="ehs-btn" data-ehs-delta="safe:+1">+</button>
-          </div>
-          <div class="ehs-row">
-            The
-            <span>Días con incidentes (mes actual)</span>
-            <span class="ehs-value" id="ehs-days-inc">0</span>
-            <button class="ehs-btn" data-ehs-delta="inc:-1">-</button>
-            <button class="ehs-btn" data-ehs-delta="inc:+1">+</button>
-          </div>
-          <div class="kpi-updated" id="ehs-updated">Pendiente de sincronizar backend / ws</div>
-        </div>
-      </section>
+      <div id="team-list"
+           class="team-list"
+           style="display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+  </section>
 
-    </section>
+  <!-- CENTRO -->
+  <section class="col-middle">
+    <!-- CHECKLIST BRIEFING -->
+    <div class="widget" id="brief-check">
+      <div id="brief-check-explain" class="br-explain" aria-live="polite">
+        <span class="br-explain-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+          </svg>
+        </span>
+        <strong class="br-explain-label">Guía</strong>
+        <span class="br-explain-text">Pasa el ratón o toca cada punto para ver qué revisar.</span>
+      </div>
 
-    <!-- COL CENTRAL -->
-    <section class="col" id="center-col">
+      <h2 class="widget-title"><span>Checklist</span></h2>
+      <span id="shift-badge" class="shift-chip">—</span>
 
-      <!-- BRIEFING CHECKLIST -->
-      <section class="widget" id="brief-check">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">Briefing de inicio turno BCN</div>
-            <div class="widget-subtitle">Validación rápida de condiciones críticas</div>
-          </div>
-          <div class="widget-actions">
-            <div class="pill">Tap para fijar foco en el widget relacionado</div>
-            <button class="fs-toggle" data-fs-target="#brief-check">⤢</button>
+      <div class="check-grid">
+        <div class="check-card" tabindex="0"
+             data-help="Revisa incidencias y puntos clave del turno anterior (BCN)."
+             data-target="prev-shift-widget">
+          <span class="check-title">1) Highlights del turno anterior</span>
+          <div class="check-actions" role="group" aria-label="Bloque 1">
+            <input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
+            <input id="c1no" type="radio" name="c1" value="NO"><label for="c1no">NO</label>
           </div>
         </div>
-        <div class="widget-body">
-          <div class="checklist-grid">
-            <div class="check-card" data-help="Revisar dotación por isla / posiciones críticas."
-                 data-target="#team-widget">
-              <div class="check-label">1. Equipo y posiciones clave cubiertas</div>
-              <div class="check-meta">Roster BCN / posiciones sensibles</div>
-              <div class="check-options">
-                <label><input type="radio" name="c1" value="ok">OK</label>
-                <label><input type="radio" name="c1" value="no">NO</label>
-              </div>
-            </div>
-            <div class="check-card" data-help="Confirmar planificación actualizada desde sistemas externos."
-                 data-target="#planificacion-widget">
-              <div class="check-label">2. Planificación vuelos / ULD validada</div>
-              <div class="check-meta">Cruce con tabla externa</div>
-              <div class="check-options">
-                <label><input type="radio" name="c2" value="ok">OK</label>
-                <label><input type="radio" name="c2" value="no">NO</label>
-              </div>
-            </div>
-            <div class="check-card" data-help="Revisar incidencias abiertas que impacten inicio turno."
-                 data-target="#kanban-widget">
-              <div class="check-label">3. Incidencias críticas conocidas</div>
-              <div class="check-meta">Feedback rápido BCN</div>
-              <div class="check-options">
-                <label><input type="radio" name="c3" value="ok">OK</label>
-                <label><input type="radio" name="c3" value="no">NO</label>
-              </div>
-            </div>
-            <div class="check-card" data-help="Revisar estado 5S zonas sensibles (rampas, docks, etc.)."
-                 data-target="#rotativas-widget">
-              <div class="check-label">4. 5S zonas clave</div>
-              <div class="check-meta">Orden, limpieza, pasillos libres</div>
-              <div class="check-options">
-                <label><input type="radio" name="c4" value="ok">OK</label>
-                <label><input type="radio" name="c4" value="no">NO</label>
-              </div>
-            </div>
-            <div class="check-card" data-help="Verificar equipos críticos disponibles (tugs, belts, etc.)."
-                 data-target="#kpi-costes">
-              <div class="check-label">5. Equipos operativos</div>
-              <div class="check-meta">Sin bloqueos por averías</div>
-              <div class="check-options">
-                <label><input type="radio" name="c5" value="ok">OK</label>
-                <label><input type="radio" name="c5" value="no">NO</label>
-              </div>
-            </div>
-            <div class="check-card" data-help="Recordatorio EHS / brief seguridad BCN."
-                 data-target="#ehs-widget">
-              <div class="check-label">6. Mensaje seguridad comunicado</div>
-              <div class="check-meta">Uso EPI, zonas rojas, acceso pista</div>
-              <div class="check-options">
-                <label><input type="radio" name="c6" value="ok">OK</label>
-                <label><input type="radio" name="c6" value="no">NO</label>
-              </div>
-            </div>
-            <div class="check-card" data-help="Validar status proyectos KAIZEN activos turno BCN."
-                 data-target="#kaizen-widget">
-              <div class="check-label">7. KAIZEN / acciones sostenidas</div>
-              <div class="check-meta">Seguimiento visual</div>
-              <div class="check-options">
-                <label><input type="radio" name="c7" value="ok">OK</label>
-                <label><input type="radio" name="c7" value="no">NO</label>
-              </div>
-            </div>
-          </div>
-          <div id="brief-help"></div>
-        </div>
-      </section>
 
-      <!-- KANBAN RESPUESTA RAPIDA BCN -->
-      <section class="widget" id="kanban-widget">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">Feedback directo BCN</div>
-            <div class="widget-subtitle">Incidencias rápidas / seguridad / servicio</div>
-          </div>
-          <div class="widget-actions">
-            <div class="pill">Drag & Drop (táctil optimizado)</div>
-            <button class="fs-toggle" data-fs-target="#kanban-widget">⤢</button>
+        <div class="check-card" tabindex="0"
+             data-help="Cambios operativos/planning BCN."
+             data-target="kanban-widget">
+          <span class="check-title">2) Actualizaciones operativas</span>
+          <div class="check-actions" role="group" aria-label="Bloque 2">
+            <input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
+            <input id="c2no" type="radio" name="c2" value="NO"><label for="c2no">NO</label>
           </div>
         </div>
-        <div class="widget-body">
-          <div class="kanban-layout">
-            <div class="kanban-col">
-              <div class="kanban-col-header">
-                <span>Abiertas</span>
-                <span id="count-abiertas">0</span>
-              </div>
-              <div class="kanban-list" id="kanban_rapida-Abiertas"></div>
-            </div>
-            <div class="kanban-col">
-              <div class="kanban-col-header">
-                <span>En curso</span>
-                <span id="count-encurso">0</span>
-              </div>
-              <div class="kanban-list" id="kanban_rapida-EnCurso"></div>
-            </div>
-            <div class="kanban-col">
-              <div class="kanban-col-header">
-                <span>Cerradas</span>
-                <span id="count-cerradas">0</span>
-              </div>
-              <div class="kanban-list" id="kanban_rapida-Cerradas"></div>
-            </div>
-            <div class="kanban-col">
-              <div class="kanban-col-header">
-                <span>Vencidas</span>
-                <span id="count-vencidas">0</span>
-              </div>
-              <div class="kanban-list" id="kanban_rapida-Vencidas"></div>
-            </div>
-          </div>
 
-          <form class="kanban-form" id="kanban-form">
-            <select name="category" required>
-              <option value="" disabled selected>Categoria</option>
-              <option value="Seguridad">Seguridad</option>
-              <option value="Incidencias">Incidencias</option>
-              <option value="Mantenimiento">Mantenimiento</option>
-              <option value="Calidad">Calidad</option>
-              <option value="Servicio">Servicio</option>
-            </select>
-            <input type="text" name="title" placeholder="Descripción breve" required />
-            <input type="date" name="due_date" />
-            <input type="text" name="assigned_to" placeholder="Responsable" />
-            <button type="submit">Añadir</button>
-          </form>
+        <div class="check-card" tabindex="0"
+             data-help="Dotación, ausencias y zonas BCN."
+             data-target="team-widget">
+          <span class="check-title">3) Dotación y recursos</span>
+          <div class="check-actions" role="group" aria-label="Bloque 3">
+            <input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
+            <input id="c3no" type="radio" name="c3" value="NO"><label for="c3no">NO</label>
+          </div>
         </div>
-      </section>
 
-      <!-- KAIZEN BCN -->
-      <section class="widget" id="kaizen-widget">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">KAIZEN BCN</div>
-            <div class="widget-subtitle">Mejoras continuas de operación</div>
-          </div>
-          <div class="widget-actions">
-            <button class="fs-toggle" data-fs-target="#kaizen-widget">⤢</button>
+        <div class="check-card" tabindex="0"
+             data-help="Seguridad: EPIs, accesos, consignas específicas BCN."
+             data-target="rotativas-widget">
+          <span class="check-title">4) Seguridad y protección</span>
+          <div class="check-actions" role="group" aria-label="Bloque 4">
+            <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
+            <input id="c4no" type="radio" name="c4" value="NO"><label for="c4no">NO</label>
           </div>
         </div>
-        <div class="widget-body">
-          <div class="kaizen-layout">
-            <div class="kaizen-col">
-              <div class="kaizen-col-title">Propuestas</div>
-              <div class="kaizen-list" id="kaizen-Pendiente"></div>
-            </div>
-            <div class="kaizen-col">
-              <div class="kaizen-col-title">En progreso</div>
-              <div class="kaizen-list" id="kaizen-EnCurso"></div>
-            </div>
-            <div class="kaizen-col">
-              <div class="kaizen-col-title">Implementado</div>
-              <div class="kaizen-list" id="kaizen-Hecho"></div>
-            </div>
-          </div>
-          <form class="kaizen-form" id="kaizen-form">
-            <input type="text" name="title" placeholder="Nueva mejora BCN" required />
-            <input type="text" name="owner" placeholder="Responsable" />
-            <button type="submit">Crear KAIZEN</button>
-          </form>
-        </div>
-      </section>
 
-      <!-- 5S & GW TOP3 -->
-      <section class="widget" id="rotativas-widget">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">5S & Gemba Walk BCN</div>
-            <div class="widget-subtitle">Estado visual + TOP-3 acciones</div>
-          </div>
-          <div class="widget-actions">
-            <button class="fs-toggle" data-fs-target="#rotativas-widget">⤢</button>
+        <div class="check-card" tabindex="0"
+             data-help="Procedimiento de incidentes / PULSE / Enablon."
+             data-target="incidentes-widget">
+          <span class="check-title">5) Preparación/reportes incidentes</span>
+          <div class="check-actions" role="group" aria-label="Bloque 5">
+            <input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
+            <input id="c5no" type="radio" name="c5" value="NO"><label for="c5no">NO</label>
           </div>
         </div>
-        <div class="widget-body">
-          <div class="s5-row" id="s5-row">
-            <div class="s5-pill" data-s="1S">1S Clasificar</div>
-            <div class="s5-pill" data-s="2S">2S Ordenar</div>
-            <div class="s5-pill" data-s="3S">3S Limpiar</div>
-            <div class="s5-pill" data-s="4S">4S Estandarizar</div>
-            <div class="s5-pill" data-s="5S">5S Disciplina</div>
-          </div>
-          <div class="s5-meta" id="s5-meta">0/5 completadas • Actualizado: --:--</div>
-          <div class="gw-list" id="gw-top3">
-            <!-- Render dinámico desde GW_MAP -->
-          </div>
-        </div>
-      </section>
 
-    </section>
+        <div class="check-card" tabindex="0"
+             data-help="KPIs BCN: flujos, mantenimiento, servicio."
+             data-target="kpi-center">
+          <span class="check-title">6) Revisión KPIs BCN</span>
+          <div class="check-actions" role="group" aria-label="Bloque 6">
+            <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
+            <input id="c6no" type="radio" name="c6" value="NO"><label for="c6no">NO</label>
+          </div>
+        </div>
 
-    <!-- COL DERECHA -->
-    <section class="col" id="right-col">
+        <div class="check-card" tabindex="0"
+             data-help="Feedback del equipo BCN → acciones Kanban rápida."
+             data-target="kanban-widget">
+          <span class="check-title">7) Feedback → Acciones</span>
+          <div class="check-actions" role="group" aria-label="Bloque 7">
+            <input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
+            <input id="c7no" type="radio" name="c7" value="NO"><label for="c7no">NO</label>
+          </div>
+        </div>
+      </div>
 
-      <!-- KPI COSTES BCN -->
-      <section class="widget" id="kpi-costes">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">KPI Costes BCN</div>
-            <div class="widget-subtitle">Costes mantenimiento / daños equipos BCN</div>
-          </div>
-          <div class="widget-actions">
-            <button class="fs-toggle" data-fs-target="#kpi-costes">⤢</button>
-          </div>
-        </div>
-        <div class="widget-body">
-          <div class="kpi-main">
-            <div id="kpi-costes-value">0 €</div>
-            <div class="kpi-label">Coste acumulado mes actual (referencia BCN)</div>
-          </div>
-          <div class="kpi-updated" id="kpi-costes-updated">Pendiente de datos iniciales</div>
-        </div>
-      </section>
+      <small class="kpi-text" id="brief-check-meta">—</small>
+    </div>
 
-      <!-- PLANIFICACIÓN EXTERNA -->
-      <section class="widget" id="planificacion-widget">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">Planificación Operativa</div>
-            <div class="widget-subtitle">Tabla externa filtrada (vuelos / ULD / peso)</div>
-          </div>
-          <div class="widget-actions">
-            <button class="fs-toggle" data-fs-target="#planificacion-widget">⤢</button>
-          </div>
+    <!-- KANBAN FEEDBACK DIRECTO -->
+    <div class="widget" id="kanban-widget">
+      <h2 class="widget-title">Feedback directo BCN</h2>
+      <div class="board-container kanban">
+        <div class="kanban-column">
+          <h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
+          <div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
         </div>
-        <div class="widget-body scroll-y">
-          <table id="planificacion-table">
-            <thead>
-              <tr>
-                <th>FlightId</th>
-                <th>Type</th>
-                <th>Aircraft</th>
-                <th>Flight</th>
-                <th>STD</th>
-                <th>PCS Manif.</th>
-                <th>KG Manif.</th>
-              </tr>
-            </thead>
-            <tbody id="planificacion-tbody">
-              <!-- filled vía /api/external-table -->
-            </tbody>
-          </table>
+        <div class="kanban-column">
+          <h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
+          <div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
         </div>
-      </section>
+        <div class="kanban-column">
+          <h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
+          <div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
+        </div>
+        <div class="kanban-column">
+          <h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
+          <div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
+        </div>
+      </div>
 
-      <!-- RESERVA / OTROS WIDGETS FUTURO -->
-      <section class="widget" id="misc-widget">
-        <div class="widget-header">
-          <div>
-            <div class="widget-title">Notas rápidas BCN</div>
-            <div class="widget-subtitle">Espacio para próximos integraciones</div>
-          </div>
-          <div class="widget-actions">
-            <button class="fs-toggle" data-fs-target="#misc-widget">⤢</button>
-          </div>
-        </div>
-        <div class="widget-body">
-          <div class="tag">Checklist Enablon / incidencias formales pendiente de integrar aquí igual que MAD.</div>
-        </div>
-      </section>
+      <!-- Alta Kanban BCN -->
+      <form class="new-item-form" id="new-kanban-form"
+            style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
+                   display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
+                   gap:8px; align-items:center;">
+        <select id="problem-category" name="category" required>
+          <option value="" disabled selected>Selecciona categoría…</option>
+          <option value="seguridad">Seguridad</option>
+          <option value="incidencias">Incidencias</option>
+          <option value="mantenimiento">Mantenimiento</option>
+          <option value="calidad">Calidad</option>
+          <option value="servicio">Servicio</option>
+        </select>
+        <input type="text" name="title" placeholder="Tipo de problema" required>
+        <input type="date" name="due_date" required>
+        <select name="assigned_to" required title="Equipo de soporte">
+          <option value="" disabled selected>Equipo de soporte…</option>
+          <option>Mantenimiento</option>
+          <option>IT</option>
+          <option>Calidad</option>
+          <option>Compras</option>
+          <option>CI</option>
+          <option>QHSSE</option>
+          <option>Ops</option>
+        </select>
+        <button type="submit" class="btn-primary">Añadir</button>
+      </form>
+    </div>
 
-    </section>
-  </main>
+    <!-- INCIDENTES / PULSE / ENABLON -->
+    <div class="widget" id="incidentes-widget">
+      <h2 class="widget-title">
+        <span>Incidentes / Seguridad BCN</span>
+      </h2>
+
+      <div class="incident-remember" role="note">
+        RECORDAR: Uso correcto de EPIs, comunicación inmediata y registro en sistema oficial.
+      </div>
+
+      <ul class="title-bullets" aria-label="Guía rápida de incidentes">
+        <li class="title-chip">Qué hacer</li>
+        <li class="title-chip">A quién avisar</li>
+        <li class="title-chip">Dónde están los equipos</li>
+      </ul>
+
+      <!-- Subida PDF -->
+      <form id="incidents-pdf-form"
+            style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+        <input type="file" id="incidents-pdf-file" accept="application/pdf" required
+               style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+        <button class="btn-primary" type="submit">Subir PDF</button>
+      </form>
+      <small id="incidents-pdf-status" class="kpi-text">—</small>
+
+      <div class="table-scroll" id="incidentes-pdf-wrap" style="display:none; margin-top:6px;">
+        <table id="incidentes-pdf-table"></table>
+      </div>
+
+      <small id="incidentes-meta" class="kpi-text">—</small>
+      <div class="table-scroll">
+        <table id="incidentes-table"></table>
+      </div>
+    </div>
+
+    <!-- KPIs CENTRO -->
+    <div class="widget kpi-widget" id="kpi-center">
+      <h2 class="widget-title">KPIs Operativos BCN</h2>
+      <div class="kpi-grid">
+        <div class="kpi-tile">
+          <div class="kpi-label">Productividad</div>
+          <div class="kpi-value" id="kpi-uph">—</div>
+          <small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Servicio</div>
+          <div class="kpi-value" id="kpi-otif">—</div>
+          <small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Backlog</div>
+          <div class="kpi-value" id="kpi-backlog">—</div>
+          <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
+        </div>
+
+        <!-- KPI Costes BCN -->
+        <div class="kpi-tile" id="kpi-costes">
+          <h3 class="widget-title" style="margin-bottom:4px;">
+            <span>Costes Mantenimiento BCN</span>
+            <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                 stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path>
+            </svg>
+          </h3>
+          <div class="kpi-value large">
+            <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
+          </div>
+          <small class="kpi-text" id="kpi-costes-meta"></small>
+        </div>
+      </div>
+    </div>
+
+    <!-- KAIZEN + 5S/GW -->
+    <div class="actions-split">
+      <div class="widget" id="kaizen-widget">
+        <h2 class="widget-title">KAIZEN BCN</h2>
+        <form class="new-item-form" id="new-kaizen-form" autocomplete="off"
+              style="display:grid; grid-template-columns: 1fr 1fr auto auto;
+                     gap:8px; align-items:center;">
+          <input type="text" name="title" placeholder="Proyecto de mejora…" required>
+          <input type="text" name="assigned_to" placeholder="Responsable…">
+          <input type="date" name="due_date" aria-label="Fecha máxima">
+          <button type="submit" class="btn-primary">Añadir</button>
+        </form>
+        <div class="board-container kaizen compact" style="margin-top:12px;">
+          <div class="kanban-column">
+            <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+            <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+          </div>
+          <div class="kanban-column">
+            <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+            <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+          </div>
+          <div class="kanban-column">
+            <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+            <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="widget" id="rotativas-widget">
+        <h2 class="widget-title">5S & GW (Rápido)</h2>
+
+        <!-- 5S -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <strong>5S</strong>
+          <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
+            <button type="button" class="s5-pill" data-key="seiri"><span class="s5-dot"></span>1S</button>
+            <button type="button" class="s5-pill" data-key="seiton"><span class="s5-dot"></span>2S</button>
+            <button type="button" class="s5-pill" data-key="seiso"><span class="s5-dot"></span>3S</button>
+            <button type="button" class="s5-pill" data-key="seiketsu"><span class="s5-dot"></span>4S</button>
+            <button type="button" class="s5-pill" data-key="shitsuke"><span class="s5-dot"></span>5S</button>
+          </div>
+        </div>
+        <small id="s5-meta" class="kpi-text">—</small>
+
+        <!-- GW -->
+        <strong style="margin-top:12px; display:block;">GW</strong>
+        <div id="gw-tasks-dynamic-container"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DERECHA -->
+  <section class="col-right">
+    <div class="widget" id="prev-shift-widget">
+      <h2 class="widget-title">Información Turno Anterior BCN</h2>
+      <div id="prev-shift-note" class="editable-note" contenteditable="true"
+           role="textbox" aria-multiline="true"
+           aria-label="Escribe la información del turno anterior"
+           spellcheck="true"
+           style="min-height:96px; padding:10px 12px; border:1px solid var(--border);
+                  border-radius:10px; background:#fff; line-height:1.4;"
+           data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
+      <small class="kpi-text" id="prev-shift-saved-hint"></small>
+    </div>
+
+    <div class="widget" id="ehs-widget">
+      <h2 class="widget-title">Días sin incidentes</h2>
+      <div class="ehs-month" id="ehs-month">—</div>
+      <div id="ehs-spin" class="ehs-controls" role="spinbutton"
+           aria-label="Días sin incidentes del mes actual"
+           aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
+        <button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
+        <div class="ehs-big" id="ehs-days">0</div>
+        <button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
+      </div>
+    </div>
+  </section>
 </div>
 
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
 <script>
-  // ===============================
-  // CONFIG / ESTADO GLOBAL
-  // ===============================
-  const UI_SCALE_KEY = 'bcn_ui_scale_v1';
-  const BIG_TIMER_KEY = 'header_big_timer_v1'; // compartido entre estaciones
-  const S5_STATE_KEY = 'bcn_s5_state_v1';
-  const KPI_COSTES_KEY = 'bcn_kpi_costes_v1';
-  const GW_MAP = {}; // id -> task gw_task
+/* ==========================
+   Utilidades básicas
+========================== */
+function esc(s){
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,"&#39;");
+}
+function $$(sel){ return Array.from(document.querySelectorAll(sel)); }
 
-  let timerState = {
-    running: false,
-    startTs: null,
-    offsetMs: 0
-  };
+/* Estación actual (BCN por título o ?station=) */
+const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
+const STATION_CODE = (
+  (new URLSearchParams(location.search).get('station') || '')
+    .toUpperCase()
+  ||
+  ((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || ['','BCN'])[1]).toUpperCase()
+);
 
-  let ws;
+/* Acepta tareas sin estación o con station = STATION_CODE */
+function isForThisStation(obj){
+  const st = (obj && obj.station ? String(obj.station) : '').toUpperCase();
+  return !st || st === STATION_CODE;
+}
 
-  // ===============================
-  // INIT
-  // ===============================
-  document.addEventListener('DOMContentLoaded', () => {
-    initScale();
-    initClock();
-    initBigTimer();
-    initFullscreenButtons();
-    initRoster();
-    initKanban();
-    initKaizen();
-    initS5();
-    initGwTop3(); // initial blank
-    initKpiCostes();
-    initPlanificacion();
-    initBriefChecklist();
-    initEhs();
-    initWebSocket();
-    initWakeLockHint();
+/* Ajusta H1 si el título no lleva código correcto */
+(function(){
+  try{
+    const h1 = document.querySelector('header h1');
+    if (h1 && !h1.textContent.toUpperCase().includes(STATION_CODE)){
+      h1.textContent = `Factory Floor Dashboard - ${STATION_CODE}`;
+    }
+  }catch(e){}
+})();
+
+/* ==========================
+   Cronómetro Header
+========================== */
+(function(){
+  const KEY='header_big_timer_v1';
+  let running=false, startedAt=0, elapsed=0, tick=null;
+
+  const $ = id => document.getElementById(id);
+  const host = $('timer-widget');
+  const display = $('timer-display');
+  const resetBtn = $('timer-reset');
+
+  function fmt(ms){
+    const t = Math.floor(ms/1000);
+    const h = Math.floor(t/3600);
+    const m = Math.floor((t%3600)/60);
+    const s = t%60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  function paint(){
+    display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
+  }
+  function save(){
+    try{
+      localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
+    }catch(e){}
+  }
+  function load(){
+    try{
+      const s = JSON.parse(localStorage.getItem(KEY)||'null');
+      if(!s) return;
+      running = !!s.running;
+      elapsed = Number(s.elapsed)||0;
+      startedAt = Number(s.startedAt)||0;
+      if (running){
+        const now=Date.now();
+        elapsed = Math.max(elapsed, now-startedAt);
+        startedAt = now - elapsed;
+      }
+    }catch(e){}
+  }
+  function setUI(){
+    if (!host) return;
+    host.classList.toggle('timer-running', running);
+    if (resetBtn) resetBtn.disabled = (!running && elapsed===0);
+  }
+  function start(){
+    if (running) return;
+    running = true;
+    startedAt = Date.now() - elapsed;
+    tick = setInterval(paint, 250);
+    setUI(); paint(); save();
+  }
+  function pause(){
+    if (!running) return;
+    running = false;
+    elapsed = Date.now() - startedAt;
+    clearInterval(tick); tick=null;
+    setUI(); paint(); save();
+  }
+  function reset(){
+    running = false; startedAt = 0; elapsed = 0;
+    clearInterval(tick); tick=null;
+    setUI(); paint(); save();
+  }
+
+  display?.addEventListener('click', ()=> (running ? pause() : start()));
+  resetBtn?.addEventListener('click', reset);
+
+  document.addEventListener('visibilitychange', ()=>{
+    if (!running) return;
+    startedAt = Date.now() - elapsed;
+    paint(); save();
   });
 
-  // ===============================
-  // ESCALA UI
-  // ===============================
-  function initScale() {
-    const saved = localStorage.getItem(UI_SCALE_KEY);
-    const select = document.getElementById('scale-select');
-    if (saved) {
-      document.documentElement.style.setProperty('--ui-scale', saved);
-      if (select) select.value = saved;
-    }
-    select.addEventListener('change', () => {
-      const val = select.value || '1';
-      document.documentElement.style.setProperty('--ui-scale', val);
-      localStorage.setItem(UI_SCALE_KEY, val);
-    });
-  }
+  window.initHeaderTimer = function(){
+    load(); paint(); setUI();
+    if (running && !tick) tick = setInterval(paint, 250);
+  };
+})();
 
-  // ===============================
-  // RELOJ
-  // ===============================
-  function initClock() {
-    const timeEl = document.getElementById('clock-time');
-    const dateEl = document.getElementById('clock-date');
-    const update = () => {
-      const now = new Date();
-      timeEl.textContent = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-      dateEl.textContent = now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    };
-    update();
-    setInterval(update, 1000 * 15);
+/* ==========================
+   Escala UI
+========================== */
+(function initUIScaling(){
+  const KEY='ui_scale_v1';
+  function apply(v){
+    document.documentElement.style.setProperty('--ui-scale', v);
   }
+  const sel = document.getElementById('scale-select');
+  if (!sel) return;
+  const saved = localStorage.getItem(KEY) || sel.value || '1.15';
+  apply(saved);
+  sel.value = saved;
+  sel.addEventListener('change', e=>{
+    const v = e.target.value;
+    localStorage.setItem(KEY, v);
+    apply(v);
+  });
+})();
 
-  // ===============================
-  // TIMER HEADER (compartido)
-  // ===============================
-  function initBigTimer() {
-    const display = document.getElementById('big-timer-display');
-    const resetBtn = document.getElementById('timer-reset-btn');
-    const saved = localStorage.getItem(BIG_TIMER_KEY);
-    if (saved) {
-      try {
-        timerState = JSON.parse(saved);
-      } catch (e) {}
-    }
-    const syncDisplay = () => {
-      const totalMs = timerState.running
-        ? (Date.now() - timerState.startTs) + (timerState.offsetMs || 0)
-        : (timerState.offsetMs || 0);
-      const totalSec = Math.max(0, Math.floor(totalMs / 1000));
-      const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-      const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-      const s = String(totalSec % 60).padStart(2, '0');
-      display.textContent = `${h}:${m}:${s}`;
-    };
-    const persist = () => {
-      localStorage.setItem(BIG_TIMER_KEY, JSON.stringify(timerState));
-    };
-    display.addEventListener('click', () => {
-      if (!timerState.running) {
-        timerState.running = true;
-        timerState.startTs = Date.now();
-      } else {
-        // pause
-        timerState.running = false;
-        timerState.offsetMs = (Date.now() - timerState.startTs) + (timerState.offsetMs || 0);
-        timerState.startTs = null;
+/* ==========================
+   Fullscreen helpers
+========================== */
+const FS_ICONS = {
+  on:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
+  off:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>'
+};
+function ensureFullscreenBtn(host){
+  if (!host || host.querySelector('.fs-toggle')) return;
+  const btn = document.createElement('button');
+  btn.className='fs-toggle';
+  btn.type='button';
+  btn.setAttribute('aria-label','Ver a pantalla completa');
+  btn.innerHTML = FS_ICONS.off;
+  btn.addEventListener('mousedown', e=>e.stopPropagation(), true);
+  btn.addEventListener('click', async e=>{
+    e.preventDefault(); e.stopPropagation();
+    try{
+      if (document.fullscreenElement === host){
+        await document.exitFullscreen?.();
+      }else{
+        await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.());
       }
-      persist();
-      syncDisplay();
+    }catch(err){ console.warn('Fullscreen error', err); }
+  });
+  host.appendChild(btn);
+}
+function initFullscreenToggles(){
+  document.querySelectorAll('.widget, .card').forEach(ensureFullscreenBtn);
+  document.addEventListener('fullscreenchange', ()=>{
+    const cur = document.fullscreenElement;
+    document.querySelectorAll('.fs-toggle').forEach(btn=>{
+      const owner = btn.closest('.widget, .card');
+      const isOn = cur === owner;
+      btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
+      btn.setAttribute('aria-label', isOn ? 'Salir de pantalla completa' : 'Ver a pantalla completa');
     });
-    resetBtn.addEventListener('click', () => {
-      timerState = { running: false, startTs: null, offsetMs: 0 };
-      persist();
-      syncDisplay();
+    document.documentElement.classList.toggle('fs-zoom', !!cur);
+  });
+
+  document.getElementById('present-btn')?.addEventListener('click', async ()=>{
+    const host = document.querySelector('.dashboard-3col') || document.body;
+    try{
+      await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.());
+    }catch(e){ console.warn('Fullscreen fail', e); }
+  });
+}
+
+/* ==========================
+   Fecha / hora / turno
+========================== */
+function computeShift(d=new Date()){
+  const m=d.getHours()*60+d.getMinutes();
+  if (m>=360 && m<840)   return {name:'Mañana',from:'06:00',to:'14:00'};
+  if (m>=840 && m<1320)  return {name:'Tarde', from:'14:00',to:'22:00'};
+  return {name:'Noche',from:'22:00',to:'06:00'};
+}
+function paintDateTimeAndShift(){
+  const now = new Date();
+  const dt = now.toLocaleString('es-ES',{
+    weekday:'long', day:'2-digit', month:'long', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
+  const head = document.getElementById('now-header');
+  if (head) head.textContent = dt;
+
+  const shift = computeShift(now);
+  const paint = el=>{
+    if (!el) return;
+    el.textContent = `Turno: ${shift.name} (${shift.from}–${shift.to})`;
+    el.dataset.shift = shift.name;
+  };
+  paint(document.getElementById('shift-badge'));
+  paint(document.getElementById('shift-badge-header'));
+}
+function initDateTimeAndShift(){
+  paintDateTimeAndShift();
+  const now = new Date();
+  const ms = (60-now.getSeconds())*1000 - now.getMilliseconds();
+  setTimeout(()=>{
+    paintDateTimeAndShift();
+    setInterval(paintDateTimeAndShift, 60000);
+  }, Math.max(0, ms));
+}
+
+/* ==========================
+   EHS simple
+========================== */
+function initEhsSimple(){
+  const now=new Date();
+  const year=now.getFullYear();
+  const month=now.getMonth();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const monthEl=document.getElementById('ehs-month');
+  const daysEl=document.getElementById('ehs-days');
+  const spin=document.getElementById('ehs-spin');
+  if (!monthEl || !daysEl || !spin) return;
+  monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  const keyMonth=`${year}-${month+1}`;
+  const lastKey=localStorage.getItem('ehs_month_key');
+  let days=Number(localStorage.getItem('ehs_days_month'))||0;
+  if (lastKey!==keyMonth) days=0;
+  function render(){
+    days=Math.max(0,Math.min(daysInMonth,Math.trunc(days)));
+    daysEl.textContent = days;
+    spin.setAttribute('aria-valuemin','0');
+    spin.setAttribute('aria-valuemax',String(daysInMonth));
+    spin.setAttribute('aria-valuenow',String(days));
+    localStorage.setItem('ehs_days_month',String(days));
+    localStorage.setItem('ehs_month_key',keyMonth);
+  }
+  const inc=()=>{ if(days<daysInMonth){ days++; render(); } };
+  const dec=()=>{ if(days>0){ days--; render(); } };
+  spin.querySelectorAll('.ehs-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      (btn.dataset.op==='inc'?inc:dec)();
     });
-    syncDisplay();
-    setInterval(() => {
-      if (timerState.running) {
-        syncDisplay();
+  });
+  spin.addEventListener('keydown', e=>{
+    if(e.key==='ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
+    if(e.key==='ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
+  });
+  render();
+}
+
+/* ==========================
+   5S (localStorage)
+========================== */
+const S5_STATE_KEY='s5_state_v1';
+function loadS5State(){
+  try{ return JSON.parse(localStorage.getItem(S5_STATE_KEY)||'{}'); }
+  catch{ return {}; }
+}
+function saveS5State(s){
+  try{ localStorage.setItem(S5_STATE_KEY, JSON.stringify(s)); }
+  catch(e){}
+}
+function render5S(){
+  const strip=document.getElementById('s5-strip');
+  if (!strip) return;
+  const state=loadS5State();
+  let done=0;
+  strip.querySelectorAll('.s5-pill').forEach(btn=>{
+    const k=btn.dataset.key;
+    const on=!!state[k];
+    btn.classList.toggle('on', on);
+    if (on) done++;
+  });
+  const meta=document.getElementById('s5-meta');
+  if (meta){
+    const ts=state.updated_at ? new Date(state.updated_at).toLocaleString('es-ES') : null;
+    meta.textContent = `${done}/5 completadas${ts?` • Actualizado: ${ts}`:''}`;
+  }
+}
+function toggle5S(key, el){
+  const s=loadS5State();
+  s[key]=!s[key];
+  s.updated_at=new Date().toISOString();
+  saveS5State(s);
+  render5S();
+  if (el){
+    el.classList.add('bump');
+    setTimeout(()=>el.classList.remove('bump'),220);
+  }
+}
+function init5S(){
+  const strip=document.getElementById('s5-strip');
+  if (!strip) return;
+  strip.addEventListener('click', e=>{
+    const pill=e.target.closest('.s5-pill');
+    if (!pill) return;
+    const key=pill.dataset.key;
+    if (!key) return;
+    toggle5S(key, pill);
+  });
+  render5S();
+}
+
+/* ==========================
+   Roster / Equipo
+========================== */
+let TEAM_STATE = null;
+
+function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
+
+async function fetchServerRoster(){
+  try{
+    const r = await fetch('/api/roster/current', {
+      cache:'no-store',
+      headers:{'Accept':'application/json'}
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  }catch(e){
+    console.error('Roster error', e);
+    return null;
+  }
+}
+
+function updateTeamMeta(state){
+  const meta=document.getElementById('team-meta');
+  if (!meta || !state) return;
+  const total=(state.people||[]).length;
+  const present=countPresent(state.attendance||{});
+  const shift=state.shift || '—';
+  const win=state.window ? `${state.window.from}–${state.window.to}` : '—';
+  meta.textContent = `${shift} • ${win} • Presentes ${present}/${total}`;
+}
+
+async function updatePresenceOnServer(person, present){
+  try{
+    await fetch('/api/roster/presence',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        person, present,
+        date: TEAM_STATE?.sheet_date || null,
+        shift: TEAM_STATE?.shift || null
+      })
+    });
+  }catch(e){ console.error(e); }
+}
+async function updateZoneOnServer(person, zone){
+  try{
+    await fetch('/api/roster/zone',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        person, zone,
+        date: TEAM_STATE?.sheet_date || null,
+        shift: TEAM_STATE?.shift || null
+      })
+    });
+  }catch(e){ console.error(e); }
+}
+
+function renderRoster(listEl, people, state){
+  if (!listEl) return;
+  TEAM_STATE = state || TEAM_STATE || {};
+  TEAM_STATE.people = people || [];
+  TEAM_STATE.attendance = state?.attendance || TEAM_STATE.attendance || {};
+  TEAM_STATE.zones = state?.zones || TEAM_STATE.zones || {};
+
+  listEl.innerHTML = '';
+
+  if (!TEAM_STATE.people.length){
+    listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster actual.</div>';
+    updateTeamMeta(TEAM_STATE);
+    return;
+  }
+
+  const ZONES = ['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'];
+
+  TEAM_STATE.people.forEach((p,idx)=>{
+    const full = p.nombre_completo || '—';
+    const horario = p.horario || '';
+    const obs = p.observaciones || '';
+    const presentVal = (TEAM_STATE.attendance||{})[full];
+    const yesChecked = presentVal === true  ? 'checked' : '';
+    const noChecked  = presentVal === false ? 'checked' : '';
+    const zone = (TEAM_STATE.zones||{})[full] || '';
+
+    const row = document.createElement('div');
+    row.className='team-row';
+    row.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px;gap:10px;';
+
+    const left = document.createElement('div');
+    left.className='team-left';
+    left.innerHTML =
+      `<span class="team-name" style="font-weight:600">${esc(full)}</span>`+
+      (horario?` <small class="meta">• ${esc(horario)}</small>`:'')+
+      (obs?    ` <small class="meta">• ${esc(obs)}</small>`:'')+
+      (zone?   ` <span class="chip-zone" data-zone-chip="${esc(full)}">${esc(zone)}</span>`:'');
+
+    const right = document.createElement('div');
+    right.className='team-right';
+    right.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    right.innerHTML = `
+      <div class="presence-toggle" role="group" aria-label="Presencia">
+        <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+        <label for="att-${idx}-y" class="yes">✓ Presente</label>
+        <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+        <label for="att-${idx}-n" class="no">✕ Ausente</label>
+      </div>
+      <select class="zone-select" data-person="${esc(full)}" title="Zona">
+        <option value="" ${zone?'':'selected'} disabled>Zona…</option>
+        ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+      </select>
+    `;
+
+    row.appendChild(left);
+    row.appendChild(right);
+    listEl.appendChild(row);
+  });
+
+  // Presencia
+  listEl.querySelectorAll('.att-radio').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      const person=e.target.dataset.person;
+      const present=e.target.value==='yes';
+      TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+      TEAM_STATE.attendance[person]=present;
+      updateTeamMeta(TEAM_STATE);
+      updatePresenceOnServer(person, present);
+      updateSpotlightRouting?.();
+    });
+  });
+
+  // Zonas
+  listEl.querySelectorAll('.zone-select').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      const person=e.target.dataset.person;
+      const zone=e.target.value || '';
+      TEAM_STATE.zones = TEAM_STATE.zones || {};
+      TEAM_STATE.zones[person]=zone;
+      // chip
+      const chip = listEl.querySelector(`.chip-zone[data-zone-chip="${CSS.escape(person)}"]`);
+      if (chip){
+        chip.textContent = zone;
+      }else if(zone){
+        const host = e.target.closest('.team-row')?.querySelector('.team-left');
+        if (host){
+          host.insertAdjacentHTML('beforeend', ` <span class="chip-zone" data-zone-chip="${esc(person)}">${esc(zone)}</span>`);
+        }
       }
-    }, 500);
+      updateZoneOnServer(person, zone);
+      updateTeamMeta(TEAM_STATE);
+    });
+  });
+
+  updateTeamMeta(TEAM_STATE);
+}
+
+async function initTeamRoster(){
+  const state = await fetchServerRoster();
+  const list = document.getElementById('team-list');
+  if (state){
+    renderRoster(list, state.people||[], state);
+  }else if(list){
+    list.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster. Sube el Excel o añade manualmente.</div>';
   }
+}
 
-  // ===============================
-  // FULLSCREEN
-  // ===============================
-  function initFullscreenButtons() {
-    const presentBtn = document.getElementById('present-btn');
-    const dashboard = document.getElementById('dashboard-root');
+/* Upload roster Excel */
+(function initRosterUpload(){
+  const form=document.getElementById('roster-upload-form');
+  const input=document.getElementById('roster-file');
+  const status=document.getElementById('roster-upload-result');
+  if (!form) return;
+  form.addEventListener('submit', async e=>{
+    e.preventDefault();
+    const f=input.files?.[0];
+    if(!f){ status.textContent='Selecciona un .xlsx/.xls'; return; }
+    const fd=new FormData();
+    fd.append('file', f);
+    status.textContent='Subiendo…';
+    try{
+      const res=await fetch('/api/roster/upload',{method:'POST',body:fd});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.detail||'Error al subir');
+      status.textContent = `OK: ${data.people_count||'-'} personas • Hoja: ${data.sheet_loaded||'—'} • Fecha: ${data.sheet_date||'—'}`;
+      const cur = await fetchServerRoster();
+      if (cur) renderRoster(document.getElementById('team-list'), cur.people||[], cur);
+    }catch(err){
+      status.textContent=`Error: ${err.message||err}`;
+    }finally{
+      input.value='';
+    }
+  });
+})();
 
-    function toggleFsFor(el) {
-      if (!document.fullscreenElement) {
-        el.requestFullscreen?.();
-      } else {
-        document.exitFullscreen?.();
+/* ==========================
+   Prev shift note (local)
+========================== */
+(function(){
+  const KEY='prev_shift_note_bcn_v1';
+  const KEY_WHEN='prev_shift_note_bcn_saved_v1';
+  const el=document.getElementById('prev-shift-note');
+  const hint=document.getElementById('prev-shift-saved-hint');
+  if (!el) return;
+  try{
+    const txt=localStorage.getItem(KEY);
+    if(txt!==null) el.textContent=txt;
+    const when=localStorage.getItem(KEY_WHEN);
+    if(when && hint) hint.textContent=`Guardado: ${new Date(when).toLocaleString('es-ES')}`;
+  }catch(e){}
+  let t;
+  const save=()=>{
+    try{
+      const plain=el.textContent||'';
+      localStorage.setItem(KEY, plain);
+      const now=new Date().toISOString();
+      localStorage.setItem(KEY_WHEN, now);
+      if (hint) hint.textContent=`Guardado: ${new Date(now).toLocaleString('es-ES')}`;
+    }catch(e){}
+  };
+  el.addEventListener('input', ()=>{
+    clearTimeout(t);
+    t=setTimeout(save, 400);
+  });
+  el.addEventListener('blur', save);
+})();
+
+/* ==========================
+   GW Top-3
+========================== */
+const GW_MAP = new Map();
+function gwGetDate(t){
+  const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+  const d = cand ? new Date(cand) : null;
+  return (d && !isNaN(d)) ? d.getTime() : -Infinity;
+}
+function renderGwTask(task, elementId){
+  const container=document.getElementById('gw-tasks-dynamic-container');
+  if(!container) return;
+  let el=document.getElementById(elementId);
+  const chkId=`gw-check-${task.id}`;
+  const noteId=`gw-note-${task.id}`;
+  if(!el){
+    el=document.createElement('div');
+    el.id=elementId;
+    container.prepend(el);
+  }
+  el.className='gw-task-item';
+  el.innerHTML=`
+    <input type="checkbox" id="${chkId}" ${task.is_completed?'checked':''}>
+    <label for="${chkId}">${esc(task.title||'')}</label>
+    <input type="text" class="gw-note" id="${noteId}"
+           placeholder="Añadir nota (opcional)"
+           ${task.is_completed?'':'disabled'}
+           value="${task.note?esc(task.note):''}">
+  `;
+  el.classList.toggle('completed', !!task.is_completed);
+  el.classList.add('highlight-gw');
+  setTimeout(()=>el.classList.remove('highlight-gw'),2000);
+
+  const chk=el.querySelector('#'+chkId);
+  const note=el.querySelector('#'+noteId);
+  chk.addEventListener('change', async ()=>{
+    const done=chk.checked;
+    note.disabled = !done;
+    try{
+      await updateTaskCompletion(task.id, done);
+      el.classList.toggle('completed', done);
+    }catch(e){
+      chk.checked = !done;
+      note.disabled = chk.checked ? false : true;
+    }
+  });
+  note.addEventListener('blur', async ()=>{
+    try{ await updateTaskNote(task.id, note.value); }catch(e){}
+  });
+}
+function renderGwTop3(){
+  const cont=document.getElementById('gw-tasks-dynamic-container');
+  if(!cont) return;
+  cont.innerHTML='';
+  const top3=[...GW_MAP.values()]
+    .sort((a,b)=>gwGetDate(b)-gwGetDate(a))
+    .slice(0,3);
+  top3.slice().reverse().forEach(t=>renderGwTask(t, `task-${t.id}`));
+}
+
+/* ==========================
+   Incidentes / PDF
+========================== */
+const INC_CACHE_KEY='incidents_cache_bcn_v1';
+function cacheIncidentes(state){
+  try{ localStorage.setItem(INC_CACHE_KEY, JSON.stringify(state)); }catch(e){}
+}
+function getCachedIncidentes(){
+  try{ return JSON.parse(localStorage.getItem(INC_CACHE_KEY)||'null'); }
+  catch{ return null; }
+}
+
+function renderIncidentes(state, targetId){
+  const tbl = document.getElementById(targetId || 'incidentes-table');
+  const meta= document.getElementById('incidentes-meta');
+  if (!tbl) return;
+
+  const cols = Array.isArray(state?.columns) ? state.columns : [];
+  const rows = Array.isArray(state?.rows) ? state.rows : [];
+  const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
+
+  const rowsAreObjects = rows[0] && typeof rows[0]==='object' && !Array.isArray(rows[0]);
+  const norm = s=>String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'')
+                      .replace(/\s+/g,' ').trim().toLowerCase();
+
+  const candidateCols = rowsAreObjects
+    ? Array.from(new Set(rows.flatMap(r=>Object.keys(r||{}))))
+    : cols.slice();
+  const colNameByNorm = new Map(candidateCols.map(c=>[norm(c), c]));
+
+  const pick = (...aliases)=>{
+    for(const a of aliases){
+      const k=norm(a);
+      if (rowsAreObjects && colNameByNorm.has(k))
+        return {name:colNameByNorm.get(k), idx:cols.indexOf(colNameByNorm.get(k))};
+      if (!rowsAreObjects){
+        const i=cols.findIndex(c=>norm(c)===k);
+        if(i!==-1) return {name:cols[i], idx:i};
       }
     }
+    return null;
+  };
 
-    presentBtn.addEventListener('click', () => toggleFsFor(dashboard));
+  let selected = [
+    pick('Id','ID','Incident Id','IncidentId','Number','Reference','Incident No'),
+    pick('Accidente','Accident Title','incident_title','Title','Subject','Summary'),
+    pick('Status','State','Workflow Status','Current Status'),
+    pick('Priority','Severity','Risk Level','Criticality'),
+    pick('Category','Type','Incident Type','Classification','event_type'),
+    pick('Site','Location','Area','Department','Plant'),
+    pick('Created','Creation Date','Date','Reported On','Report Date','Start Date'),
+    pick('Due Date','Target Date','Deadline'),
+    pick('Owner','Assigned To','Assignee','Responsible','Manager')
+  ].filter(Boolean);
 
-    document.querySelectorAll('.fs-toggle').forEach(btn => {
-      const targetSel = btn.getAttribute('data-fs-target');
-      const target = document.querySelector(targetSel);
-      if (!target) return;
-      btn.addEventListener('click', () => toggleFsFor(target));
-    });
-
-    document.addEventListener('fullscreenchange', () => {
-      // Icon / estado si quieres diferenciar. Aquí mantenemos simple.
-    });
+  if (!selected.length && candidateCols.length){
+    const base=candidateCols.slice(0,6);
+    selected = base.map(n=>({name:n, idx:cols.indexOf(n)}));
   }
 
-  // ===============================
-  // ROSTER
-  // ===============================
-  async function initRoster() {
-    await loadRoster();
-    const fileInput = document.getElementById('roster-file');
-    if (fileInput) {
-      fileInput.addEventListener('change', handleRosterUpload);
+  if (!selected.length){
+    tbl.innerHTML='<tbody><tr><td>Sin columnas reconocibles.</td></tr></tbody>';
+    if (meta) meta.textContent = `Filas: ${rows.length} • Actualizado: ${ts}`;
+    return;
+  }
+
+  let thead='<thead><tr>'+selected.map(c=>`<th>${esc(c.name)}</th>`).join('')+'</tr></thead>';
+  const MAX_ROWS = targetId ? 6 : 4;
+  const slice = rows.slice(0,MAX_ROWS);
+  let tbody='<tbody>';
+  for(const r of slice){
+    if (rowsAreObjects){
+      tbody+='<tr>'+selected.map(c=>`<td>${r?.[c.name]!=null?esc(String(r[c.name])):''}</td>`).join('')+'</tr>';
+    }else{
+      tbody+='<tr>'+selected.map(c=>`<td>${r?.[c.idx]!=null?esc(String(r[c.idx])):''}</td>`).join('')+'</tr>';
     }
   }
+  if (rows.length>MAX_ROWS){
+    tbody+=`<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length}…</td></tr>`;
+  }
+  tbody+='</tbody>';
+  tbl.innerHTML = thead+tbody;
+  if (meta && !targetId){
+    meta.textContent = `Columnas: ${candidateCols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+  }
+}
 
-  async function loadRoster() {
-    try {
-      const res = await fetch('/api/roster/current');
-      if (!res.ok) return;
-      const data = await res.json();
-      renderRoster(data);
-    } catch (e) {
-      console.warn('Roster BCN error', e);
+async function loadIncidentes(){
+  const cached = getCachedIncidentes();
+  if (cached) renderIncidentes(cached);
+
+  try{
+    const r = await fetch('/api/incidents-table',{cache:'no-store'});
+    if (!r.ok) throw new Error('GET /api/incidents-table');
+    const data = await r.json();
+    if (data.columns && data.rows){
+      renderIncidentes(data);
+      cacheIncidentes(data);
+    }
+  }catch(e){
+    console.warn('Incidentes error', e);
+    if (cached){
+      renderIncidentes(cached);
     }
   }
+}
 
-  function renderRoster(data) {
-    const list = document.getElementById('team-list');
-    const metaDate = document.getElementById('team-sheet-date');
-    const metaShift = document.getElementById('team-shift');
-    const metaWindow = document.getElementById('team-window');
-    const countPill = document.getElementById('team-count-pill');
-    list.innerHTML = '';
-    if (!data || !Array.isArray(data.people)) {
-      countPill.textContent = '0 personas';
+/* Upload PDF incidentes */
+(function initIncidentsPdfUpload(){
+  const form=document.getElementById('incidents-pdf-form');
+  const input=document.getElementById('incidents-pdf-file');
+  const status=document.getElementById('incidents-pdf-status');
+  const wrap=document.getElementById('incidentes-pdf-wrap');
+  const tbl=document.getElementById('incidentes-pdf-table');
+  if (!form || !input || !status || !wrap || !tbl) return;
+
+  form.addEventListener('submit', async e=>{
+    e.preventDefault();
+    const f=input.files?.[0];
+    if (!f){ status.textContent='Selecciona un PDF'; return; }
+    const fd=new FormData();
+    fd.append('file', f);
+    status.textContent='Subiendo…';
+    try{
+      const res=await fetch('/api/incidents-table',{method:'POST',body:fd});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.detail||'Error al subir');
+      status.textContent=`OK: ${Array.isArray(data.rows)?data.rows.length:'-'} filas`;
+      wrap.style.display='block';
+      if (data.columns && data.rows){
+        renderIncidentes(data, 'incidentes-pdf-table');
+      }
+    }catch(err){
+      status.textContent=`Error: ${err.message||err}`;
+    }finally{
+      input.value='';
+    }
+  });
+})();
+
+/* ==========================
+   KPI Costes
+========================== */
+function formatEuro(n){
+  if (n==null || Number.isNaN(n)) return '—';
+  return new Intl.NumberFormat('es-ES',{
+    minimumFractionDigits:2,
+    maximumFractionDigits:2
+  }).format(n);
+}
+function updateKpiTotalCost(value, ts){
+  const v=document.getElementById('kpi-total-cost');
+  const m=document.getElementById('kpi-costes-meta');
+  const tile=document.getElementById('kpi-costes');
+  if (!v || !tile) return;
+  v.textContent = formatEuro(value);
+  if (m && ts){
+    m.textContent = `Actualizado: ${new Date(ts).toLocaleString('es-ES')}`;
+  }
+  tile.classList.remove('flash'); void tile.offsetWidth; tile.classList.add('flash');
+}
+function hydrateKpiTotalCost(){
+  try{
+    const cached = JSON.parse(localStorage.getItem('kpi_total_cost_'+STATION_CODE) || 'null');
+    if (cached && Number.isFinite(cached.value)){
+      updateKpiTotalCost(cached.value, cached.timestamp);
+    }
+  }catch(e){}
+}
+
+function formatPercent(n){
+  if (n==null || Number.isNaN(n)) return '—';
+  return new Intl.NumberFormat('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1}).format(n);
+}
+function flash(el){
+  if(!el) return;
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+function setKpiValue(idValue, idMeta, valueText){
+  const v=document.getElementById(idValue);
+  const m=document.getElementById(idMeta);
+  if (!v) return;
+  v.textContent = valueText;
+  if (m) m.textContent = `Actualizado: ${new Date().toLocaleString('es-ES')}`;
+  const tile=v.closest('.kpi-tile');
+  if (tile) flash(tile);
+}
+
+/* ==========================
+   Tasks API helpers
+========================== */
+async function createTaskOnServer(data){
+  const r=await fetch('/api/tasks',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  });
+  if (!r.ok) throw new Error('create failed');
+  const task=await r.json();
+  processTaskUpdate(task);
+  return task;
+}
+async function updateTaskOnServer(id,data){
+  const r=await fetch(`/api/tasks/${id}`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  });
+  if (!r.ok) throw new Error('update failed');
+  const task=await r.json();
+  processTaskUpdate(task);
+  return task;
+}
+async function deleteTaskOnServer(id, taskType){
+  const r=await fetch(`/api/tasks/${id}`,{method:'DELETE'});
+  if (!r.ok) throw new Error('delete failed');
+  processTaskUpdate({id,action:'delete',task_type:taskType||'kanban_rapida'});
+}
+async function updateTaskCompletion(id,done){
+  const r=await fetch(`/api/tasks/${id}/complete`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({is_completed:done})
+  });
+  if (!r.ok) throw new Error('tick failed');
+}
+async function updateTaskNote(id,note){
+  const r=await fetch(`/api/tasks/${id}/note`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({note:note??''})
+  });
+  if (!r.ok) throw new Error('note failed');
+}
+
+/* ==========================
+   Render tarjetas (Kanban, Kaizen, GW)
+========================== */
+const GRIP =
+  '<div class="drag-handle" aria-hidden="true" title="Arrastrar">'+
+  '<svg viewBox="0 0 24 24" fill="currentColor">'+
+  '<circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/>'+
+  '<circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/>'+
+  '</svg></div>';
+
+function renderBoardCard(task, elementId){
+  const safeStatus=(task.status||'Abiertas').replace(/\s+/g,'-');
+  const columnId=`${task.task_type}-${safeStatus}`;
+  const col=document.getElementById(columnId);
+  if (!col) return;
+
+  let card=document.getElementById(elementId);
+  if (!card){
+    card=document.createElement('div');
+    card.id=elementId;
+  }
+  card.className='card';
+  card.dataset.status=safeStatus;
+  card.dataset.taskType='kanban_rapida';
+
+  const createdAt = task.created_at ? new Date(task.created_at) : null;
+  const creationDate = (createdAt && !isNaN(createdAt)) ? createdAt.toLocaleDateString('es-ES'): '—';
+  const dueISO = task.due_date || null;
+  const dueDate = dueISO ? new Date(dueISO) : null;
+  const dueHuman = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES'): '';
+
+  const catKey = String(task.category||'').toLowerCase();
+  const CAT_LABELS={
+    seguridad:'Seguridad',
+    incidencias:'Incidencias',
+    mantenimiento:'Mantenimiento',
+    calidad:'Calidad',
+    servicio:'Servicio'
+  };
+  const catLabel = CAT_LABELS[catKey] || 'General';
+
+  card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento','cat-calidad','cat-servicio');
+  if (['seguridad','incidencias','mantenimiento','calidad','servicio'].includes(catKey)){
+    card.classList.add(`cat-${catKey}`);
+  }
+
+  card.innerHTML=`
+    ${GRIP}
+    <div class="card-content">
+      <div class="card-title" data-edit="title">${esc(task.title||'')}</div>
+      <div class="card-details">
+        Alta: ${creationDate} • Objetivo:
+        <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
+      </div>
+      <div class="card-assignee">
+        Responsable:
+        <span class="assignee" data-edit="assigned_to">${esc(task.assigned_to || 'Sin asignar')}</span>
+      </div>
+      <div style="margin-top:6px;">
+        <button class="btn-compact" data-edit="category">${catLabel}</button>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Eliminar">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </svg>
+      </button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+  if (card.parentElement !== col) col.prepend(card);
+
+  const id=task.id;
+
+  // Ediciones rápidas
+  card.querySelector('[data-edit="title"]')?.addEventListener('click', async()=>{
+    const prev=task.title||'';
+    const next=(prompt('Nuevo título', prev)||'').trim();
+    if(next && next!==prev){
+      try{ await updateTaskOnServer(id,{title:next}); }catch(e){ alert('No se pudo actualizar'); }
+    }
+  });
+  const asg=card.querySelector('[data-edit="assigned_to"]');
+  asg?.addEventListener('click', async()=>{
+    const prev=task.assigned_to||'';
+    const next=(prompt('Responsable', prev)||'').trim();
+    if(next!==prev){
+      try{ await updateTaskOnServer(id,{assigned_to:next||null}); }catch(e){ alert('No se pudo actualizar'); }
+    }
+  });
+  const dueBtn=card.querySelector('[data-edit="due"]');
+  dueBtn?.addEventListener('click', ()=>{
+    const input=document.createElement('input');
+    input.type='date';
+    input.value=dueISO||'';
+    input.style.position='fixed';
+    input.style.opacity='0';
+    document.body.appendChild(input);
+    input.addEventListener('change', async()=>{
+      const newISO=input.value||null;
+      document.body.removeChild(input);
+      if (newISO!==dueISO){
+        try{ await updateTaskOnServer(id,{due_date:newISO}); }catch(e){ alert('No se pudo actualizar'); }
+      }
+    },{once:true});
+    input.click();
+  });
+  const catBtn=card.querySelector('[data-edit="category"]');
+  catBtn?.addEventListener('click', async()=>{
+    const opts=['Seguridad','Incidencias','Mantenimiento','Calidad','Servicio','General'];
+    const prev=catLabel;
+    const next=(prompt(`Categoría (${opts.join(' / ')})`, prev)||prev).trim();
+    const map={
+      Seguridad:'seguridad',Incidencias:'incidencias',Mantenimiento:'mantenimiento',
+      Calidad:'calidad',Servicio:'servicio',General:''
+    };
+    const val = map[next] ?? map[prev];
+    if (val !== (task.category||'')){
+      try{ await updateTaskOnServer(id,{category:val}); }catch(e){ alert('No se pudo actualizar'); }
+    }
+  });
+}
+
+function renderKaizenCard(task, elementId){
+  const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
+  const columnId=`kaizen-${safeStatus}`;
+  const col=document.getElementById(columnId);
+  if (!col) return;
+  let card=document.getElementById(elementId);
+  if (!card){
+    card=document.createElement('div');
+    card.id=elementId;
+  }
+  card.className='card';
+  card.dataset.status=safeStatus;
+  card.dataset.taskType='kaizen';
+
+  const dueISO = task.due_date || null;
+  const dueDate = dueISO ? new Date(dueISO) : null;
+  const dueHuman = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES'): '';
+
+  card.innerHTML=`
+    ${GRIP}
+    <div class="card-content">
+      <div class="card-title">${esc(task.title||'')}</div>
+      <div class="card-details">
+        ${task.assigned_to ? 'Responsable: '+esc(task.assigned_to) : 'Responsable: —'}
+        ${dueHuman ? ' • Fecha máx: '+dueHuman : ''}
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Eliminar">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </svg>
+      </button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+  if (card.parentElement !== col) col.prepend(card);
+}
+
+/* ==========================
+   Column counts / Sortable
+========================== */
+function updateAllColumnCounts(){
+  document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
+    const c=col.querySelector('.column-title .count');
+    const cards=col.querySelector('.cards-container');
+    if(c&&cards) c.textContent = `(${cards.children.length})`;
+  });
+  document.querySelectorAll('#kaizen-widget .kanban-column').forEach(col=>{
+    const c=col.querySelector('.column-title .count');
+    const cards=col.querySelector('.cards-container');
+    if(c&&cards) c.textContent = `(${cards.children.length})`;
+  });
+}
+function makeColumnsSortable(){
+  const common = {
+    animation:150,
+    ghostClass:'sortable-ghost',
+    dragClass:'sortable-drag',
+    handle:'.drag-handle',
+    forceFallback:true,
+    delayOnTouchOnly:true,
+    delay:120,
+    fallbackTolerance:6,
+    touchStartThreshold:4,
+    onEnd:handleDragEnd
+  };
+  document.querySelectorAll('#kanban-widget .cards-container')
+    .forEach(c=>new Sortable(c, {group:'kanban-board', ...common}));
+  document.querySelectorAll('#kaizen-widget .cards-container')
+    .forEach(c=>new Sortable(c, {group:'kaizen-board', ...common}));
+}
+async function handleDragEnd(evt){
+  const {item,to,from,oldIndex} = evt;
+  if(to===from){ updateAllColumnCounts(); return; }
+  const id=item.id.replace('task-','');
+  const st=to.dataset.status;
+  try{
+    await updateTaskOnServer(id,{status:st});
+  }catch(e){
+    from.insertBefore(item, from.children[oldIndex] || null);
+    alert('No se pudo actualizar el estado en servidor.');
+  }finally{
+    updateAllColumnCounts();
+  }
+}
+
+/* ==========================
+   Formularios Kanban/Kaizen
+========================== */
+function setupEventListeners(){
+  document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+  document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+  document.addEventListener('click', handleDeleteClick);
+
+  const gwContainer=document.getElementById('gw-tasks-dynamic-container');
+  gwContainer?.addEventListener('change', e=>{
+    if (e.target.classList.contains('gw-note')) return;
+  });
+}
+async function handleKanbanSubmit(e){
+  e.preventDefault();
+  const f=e.target;
+  const taskData={
+    task_type:'kanban_rapida',
+    status:'Abiertas',
+    category:(f.elements.category?.value||'').trim().toLowerCase(),
+    title:(f.elements.title?.value||'').trim(),
+    due_date:f.elements.due_date?.value || null,
+    assigned_to:(f.elements.assigned_to?.value||'').trim() || null,
+    station:STATION_CODE
+  };
+  if (!taskData.category || !taskData.title || !taskData.due_date) return;
+  try{
+    await createTaskOnServer(taskData);
+    f.reset();
+    document.getElementById('problem-category').selectedIndex = 0;
+    updateAllColumnCounts();
+  }catch(err){
+    console.error(err);
+    alert('No se pudo crear la tarjeta.');
+  }
+}
+async function handleKaizenSubmit(e){
+  e.preventDefault();
+  const f=e.target;
+  const taskData={
+    task_type:'kaizen',
+    status:'Proyectos',
+    title:(f.elements.title?.value||'').trim(),
+    assigned_to:(f.elements.assigned_to?.value||'').trim(),
+    due_date:f.elements.due_date?.value || null,
+    station:STATION_CODE
+  };
+  if (!taskData.title) return;
+  try{
+    await createTaskOnServer(taskData);
+    f.reset();
+    updateAllColumnCounts();
+  }catch(err){
+    alert('No se pudo crear el KAIZEN.');
+  }
+}
+function handleDeleteClick(e){
+  const btn=e.target.closest('.delete-card-btn');
+  if (!btn) return;
+  const card=btn.closest('.card');
+  if (!card) return;
+  const id=card.id.replace('task-','');
+  const type=card.dataset.taskType || 'kanban_rapida';
+  if (confirm('¿Eliminar esta tarjeta?')){
+    deleteTaskOnServer(id, type).catch(()=>alert('No se pudo eliminar.'));
+  }
+}
+
+/* ==========================
+   WebSocket + processTaskUpdate
+========================== */
+function connectWebSocket(){
+  const wsUrl = `${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
+  const socket = new WebSocket(wsUrl);
+  socket.onopen = ()=>console.log('WS conectado');
+  socket.onmessage = ev=>{
+    try{
+      const data = JSON.parse(ev.data);
+      processTaskUpdate(data);
+    }catch(e){ console.error('WS parse', e); }
+  };
+  socket.onclose = ()=> setTimeout(connectWebSocket, 3000);
+  socket.onerror = err=>{
+    console.error('WS error', err);
+    socket.close();
+  };
+}
+
+/* processTaskUpdate central BCN+MAD */
+function processTaskUpdate(data){
+  if (!data) return;
+
+  // Filtrado por estación
+  if (!isForThisStation(data)) return;
+
+  // Actualizaciones roster
+  if (data.type === 'roster_update'){
+    renderRoster(document.getElementById('team-list'), data.people||[], data);
+    return;
+  }
+
+  // GW / tablas / etc
+  if (data.type === 'table_ping' || data.type === 'table_state'){
+    if (data.table === 'incidents'){
+      loadIncidentes();
+    }
+    return;
+  }
+
+  // KPIs (usa STATION_CODE, no hardcode MAD)
+  if (data.type==='kpi_update' || data.type==='kpi_state' || data.metric){
+    const metric = String(data.metric||'').trim().toLowerCase();
+    const tab    = String(data.tab||'').toUpperCase();
+
+    if (metric === 'total cost'){
+      // Acepta si tab vacío o contiene estación (BCN / MAD / etc)
+      if (!tab || tab.includes(STATION_CODE)){
+        let v=data.value;
+        if (typeof v==='string'){
+          const m=v.match(/-?\d+(?:[.,]\d+)?/);
+          v=m?parseFloat(m[0].replace(',','.')):null;
+        }else if (Array.isArray(v)){
+          const f=v[0]||{};
+          v=f['[Total Cost]']??f['Total Cost']??f.value??null;
+        }else if (v && typeof v==='object'){
+          v=v['[Total Cost]']??v['Total Cost']??v.value??null;
+        }
+        if (typeof v==='number' && Number.isFinite(v)){
+          updateKpiTotalCost(v, data.timestamp);
+          try{
+            localStorage.setItem('kpi_total_cost_'+STATION_CODE,
+              JSON.stringify({value:v,timestamp:data.timestamp||null}));
+          }catch(e){}
+        }
+      }
       return;
     }
 
-    metaDate.textContent = data.sheet_date || '--';
-    metaShift.textContent = data.shift || '--';
-    metaWindow.textContent = data.window || '--';
-
-    data.people.forEach(person => {
-      const row = document.createElement('div');
-      row.className = 'team-row';
-      row.dataset.id = person.id || person.nombre_completo;
-
-      const name = document.createElement('div');
-      name.className = 'team-name';
-      name.textContent = person.nombre_completo || '-';
-
-      const horario = document.createElement('div');
-      horario.textContent = person.horario || '';
-
-      const presence = document.createElement('div');
-      const pBtn = document.createElement('div');
-      pBtn.className = 'presence-toggle';
-      const isPresent = person.attendance !== false;
-      if (!isPresent) pBtn.classList.add('off');
-      pBtn.textContent = isPresent ? '✓' : '✕';
-      pBtn.addEventListener('click', () => togglePresence(person, pBtn));
-      presence.appendChild(pBtn);
-
-      const zoneWrap = document.createElement('div');
-      const zoneSel = document.createElement('select');
-      zoneSel.className = 'zone-select';
-      const zones = ['', 'Isla', 'Dorada', 'Import', 'Export', 'Rampa', 'Clasificación', 'Oficina'];
-      zones.forEach(z => {
-        const opt = document.createElement('option');
-        opt.value = z;
-        opt.textContent = z || 'Zona';
-        if ((person.zone || person.zona) === z) opt.selected = true;
-        zoneSel.appendChild(opt);
-      });
-      zoneSel.addEventListener('change', () => updateZone(person, zoneSel.value));
-      zoneWrap.appendChild(zoneSel);
-
-      row.appendChild(name);
-      row.appendChild(horario);
-      row.appendChild(presence);
-      row.appendChild(zoneWrap);
-
-      list.appendChild(row);
-    });
-
-    countPill.textContent = `${data.people.length} personas`;
-  }
-
-  async function handleRosterUpload(ev) {
-    const file = ev.target.files[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      await fetch('/api/roster/upload', {
-        method: 'POST',
-        body: formData
-      });
-      await loadRoster();
-    } catch (e) {
-      console.warn('Roster upload BCN error', e);
+    if (metric === 'uph' && (!tab || tab.includes(STATION_CODE))){
+      const v=Number(data.value);
+      if (Number.isFinite(v))
+        setKpiValue('kpi-uph','kpi-uph-meta',
+          new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
+      return;
+    }
+    if (metric === 'otif' && (!tab || tab.includes(STATION_CODE))){
+      const v=Number(data.value);
+      if (Number.isFinite(v))
+        setKpiValue('kpi-otif','kpi-otif-meta', formatPercent(v)+' %');
+      return;
+    }
+    if (metric === 'backlog' && (!tab || tab.includes(STATION_CODE))){
+      const v=Number(data.value);
+      if (Number.isFinite(v))
+        setKpiValue('kpi-backlog','kpi-backlog-meta',
+          new Intl.NumberFormat('es-ES').format(v));
+      return;
     }
   }
 
-  async function togglePresence(person, btn) {
-    const newVal = btn.classList.contains('off');
-    btn.classList.toggle('off', !newVal);
-    btn.textContent = newVal ? '✓' : '✕';
-    try {
-      await fetch('/api/roster/presence', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: person.id,
-          nombre_completo: person.nombre_completo,
-          attendance: newVal
-        })
-      });
-    } catch (e) {
-      console.warn('Error update presence BCN', e);
+  // Delete
+  if (data.action === 'delete' && data.id != null){
+    const el=document.getElementById(`task-${data.id}`);
+    if (el) el.remove();
+    if (data.task_type === 'gw_task'){
+      GW_MAP.delete(data.id);
+      renderGwTop3();
     }
+    updateAllColumnCounts();
+    return;
   }
 
-  async function updateZone(person, zone) {
-    try {
-      await fetch('/api/roster/zone', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: person.id,
-          nombre_completo: person.nombre_completo,
-          zone
-        })
-      });
-    } catch (e) {
-      console.warn('Error update zone BCN', e);
-    }
-  }
-
-  // ===============================
-  // KANBAN RAPIDA BCN
-  // ===============================
-  function initKanban() {
-    // Sortable configuración táctil suave
-    const sortableOptions = {
-      group: 'kanban_rapida',
-      animation: 120,
-      handle: undefined,
-      ghostClass: 'drag-ghost',
-      forceFallback: true,
-      delayOnTouchOnly: true,
-      delay: 80,
-      onEnd: onKanbanDrop
-    };
-
-    ['Abiertas','EnCurso','Cerradas','Vencidas'].forEach(status => {
-      const el = document.getElementById('kanban_rapida-' + status);
-      if (el) new Sortable(el, sortableOptions);
-    });
-
-    document.getElementById('kanban-form').addEventListener('submit', createKanbanTask);
-
-    // Carga inicial tareas
-    loadTasks();
-  }
-
-  async function loadTasks() {
-    try {
-      const res = await fetch('/api/tasks');
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!Array.isArray(data)) return;
-      data.forEach(t => processTaskUpdate(t, { silent: true }));
-      updateKanbanCounters();
-    } catch (e) {
-      console.warn('Error load tasks BCN', e);
-    }
-  }
-
-  function renderKanbanCard(task) {
-    if (task.station && task.station !== 'BCN') return; // filtramos
-    const baseId = 'kanban_rapida-' + (task.status || 'Abiertas');
-    const col = document.getElementById(baseId);
-    if (!col) return;
-
-    // borrar previa
-    const existing = document.querySelector(`.kanban-card[data-id="${task.id}"]`);
-    if (existing && existing.parentElement !== col) {
-      existing.parentElement.removeChild(existing);
-    }
-
-    let card = existing || document.createElement('div');
-    card.className = 'kanban-card';
-    card.dataset.id = task.id;
-    card.innerHTML = '';
-
-    const title = document.createElement('div');
-    title.className = 'kanban-title';
-    title.textContent = task.title || '(Sin título)';
-
-    const meta = document.createElement('div');
-    meta.className = 'kanban-meta';
-
-    const cat = (task.category || '').toLowerCase();
-    if (cat) {
-      const b = document.createElement('span');
-      b.className = 'badge ' + getCategoryBadgeClass(cat);
-      b.textContent = task.category;
-      meta.appendChild(b);
-    }
-
-    if (task.due_date) {
-      const due = document.createElement('span');
-      due.className = 'badge';
-      due.textContent = 'Vence: ' + formatShortDate(task.due_date);
-      meta.appendChild(due);
-    }
-
-    if (task.assigned_to) {
-      const asg = document.createElement('span');
-      asg.className = 'badge';
-      asg.textContent = 'Resp: ' + task.assigned_to;
-      meta.appendChild(asg);
-    }
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'btn-delete';
-    delBtn.textContent = '×';
-    delBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      deleteTask(task.id);
-    });
-
-    card.appendChild(title);
-    card.appendChild(meta);
-    card.appendChild(delBtn);
-
-    col.appendChild(card);
-  }
-
-  function getCategoryBadgeClass(cat) {
-    if (cat.includes('seguridad')) return 'badge-cat-seguridad';
-    if (cat.includes('incidencia')) return 'badge-cat-incidencias';
-    if (cat.includes('mantenimiento')) return 'badge-cat-mantenimiento';
-    if (cat.includes('calidad')) return 'badge-cat-calidad';
-    if (cat.includes('servicio')) return 'badge-cat-servicio';
-    return '';
-  }
-
-  async function createKanbanTask(ev) {
-    ev.preventDefault();
-    const form = ev.target;
-    const payload = {
-      task_type: 'kanban_rapida',
-      status: 'Abiertas',
-      category: form.category.value,
-      title: form.title.value,
-      due_date: form.due_date.value || null,
-      assigned_to: form.assigned_to.value || null,
-      station: 'BCN'
-    };
-    try {
-      const res = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        const created = await res.json();
-        processTaskUpdate(created);
-        form.reset();
-      }
-    } catch (e) {
-      console.warn('Error create kanban BCN', e);
-    }
-  }
-
-  async function onKanbanDrop(evt) {
-    const card = evt.item;
-    const id = card.dataset.id;
-    if (!id) return;
-    const colId = evt.to.id; // ej. kanban_rapida-EnCurso
-    const status = colId.replace('kanban_rapida-', '');
-    try {
-      await fetch(`/api/tasks/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-    } catch (e) {
-      console.warn('Error update status BCN', e);
-    }
-    updateKanbanCounters();
-  }
-
-  function updateKanbanCounters() {
-    const map = {
-      'Abiertas': 'count-abiertas',
-      'EnCurso': 'count-encurso',
-      'Cerradas': 'count-cerradas',
-      'Vencidas': 'count-vencidas'
-    };
-    Object.entries(map).forEach(([status, elId]) => {
-      const col = document.getElementById('kanban_rapida-' + status);
-      const n = col ? col.querySelectorAll('.kanban-card').length : 0;
-      const el = document.getElementById(elId);
-      if (el) el.textContent = n;
-    });
-  }
-
-  async function deleteTask(id) {
-    try {
-      await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
-      const card = document.querySelector(`.kanban-card[data-id="${id}"]`);
-      if (card && card.parentElement) {
-        card.parentElement.removeChild(card);
-      }
-      updateKanbanCounters();
-    } catch (e) {
-      console.warn('Error delete task BCN', e);
-    }
-  }
-
-  // ===============================
-  // KAIZEN BCN
-  // ===============================
-  function initKaizen() {
-    ['Pendiente','EnCurso','Hecho'].forEach(status => {
-      const el = document.getElementById('kaizen-' + status);
-      if (el) {
-        new Sortable(el, {
-          group: 'kaizen',
-          animation: 120,
-          forceFallback: true,
-          delayOnTouchOnly: true,
-          delay: 80,
-          onEnd: evt => {
-            const id = evt.item.dataset.id;
-            const newStatus = evt.to.id.replace('kaizen-','');
-            if (!id) return;
-            fetch(`/api/tasks/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: newStatus })
-            }).catch(e => console.warn('KAIZEN move error BCN', e));
-          }
-        });
-      }
-    });
-
-    document.getElementById('kaizen-form').addEventListener('submit', createKaizen);
-  }
-
-  function renderKaizenCard(task) {
-    if (task.station && task.station !== 'BCN') return;
-    const col = document.getElementById('kaizen-' + (task.status || 'Pendiente'));
-    if (!col) return;
-    let card = document.querySelector(`.kaizen-card[data-id="${task.id}"]`);
-    if (!card) {
-      card = document.createElement('div');
-      card.className = 'kaizen-card';
-      card.dataset.id = task.id;
-      col.appendChild(card);
-    } else {
-      card.innerHTML = '';
-    }
-
-    const t = document.createElement('div');
-    t.textContent = task.title || '(Sin título)';
-    const o = document.createElement('div');
-    o.style.color = 'var(--text-soft)';
-    o.textContent = (task.owner || task.assigned_to) ? 'Resp: ' + (task.owner || task.assigned_to) : '';
-    card.appendChild(t);
-    if (o.textContent) card.appendChild(o);
-  }
-
-  async function createKaizen(ev) {
-    ev.preventDefault();
-    const form = ev.target;
-    const payload = {
-      task_type: 'kaizen',
-      status: 'Pendiente',
-      title: form.title.value,
-      owner: form.owner.value || null,
-      station: 'BCN'
-    };
-    try {
-      const res = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        const created = await res.json();
-        processTaskUpdate(created);
-        form.reset();
-      }
-    } catch (e) {
-      console.warn('Error create KAIZEN BCN', e);
-    }
-  }
-
-  // ===============================
-  // 5S & GW TOP 3
-  // ===============================
-  function initS5() {
-    const saved = localStorage.getItem(S5_STATE_KEY);
-    let state = { completed: [] };
-    if (saved) {
-      try { state = JSON.parse(saved); } catch(e){}
-    }
-    const pills = document.querySelectorAll('.s5-pill');
-    const meta = document.getElementById('s5-meta');
-
-    const refresh = () => {
-      let count = 0;
-      pills.forEach(p => {
-        const key = p.dataset.s;
-        const active = state.completed.includes(key);
-        p.classList.toggle('active', active);
-        if (active) count++;
-      });
-      meta.textContent = `${count}/5 completadas • Actualizado: ${new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`;
-      localStorage.setItem(S5_STATE_KEY, JSON.stringify(state));
-    };
-
-    pills.forEach(p => {
-      p.addEventListener('click', () => {
-        const key = p.dataset.s;
-        if (!state.completed.includes(key)) {
-          state.completed.push(key);
-        } else {
-          state.completed = state.completed.filter(k => k !== key);
-        }
-        refresh();
-      });
-    });
-
-    refresh();
-  }
-
-  function initGwTop3() {
+  // Render según tipo
+  if (data.task_type === 'gw_task'){
+    GW_MAP.set(data.id, data);
     renderGwTop3();
+    return;
+  }
+  if (data.task_type === 'kanban_rapida'){
+    renderBoardCard(data, `task-${data.id}`);
+    updateAllColumnCounts();
+    return;
+  }
+  if (data.task_type === 'kaizen'){
+    renderKaizenCard(data, `task-${data.id}`);
+    updateAllColumnCounts();
+    return;
+  }
+}
+
+/* ==========================
+   Checklist compact (persist)
+========================== */
+(function(){
+  const host=document.getElementById('brief-check');
+  if (!host) return;
+  const meta=document.getElementById('brief-check-meta');
+  const KEY='brief_check_bcn_v1';
+
+  function save(){
+    const data={};
+    host.querySelectorAll('.check-actions input:checked')
+      .forEach(i=> data[i.name]=i.value);
+    try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
+  }
+  function load(){
+    try{
+      const data=JSON.parse(localStorage.getItem(KEY)||'{}');
+      Object.entries(data).forEach(([n,v])=>{
+        const el=host.querySelector(`input[name="${n}"][value="${v}"]`);
+        if (el) el.checked=true;
+      });
+    }catch(e){}
+  }
+  function recalc(){
+    const groups=[...new Set([...host.querySelectorAll('.check-actions input')]
+      .map(i=>i.name))];
+    const ok=groups.filter(n=>{
+      const sel=host.querySelector(`input[name="${n}"]:checked`);
+      return sel && sel.value==='OK';
+    }).length;
+    const cov = groups.length ? Math.round(ok/groups.length*100) : 0;
+    if (meta) meta.textContent=`Bloques OK: ${ok}/${groups.length} · Cobertura: ${cov}%`;
   }
 
-  function renderGwTop3() {
-    const container = document.getElementById('gw-top3');
-    if (!container) return;
-    container.innerHTML = '';
+  function bump(){
+    save();
+    recalc();
+    updateSpotlightRouting?.();
+  }
 
-    const tasks = Object.values(GW_MAP)
-      .filter(t => !t.station || t.station === 'BCN')
-      .sort((a,b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
-      .slice(0,3);
+  load();
+  recalc();
+  updateSpotlightRouting?.();
 
-    if (!tasks.length) {
-      container.innerHTML = `<div class="tag">Sin acciones GW recientes para BCN.</div>`;
-      return;
-    }
+  host.addEventListener('change', e=>{
+    if (e.target.matches('.check-actions input')) bump();
+  });
+})();
 
-    tasks.forEach(t => {
-      const row = document.createElement('div');
-      row.className = 'gw-item';
-      row.dataset.id = t.id;
+/* ==========================
+   Spotlight routing
+========================== */
+function rosterComplete(){
+  const total=(TEAM_STATE?.people||[]).length;
+  if (!total) return false;
+  const att=TEAM_STATE?.attendance||{};
+  return TEAM_STATE.people.every(p=>{
+    const k=p.nombre_completo || '—';
+    return att[k] === true || att[k] === false;
+  });
+}
+function readC(name){
+  const sel=document.querySelector(`#brief-check input[name="${name}"]:checked`);
+  return sel ? sel.value : null;
+}
+function setSpotlight(ids){
+  const ALL=[
+    'team-widget','prev-shift-widget','rotativas-widget',
+    'incidentes-widget','kanban-widget','kpi-costes'
+  ];
+  ALL.forEach(id=>{
+    const el=document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('spotlight-blink', ids.includes(id));
+  });
+}
+function updateSpotlightRouting(){
+  if (!rosterComplete()) return setSpotlight(['team-widget']);
+  if (readC('c1')!=='OK') return setSpotlight(['prev-shift-widget']);
+  if (readC('c2')!=='OK') return setSpotlight(['kanban-widget']);
+  if (readC('c3')!=='OK') return setSpotlight(['team-widget']);
+  if (readC('c4')!=='OK') return setSpotlight(['rotativas-widget']);
+  if (readC('c5')!=='OK') return setSpotlight(['incidentes-widget']);
+  if (readC('c6')!=='OK') return setSpotlight(['kpi-costes']);
+  if (readC('c7')!=='OK') return setSpotlight(['kanban-widget']);
+  setSpotlight([]);
+}
+window.updateSpotlightRouting = updateSpotlightRouting;
 
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = !!t.is_completed;
-      cb.addEventListener('change', () => toggleGwComplete(t, cb));
-
-      const label = document.createElement('div');
-      label.textContent = t.title || '(sin título)';
-
-      const note = document.createElement('textarea');
-      note.className = 'gw-note';
-      note.value = t.note || '';
-      note.placeholder = 'Nota al completar (opcional)';
-      note.disabled = !cb.checked;
-      note.addEventListener('change', () => updateGwNote(t, note.value));
-
-      row.appendChild(cb);
-      row.appendChild(label);
-      row.appendChild(note);
-
-      container.appendChild(row);
+/* Checklist → abrir widgets */
+function openWidgetFromChecklist(targetId){
+  if (!targetId) return;
+  const el=document.getElementById(targetId);
+  if (!el) return;
+  el.scrollIntoView({behavior:'smooth', block:'center'});
+  ensureFullscreenBtn(el);
+}
+(function initBriefExplain(){
+  const host=document.getElementById('brief-check');
+  if (!host) return;
+  const label=host.querySelector('.br-explain-text');
+  const DEF='Pasa el ratón o toca cada punto para ver qué revisar.';
+  function setText(t){ if(label) label.textContent = t || DEF; }
+  host.querySelectorAll('.check-card').forEach(card=>{
+    const msg=card.dataset.help || card.querySelector('.check-title')?.textContent || '';
+    const targetId=card.dataset.target;
+    card.addEventListener('mouseenter', ()=>setText(msg));
+    card.addEventListener('mouseleave', ()=>setText());
+    card.addEventListener('focusin', ()=>setText(msg));
+    card.addEventListener('focusout', ()=>setText());
+    card.addEventListener('click', e=>{
+      if (e.target.tagName==='INPUT' || e.target.tagName==='LABEL') return;
+      if (targetId) openWidgetFromChecklist(targetId);
     });
-  }
-
-  async function toggleGwComplete(task, cb) {
-    const completed = cb.checked;
-    const noteEl = cb.parentElement.querySelector('.gw-note');
-    if (noteEl) noteEl.disabled = !completed;
-    try {
-      await fetch(`/api/tasks/${task.id}/complete`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_completed: completed })
-      });
-      task.is_completed = completed;
-    } catch(e) {
-      console.warn('Error GW complete BCN', e);
-    }
-  }
-
-  async function updateGwNote(task, note) {
-    try {
-      await fetch(`/api/tasks/${task.id}/note`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note })
-      });
-      task.note = note;
-    } catch(e) {
-      console.warn('Error GW note BCN', e);
-    }
-  }
-
-  // ===============================
-  // KPI COSTES BCN
-  // ===============================
-  function initKpiCostes() {
-    const saved = localStorage.getItem(KPI_COSTES_KEY);
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        applyKpiCostes(data.value, data.updated_at, { noFlash: true });
-      } catch(e){}
-    }
-  }
-
-  function applyKpiCostes(value, updatedAt, opts = {}) {
-    const el = document.getElementById('kpi-costes-value');
-    const up = document.getElementById('kpi-costes-updated');
-    if (!el || !up) return;
-    el.textContent = `${Number(value || 0).toLocaleString('es-ES',{minimumFractionDigits:0})} €`;
-    up.textContent = `Actualizado: ${updatedAt ? new Date(updatedAt).toLocaleString('es-ES') : 'N/D'}`;
-    localStorage.setItem(KPI_COSTES_KEY, JSON.stringify({
-      value,
-      updated_at: updatedAt || new Date().toISOString()
-    }));
-    if (!opts.noFlash) {
-      el.classList.remove('flash');
-      void el.offsetWidth;
-      el.classList.add('flash');
-    }
-  }
-
-  // ===============================
-  // PLANIFICACIÓN EXTERNA
-  // ===============================
-  async function initPlanificacion() {
-    await loadExternalTable();
-  }
-
-  async function loadExternalTable() {
-    try {
-      const res = await fetch('/api/external-table');
-      if (!res.ok) return;
-      const data = await res.json();
-      renderExternalTable(data);
-    } catch(e) {
-      console.warn('Error external table BCN', e);
-    }
-  }
-
-  function renderExternalTable(data) {
-    const tbody = document.getElementById('planificacion-tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    if (!Array.isArray(data)) return;
-    const colsAllow = [
-      'FlightId',
-      'FlightType',
-      'AircraftType',
-      'FlightIdentifier',
-      'Departure.Scheduled',
-      'PiecesProgress.Members.Manifested.Item1',
-      'WeightProgress.Members.Manifested.Item1'
-    ];
-    data.forEach(row => {
-      const tr = document.createElement('tr');
-      colsAllow.forEach(c => {
-        const td = document.createElement('td');
-        td.textContent = resolvePath(row, c) ?? '';
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-  }
-
-  function resolvePath(obj, path) {
-    return path.split('.').reduce((acc, k) => acc && acc[k] !== undefined ? acc[k] : null, obj);
-  }
-
-  // ===============================
-  // BRIEF CHECKLIST (help dinámico)
-  // ===============================
-  function initBriefChecklist() {
-    const helpEl = document.getElementById('brief-help');
-    document.querySelectorAll('#brief-check .check-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const help = card.getAttribute('data-help') || '';
-        const target = card.getAttribute('data-target');
-        helpEl.textContent = help;
-        if (target) {
-          const w = document.querySelector(target);
-          if (w) {
-            w.classList.add('flash');
-            setTimeout(() => w.classList.remove('flash'), 500);
-          }
-        }
-      });
-    });
-  }
-
-  // ===============================
-  // EHS
-  // ===============================
-  function initEhs() {
-    document.querySelectorAll('#ehs-widget [data-ehs-delta]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const [type, delta] = btn.getAttribute('data-ehs-delta').split(':');
-        const valEl = type === 'safe' ? document.getElementById('ehs-days-safe') : document.getElementById('ehs-days-inc');
-        let val = parseInt(valEl.textContent || '0', 10) || 0;
-        val += (delta === '+1' ? 1 : -1);
-        if (val < 0) val = 0;
-        valEl.textContent = String(val);
-        document.getElementById('ehs-updated').textContent =
-          'Actualizado manualmente • pendiente sincronización server';
-      });
-    });
-  }
-
-  // ===============================
-  // WEBSOCKET
-  // ===============================
-  function initWebSocket() {
-    try {
-      ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-    } catch(e) {
-      console.warn('WS BCN error create', e);
-      return;
-    }
-
-    ws.onopen = () => {
-      // opcional: enviar handshake si backend lo usa
-    };
-
-    ws.onmessage = (event) => {
-      let msg;
-      try { msg = JSON.parse(event.data); } catch(e){ return; }
-
-      if (msg.type === 'kpi_update' || msg.type === 'kpi_state') {
-        if (msg.key === 'bcn_costes' || msg.kpi === 'bcn_costes') {
-          applyKpiCostes(msg.value, msg.updated_at);
-        }
-      } else if (msg.type === 'table_state' || msg.type === 'table_ping') {
-        if (msg.table === 'external') {
-          loadExternalTable();
-        }
-      } else if (msg.type === 'roster_update') {
-        loadRoster();
-      } else if (msg.type === 'ehs_update') {
-        applyEhsState(msg);
-      } else if (msg.task_type) {
-        // mensajes de tareas en tiempo real
-        processTaskUpdate(msg);
+    card.addEventListener('keydown', e=>{
+      if (e.key==='Enter' || e.key===' '){
+        e.preventDefault();
+        if (targetId) openWidgetFromChecklist(targetId);
       }
-    };
+    });
+  });
+  setText();
+})();
 
-    ws.onclose = () => {
-      // reconexión simple
-      setTimeout(initWebSocket, 5000);
-    };
+/* ==========================
+   Carga inicial
+========================== */
+async function loadBoardsInitial(){
+  try{
+    const qs = 'station='+encodeURIComponent(STATION_CODE);
+    const [kanRes,kaiRes,gwRes] = await Promise.all([
+      fetch('/api/tasks?task_type=kanban_rapida&'+qs,{cache:'no-store'}),
+      fetch('/api/tasks?task_type=kaizen&'+qs,{cache:'no-store'}),
+      fetch('/api/tasks?task_type=gw_task&'+qs,{cache:'no-store'})
+    ]);
+    const [kan,kai,gw] = await Promise.all([
+      kanRes.json().catch(()=>[]),
+      kaiRes.json().catch(()=>[]),
+      gwRes.json().catch(()=>[])
+    ]);
+    (Array.isArray(kan)?kan:[]).filter(isForThisStation)
+      .forEach(t=>processTaskUpdate(t));
+    (Array.isArray(kai)?kai:[]).filter(isForThisStation)
+      .forEach(t=>processTaskUpdate(t));
+    (Array.isArray(gw)?gw:[]).filter(isForThisStation)
+      .forEach(t=>{
+        if (t.task_type==='gw_task'){
+          GW_MAP.set(t.id,t);
+        }
+      });
+    renderGwTop3();
+    updateAllColumnCounts();
+  }catch(e){
+    console.error('loadBoardsInitial', e);
   }
+}
 
-  function applyEhsState(msg) {
-    if (typeof msg.days_safe === 'number') {
-      document.getElementById('ehs-days-safe').textContent = msg.days_safe;
-    }
-    if (typeof msg.days_inc === 'number') {
-      document.getElementById('ehs-days-inc').textContent = msg.days_inc;
-    }
-    document.getElementById('ehs-updated').textContent =
-      'Actualizado desde servidor: ' + new Date().toLocaleString('es-ES');
-  }
-
-  // ===============================
-  // TASK UPDATE GENÉRICO (clave)
-  // ===============================
-  function processTaskUpdate(task, opts = {}) {
-    if (!task) return;
-
-    // sincronización eliminación
-    if (task.action === 'delete' && task.id) {
-      const el = document.querySelector(`[data-id="${task.id}"]`);
-      if (el && el.parentElement) el.parentElement.removeChild(el);
-      if (task.task_type === 'kanban_rapida') updateKanbanCounters();
-      if (task.task_type === 'gw_task') {
-        delete GW_MAP[task.id];
-        renderGwTop3();
-      }
-      return;
-    }
-
-    // según tipo
-    switch (task.task_type) {
-      case 'kanban_rapida':
-        renderKanbanCard(task);
-        if (!opts.silent) updateKanbanCounters();
-        break;
-      case 'kaizen':
-        renderKaizenCard(task);
-        break;
-      case 'gw_task':
-        GW_MAP[task.id] = task;
-        renderGwTop3();
-        break;
-      default:
-        break;
-    }
-  }
-
-  // ===============================
-  // UTILIDADES
-  // ===============================
-  function formatShortDate(str) {
-    if (!str) return '';
-    const d = new Date(str);
-    if (isNaN(d)) return str;
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-  }
-
-  function initWakeLockHint() {
-    // No forzamos wakeLock (no todos los navegadores lo soportan),
-    // pero dejamos este stub listo si queréis activarlo:
-    // if ('wakeLock' in navigator) { ... }
-  }
+/* ==========================
+   DOM Ready
+========================== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  console.log('Init BCN dashboard, estación:', STATION_CODE);
+  try{ initHeaderTimer(); }catch(e){ console.error('Timer', e); }
+  try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/turno', e); }
+  try{ initFullscreenToggles(); }catch(e){ console.error('FS', e); }
+  try{ init5S(); }catch(e){ console.error('5S', e); }
+  try{ initEhsSimple(); }catch(e){ console.error('EHS', e); }
+  try{ initTeamRoster(); }catch(e){ console.error('Roster', e); }
+  try{ setupEventListeners(); }catch(e){ console.error('Listeners', e); }
+  try{ makeColumnsSortable(); }catch(e){ console.error('Sortable', e); }
+  try{ hydrateKpiTotalCost(); }catch(e){ console.error('KPI cost cache', e); }
+  try{ loadBoardsInitial(); }catch(e){ console.error('Boards', e); }
+  try{ loadIncidentes(); }catch(e){ console.error('Incidentes', e); }
+  try{ connectWebSocket(); }catch(e){ console.error('WS', e); }
+  updateSpotlightRouting?.();
+});
 </script>
 </body>
 </html>
