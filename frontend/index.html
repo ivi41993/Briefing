@@ -1756,16 +1756,17 @@ function openWidgetFromChecklist(targetId){
   // Llevarlo a la vista
   el.scrollIntoView({ behavior:'smooth', block:'center' });
 
-  // Asegurar que tiene botón/estilo fullscreen disponible
+  // Asegurar botón de fullscreen (por consistencia visual)
   try { ensureFullscreenBtn(el); } catch {}
 
-  // Intentar fullscreen real
+  // Intentar fullscreen real (depende del navegador)
   if (el.requestFullscreen) {
     el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
-      // Si falla (permisos/navegador), al menos queda centrado.
+      // Si falla por permisos, al menos se queda centrado.
     });
   }
 }
+
 
   
 /* Formatos / KPI */
@@ -3092,41 +3093,54 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   const host   = document.getElementById('brief-check');
   if (!host) return;
 
-  const wrap   = host.querySelector('#brief-check-explain');
-  const target = host.querySelector('#brief-check-explain .br-explain-text');
-  const DEF    = 'Pasa el ratón por cada punto para ver una explicación.';
+  const targetText = host.querySelector('#brief-check-explain .br-explain-text');
+  const DEFAULT_MSG = 'Pasa el ratón por cada punto para ver una explicación.';
 
-  const setText = (t)=> { if (target) target.textContent = t || DEF; };
+  const setText = (t)=> {
+    if (targetText) targetText.textContent = t || DEFAULT_MSG;
+  };
 
-  host.querySelectorAll('.check-card').forEach(card=>{
-    const msg      = card.getAttribute('data-help')
-                   || card.querySelector('.check-title')?.textContent
-                   || '';
-    const targetId = card.getAttribute('data-target');
+  host.querySelectorAll('.check-card').forEach(card => {
+    const msg =
+      card.getAttribute('data-help') ||
+      card.querySelector('.check-title')?.textContent ||
+      '';
+    // Soportar tanto data-target como el posible typo data-targer
+    const targetId =
+      card.getAttribute('data-target') ||
+      card.getAttribute('data-targer') ||
+      '';
 
-    // Tooltip / ayuda
+    // Hover / foco: texto explicativo
     card.addEventListener('mouseenter', ()=> setText(msg));
     card.addEventListener('mouseleave', ()=> setText());
-    card.addEventListener('focusin',  ()=> setText(msg));
-    card.addEventListener('focusout', ()=> setText());
+    card.addEventListener('focusin',    ()=> setText(msg));
+    card.addEventListener('focusout',   ()=> setText());
 
-    // 🔹 Click en la tarjeta → abrir widget (sin interferir con los radios)
+    // Click en la tarjeta → abrir widget en fullscreen
     card.addEventListener('click', (e)=>{
+      // No interceptar clics en radios/labels
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
-      if (targetId) openWidgetFromChecklist(targetId);
+      if (targetId) {
+        e.preventDefault();
+        openWidgetFromChecklist(targetId);
+      }
     });
 
-    // 🔹 Teclado: Enter o Space cuando la tarjeta tiene foco
+    // Teclado: Enter o Space con foco en la tarjeta
     card.addEventListener('keydown', (e)=>{
       if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        if (targetId) openWidgetFromChecklist(targetId);
+        if (targetId) {
+          e.preventDefault();
+          openWidgetFromChecklist(targetId);
+        }
       }
     });
   });
 
   setText();
 })();
+
 
   
 /* Init */
@@ -3160,6 +3174,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
