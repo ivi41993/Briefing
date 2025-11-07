@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factory Floor Dashboard - BCN</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* =======================
+       TOKENS / THEME
+    ========================*/
+    :root {
+      /* Brand */
+      --brand-red-700:#b91c1c;
+      --brand-red-600:#dc2626;
+      --brand-red-500:#ef4444;
+
+      /* Palette */
+      --color-blue:#2563eb;
+      --color-yellow:#f59e0b;
+      --color-green:#16a34a;
+      --color-red:var(--brand-red-600);
+      --color-red-hover:#b91c1c;
+
+      /* Surfaces / text */
+      --bg-page:#f7f8fa;
+      --bg-card:#ffffff;
+      --bg-muted:#fafafa;
+      --border:#e6e8ec;
+      --text:#1f2937;
+      --text-secondary:#4b5563;
+      --text-muted:#6b7280;
+
+      /* Categories (card backgrounds) */
+      --cat-seg:#fee2e2;
+      --cat-inc:#fff1e6;
+      --cat-man:#eaf8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-page:#0b0e12;
+        --bg-card:#0f141a;
+        --bg-muted:#121820;
+        --border:#202733;
+        --text:#e5e7eb;
+        --text-secondary:#cbd5e1;
+        --text-muted:#94a3b8;
+        --cat-seg:#331c1e;
+        --cat-inc:#2b211a;
+        --cat-man:#16221a;
+      }
+    }
+
+    /* =======================
+       BASICS
+    ========================*/
+    * { box-sizing:border-box; }
+    html, body { height:100%; }
+    body {
+      margin:0;
+      font: 14px/1.4 "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:var(--bg-page);
+    }
+    .visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+    /* =======================
+       LAYOUT (3 columnas)
+    ========================*/
+    .dashboard {
+      display:grid;
+      grid-template-columns: 320px 1fr 380px;
+      grid-template-rows: auto 1fr;
+      gap: 20px;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    header {
+      grid-column: 1 / -1;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    header h1 {
+      margin:0;
+      color:var(--brand-red-600);
+      font-family:"Space Grotesk", Inter, sans-serif;
+      font-weight:700;
+      font-size: clamp(1.8rem, 2vw + .6rem, 3rem);
+      letter-spacing:.2px;
+    }
+    .header-controls { display:flex; gap:12px; align-items:center; }
+    .header-controls input, .header-controls select {
+      padding: 8px 10px; border:1px solid var(--border); border-radius:10px; background:var(--bg-card); color:var(--text);
+    }
+    .btn-primary {
+      background:linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+      color:#fff; border:none; border-radius:10px; padding:10px 16px; font-weight:600; cursor:pointer;
+      box-shadow:0 6px 16px rgba(220,38,38,.25); transition:.15s transform,.2s box-shadow,.2s filter;
+    }
+    .btn-primary:hover { transform:translateY(-1px); filter:saturate(110%); }
+
+    .col-left  { grid-column:1; grid-row:2; display:flex; flex-direction:column; gap:20px; min-height:0; overflow:auto; }
+    .col-mid   { grid-column:2; grid-row:2; display:flex; flex-direction:column; gap:20px; min-height:0; overflow:auto; }
+    .col-right { grid-column:3; grid-row:2; display:flex; flex-direction:column; gap:20px; min-height:0; overflow:auto; }
+
+    /* =======================
+       WIDGETS / CARDS
+    ========================*/
+    .widget, .card {
+      position:relative;
+      background:var(--bg-card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      box-shadow:0 6px 18px rgba(17,24,39,.06);
+      padding:16px;
+    }
+    .widget-title {
+      display:flex; align-items:center; justify-content:space-between;
+      margin:0 0 12px 0;
+      font-family:"Space Grotesk", Inter, sans-serif;
+      font-weight:700;
+      font-size: clamp(1.1rem, .9vw + .6rem, 1.6rem);
+    }
+    .widget-title-icon { width:16px; height:16px; color:var(--text-secondary); }
+
+    /* Kanban */
+    .board-container { display:grid; gap:12px; }
+    .board-container.kanban { grid-template-columns: repeat(4, 1fr); }
+    .kanban-column { display:flex; flex-direction:column; min-width:0; }
+    .column-title { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 6px 0; padding-bottom:8px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-weight:600; }
+    .column-title .count { background:var(--bg-muted); border:1px solid var(--border); border-radius:8px; padding:2px 6px; font-size:.8rem; }
+    .cards-container { min-height:100px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+
+    /* Kaizen compacto (dos columnas en desktop) */
+    .kaizen-compact .board-container { grid-template-columns: repeat(2, 1fr); }
+    .kaizen-compact .card { padding:10px 12px; }
+    .kaizen-compact .card .meta { font-size:.8rem; }
+    .kaizen-compact .column-title { font-size:.9rem; }
+
+    /* Cards */
+    .card { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .card-content { flex:1; min-width:0; }
+    .card-title { margin:0 0 4px 0; font-weight:600; line-height:1.2; }
+    .card .meta, .card-details, .card-assignee { font-size:.85rem; color:var(--text-muted); }
+    .card-actions { display:flex; align-items:center; gap:4px; }
+    .delete-card-btn { border:none; background:none; color:#9ca3af; cursor:pointer; padding:4px; border-radius:6px; }
+    .delete-card-btn:hover { color:var(--color-red); background:var(--bg-muted); }
+
+    /* Chips & estados */
+    .cat-chip { display:inline-block; margin-left:6px; padding:2px 8px; border-radius:999px; font-size:.7rem; font-weight:700; border:1px solid var(--border); }
+    .cat-chip.seguridad { background:var(--cat-seg); }
+    .cat-chip.incidencias { background:var(--cat-inc); }
+    .cat-chip.mantenimiento { background:var(--cat-man); }
+
+    .card[data-status="Abiertas"], .card[data-status="Proyectos"] { border-left:5px solid var(--color-blue); }
+    .card[data-status="En-Curso"], .card[data-status="En-Progreso"] { border-left:5px solid var(--color-yellow); }
+    .card[data-status="Vencidas"] { border-left:5px solid var(--color-red); }
+    .card[data-status="Cerradas"], .card[data-status="Hecho"] { border-left:5px solid var(--color-green); }
+
+    /* Formularios de alta */
+    .new-item-form { display:flex; gap:8px; align-items:center; border-top:1px solid var(--border); padding-top:12px; margin-top:12px; flex-wrap:wrap; }
+    .new-item-form input, .new-item-form select {
+      flex:1; min-width:160px; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); color:var(--text);
+    }
+    .new-item-form button { white-space:nowrap; }
+
+    /* KPIs */
+    .kpi-text { margin:0; color:var(--text-muted); }
+    .kpi-value.large { font-size: clamp(2rem, 2.2vw + 1rem, 3.2rem); font-weight:800; line-height:1; color:var(--text); }
+    .kpi-currency { margin-left:4px; color:var(--brand-red-600); font-weight:700; }
+    .flash { animation: flash-kpi 900ms ease-out; }
+    @keyframes flash-kpi { from{ background:#fff3cd; } to{ background:transparent; } }
+
+    /* Lean status */
+    .lean-status-container { display:flex; flex-direction:column; gap:8px; }
+    .lean-status-item { display:flex; align-items:center; justify-content:space-between; }
+    .status-tag { font-size:.75rem; font-weight:700; padding:2px 8px; border-radius:999px; border:1px solid var(--border); }
+    .status-ok { color:var(--color-green); background:rgba(22,163,74,.12); }
+    .status-alert { color:var(--color-red); background:rgba(220,38,38,.12); }
+
+    /* EHS */
+    #ehs-month { color:var(--text-muted); }
+    .ehs-controls { display:flex; align-items:center; gap:14px; border:1px solid var(--border); border-radius:12px; padding:8px 10px; background:var(--bg-card); }
+    .ehs-btn { width:42px; height:42px; border:none; border-radius:10px; cursor:pointer; background:linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700)); color:#fff; font-size:1.2rem; display:flex; align-items:center; justify-content:center; }
+    .ehs-big { min-width:3ch; text-align:center; font-size: clamp(2.2rem, 2.4vw + 1rem, 4rem); font-weight:800; color:var(--brand-red-600); }
+
+    /* Team / turno */
+    .team-form { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .btn-compact { width:32px; height:32px; border:none; border-radius:8px; cursor:pointer; background:linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700)); color:#fff; font-size:1.1rem; }
+    .team-list { display:flex; flex-direction:column; gap:6px; }
+    .team-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); }
+    .team-left { display:flex; align-items:center; gap:10px; }
+    .team-name { font-weight:600; }
+
+    /* GW */
+    .gw-task-item { display:flex; align-items:center; gap:8px; padding:6px 4px; font-size:.95rem; border-bottom:1px solid var(--border); }
+    .gw-task-item:last-child { border-bottom:none; }
+    .gw-task-item.completed label { color:var(--text-muted); text-decoration:line-through; }
+    .gw-note { flex:1; min-width:120px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg-card); }
+    .gw-note:disabled { opacity:.6; }
+
+    /* Prev shift note */
+    .editable-note { min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--bg-card); outline:none; transition: box-shadow .15s, border-color .15s; }
+    .editable-note:focus { border-color:var(--brand-red-500); box-shadow:0 0 0 3px rgba(239,68,68,.15); }
+    .editable-note:empty:before { content: attr(data-placeholder); color: var(--text-muted); }
+
+    /* Planificación table */
+    .table-scroll { overflow:auto; max-height:320px; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); }
+    table.pl-table { width:100%; border-collapse:collapse; font-size:.92rem; }
+    .pl-table thead th { position:sticky; top:0; background:var(--bg-muted); border-bottom:1px solid var(--border); text-align:left; padding:8px; z-index:1; }
+    .pl-table tbody td { padding:8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+    .pl-foot { margin-top:6px; color:var(--text-muted); font-size:.85rem; }
+
+    /* Fullscreen */
+    .fs-toggle { position:absolute; top:8px; right:8px; border:1px solid var(--border); background:rgba(255,255,255,.92); border-radius:8px; padding:6px; cursor:pointer; line-height:0; opacity:.65; display:inline-flex; align-items:center; justify-content:center; transition: opacity .15s, transform .15s, box-shadow .15s; box-shadow:0 4px 12px rgba(0,0,0,.08); }
+    .fs-toggle:hover { opacity:1; transform:scale(1.05); }
+    .fs-toggle svg { width:14px; height:14px; display:block; }
+    .widget:fullscreen, .card:fullscreen { background:var(--bg-card); border-radius:0; box-shadow:none; padding:24px; }
+    :fullscreen { overflow:auto; }
+    html.fs-zoom { font-size:18px; }
+    @media (min-width:1280px){ html.fs-zoom { font-size:20px; } }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .dashboard { grid-template-columns: 1fr; }
+      .col-left, .col-mid, .col-right { grid-column: 1; }
+      .kaizen-compact .board-container { grid-template-columns: 1fr; }
+      .board-container.kanban { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* === KANBAN: teñido completo por categoría (override) === */
+    #kanban-widget .card.cat-seguridad,
+    #kanban-widget .card.cat-incidencias,
+    #kanban-widget .card.cat-mantenimiento {
+      color: var(--text);
+      border-color: var(--border);
+    }
+    #kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
+    #kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
+    #kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
+    #kanban-widget .card.cat-seguridad .card-title,
+    #kanban-widget .card.cat-seguridad .card-details,
+    #kanban-widget .card.cat-seguridad .card-assignee,
+    #kanban-widget .card.cat-incidencias .card-title,
+    #kanban-widget .card.cat-incidencias .card-details,
+    #kanban-widget .card.cat-incidencias .card-assignee,
+    #kanban-widget .card.cat-mantenimiento .card-title,
+    #kanban-widget .card.cat-mantenimiento .card-details,
+    #kanban-widget .card.cat-mantenimiento .card-assignee {
+      color: var(--text);
+    }
+    #kanban-widget .card[class*="cat-"] .cat-chip {
+      background: rgba(255,255,255,.7);
+      border-color: rgba(255,255,255,.8);
+    }
+    @media (prefers-color-scheme: dark) {
+      #kanban-widget .card[class*="cat-"] .cat-chip {
+        background: rgba(0,0,0,.25);
+        border-color: rgba(0,0,0,.35);
+      }
+    }
+
+    /* ===== 5S compacto ===== */
+    .s5-compact{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .s5-pill{
+      display:inline-flex; align-items:center; gap:6px;
+      border:1px solid var(--border); background:#fff;
+      border-radius:999px; padding:6px 10px; font-size:.8rem; line-height:1;
+      cursor:pointer; user-select:none;
+      transition:transform .06s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .s5-pill:hover{ transform:translateY(-1px); }
+    .s5-pill:active{ transform:translateY(0); }
+    .s5-dot{ width:8px; height:8px; border-radius:50%; background:#d1d5db; }
+    .s5-pill.on{
+      background:linear-gradient(135deg, #ecfdf5, #ffffff);
+      border-color: rgba(16,185,129,.55);
+      box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+    }
+    .s5-pill.on .s5-dot{ background:#10b981; }
+    @keyframes s5-bump{ 0%{transform:scale(1);} 50%{transform:scale(1.05);} 100%{transform:scale(1);} }
+    .s5-pill.bump{ animation:s5-bump .18s ease-out; }
+    #s5-meta{ margin-top:4px; font-size:.78rem; }
+    .conn-banner{
+  position:fixed; right:12px; top:12px; z-index:9999;
+  background:#fee2e2; color:#7f1d1d; border:1px solid #fecaca;
+  padding:8px 12px; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.08);
+}
+.conn-banner.ok{ background:#ecfdf5; color:#166534; border-color:#bbf7d0; }
+.hidden{ display:none !important; }
+/* === Cronómetro (más pequeño) === */
+.header-timer { min-height: 56px; }
+.header-timer .timer-face{ gap:8px; }
+.header-timer .timer-display{
+  /* antes: clamp(2.2rem, 6.5vw, 6.5rem) */
+  font-size: clamp(1.8rem, 5vw, 5rem);
+}
+.header-timer .timer-dot{
+  width:10px; height:10px;
+}
+.header-timer .timer-reset{
+  min-width:40px; min-height:40px; padding:6px 10px; font-weight:600;
+}
+
+/* En móviles, un pelín más compacto aún */
+@media (max-width:700px){
+  .header-timer .timer-display{ font-size: clamp(1.4rem, 7.5vw, 2.6rem); }
+}
+
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <!-- HEADER -->
+    <header>
+      <h1>Factory Floor Dashboard - BCN</h1>
+      <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
+  <div class="timer-face" id="timer-face">
+    <div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
+    <span class="timer-dot" aria-hidden="true"></span>
+  </div>
+  <button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+</div>
+
+      <div class="header-controls">
+        <input type="text" class="date-picker" value="julio de 2025" aria-label="Mes">
+        <input type="text" placeholder="WHOP" aria-label="Filtro WHOP">
+        <button class="btn-primary" type="button">Generar Resumen</button>
+      </div>
+    </header>
+
+    <!-- COLUMNA IZQUIERDA — EQUIPO -->
+    <aside class="col-left">
+      <section class="widget" id="team-widget">
+        <h2 class="widget-title">Equipo / Turno</h2>
+        <small class="kpi-text" id="team-meta">—</small>
+        <form id="team-form" class="team-form" autocomplete="off">
+          <input type="text" id="team-name" placeholder="Añadir persona…" aria-label="Nombre" required>
+          <button type="submit" class="btn-compact" aria-label="Añadir persona">+</button>
+        </form>
+        <div id="team-list" class="team-list"></div>
+      </section>
+
+      <section class="widget" id="prev-shift-widget">
+        <h2 class="widget-title">Información Turno Anterior</h2>
+        <div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Escribe la información del turno anterior" spellcheck="true" data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
+        <small class="kpi-text" id="prev-shift-saved-hint"></small>
+      </section>
+    </aside>
+
+    <!-- COLUMNA CENTRAL — ACCIONES -->
+    <main class="col-mid">
+      <!-- Kanban -->
+      <section class="widget" id="kanban-widget">
+        <h2 class="widget-title">Respuesta Rápida (Kanban)</h2>
+        <div class="board-container kanban">
+          <div class="kanban-column">
+            <h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
+            <div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
+          </div>
+          <div class="kanban-column">
+            <h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
+            <div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
+          </div>
+          <div class="kanban-column">
+            <h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
+            <div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
+          </div>
+          <div class="kanban-column">
+            <h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
+            <div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
+          </div>
+        </div>
+
+        <form class="new-item-form" id="new-kanban-form">
+          <select id="problem-category" name="category" required aria-label="Categoría">
+            <option value="" disabled selected>Selecciona categoría…</option>
+            <option value="seguridad">Seguridad</option>
+            <option value="incidencias">Incidencias</option>
+            <option value="mantenimiento">Mantenimiento</option>
+          </select>
+          <input type="text" name="title" placeholder="Tipo de problema" required>
+          <input type="date" name="due_date" required aria-label="Fecha objetivo">
+          <input type="text" name="assigned_to" placeholder="Equipo responsable" required>
+          <button class="btn-primary" type="submit">Añadir</button>
+        </form>
+      </section>
+
+      <!-- Carga / Planificación (DEBAJO DE KANBAN) -->
+      <section class="widget kpi-widget" id="planif-widget">
+        <h3 class="widget-title">Carga / Planificación</h3>
+        <small class="kpi-text" id="planif-meta">—</small>
+        <div class="table-scroll">
+          <table class="pl-table" id="planif-table"><thead></thead><tbody></tbody></table>
+        </div>
+        <div class="pl-foot" id="planif-foot"></div>
+      </section>
+
+      <!-- Debajo: Kaizen (compacto) + 5S & GW lado a lado -->
+      <section style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+        <section class="widget kaizen-compact" id="kaizen-widget">
+          <h2 class="widget-title">KAIZEN</h2>
+          <form class="new-item-form" id="new-kaizen-form" autocomplete="off">
+            <input type="text" name="title" placeholder="Proyecto de mejora…" required>
+            <input type="text" name="assigned_to" placeholder="Responsable…">
+            <input type="date" name="due_date" aria-label="Fecha máxima">
+            <button type="submit" class="btn-primary">Añadir KAIZEN</button>
+          </form>
+          <div class="board-container">
+            <div class="kanban-column">
+              <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+              <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+            </div>
+            <div class="kanban-column">
+              <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+              <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+            </div>
+            <div class="kanban-column">
+              <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+              <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="widget" id="rotativas-widget">
+          <h2 class="widget-title">5S & GW (Rápido)</h2>
+
+          <!-- 5S compacto -->
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;">
+            <strong>5S</strong>
+            <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
+              <button type="button" class="s5-pill" data-key="seiri"    title="1S · Seiri (Clasificar)"><span class="s5-dot"></span>1S</button>
+              <button type="button" class="s5-pill" data-key="seiton"   title="2S · Seiton (Ordenar)"><span class="s5-dot"></span>2S</button>
+              <button type="button" class="s5-pill" data-key="seiso"    title="3S · Seiso (Limpiar)"><span class="s5-dot"></span>3S</button>
+              <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu (Estandarizar)"><span class="s5-dot"></span>4S</button>
+              <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke (Disciplina)"><span class="s5-dot"></span>5S</button>
+            </div>
+            <small id="s5-meta" class="kpi-text">—</small>
+          </div>
+
+          <!-- GW: solo TOP-3 por última fecha -->
+          <strong style="margin-top:12px;display:block;">GW</strong>
+          <div id="gw-tasks-dynamic-container"></div>
+        </section>
+      </section>
+    </main>
+
+    <!-- COLUMNA DERECHA — RESULTADOS -->
+    <aside class="col-right">
+      <section class="widget kpi-widget" id="kpi-costes">
+        <h3 class="widget-title">
+          <span>Costes Mantenimiento BCN.</span>
+          <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
+        </h3>
+        <div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
+        <small class="kpi-text" id="kpi-costes-meta"></small>
+      </section>
+
+      <section class="widget kpi-widget" id="lean-widget">
+        <h3 class="widget-title">
+          <span>Estado LEAN</span>
+          <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
+        </h3>
+        <div class="lean-status-container">
+          <div class="lean-status-item"><span>Dg Autocheck:</span><span class="status-tag status-ok">OK</span></div>
+          <div class="lean-status-item"><span>Uniwin:</span><span class="status-tag status-ok">OK</span></div>
+          <div class="lean-status-item"><span>Cs Mobile:</span><span class="status-tag status-alert">Alerta</span></div>
+        </div>
+      </section>
+
+      <!-- EHS como resultado (lo dejamos en la derecha) -->
+      <section class="widget" id="ehs-widget">
+        <h2 class="widget-title">Días con incidentes</h2>
+        <div id="ehs-month" class="kpi-text">—</div>
+        <div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual" aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
+          <button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
+          <div class="ehs-big" id="ehs-days">0</div>
+          <button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <!-- SortableJS -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+
+  <script>
+    /* ===== CRONÓMETRO EN HEADER ===== */
+(function(){
+  const KEY='header_big_timer_v1';
+  let running=false, startedAt=0, elapsed=0, tick=null;
+
+  const $ = (id)=>document.getElementById(id);
+  const host = $('timer-widget');
+  const face = $('timer-face');
+  const display = $('timer-display');
+  const resetBtn = $('timer-reset');
+
+  function fmt(ms){
+    const t = Math.floor(ms/1000);
+    const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  function paint(){ display.textContent = fmt(running ? Date.now()-startedAt : elapsed); }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
+  function load(){
+    try{
+      const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(!s) return;
+      running = !!s.running; elapsed = Number(s.elapsed)||0; startedAt = Number(s.startedAt)||0;
+      if (running){ const now=Date.now(); elapsed = Math.max(elapsed, now - startedAt); startedAt = now - elapsed; }
+    }catch{}
+  }
+  function setUI(){
+    host?.classList.toggle('timer-running', running);
+    resetBtn.disabled = (!running && elapsed===0);
+  }
+  function start(){
+    if (running) return;
+    running = true;
+    startedAt = Date.now() - elapsed;
+    tick = setInterval(paint, 250);
+    setUI(); paint(); save();
+  }
+  function pause(){
+    if (!running) return;
+    running = false;
+    elapsed = Date.now() - startedAt;
+    clearInterval(tick); tick=null;
+    setUI(); paint(); save();
+  }
+  function reset(){
+    running = false; startedAt = 0; elapsed = 0;
+    clearInterval(tick); tick=null;
+    setUI(); paint(); save();
+  }
+
+  // Interacción táctil: tocar el tiempo = toggle start/pause
+  display?.addEventListener('click', ()=> (running ? pause() : start()));
+  resetBtn?.addEventListener('click', reset);
+
+  // Robustez al cambiar visibilidad (suspensión tablet)
+  document.addEventListener('visibilitychange', ()=>{ if (!running) return; startedAt = Date.now() - elapsed; paint(); save(); });
+
+  // Init público
+  function initHeaderTimer(){
+    load(); paint(); setUI();
+    if (running && !tick) tick = setInterval(paint, 250);
+  }
+  window.initHeaderTimer = initHeaderTimer;
+})();
+
+  /***********************
+   * UTILIDADES
+  ************************/
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const escapeHTML = (s) => String(s ?? '')
+    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+    .replaceAll('"','&quot;').replaceAll("'","&#39;");
+
+  const FS_ICONS = {
+    on:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
+    off: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>'
+  };
+
+  function ensureFullscreenBtn(host){
+    if (!host || host.querySelector('.fs-toggle')) return;
+    const btn = document.createElement('button');
+    btn.className = 'fs-toggle'; btn.type = 'button';
+    btn.setAttribute('aria-label','Ver a pantalla completa');
+    btn.title = 'Pantalla completa';
+    btn.innerHTML = FS_ICONS.off;
+    btn.addEventListener('mousedown', e => e.stopPropagation(), true);
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      try {
+        if (document.fullscreenElement === host) { await document.exitFullscreen?.(); }
+        else { await (host.requestFullscreen?.({ navigationUI:'hide' }) ?? host.requestFullscreen?.()); }
+      } catch(err){ console.warn('Fullscreen error:', err); }
+    });
+    host.appendChild(btn);
+  }
+  function initFullscreenToggles(){
+    $$('.widget, .card').forEach(ensureFullscreenBtn);
+    document.addEventListener('fullscreenchange', () => {
+      const current = document.fullscreenElement;
+      $$('.fs-toggle').forEach(btn => {
+        const owner = btn.closest('.widget, .card');
+        const isOn = current === owner;
+        btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
+        btn.setAttribute('aria-label', isOn ? 'Salir de pantalla completa' : 'Ver a pantalla completa');
+        btn.title = isOn ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa';
+      });
+      document.documentElement.classList.toggle('fs-zoom', !!current);
+    });
+  }
+
+  /***********************
+   * SORTABLE
+  ************************/
+  function makeColumnsSortable(){
+    // Kanban
+    $$('#kanban-widget .cards-container').forEach(container => {
+      new Sortable(container, { group:'kanban-board', animation:150, ghostClass:'sortable-ghost', dragClass:'sortable-drag', onEnd: handleDragEnd });
+    });
+    // Kaizen
+    $$('#kaizen-widget .cards-container').forEach(container => {
+      new Sortable(container, { group:'kaizen-board', animation:150, ghostClass:'sortable-ghost', dragClass:'sortable-drag', onEnd: handleDragEnd });
+    });
+  }
+  async function handleDragEnd({ item, to, from, oldIndex }){
+    if (to === from) return;
+    const taskId = item.id.replace('task-','');
+    const newStatus = to.dataset.status;
+    try { await updateTaskOnServer(taskId, { status: newStatus }); }
+    catch { from.insertBefore(item, from.children[oldIndex]); }
+  }
+  let wakeLock;
+async function requestWakeLock(){
+  try{
+    wakeLock = await navigator.wakeLock?.request('screen');
+    wakeLock?.addEventListener('release', ()=> console.log('WakeLock liberado'));
+    document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='visible') requestWakeLock(); });
+  }catch(e){ console.log('WakeLock no disponible', e); }
+}
+
+
+  /***********************
+   * API HELPERS
+  ************************/
+  async function apiJSON(url, opts={}){
+    const r = await fetch(url, { headers:{'Content-Type':'application/json'}, ...opts });
+    if (!r.ok) throw new Error(`${opts.method||'GET'} ${url} -> ${r.status}`);
+    return r.headers.get('content-type')?.includes('json') ? r.json() : null;
+  }
+  const createTaskOnServer = (data) => apiJSON('/api/tasks', { method:'POST', body:JSON.stringify(data) });
+  const updateTaskOnServer = (id, data) => apiJSON(`/api/tasks/${id}`, { method:'PUT', body:JSON.stringify(data) });
+  const deleteTaskOnServer = (id) => apiJSON(`/api/tasks/${id}`, { method:'DELETE' });
+  const fetchTasks = () => apiJSON('/api/tasks');
+  const fetchExternal = () => apiJSON('/api/external-table', { cache:'no-store' });
+  const fetchRoster = () => apiJSON('/api/roster/current', { cache:'no-store' });
+
+  /***********************
+   * GW TOP-3
+  ************************/
+  const GW_MAP = new Map();
+  const gwGetDate = (t) => {
+    const cand = t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+    const d = cand ? new Date(cand) : null;
+    return (d && !isNaN(d)) ? d.getTime() : -Infinity;
+  };
+  function renderGwTop3(){
+    const cont = document.getElementById('gw-tasks-dynamic-container');
+    if(!cont) return;
+    cont.innerHTML = '';
+    const top3 = [...GW_MAP.values()].sort((a,b)=> gwGetDate(b)-gwGetDate(a)).slice(0,3);
+    top3.slice().reverse().forEach(t => renderGwTask(t, `task-${t.id}`));
+  }
+
+  /***********************
+   * RENDER CARDS / WIDGETS
+  ************************/
+  function updateAllColumnCounts(){
+    $$('#kanban-widget .kanban-column, #kaizen-widget .kanban-column').forEach(col=>{
+      const countEl = $('.column-title .count', col);
+      const items = $('.cards-container', col)?.children.length || 0;
+      if (countEl) countEl.textContent = `(${items})`;
+    });
+  }
+
+  function renderBoardCard(task, elementId){
+    const safeStatus = (task.status || '').replace(/\s+/g,'-');
+    const colId = `${task.task_type}-${safeStatus}`;
+    const col = document.getElementById(colId);
+    if (!col) return;
+
+    let card = document.getElementById(elementId);
+    if (!card) { card = document.createElement('div'); card.id = elementId; }
+    card.className = 'card';
+    card.dataset.status = (task.status || '').replace(/\s+/g,'-');
+
+    const catKey = (task.category || '').toLowerCase();
+    card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
+    if (['seguridad','incidencias','mantenimiento'].includes(catKey)) card.classList.add(`cat-${catKey}`);
+
+    const creationDate = task.created_at ? new Date(task.created_at).toISOString().split('T')[0] : '—';
+    const due = task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '—';
+    const catLabel = catKey ? (catKey[0].toUpperCase()+catKey.slice(1)) : 'General';
+
+    card.innerHTML = `
+      <div class="card-content">
+        <div class="card-title">
+          ${escapeHTML(task.title || '')}
+          <span class="cat-chip ${catKey}">${escapeHTML(catLabel)}</span>
+        </div>
+        <div class="card-details">Alta: ${escapeHTML(creationDate)} • Objetivo: ${escapeHTML(due)}</div>
+        <div class="card-assignee">${escapeHTML(task.assigned_to || 'Sin asignar')}</div>
+      </div>
+      <div class="card-actions">
+        <button class="delete-card-btn" title="Eliminar" aria-label="Eliminar tarjeta">
+          <svg class="icon" viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM2.5 3V2h11v1h-11z"/>
+          </svg>
+        </button>
+      </div>`;
+    ensureFullscreenBtn(card);
+    if (card.parentElement !== col) col.prepend(card);
+  }
+
+  function renderKaizenCard(task, elementId){
+    const safeStatus = (task.status || 'Proyectos').replace(/\s+/g,'-');
+    const colId = `kaizen-${safeStatus}`;
+    const col = document.getElementById(colId);
+    if (!col) return;
+
+    let card = document.getElementById(elementId);
+    if (!card) { card = document.createElement('div'); card.id = elementId; }
+    card.className = 'card';
+    card.dataset.status = (task.status || '').replace(/\s+/g,'-');
+
+    let dueHuman = '';
+    if (task.due_date) {
+      const d = new Date(task.due_date);
+      if (!isNaN(d)) dueHuman = d.toLocaleDateString('es-ES');
+    }
+
+    card.innerHTML = `
+      <div class="card-content">
+        <div class="card-title">${escapeHTML(task.title || '')}</div>
+        <div class="meta">
+          ${task.assigned_to ? `Responsable: ${escapeHTML(task.assigned_to)}` : 'Responsable: —'}
+          ${dueHuman ? ` • Fecha máx: ${escapeHTML(dueHuman)}` : ''}
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="delete-card-btn" title="Eliminar" aria-label="Eliminar tarjeta">
+          <svg class="icon" viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM2.5 3V2h11v1h-11z"/>
+          </svg>
+        </button>
+      </div>`;
+    ensureFullscreenBtn(card);
+    if (card.parentElement !== col) col.prepend(card);
+  }
+
+  function renderGwTask(task, elementId){
+    const container = $('#gw-tasks-dynamic-container');
+    if (!container) return;
+
+    let row = document.getElementById(elementId);
+    const checkboxId = `gw-check-${task.id}`;
+    const noteId = `gw-note-${task.id}`;
+
+    if (!row) { row = document.createElement('div'); row.id = elementId; container.prepend(row); }
+    row.className = 'gw-task-item' + (task.is_completed ? ' completed' : '');
+    row.innerHTML = `
+      <input type="checkbox" id="${checkboxId}" ${task.is_completed ? 'checked' : ''}>
+      <label for="${checkboxId}">${escapeHTML(task.title || '')}</label>
+      <input type="text" class="gw-note" id="${noteId}" placeholder="Añadir nota (opcional)" ${task.is_completed ? '' : 'disabled'} value="${escapeHTML(task.note || '')}">
+    `;
+  }
+
+  /***********************
+   * EVENTOS
+  ************************/
+  function setupEventListeners(){
+    // Crear Kanban
+    $('#new-kanban-form')?.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const f = e.target;
+      const data = {
+        task_type:'kanban_rapida',
+        status:'Abiertas',
+        category: f.elements.category.value,
+        title: f.elements.title.value.trim(),
+        due_date: f.elements.due_date.value,
+        assigned_to: f.elements.assigned_to.value.trim()
+      };
+      if (!data.category || !data.title || !data.due_date) return;
+      try { await createTaskOnServer(data); f.reset(); $('#problem-category').selectedIndex = 0; }
+      catch(err){ alert('Error: No se pudo crear la tarjeta.'); console.error(err); }
+    });
+
+    // Crear Kaizen
+    $('#new-kaizen-form')?.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const f = e.target;
+      const data = {
+        task_type:'kaizen',
+        status:'Proyectos',
+        title:(f.elements.title.value||'').trim(),
+        assigned_to:(f.elements.assigned_to.value||'').trim(),
+        due_date:f.elements.due_date.value || null
+      };
+      if (!data.title) return;
+      try { await createTaskOnServer(data); f.reset(); updateAllColumnCounts(); }
+      catch{ alert('No se pudo crear el KAIZEN.'); }
+    });
+
+    // Delegación: borrar tarjetas
+    document.addEventListener('click', async (e)=>{
+      const btn = e.target.closest('.delete-card-btn');
+      if (!btn) return;
+      const card = btn.closest('.card'); if (!card) return;
+      const id = card.id.replace('task-','');
+      if (confirm('¿Seguro que quieres eliminar esta tarjeta?')) {
+        try { await deleteTaskOnServer(id); card.remove(); updateAllColumnCounts(); }
+        catch { alert('No se pudo eliminar.'); }
+      }
+    });
+
+    // GW: check/nota
+    const rot = $('#rotativas-widget');
+    rot?.addEventListener('change', async (e)=>{
+      if (e.target.type === 'checkbox' && e.target.closest('.gw-task-item')) {
+        const item = e.target.closest('.gw-task-item');
+        const taskId = item.id.replace('task-','');
+        const isCompleted = e.target.checked;
+        const noteInput = item.querySelector('.gw-note');
+        if (noteInput) noteInput.disabled = !isCompleted;
+        item.classList.toggle('completed', isCompleted);
+        try { await apiJSON(`/api/tasks/${taskId}/complete`, { method:'PUT', body:JSON.stringify({ is_completed:isCompleted }) }); }
+        catch(err){ e.target.checked = !isCompleted; item.classList.toggle('completed', !isCompleted); if (noteInput) noteInput.disabled = isCompleted; alert('No se pudo actualizar la tarea (GW).'); }
+      }
+    });
+    rot?.addEventListener('keydown', async (e)=>{
+      if (e.target.classList.contains('gw-note') && e.key === 'Enter') {
+        e.preventDefault();
+        const id = e.target.id.replace('gw-note-','');
+        try { await apiJSON(`/api/tasks/${id}/note`, { method:'PUT', body:JSON.stringify({ note: e.target.value || '' }) }); e.target.blur(); }
+        catch{ alert('No se pudo guardar la nota.'); }
+      }
+    });
+    rot?.addEventListener('blur', async (e)=>{
+      if (e.target.classList.contains('gw-note')) {
+        const id = e.target.id.replace('gw-note-','');
+        try { await apiJSON(`/api/tasks/${id}/note`, { method:'PUT', body:JSON.stringify({ note: e.target.value || '' }) }); } catch{}
+      }
+    }, true);
+  }
+
+  /***********************
+   * KPI COSTES
+  ************************/
+  const formatEuro = (n) => (n==null || Number.isNaN(n)) ? '—' :
+    new Intl.NumberFormat('es-ES', { minimumFractionDigits:2, maximumFractionDigits:2 }).format(n);
+
+  function updateKpiTotalCost(value, timestamp){
+    const valueEl = $('#kpi-total-cost');
+    const metaEl  = $('#kpi-costes-meta');
+    const card    = $('#kpi-costes');
+    if (!valueEl || !card) return;
+
+    valueEl.textContent = formatEuro(value);
+    metaEl.textContent = timestamp ? `Actualizado: ${new Date(timestamp).toLocaleString('es-ES')}` : '';
+    card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+
+    try { localStorage.setItem('kpi_total_cost', JSON.stringify({ value, timestamp: timestamp || null })); } catch{}
+  }
+  function hydrateKpiTotalCost(){
+    try {
+      const cached = JSON.parse(localStorage.getItem('kpi_total_cost') || 'null');
+      if (cached && Number.isFinite(cached.value)) updateKpiTotalCost(cached.value, cached.timestamp);
+    } catch {}
+  }
+
+  /***********************
+   * EHS
+  ************************/
+  function initEhs(){
+    const now = new Date();
+    const year = now.getFullYear(), month = now.getMonth();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const monthEl = $('#ehs-month'), daysEl = $('#ehs-days'), spinEl = $('#ehs-spin');
+
+    monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long', year:'numeric'});
+    const monthKey = `${year}-${month+1}`;
+    const lastKey = localStorage.getItem('ehs_month_key');
+    let days = Number(localStorage.getItem('ehs_days_month')) || 0;
+    if (lastKey !== monthKey) days = 0;
+
+    function render(){
+      days = Math.max(0, Math.min(daysInMonth, Math.trunc(days)));
+      daysEl.textContent = days;
+      spinEl.setAttribute('aria-valuemin','0');
+      spinEl.setAttribute('aria-valuemax', String(daysInMonth));
+      spinEl.setAttribute('aria-valuenow', String(days));
+      localStorage.setItem('ehs_days_month', String(days));
+      localStorage.setItem('ehs_month_key', monthKey);
+    }
+    const inc = () => { if (days < daysInMonth) { days++; render(); } };
+    const dec = () => { if (days > 0) { days--; render(); } };
+    $$('#ehs-spin .ehs-btn').forEach(btn => btn.addEventListener('click', ()=> (btn.dataset.op === 'inc' ? inc() : dec())));
+    spinEl.addEventListener('keydown', (e)=>{
+      if (e.key === 'ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
+      if (e.key === 'ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
+      if (e.key === 'PageUp'){ e.preventDefault(); days = Math.min(daysInMonth, days + 5); render(); }
+      if (e.key === 'PageDown'){ e.preventDefault(); days = Math.max(0, days - 5); render(); }
+      if (e.key === 'Home'){ e.preventDefault(); days = 0; render(); }
+      if (e.key === 'End'){ e.preventDefault(); days = daysInMonth; render(); }
+    });
+    render();
+  }
+  function setEhsDays(n){
+    const daysEl = $('#ehs-days'), spinEl = $('#ehs-spin');
+    if (!daysEl || !spinEl) return;
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+    const v = Math.max(0, Math.min(daysInMonth, Number(n)||0));
+    daysEl.textContent = v;
+    spinEl.setAttribute('aria-valuenow', String(v));
+    localStorage.setItem('ehs_days_month', String(v));
+  }
+
+  /***********************
+   * TEAM ROSTER
+  ************************/
+  function renderRoster(listEl, people, meta){
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (!Array.isArray(people) || !people.length){
+      listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del informe actual.</div>';
+    } else {
+      people.forEach(p=>{
+        const name = p.nombre_completo || p.name || '—';
+        const horario = p.horario || '';
+        const obs = p.observaciones || '';
+        const row = document.createElement('div');
+        row.className = 'team-row';
+        row.innerHTML = `<div class="team-left"><span class="team-name">${escapeHTML(name)}</span>${horario?`<small class="meta"> • ${escapeHTML(horario)}</small>`:''}${obs?`<small class="meta"> • ${escapeHTML(obs)}</small>`:''}</div>`;
+        listEl.appendChild(row);
+      });
+    }
+    if (meta) {
+      const m = $('#team-meta'); if (m) m.textContent = [meta.shift, meta.window].filter(Boolean).join(' • ') || '—';
+    }
+  }
+  async function initTeamRoster(){
+    const list = $('#team-list');
+    if (!list) return;
+    try {
+      const state = await fetchRoster();
+      if (state) renderRoster(list, state.people || [], state.meta || null);
+      else list.innerHTML = '<div style="color:var(--text-muted)">Sin datos del informe. Añade manualmente o sube el Excel.</div>';
+    } catch {
+      list.innerHTML = '<div style="color:var(--text-muted)">No se pudo cargar el roster.</div>';
+    }
+  }
+
+  /***********************
+   * PLANIFICACIÓN (solo columnas whitelisted)
+  ************************/
+  const PLANIF_WHITELIST = [
+    'FlightId',
+    'FlightType',
+    'AircraftType',
+    'FlightIdentifier',
+    'Departure.Scheduled',
+    'PiecesProgress.Members.Manifested.Item1',
+    'WeightProgress.Members.Manifested.Item1'
+  ];
+
+  function renderPlanif(payload){
+    const cols = payload?.columns || [];
+    const rows = payload?.rows || [];
+    const fetchedAt = payload?.fetched_at || null;
+
+    const thead = $('#planif-table thead');
+    const tbody = $('#planif-table tbody');
+    const meta  = $('#planif-meta');
+    const foot  = $('#planif-foot');
+
+    // Elegimos y ordenamos solo las columnas solicitadas
+    const selected = PLANIF_WHITELIST
+      .map(name => ({ name, idx: cols.indexOf(name) }))
+      .filter(c => c.idx !== -1);
+
+    if (!selected.length) {
+      thead.innerHTML = '';
+      tbody.innerHTML = '<tr><td>No se encontraron las columnas pedidas.</td></tr>';
+      meta.textContent = '—';
+      if (foot) foot.textContent = '';
+      return;
+    }
+
+    thead.innerHTML = '<tr>' + selected.map(c=>`<th>${escapeHTML(c.name)}</th>`).join('') + '</tr>';
+
+    const MAX = 400;
+    const slice = rows.slice(0, MAX);
+    const frag = document.createDocumentFragment();
+    slice.forEach(r=>{
+      const tr = document.createElement('tr');
+      selected.forEach(c=>{
+        const v = r[c.idx];
+        const td = document.createElement('td');
+        td.textContent = (v==null) ? '' : String(v);
+        tr.appendChild(td);
+      });
+      frag.appendChild(tr);
+    });
+    tbody.innerHTML = ''; tbody.appendChild(frag);
+
+    meta.textContent = `Filas: ${rows.length} • Actualizado: ${fetchedAt ? new Date(fetchedAt).toLocaleString('es-ES') : '—'}`;
+    if (foot) foot.textContent = rows.length > MAX ? `Mostrando ${slice.length} de ${rows.length} filas.` : `Filas: ${rows.length}`;
+  }
+  async function loadPlanifTable(){ try { const st = await fetchExternal(); if (st) renderPlanif(st); } catch(e){ console.error('Planif error', e); } }
+
+  /***********************
+   * WEBSOCKET
+  ************************/
+  let wsAttempts = 0;
+function setConn(status, msg){
+  const b = document.getElementById('conn-banner'); if (!b) return;
+  if (status==='ok'){ b.textContent = msg || 'Conectado'; b.classList.add('ok'); setTimeout(()=> b.classList.add('hidden'), 1200); }
+  else { b.textContent = msg || 'Sin conexión — reconectando…'; b.classList.remove('ok','hidden'); }
+}
+window.addEventListener('online', ()=> setConn('ok','Conexión restaurada'));
+window.addEventListener('offline', ()=> setConn('ko','Sin conexión'));
+
+function wsBackoff(){ wsAttempts++; const base = 500 * Math.pow(1.5, wsAttempts); return Math.min(10000, base) + Math.floor(Math.random()*400); }
+
+function connectWebSocket(){
+  const wsUrl = `${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
+  const socket = new WebSocket(wsUrl);
+  socket.onopen  = ()=>{ wsAttempts=0; setConn('ok'); console.log('✅ WS conectado'); };
+  socket.onmessage = (ev)=>{ try { processTaskUpdate(JSON.parse(ev.data)); } catch{} };
+  socket.onclose = ()=>{ setConn('ko'); setTimeout(connectWebSocket, wsBackoff()); };
+  socket.onerror = (e)=>{ console.warn('WS error', e); try{ socket.close(); }catch{} };
+}
+
+
+  function processTaskUpdate(data){
+    // KPI Coste
+    if (data && (data.type==='kpi_update' || data.type==='kpi_state' || (data.metric && data.tab))) {
+      const metric = String(data.metric||'').trim().toLowerCase();
+      const tab = String(data.tab||'').trim();
+      if (metric === 'total cost' && (!tab || tab === 'MAD WFS1')) {
+        let v = data.value;
+        if (typeof v === 'string') { const m = v.match(/-?\d+(?:[.,]\d+)?/); v = m ? parseFloat(m[0].replace(',','.')) : null; }
+        else if (Array.isArray(v)) { const first = v[0] || {}; v = first['[Total Cost]'] ?? first['Total Cost'] ?? first.value ?? null; }
+        else if (v && typeof v === 'object') { v = v['[Total Cost]'] ?? v['Total Cost'] ?? v.value ?? null; }
+        if (Number.isFinite(v)) updateKpiTotalCost(v, data.timestamp);
+      }
+      return;
+    }
+
+    // Tabla externa
+    if (data && (data.type==='table_ping' || data.type==='table_state') && data.table === 'external') { loadPlanifTable(); return; }
+
+    // Roster
+    if (data && data.type === 'roster_update') { renderRoster($('#team-list'), data.people || [], data.meta || null); return; }
+
+    // EHS
+    if (data && data.type === 'ehs_update' && Number.isFinite(data.days)) { setEhsDays(data.days); return; }
+
+    // CRUD tarjetas + GW TOP-3
+    const elementId = data?.id ? `task-${data.id}` : '';
+    if (!elementId) return;
+
+    if (data.action === 'delete') {
+      document.getElementById(elementId)?.remove();
+      if (data.task_type === 'gw_task') { GW_MAP.delete(data.id); renderGwTop3(); }
+      updateAllColumnCounts();
+      return;
+    }
+
+    switch (data.task_type) {
+      case 'kanban_rapida': renderBoardCard(data, elementId); updateAllColumnCounts(); break;
+      case 'kaizen':        renderKaizenCard(data, elementId); updateAllColumnCounts(); break;
+      case 'gw_task':       GW_MAP.set(data.id, data); renderGwTop3(); break;
+      default: console.warn('task_type desconocido:', data.task_type);
+    }
+  }
+
+  /***********************
+   * 5S compacto (localStorage)
+  ************************/
+  const S5_STATE_KEY = 's5_state_v1';
+  function loadS5State(){ try { return JSON.parse(localStorage.getItem(S5_STATE_KEY) || '{}'); } catch { return {}; } }
+  function saveS5State(state){ try { localStorage.setItem(S5_STATE_KEY, JSON.stringify(state)); } catch {} }
+
+  function render5S(){
+    const strip = document.getElementById('s5-strip');
+    if (!strip) return;
+    const state = loadS5State();
+    let done = 0;
+    strip.querySelectorAll('.s5-pill').forEach(btn => {
+      const k = btn.dataset.key;
+      const on = !!state[k];
+      btn.classList.toggle('on', on);
+      if (on) done++;
+    });
+    const meta = document.getElementById('s5-meta');
+    if (meta){
+      const ts = state.updated_at ? new Date(state.updated_at).toLocaleString('es-ES') : null;
+      meta.textContent = `${done}/5 completadas${ts ? ` • Actualizado: ${ts}` : ''}`;
+    }
+  }
+  function toggle5S(key, el){
+    const state = loadS5State();
+    state[key] = !state[key];
+    state.updated_at = new Date().toISOString();
+    saveS5State(state);
+    render5S();
+    if (el){ el.classList.add('bump'); setTimeout(()=> el.classList.remove('bump'), 220); }
+  }
+  function init5S(){
+    const strip = document.getElementById('s5-strip');
+    if (!strip) return;
+    strip.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.s5-pill');
+      if (!btn) return;
+      const key = btn.dataset.key;
+      if (!key) return;
+      toggle5S(key, btn);
+    });
+    render5S();
+  }
+
+  /***********************
+   * INIT
+  ************************/
+  document.addEventListener('DOMContentLoaded', async () => {
+    initFullscreenToggles();
+    makeColumnsSortable();
+    setupEventListeners();
+    hydrateKpiTotalCost();
+    initEhs();
+    init5S();
+    initHeaderTimer();
+     // activar 5S compacto
+
+    await Promise.allSettled([ loadPlanifTable(), initTeamRoster() ]);
+
+    try {
+      const tasks = await fetchTasks();
+      $$('.cards-container').forEach(c => c.innerHTML = '');
+      const gw = document.getElementById('gw-tasks-dynamic-container'); if (gw) gw.innerHTML = '';
+      GW_MAP.clear();
+      (tasks||[]).forEach(processTaskUpdate);
+      updateAllColumnCounts();
+    } catch(e){ console.error('Error cargando tareas', e); }
+
+    connectWebSocket();
+  });
+  </script>
+  <div id="conn-banner" class="conn-banner hidden" role="status" aria-live="polite"></div>
+
+</body>
+</html>
