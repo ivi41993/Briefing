@@ -2,1478 +2,2049 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Factory Floor Dashboard - BCN</title>
 
-  <!-- Fuentes -->
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
+  <!-- SortableJS -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
   <style>
-    :root{
-      --ui-scale:1;
-    }
-    html{
-      font-size:calc(16px * var(--ui-scale));
-      -webkit-font-smoothing:antialiased;
-      text-rendering:optimizeLegibility;
-    }
-    @media (min-width:1600px){
-      :root{ --ui-scale:1.15; }
-    }
-
     :root {
-      /* Brand */
-      --brand-red-900:#7f1d1d;
-      --brand-red-800:#991b1b;
-      --brand-red-700:#b91c1c;
-      --brand-red-600:#dc2626;
-      --brand-red-500:#ef4444;
-      --brand-red-400:#f87171;
-
-      /* Palette */
-      --color-blue:#2563eb;
-      --color-yellow:#f59e0b;
-      --color-green:#16a34a;
-      --color-red:var(--brand-red-600);
-
-      /* Surfaces / text */
-      --bg-page:#f7f8fa;
-      --bg-card:#ffffff;
-      --bg-muted:#fafafa;
-      --border:#e6e8ec;
-      --text:#1f2937;
-      --text-secondary:#4b5563;
-      --text-muted:#6b7280;
-
-      /* Categories (card backgrounds) */
-      --cat-seg:#fee2e2;
-      --cat-inc:#fff1e6;
-      --cat-man:#eaf8f0;
+      --bg-main: #060814;
+      --bg-elevated: #0c1020;
+      --bg-elevated-soft: #15192a;
+      --accent-bcn: #2f8fff;
+      --accent-bcn-soft: rgba(47, 143, 255, 0.16);
+      --accent-ok: #35c759;
+      --accent-warn: #ffcc00;
+      --accent-bad: #ff3b30;
+      --accent-info: #5ac8fa;
+      --border-subtle: rgba(255,255,255,0.08);
+      --text-main: #ffffff;
+      --text-soft: rgba(255,255,255,0.72);
+      --radius-xl: 18px;
+      --radius-lg: 14px;
+      --shadow-soft: 0 14px 40px rgba(0,0,0,0.32);
+      --transition-fast: 0.18s ease-out;
+      --transition-med: 0.28s ease-out;
+      --ui-scale: 1;
+      --widget-gap: 14px;
+      --header-height: 82px;
+      --touch-min: 44px;
+      --font-main: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-title: "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg-page:#0b0e12;
-        --bg-card:#0f141a;
-        --bg-muted:#121820;
-        --border:#202733;
-        --text:#e5e7eb;
-        --text-secondary:#cbd5e1;
-        --text-muted:#94a3b8;
-        --cat-seg:#331c1e;
-        --cat-inc:#2b211a;
-        --cat-man:#16221a;
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      padding: max(10px, env(safe-area-inset-top)) 
+               max(10px, env(safe-area-inset-right))
+               max(10px, env(safe-area-inset-bottom))
+               max(10px, env(safe-area-inset-left));
+      transform-origin: top left;
+      transform: scale(var(--ui-scale));
+      transform-box: border-box;
+    }
+
+    .app-shell {
+      max-width: 1920px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* =======================
+       HEADER
+    ======================== */
+    header.app-header {
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(260px, 380px) auto;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      background: radial-gradient(circle at top left, rgba(47,143,255,0.16), transparent) #050814;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: var(--shadow-soft);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(14px);
+    }
+
+    .app-title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .app-title {
+      font-family: var(--font-title);
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .app-title span.station {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: var(--accent-bcn-soft);
+      color: var(--accent-bcn);
+      border: 1px solid rgba(47,143,255,0.5);
+    }
+
+    .app-subtitle {
+      font-size: 12px;
+      color: var(--text-soft);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .shift-pill {
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid rgba(255,255,255,0.18);
+      color: var(--accent-info);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .clock-display {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--text-soft);
+    }
+
+    .clock-display span.time {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    /* Timer widget */
+    #timer-widget {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+
+    #big-timer-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+    }
+
+    #big-timer-display {
+      font-family: var(--font-title);
+      font-size: 26px;
+      line-height: 1;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 10px;
+      background: rgba(5, 10, 25, 0.96);
+      border: 1px solid rgba(47,143,255,0.5);
+      cursor: pointer;
+      user-select: none;
+      min-width: 130px;
+      text-align: center;
+    }
+
+    #timer-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    #timer-reset-btn {
+      border: none;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 10px;
+      cursor: pointer;
+      background: rgba(255,255,255,0.06);
+      color: var(--text-soft);
+      min-height: var(--touch-min);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Header controls */
+    .header-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .scale-select-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    #scale-select {
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.16);
+      color: var(--text-main);
+      padding: 3px 8px;
+      font-size: 11px;
+      min-height: var(--touch-min);
+      cursor: pointer;
+    }
+
+    #present-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      background: linear-gradient(90deg, var(--accent-bcn), #7b5cff);
+      color: #fff;
+      min-height: var(--touch-min);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    }
+
+    #present-btn span.icon {
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    /* =======================
+       GRID 3 COLUMNAS
+    ======================== */
+    .dashboard-3col {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(300px, 360px);
+      gap: var(--widget-gap);
+      align-items: flex-start;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 1180px) {
+      .dashboard-3col {
+        grid-template-columns: minmax(0, 1fr);
       }
     }
 
-    *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-    html,body{ height:100%; }
-    body{
-      margin:0;
-      font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      font-size:clamp(14px,1.8vw,18px);
-      background:var(--bg-page);
-      color:var(--text);
-      -webkit-text-size-adjust:100%;
-    }
-    h1,h2,h3,.widget-title,.column-title .count{
-      font-family:"Space Grotesk","Inter",system-ui,sans-serif;
-      letter-spacing:.2px;
-    }
-    .visually-hidden{
-      position:absolute!important;
-      width:1px;height:1px;
-      padding:0;margin:-1px;
-      overflow:hidden;
-      clip:rect(0 0 0 0);
-      white-space:nowrap;
-      border:0;
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: var(--widget-gap);
     }
 
-    /* ===== LAYOUT 3 COL (MAD STYLE) ===== */
-    .dashboard-3col{
-      min-height:100svh;
-      height:auto;
-      display:grid;
-      grid-template-columns:320px 1fr 380px;
-      grid-template-rows:auto 1fr;
-      gap:16px;
-      padding:
-        max(clamp(12px,2vw,28px), env(safe-area-inset-top))
-        max(clamp(12px,2vw,28px), env(safe-area-inset-right))
-        max(clamp(12px,2vw,28px), env(safe-area-inset-bottom))
-        max(clamp(12px,2vw,28px), env(safe-area-inset-left));
-    }
-    header{
-      grid-column:1 / -1;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:16px;
-      position:relative;
-    }
-    .col-left,
-    .col-mid,
-    .col-right{
-      min-height:0;
-      overflow:auto;
-      -webkit-overflow-scrolling:touch;
-      overscroll-behavior:contain;
-      scroll-padding-bottom:40px;
-      display:flex;
-      flex-direction:column;
-      gap:16px;
+    /* =======================
+       WIDGETS BASE
+    ======================== */
+    .widget {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-xl);
+      padding: 10px 10px 9px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      min-height: 40px;
     }
 
-    header h1{
-      margin:0;
-      color:var(--brand-red-600);
-      font-weight:700;
-      font-size:clamp(1.6rem,1vw + 1rem,2.2rem);
-    }
-    .header-controls{
-      display:flex;
-      gap:12px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
-    .header-controls input{
-      padding:6px 10px;
-      border:1px solid var(--border);
-      border-radius:8px;
-      font-size:.9rem;
-      background:#fff;
-      min-height:44px;
-    }
-    .btn-primary{
-      background:linear-gradient(135deg,var(--brand-red-600),var(--brand-red-700));
-      color:#fff;
-      border:none;
-      border-radius:10px;
-      padding:10px 16px;
-      box-shadow:0 6px 16px rgba(220,38,38,.25);
-      cursor:pointer;
-      transition:.15s transform,.2s box-shadow,.2s filter;
-      min-height:44px;
-    }
-    .btn-primary:hover{
-      transform:translateY(-1px);
-      filter:saturate(110%);
+    .widget-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
     }
 
-    /* Cronómetro header (compacto) */
-    .header-timer{ min-height:56px; display:flex; align-items:center; gap:8px; }
-    .header-timer .timer-face{
-      display:flex; align-items:center; gap:8px;
-      padding:4px 8px; border-radius:10px;
-      background:var(--bg-card); border:1px solid var(--border);
-    }
-    .header-timer .timer-display{
-      font-family:"Space Grotesk",Inter,sans-serif;
-      font-weight:700;
-      font-size:clamp(1.8rem,5vw,5rem);
-      line-height:1;
-      cursor:pointer;
-    }
-    .header-timer .timer-dot{
-      width:10px; height:10px;
-      border-radius:999px;
-      background:var(--brand-red-500);
-    }
-    .header-timer .timer-reset{
-      min-width:40px; min-height:40px;
-      padding:6px 10px;
-      border-radius:10px;
-      border:1px solid var(--border);
-      background:var(--bg-card);
-      cursor:pointer;
-      font-size:.8rem;
-      font-weight:600;
-    }
-    @media(max-width:700px){
-      .header-timer .timer-display{
-        font-size:clamp(1.4rem,7.5vw,2.6rem);
-      }
+    .widget-title {
+      font-family: var(--font-title);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent-bcn);
     }
 
-    /* ===== Widgets / Cards ===== */
-    .widget,
-    .card{
-      position:relative;
-      background:var(--bg-card);
-      border:1px solid var(--border);
-      border-radius:12px;
-      box-shadow:0 6px 18px rgba(17,24,39,.06);
-      padding:16px;
-    }
-    .widget-title{
-      margin:0 0 12px;
-      font-size:1.05rem;
-      font-weight:700;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-    }
-    .widget-title-icon{
-      width:16px;height:16px;
-      color:var(--text-muted);
+    .widget-subtitle {
+      font-size: 10px;
+      color: var(--text-soft);
     }
 
-    /* Kanban */
-    .board-container{
-      display:grid;
-      gap:12px;
-    }
-    .board-container.kanban{
-      grid-template-columns:repeat(4,minmax(0,1fr));
+    .widget-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
-    .kanban-column{
-      display:flex;
-      flex-direction:column;
-      min-width:0;
-    }
-    .column-title{
-      display:flex;
-      justify-content:space-between;
-      align-items:baseline;
-      margin:0 0 6px;
-      padding-bottom:8px;
-      border-bottom:2px solid #e9ecef;
-      font-size:.85rem;
-      font-weight:600;
-      color:var(--text-muted);
-    }
-    .column-title .count{
-      padding:2px 6px;
-      border-radius:6px;
-      background:#eef1f4;
-      font-size:.8rem;
-      color:var(--text-muted);
-    }
-    .cards-container{
-      min-height:120px;
-      max-height:clamp(240px,48svh,70vh);
-      padding-top:4px;
-      overflow:auto;
-      -webkit-overflow-scrolling:touch;
-      overscroll-behavior:contain;
-      display:flex;
-      flex-direction:column;
-      gap:8px;
+    .pill {
+      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--text-soft);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
     }
 
-    .card{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      padding:10px 12px;
-      cursor:grab;
-    }
-    .card:hover{
-      box-shadow:0 2px 8px rgba(0,0,0,.06);
-    }
-    .card-content{
-      flex:1 1 auto;
-      min-width:0;
-    }
-    .card-title{
-      margin:0 0 4px;
-      font-weight:600;
-      font-size:.95rem;
-      line-height:1.25;
-      white-space:normal;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .card-details,
-    .card-assignee{
-      font-size:.8rem;
-      color:var(--text-muted);
-    }
-    .card-assignee{ margin-top:2px; }
-    .card-actions{
-      display:flex;
-      align-items:center;
-      gap:4px;
-    }
-    .delete-card-btn{
-      background:none;
-      border:none;
-      color:#9ca3af;
-      padding:4px;
-      border-radius:6px;
-      cursor:pointer;
-      display:none;
-    }
-    .card:hover .delete-card-btn{
-      display:block;
-    }
-    .delete-card-btn:hover{
-      color:var(--color-red);
-      background:var(--bg-muted);
+    .fs-toggle {
+      border: none;
+      background: transparent;
+      color: var(--text-soft);
+      cursor: pointer;
+      padding: 2px 4px;
+      min-height: var(--touch-min);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
     }
 
-    .sortable-ghost{ opacity:.4; background:#dee2e6; }
-    .sortable-drag{
-      opacity:1!important;
-      transform:rotate(2deg);
-      box-shadow:0 8px 24px rgba(0,0,0,.15);
+    .widget-body {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-soft);
     }
 
-    /* Category chips */
-    .cat-chip{
-      display:inline-block;
-      margin-left:6px;
-      padding:2px 6px;
-      border-radius:999px;
-      font-size:.7rem;
-      font-weight:700;
-      border:1px solid rgba(0,0,0,.08);
-      background:rgba(255,255,255,.8);
-      vertical-align:middle;
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.04);
+      color: var(--text-soft);
     }
 
-    /* BCN categories full background in Kanban */
-    #kanban-widget .card.cat-seguridad{ background:var(--cat-seg); }
-    #kanban-widget .card.cat-incidencias{ background:var(--cat-inc); }
-    #kanban-widget .card.cat-mantenimiento{ background:var(--cat-man); }
-
-    /* Status colors (left border) */
-    .card[data-status="Abiertas"]{ border-left:4px solid var(--color-blue); }
-    .card[data-status="En-Curso"],
-    .card[data-status="En-Progreso"]{ border-left:4px solid var(--color-yellow); }
-    .card[data-status="Vencidas"]{ border-left:4px solid var(--color-red); }
-    .card[data-status="Cerradas"],
-    .card[data-status="Hecho"]{ border-left:4px solid var(--color-green); }
-
-    /* Forms */
-    .new-item-form{
-      display:grid;
-      grid-template-columns:1fr 1fr auto 1fr auto;
-      gap:8px;
-      align-items:center;
-      margin-top:12px;
-      padding-top:12px;
-      border-top:1px solid var(--border);
-      flex-wrap:wrap;
-    }
-    .new-item-form input,
-    .new-item-form select{
-      padding:8px;
-      border:1px solid var(--border);
-      border-radius:8px;
-      background:var(--bg-card);
-      color:var(--text);
-      font-size:.85rem;
-      min-width:0;
+    /* =======================
+       TEAM / ROSTER
+    ======================== */
+    #team-widget {
+      background: radial-gradient(circle at top, rgba(47,143,255,0.12), transparent) var(--bg-elevated);
     }
 
-    /* KPIs Costes BCN */
-    .kpi-value.large{
-      font-size:clamp(2.1rem,2.3vw + 1rem,3.2rem);
-      line-height:1;
-      font-weight:800;
-      color:var(--brand-red-600);
-    }
-    .kpi-text{
-      color:var(--text-muted);
-      margin:0;
-      font-size:.85rem;
-    }
-    .kpi-currency{
-      font-size:1rem;
-      font-weight:600;
-      margin-left:4px;
-      vertical-align:super;
-      color:var(--brand-red-600);
-    }
-    .flash{
-      animation:flash-kpi 900ms ease-out;
-    }
-    @keyframes flash-kpi{
-      from{ background:#fff3cd; }
-      to{ background:transparent; }
+    #team-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: 9px;
+      color: var(--text-soft);
     }
 
-    /* LEAN estado */
-    .lean-status-container{ display:flex; flex-direction:column; gap:8px; }
-    .lean-status-item{ display:flex; justify-content:space-between; align-items:center; font-size:.9rem; }
-    .status-tag{
-      font-size:.75rem; font-weight:700;
-      padding:2px 8px; border-radius:12px;
-    }
-    .status-ok{
-      color:#166534; background:#e3f9e5;
-    }
-    .status-alert{
-      color:#991b1b; background:#ffe3e3;
+    #team-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 2px;
+      max-height: 260px;
+      overflow-y: auto;
+      padding-right: 4px;
     }
 
-    /* EHS */
-    #ehs-widget{ display:flex; flex-direction:column; gap:8px; }
-    #ehs-month{ color:var(--text-muted); font-size:.9rem; }
-    .ehs-controls{
-      display:flex; align-items:center; gap:14px;
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:8px 10px;
-      background:var(--bg-card);
-    }
-    .ehs-btn{
-      width:42px; height:42px;
-      border:none; border-radius:10px;
-      cursor:pointer;
-      background:linear-gradient(135deg,var(--brand-red-600),var(--brand-red-700));
-      color:#fff; font-size:1.3rem;
-      display:flex; align-items:center; justify-content:center;
-    }
-    .ehs-big{
-      font-size:clamp(2rem,2.2vw + .8rem,3rem);
-      font-weight:800;
-      line-height:1;
-      color:var(--brand-red-600);
-      min-width:3ch;
-      text-align:center;
+    .team-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) 0.9fr 0.6fr 0.7fr;
+      gap: 4px;
+      align-items: center;
+      padding: 4px 5px;
+      border-radius: 9px;
+      background: rgba(9,12,25,0.96);
+      border: 1px solid rgba(255,255,255,0.04);
+      font-size: 9px;
     }
 
-    /* Team / Turno */
-    .team-form{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      margin:8px 0;
-    }
-    .btn-compact{
-      width:32px; height:32px;
-      border:none; border-radius:8px;
-      cursor:pointer;
-      background:linear-gradient(135deg,var(--brand-red-600),var(--brand-red-700));
-      color:#fff; font-size:1.1rem;
-    }
-    .team-list{ display:flex; flex-direction:column; gap:6px; }
-    .team-row{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      padding:6px 8px;
-      border:1px solid var(--border);
-      border-radius:8px;
-      background:var(--bg-card);
-    }
-    .team-left{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    .team-name{ font-weight:600; }
-
-    /* Turno anterior note */
-    .editable-note{
-      min-height:96px;
-      padding:10px 12px;
-      border:1px solid var(--border);
-      border-radius:10px;
-      background:var(--bg-card);
-      line-height:1.4;
-      outline:none;
-    }
-    .editable-note[contenteditable="true"]:empty:before{
-      content:attr(data-placeholder);
-      color:var(--text-muted);
+    .team-name {
+      font-size: 10px;
+      color: var(--text-main);
     }
 
-    /* Planificación BCN */
-    .table-scroll{
-      overflow:auto;
-      max-height:320px;
-      border:1px solid var(--border);
-      border-radius:8px;
-      background:var(--bg-card);
-      padding-bottom:8px;
-    }
-    table.pl-table{
-      width:100%;
-      border-collapse:collapse;
-      font-size:.9rem;
-    }
-    .pl-table thead th{
-      position:sticky;
-      top:0;
-      background:var(--bg-muted);
-      border-bottom:1px solid var(--border);
-      text-align:left;
-      padding:8px;
-      z-index:2;
-    }
-    .pl-table tbody td{
-      padding:8px;
-      border-bottom:1px solid var(--border);
-      white-space:nowrap;
-    }
-    .pl-foot{
-      margin-top:6px;
-      color:var(--text-muted);
-      font-size:.8rem;
+    .presence-toggle {
+      width: 26px;
+      height: 18px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.24);
+      color: var(--accent-ok);
+      background: rgba(0,0,0,0.7);
+      user-select: none;
     }
 
-    /* 5S compacto */
-    .s5-compact{
-      display:flex;
-      gap:6px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-    .s5-pill{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      border:1px solid var(--border);
-      background:#fff;
-      border-radius:999px;
-      padding:6px 10px;
-      font-size:.8rem;
-      line-height:1;
-      cursor:pointer;
-      user-select:none;
-      transition:transform .06s, box-shadow .12s, border-color .12s, background .12s;
-    }
-    .s5-pill:hover{ transform:translateY(-1px); }
-    .s5-dot{
-      width:8px; height:8px;
-      border-radius:50%;
-      background:#d1d5db;
-    }
-    .s5-pill.on{
-      background:linear-gradient(135deg,#ecfdf5,#ffffff);
-      border-color:rgba(16,185,129,.55);
-      box-shadow:inset 0 0 0 2px rgba(16,185,129,.08);
-    }
-    .s5-pill.on .s5-dot{ background:#10b981; }
-    @keyframes s5-bump{0%{transform:scale(1);}50%{transform:scale(1.05);}100%{transform:scale(1);}}
-    .s5-pill.bump{ animation:s5-bump .18s ease-out; }
-    #s5-meta{ margin-top:4px; font-size:.78rem; }
-
-    /* GW */
-    .gw-task-item{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      padding:6px 4px;
-      font-size:.9rem;
-      border-bottom:1px solid var(--border);
-    }
-    .gw-task-item:last-child{ border-bottom:none; }
-    .gw-task-item.completed label{
-      color:var(--text-muted);
-      text-decoration:line-through;
-    }
-    .gw-note{
-      flex:1;
-      min-width:120px;
-      padding:6px 8px;
-      border:1px solid var(--border);
-      border-radius:6px;
-      background:var(--bg-card);
-      font-size:.8rem;
-    }
-    .gw-note:disabled{
-      background:#f8f9fa;
-      color:var(--text-muted);
+    .presence-toggle.off {
+      color: var(--accent-bad);
+      opacity: 0.7;
     }
 
-    /* Fullscreen toggles */
-    .fs-toggle{
-      position:absolute;
-      top:10px;
-      right:10px;
-      border:1px solid var(--border);
-      background:rgba(255,255,255,.95);
-      border-radius:12px;
-      padding:10px;
-      cursor:pointer;
-      line-height:0;
-      opacity:.8;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      transition:opacity .15s, transform .15s, box-shadow .15s;
-      box-shadow:0 4px 12px rgba(0,0,0,.10);
-      min-width:36px;
-      min-height:36px;
-    }
-    .fs-toggle:hover{
-      opacity:1;
-      transform:scale(1.06);
-    }
-    .fs-toggle svg{
-      width:18px;height:18px;
-    }
-    .widget:fullscreen,
-    .card:fullscreen{
-      background:#fff;
-      border-radius:0;
-      box-shadow:none;
-      padding:24px;
-    }
-    :fullscreen{ overflow:auto; }
-    html.fs-zoom{ font-size:18px; }
-    @media(min-width:1280px){
-      html.fs-zoom{ font-size:20px; }
+    .zone-select {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.02);
+      color: var(--text-soft);
+      font-size: 9px;
+      padding: 2px 4px;
+      min-height: 22px;
+      cursor: pointer;
     }
 
-    /* Conn banner */
-    .conn-banner{
-      position:fixed;
-      right:12px; top:12px;
-      z-index:9999;
-      background:#fee2e2;
-      color:#7f1d1d;
-      border:1px solid #fecaca;
-      padding:8px 12px;
-      border-radius:10px;
-      box-shadow:0 6px 18px rgba(0,0,0,.08);
-      font-size:.8rem;
+    #roster-upload {
+      font-size: 8px;
+      color: var(--text-soft);
+      margin-top: 2px;
     }
-    .conn-banner.ok{
-      background:#ecfdf5;
-      color:#166534;
-      border-color:#bbf7d0;
-    }
-    .hidden{ display:none!important; }
 
-    /* Responsive */
-    @media (max-width:1200px){
-      .dashboard-3col{
-        grid-template-columns:1fr;
-        grid-template-rows:auto auto auto auto;
-      }
-      .col-left,.col-right{ order:2; }
-      .col-mid{ order:1; }
-      .board-container.kanban{
-        grid-template-columns:repeat(2,minmax(0,1fr));
-      }
-      .new-item-form{
-        grid-template-columns:1fr;
-      }
+    /* =======================
+       BRIEFING CHECKLIST BCN
+    ======================== */
+    #brief-check {
+      background: radial-gradient(circle at top right, rgba(47,143,255,0.10), transparent) var(--bg-elevated);
     }
-    @media (hover:none) and (pointer:coarse){
-      .btn-primary,
-      .ehs-btn,
-      .btn-compact,
-      .delete-card-btn,
-      .s5-pill{
-        min-height:44px;
-      }
-      .new-item-form input,
-      .new-item-form select{
-        padding:12px;
-      }
+
+    .checklist-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 6px;
     }
-    @media (prefers-reduced-motion:reduce){
-      *{ animation:none!important; transition:none!important; }
+
+    .check-card {
+      padding: 6px;
+      border-radius: 10px;
+      background: rgba(5,8,18,0.98);
+      border: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .check-label {
+      font-size: 9px;
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    .check-meta {
+      font-size: 8px;
+      color: var(--text-soft);
+    }
+
+    .check-options {
+      display: flex;
+      gap: 4px;
+      margin-top: 2px;
+      font-size: 8px;
+      align-items: center;
+    }
+
+    .check-options label {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      cursor: pointer;
+    }
+
+    .check-options input {
+      margin: 0;
+      width: 10px;
+      height: 10px;
+    }
+
+    #brief-help {
+      margin-top: 2px;
+      font-size: 8px;
+      color: var(--accent-info);
+      min-height: 12px;
+    }
+
+    /* =======================
+       KANBAN RAPIDA BCN
+    ======================== */
+    #kanban-widget {
+      background: var(--bg-elevated-soft);
+    }
+
+    .kanban-layout {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .kanban-col {
+      background: rgba(0,0,0,0.6);
+      border-radius: 10px;
+      padding: 4px;
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 8px;
+    }
+
+    .kanban-col-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+      align-items: center;
+      font-size: 8px;
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .kanban-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 40px;
+    }
+
+    .kanban-card {
+      padding: 4px;
+      border-radius: 8px;
+      background: rgba(9,15,30,0.98);
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      cursor: grab;
+      position: relative;
+    }
+
+    .kanban-title {
+      font-size: 9px;
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    .kanban-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      font-size: 7px;
+      color: var(--text-soft);
+      align-items: center;
+    }
+
+    .badge {
+      padding: 1px 4px;
+      border-radius: 999px;
+      font-size: 7px;
+      background: rgba(255,255,255,0.04);
+    }
+
+    .badge-cat-seguridad { background-color: rgba(255, 59, 48, 0.16); color: #ff3b30; }
+    .badge-cat-incidencias { background-color: rgba(255, 204, 0, 0.18); color: #ffcc00; }
+    .badge-cat-mantenimiento { background-color: rgba(88, 86, 214, 0.20); color: #8e8aff; }
+    .badge-cat-calidad { background-color: rgba(52, 199, 89, 0.18); color: #34c759; }
+    .badge-cat-servicio { background-color: rgba(90, 200, 250, 0.18); color: #5ac8fa; }
+
+    .btn-delete {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.34);
+      font-size: 9px;
+      cursor: pointer;
+    }
+
+    .kanban-form {
+      margin-top: 4px;
+      display: grid;
+      grid-template-columns: 0.9fr 1.4fr 0.9fr 0.9fr auto;
+      gap: 4px;
+      align-items: center;
+      font-size: 8px;
+    }
+
+    .kanban-form input,
+    .kanban-form select {
+      width: 100%;
+      padding: 3px 4px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(0,0,0,0.7);
+      color: var(--text-main);
+      font-size: 9px;
+      min-height: 22px;
+    }
+
+    .kanban-form button {
+      padding: 4px 7px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent-bcn);
+      color: #fff;
+      font-size: 9px;
+      cursor: pointer;
+      min-height: 22px;
+      white-space: nowrap;
+    }
+
+    /* =======================
+       KAIZEN
+    ======================== */
+    #kaizen-widget .kaizen-layout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 6px;
+      font-size: 8px;
+      margin-top: 4px;
+    }
+
+    .kaizen-col {
+      background: rgba(0,0,0,0.7);
+      border-radius: 10px;
+      padding: 4px;
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .kaizen-col-title {
+      font-size: 8px;
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 2px;
+    }
+
+    .kaizen-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 32px;
+    }
+
+    .kaizen-card {
+      padding: 3px 4px;
+      border-radius: 8px;
+      background: rgba(9,14,25,0.98);
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      cursor: grab;
+      font-size: 8px;
+    }
+
+    .kaizen-form {
+      margin-top: 4px;
+      display: grid;
+      grid-template-columns: 1.6fr 1fr auto;
+      gap: 4px;
+      font-size: 8px;
+    }
+
+    .kaizen-form input {
+      width: 100%;
+      padding: 3px 4px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(0,0,0,0.7);
+      color: var(--text-main);
+      font-size: 9px;
+      min-height: 22px;
+    }
+
+    .kaizen-form button {
+      padding: 4px 7px;
+      border-radius: 8px;
+      border: none;
+      background: #34c759;
+      color: #000;
+      font-size: 9px;
+      cursor: pointer;
+      min-height: 22px;
+      white-space: nowrap;
+    }
+
+    /* =======================
+       5S & GW (TOP 3)
+    ======================== */
+    #rotativas-widget {
+      background: var(--bg-elevated-soft);
+    }
+
+    .s5-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 2px;
+    }
+
+    .s5-pill {
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 8px;
+      border: 1px solid rgba(255,255,255,0.18);
+      cursor: pointer;
+      color: var(--text-soft);
+      background: rgba(0,0,0,0.7);
+      min-height: 22px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .s5-pill.active {
+      background: var(--accent-ok);
+      color: #000;
+      border-color: var(--accent-ok);
+    }
+
+    .s5-meta {
+      font-size: 8px;
+      color: var(--text-soft);
+    }
+
+    .gw-list {
+      margin-top: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 8px;
+    }
+
+    .gw-item {
+      padding: 3px 4px;
+      border-radius: 7px;
+      background: rgba(0,0,0,0.8);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: grid;
+      grid-template-columns: auto minmax(0,1.9fr) minmax(0, 2.2fr);
+      gap: 4px;
+      align-items: center;
+    }
+
+    .gw-item input[type="checkbox"] {
+      width: 11px;
+      height: 11px;
+      margin: 0;
+    }
+
+    .gw-note {
+      width: 100%;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(0,0,0,0.9);
+      color: var(--text-main);
+      font-size: 8px;
+      padding: 2px 4px;
+      min-height: 18px;
+    }
+
+    .gw-note:disabled {
+      opacity: 0.45;
+    }
+
+    /* =======================
+       KPI COSTES BCN
+    ======================== */
+    #kpi-costes {
+      background: radial-gradient(circle at top, rgba(47,143,255,0.14), transparent) var(--bg-elevated);
+    }
+
+    .kpi-main {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-family: var(--font-title);
+    }
+
+    #kpi-costes-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent-bcn);
+    }
+
+    .kpi-label {
+      font-size: 9px;
+      color: var(--text-soft);
+      max-width: 150px;
+    }
+
+    .kpi-updated {
+      font-size: 7px;
+      color: var(--text-soft);
+    }
+
+    .flash {
+      animation: flash 0.5s ease-out;
+    }
+
+    @keyframes flash {
+      0% { box-shadow: 0 0 0 rgba(47,143,255,0.0); }
+      40% { box-shadow: 0 0 22px rgba(47,143,255,0.65); }
+      100% { box-shadow: 0 0 0 rgba(47,143,255,0.0); }
+    }
+
+    /* =======================
+       EHS
+    ======================== */
+    #ehs-widget .ehs-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 9px;
+    }
+
+    .ehs-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ehs-value {
+      font-size: 16px;
+      font-weight: 700;
+      min-width: 38px;
+      text-align: center;
+    }
+
+    .ehs-btn {
+      padding: 3px 6px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.8);
+      color: var(--text-soft);
+      font-size: 9px;
+      cursor: pointer;
+      min-height: 22px;
+    }
+
+    /* =======================
+       PLANIFICACIÓN EXTERNA
+    ======================== */
+    #planificacion-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8px;
+    }
+
+    #planificacion-table th,
+    #planificacion-table td {
+      padding: 3px 4px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    #planificacion-table th {
+      color: var(--accent-info);
+      font-weight: 500;
+      position: sticky;
+      top: 0;
+      background: rgba(5,8,18,0.98);
+      z-index: 1;
+    }
+
+    .scroll-y {
+      max-height: 200px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    /* =======================
+       INFO TURNO ANTERIOR
+    ======================== */
+    #prev-shift-body {
+      font-size: 9px;
+      color: var(--text-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    /* Fullscreen util */
+    .fullscreen-target:fullscreen,
+    :fullscreen .fullscreen-target {
+      z-index: 999;
     }
   </style>
 </head>
 <body>
-  <!-- Controles de escala / presentación (como MAD) -->
-  <select id="scale-select" aria-label="Escala UI">
-    <option value="1">100%</option>
-    <option value="1.15" selected>115%</option>
-    <option value="1.3">130%</option>
-    <option value="1.5">150%</option>
-  </select>
-  <button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">Presentar</button>
+<div class="app-shell">
 
-  <div class="dashboard-3col">
-    <!-- HEADER -->
-    <header>
-      <div class="header-left">
-        <h1>Factory Floor Dashboard - BCN</h1>
+  <!-- ================= HEADER ================= -->
+  <header class="app-header">
+    <div class="app-title-block">
+      <div class="app-title">
+        Factory Floor Dashboard
+        <span class="station">BCN</span>
       </div>
-
-      <!-- Cronómetro -->
-      <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
-        <div class="timer-face" id="timer-face">
-          <div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
-          <span class="timer-dot" aria-hidden="true"></span>
-        </div>
-        <button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+      <div class="app-subtitle">
+        <span>Operación en tiempo real • Export / Import • Handling BCN</span>
+        <span class="shift-pill" id="shift-pill">
+          Turno actual: <strong id="shift-label">N/A</strong>
+        </span>
+        <span class="clock-display">
+          <span class="time" id="clock-time">--:--</span>
+          <span id="clock-date">--/--/----</span>
+        </span>
       </div>
+    </div>
 
-      <div class="header-controls">
-        <input type="text" class="date-picker" value="julio de 2025" aria-label="Mes">
-        <input type="text" placeholder="WHOP" aria-label="Filtro WHOP">
-        <button class="btn-primary" type="button">Generar Resumen</button>
+    <div id="timer-widget">
+      <div id="big-timer-label">Cronómetro briefing / incidencias</div>
+      <div id="big-timer-display" aria-label="Cronómetro de sala">00:00:00</div>
+      <div id="timer-controls">
+        <button id="timer-reset-btn">Reiniciar</button>
       </div>
-    </header>
+    </div>
 
-    <!-- COLUMNA IZQUIERDA — EQUIPO BCN -->
-    <aside class="col-left">
+    <div class="header-controls">
+      <div class="scale-select-wrap">
+        Escala UI:
+        <select id="scale-select">
+          <option value="0.9">90%</option>
+          <option value="1" selected>100%</option>
+          <option value="1.1">110%</option>
+          <option value="1.2">120%</option>
+        </select>
+      </div>
+      <button id="present-btn">
+        <span class="icon">⤢</span>
+        Presentar BCN
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= GRID 3 COL ================= -->
+  <main class="dashboard-3col fullscreen-target" id="dashboard-root">
+    <!-- COL IZQUIERDA -->
+    <section class="col" id="left-col">
+
+      <!-- TEAM / TURNO -->
       <section class="widget" id="team-widget">
-        <h2 class="widget-title">Equipo / Turno</h2>
-        <small class="kpi-text" id="team-meta">—</small>
-        <form id="team-form" class="team-form" autocomplete="off">
-          <input type="text" id="team-name" placeholder="Añadir persona…" aria-label="Nombre" required>
-          <button type="submit" class="btn-compact" aria-label="Añadir persona">+</button>
-        </form>
-        <div id="team-list" class="team-list"></div>
-      </section>
-
-      <section class="widget" id="prev-shift-widget">
-        <h2 class="widget-title">Información Turno Anterior</h2>
-        <div id="prev-shift-note"
-             class="editable-note"
-             contenteditable="true"
-             role="textbox"
-             aria-multiline="true"
-             aria-label="Escribe la información del turno anterior"
-             spellcheck="true"
-             data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
-        <small class="kpi-text" id="prev-shift-saved-hint"></small>
-      </section>
-    </aside>
-
-    <!-- COLUMNA CENTRAL — ACCIONES BCN -->
-    <main class="col-mid">
-      <!-- Kanban Respuesta Rápida -->
-      <section class="widget" id="kanban-widget">
-        <h2 class="widget-title">Respuesta Rápida (Kanban)</h2>
-        <div class="board-container kanban">
-          <div class="kanban-column">
-            <h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
-            <div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">Equipo / Turno BCN</div>
+            <div class="widget-subtitle">Roster operativo en vivo desde SAP / Excel</div>
           </div>
-          <div class="kanban-column">
-            <h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
-            <div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
-          </div>
-          <div class="kanban-column">
-            <h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
-            <div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
-          </div>
-          <div class="kanban-column">
-            <h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
-            <div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
+          <div class="widget-actions">
+            <div class="pill" id="team-count-pill">0 personas</div>
+            <button class="fs-toggle" data-fs-target="#team-widget">⤢</button>
           </div>
         </div>
-
-        <form class="new-item-form" id="new-kanban-form">
-          <select id="problem-category" name="category" required aria-label="Categoría">
-            <option value="" disabled selected>Selecciona categoría…</option>
-            <option value="seguridad">Seguridad</option>
-            <option value="incidencias">Incidencias</option>
-            <option value="mantenimiento">Mantenimiento</option>
-          </select>
-          <input type="text" name="title" placeholder="Tipo de problema" required>
-          <input type="date" name="due_date" required aria-label="Fecha objetivo">
-          <input type="text" name="assigned_to" placeholder="Equipo responsable" required>
-          <button class="btn-primary" type="submit">Añadir</button>
-        </form>
+        <div class="widget-body">
+          <div id="team-meta">
+            <span>Fecha hoja: <span id="team-sheet-date">--/--</span></span>
+            <span>Shift: <span id="team-shift">--</span></span>
+            <span>Ventana: <span id="team-window">--</span></span>
+          </div>
+          <div id="team-list"></div>
+          <div id="roster-upload">
+            <label>
+              Actualizar roster BCN:
+              <input type="file" id="roster-file" accept=".xlsx,.xls" />
+            </label>
+          </div>
+        </div>
       </section>
 
-      <!-- Carga / Planificación BCN -->
-      <section class="widget kpi-widget" id="planif-widget">
-        <h3 class="widget-title">Carga / Planificación</h3>
-        <small class="kpi-text" id="planif-meta">—</small>
-        <div class="table-scroll">
-          <table class="pl-table" id="planif-table">
-            <thead></thead>
-            <tbody></tbody>
+      <!-- INFO TURNO ANTERIOR -->
+      <section class="widget" id="prev-shift-widget">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">Turno anterior BCN</div>
+            <div class="widget-subtitle">Resumen rápido para handover</div>
+          </div>
+          <div class="widget-actions">
+            <button class="fs-toggle" data-fs-target="#prev-shift-widget">⤢</button>
+          </div>
+        </div>
+        <div class="widget-body" id="prev-shift-body">
+          <div id="prev-shift-notes">Sin datos aún. Sincronizar con backend para mostrar incidencias clave.</div>
+        </div>
+      </section>
+
+      <!-- EHS -->
+      <section class="widget" id="ehs-widget">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">EHS BCN</div>
+            <div class="widget-subtitle">Días sin incidentes / con incidentes</div>
+          </div>
+          <div class="widget-actions">
+            <button class="fs-toggle" data-fs-target="#ehs-widget">⤢</button>
+          </div>
+        </div>
+        <div class="widget-body ehs-body">
+          <div class="ehs-row">
+            <span>Días sin incidentes (mes actual)</span>
+            <span class="ehs-value" id="ehs-days-safe">0</span>
+            <button class="ehs-btn" data-ehs-delta="safe:-1">-</button>
+            <button class="ehs-btn" data-ehs-delta="safe:+1">+</button>
+          </div>
+          <div class="ehs-row">
+            The
+            <span>Días con incidentes (mes actual)</span>
+            <span class="ehs-value" id="ehs-days-inc">0</span>
+            <button class="ehs-btn" data-ehs-delta="inc:-1">-</button>
+            <button class="ehs-btn" data-ehs-delta="inc:+1">+</button>
+          </div>
+          <div class="kpi-updated" id="ehs-updated">Pendiente de sincronizar backend / ws</div>
+        </div>
+      </section>
+
+    </section>
+
+    <!-- COL CENTRAL -->
+    <section class="col" id="center-col">
+
+      <!-- BRIEFING CHECKLIST -->
+      <section class="widget" id="brief-check">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">Briefing de inicio turno BCN</div>
+            <div class="widget-subtitle">Validación rápida de condiciones críticas</div>
+          </div>
+          <div class="widget-actions">
+            <div class="pill">Tap para fijar foco en el widget relacionado</div>
+            <button class="fs-toggle" data-fs-target="#brief-check">⤢</button>
+          </div>
+        </div>
+        <div class="widget-body">
+          <div class="checklist-grid">
+            <div class="check-card" data-help="Revisar dotación por isla / posiciones críticas."
+                 data-target="#team-widget">
+              <div class="check-label">1. Equipo y posiciones clave cubiertas</div>
+              <div class="check-meta">Roster BCN / posiciones sensibles</div>
+              <div class="check-options">
+                <label><input type="radio" name="c1" value="ok">OK</label>
+                <label><input type="radio" name="c1" value="no">NO</label>
+              </div>
+            </div>
+            <div class="check-card" data-help="Confirmar planificación actualizada desde sistemas externos."
+                 data-target="#planificacion-widget">
+              <div class="check-label">2. Planificación vuelos / ULD validada</div>
+              <div class="check-meta">Cruce con tabla externa</div>
+              <div class="check-options">
+                <label><input type="radio" name="c2" value="ok">OK</label>
+                <label><input type="radio" name="c2" value="no">NO</label>
+              </div>
+            </div>
+            <div class="check-card" data-help="Revisar incidencias abiertas que impacten inicio turno."
+                 data-target="#kanban-widget">
+              <div class="check-label">3. Incidencias críticas conocidas</div>
+              <div class="check-meta">Feedback rápido BCN</div>
+              <div class="check-options">
+                <label><input type="radio" name="c3" value="ok">OK</label>
+                <label><input type="radio" name="c3" value="no">NO</label>
+              </div>
+            </div>
+            <div class="check-card" data-help="Revisar estado 5S zonas sensibles (rampas, docks, etc.)."
+                 data-target="#rotativas-widget">
+              <div class="check-label">4. 5S zonas clave</div>
+              <div class="check-meta">Orden, limpieza, pasillos libres</div>
+              <div class="check-options">
+                <label><input type="radio" name="c4" value="ok">OK</label>
+                <label><input type="radio" name="c4" value="no">NO</label>
+              </div>
+            </div>
+            <div class="check-card" data-help="Verificar equipos críticos disponibles (tugs, belts, etc.)."
+                 data-target="#kpi-costes">
+              <div class="check-label">5. Equipos operativos</div>
+              <div class="check-meta">Sin bloqueos por averías</div>
+              <div class="check-options">
+                <label><input type="radio" name="c5" value="ok">OK</label>
+                <label><input type="radio" name="c5" value="no">NO</label>
+              </div>
+            </div>
+            <div class="check-card" data-help="Recordatorio EHS / brief seguridad BCN."
+                 data-target="#ehs-widget">
+              <div class="check-label">6. Mensaje seguridad comunicado</div>
+              <div class="check-meta">Uso EPI, zonas rojas, acceso pista</div>
+              <div class="check-options">
+                <label><input type="radio" name="c6" value="ok">OK</label>
+                <label><input type="radio" name="c6" value="no">NO</label>
+              </div>
+            </div>
+            <div class="check-card" data-help="Validar status proyectos KAIZEN activos turno BCN."
+                 data-target="#kaizen-widget">
+              <div class="check-label">7. KAIZEN / acciones sostenidas</div>
+              <div class="check-meta">Seguimiento visual</div>
+              <div class="check-options">
+                <label><input type="radio" name="c7" value="ok">OK</label>
+                <label><input type="radio" name="c7" value="no">NO</label>
+              </div>
+            </div>
+          </div>
+          <div id="brief-help"></div>
+        </div>
+      </section>
+
+      <!-- KANBAN RESPUESTA RAPIDA BCN -->
+      <section class="widget" id="kanban-widget">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">Feedback directo BCN</div>
+            <div class="widget-subtitle">Incidencias rápidas / seguridad / servicio</div>
+          </div>
+          <div class="widget-actions">
+            <div class="pill">Drag & Drop (táctil optimizado)</div>
+            <button class="fs-toggle" data-fs-target="#kanban-widget">⤢</button>
+          </div>
+        </div>
+        <div class="widget-body">
+          <div class="kanban-layout">
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span>Abiertas</span>
+                <span id="count-abiertas">0</span>
+              </div>
+              <div class="kanban-list" id="kanban_rapida-Abiertas"></div>
+            </div>
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span>En curso</span>
+                <span id="count-encurso">0</span>
+              </div>
+              <div class="kanban-list" id="kanban_rapida-EnCurso"></div>
+            </div>
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span>Cerradas</span>
+                <span id="count-cerradas">0</span>
+              </div>
+              <div class="kanban-list" id="kanban_rapida-Cerradas"></div>
+            </div>
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span>Vencidas</span>
+                <span id="count-vencidas">0</span>
+              </div>
+              <div class="kanban-list" id="kanban_rapida-Vencidas"></div>
+            </div>
+          </div>
+
+          <form class="kanban-form" id="kanban-form">
+            <select name="category" required>
+              <option value="" disabled selected>Categoria</option>
+              <option value="Seguridad">Seguridad</option>
+              <option value="Incidencias">Incidencias</option>
+              <option value="Mantenimiento">Mantenimiento</option>
+              <option value="Calidad">Calidad</option>
+              <option value="Servicio">Servicio</option>
+            </select>
+            <input type="text" name="title" placeholder="Descripción breve" required />
+            <input type="date" name="due_date" />
+            <input type="text" name="assigned_to" placeholder="Responsable" />
+            <button type="submit">Añadir</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- KAIZEN BCN -->
+      <section class="widget" id="kaizen-widget">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">KAIZEN BCN</div>
+            <div class="widget-subtitle">Mejoras continuas de operación</div>
+          </div>
+          <div class="widget-actions">
+            <button class="fs-toggle" data-fs-target="#kaizen-widget">⤢</button>
+          </div>
+        </div>
+        <div class="widget-body">
+          <div class="kaizen-layout">
+            <div class="kaizen-col">
+              <div class="kaizen-col-title">Propuestas</div>
+              <div class="kaizen-list" id="kaizen-Pendiente"></div>
+            </div>
+            <div class="kaizen-col">
+              <div class="kaizen-col-title">En progreso</div>
+              <div class="kaizen-list" id="kaizen-EnCurso"></div>
+            </div>
+            <div class="kaizen-col">
+              <div class="kaizen-col-title">Implementado</div>
+              <div class="kaizen-list" id="kaizen-Hecho"></div>
+            </div>
+          </div>
+          <form class="kaizen-form" id="kaizen-form">
+            <input type="text" name="title" placeholder="Nueva mejora BCN" required />
+            <input type="text" name="owner" placeholder="Responsable" />
+            <button type="submit">Crear KAIZEN</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- 5S & GW TOP3 -->
+      <section class="widget" id="rotativas-widget">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">5S & Gemba Walk BCN</div>
+            <div class="widget-subtitle">Estado visual + TOP-3 acciones</div>
+          </div>
+          <div class="widget-actions">
+            <button class="fs-toggle" data-fs-target="#rotativas-widget">⤢</button>
+          </div>
+        </div>
+        <div class="widget-body">
+          <div class="s5-row" id="s5-row">
+            <div class="s5-pill" data-s="1S">1S Clasificar</div>
+            <div class="s5-pill" data-s="2S">2S Ordenar</div>
+            <div class="s5-pill" data-s="3S">3S Limpiar</div>
+            <div class="s5-pill" data-s="4S">4S Estandarizar</div>
+            <div class="s5-pill" data-s="5S">5S Disciplina</div>
+          </div>
+          <div class="s5-meta" id="s5-meta">0/5 completadas • Actualizado: --:--</div>
+          <div class="gw-list" id="gw-top3">
+            <!-- Render dinámico desde GW_MAP -->
+          </div>
+        </div>
+      </section>
+
+    </section>
+
+    <!-- COL DERECHA -->
+    <section class="col" id="right-col">
+
+      <!-- KPI COSTES BCN -->
+      <section class="widget" id="kpi-costes">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">KPI Costes BCN</div>
+            <div class="widget-subtitle">Costes mantenimiento / daños equipos BCN</div>
+          </div>
+          <div class="widget-actions">
+            <button class="fs-toggle" data-fs-target="#kpi-costes">⤢</button>
+          </div>
+        </div>
+        <div class="widget-body">
+          <div class="kpi-main">
+            <div id="kpi-costes-value">0 €</div>
+            <div class="kpi-label">Coste acumulado mes actual (referencia BCN)</div>
+          </div>
+          <div class="kpi-updated" id="kpi-costes-updated">Pendiente de datos iniciales</div>
+        </div>
+      </section>
+
+      <!-- PLANIFICACIÓN EXTERNA -->
+      <section class="widget" id="planificacion-widget">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">Planificación Operativa</div>
+            <div class="widget-subtitle">Tabla externa filtrada (vuelos / ULD / peso)</div>
+          </div>
+          <div class="widget-actions">
+            <button class="fs-toggle" data-fs-target="#planificacion-widget">⤢</button>
+          </div>
+        </div>
+        <div class="widget-body scroll-y">
+          <table id="planificacion-table">
+            <thead>
+              <tr>
+                <th>FlightId</th>
+                <th>Type</th>
+                <th>Aircraft</th>
+                <th>Flight</th>
+                <th>STD</th>
+                <th>PCS Manif.</th>
+                <th>KG Manif.</th>
+              </tr>
+            </thead>
+            <tbody id="planificacion-tbody">
+              <!-- filled vía /api/external-table -->
+            </tbody>
           </table>
         </div>
-        <div class="pl-foot" id="planif-foot"></div>
       </section>
 
-      <!-- KAIZEN + 5S & GW (lado a lado) -->
-      <section class="actions-split" style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start;">
-        <section class="widget kaizen-compact" id="kaizen-widget">
-          <h2 class="widget-title">KAIZEN</h2>
-          <form class="new-item-form" id="new-kaizen-form" autocomplete="off"
-                style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:center;">
-            <input type="text" name="title" placeholder="Proyecto de mejora…" required>
-            <input type="text" name="assigned_to" placeholder="Responsable…">
-            <input type="date" name="due_date" aria-label="Fecha máxima">
-            <button type="submit" class="btn-primary">Añadir KAIZEN</button>
-          </form>
-          <div class="board-container" style="margin-top:12px;grid-template-columns:repeat(3,minmax(0,1fr));">
-            <div class="kanban-column">
-              <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
-              <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
-            </div>
-            <div class="kanban-column">
-              <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
-              <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
-            </div>
-            <div class="kanban-column">
-              <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
-              <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
-            </div>
+      <!-- RESERVA / OTROS WIDGETS FUTURO -->
+      <section class="widget" id="misc-widget">
+        <div class="widget-header">
+          <div>
+            <div class="widget-title">Notas rápidas BCN</div>
+            <div class="widget-subtitle">Espacio para próximos integraciones</div>
           </div>
-        </section>
-
-        <section class="widget" id="rotativas-widget">
-          <h2 class="widget-title">5S & GW (Rápido)</h2>
-
-          <!-- 5S compacto -->
-          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;">
-            <strong>5S</strong>
-            <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
-              <button type="button" class="s5-pill" data-key="seiri"    title="1S · Seiri (Clasificar)"><span class="s5-dot"></span>1S</button>
-              <button type="button" class="s5-pill" data-key="seiton"   title="2S · Seiton (Ordenar)"><span class="s5-dot"></span>2S</button>
-              <button type="button" class="s5-pill" data-key="seiso"    title="3S · Seiso (Limpiar)"><span class="s5-dot"></span>3S</button>
-              <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu (Estandarizar)"><span class="s5-dot"></span>4S</button>
-              <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke (Disciplina)"><span class="s5-dot"></span>5S</button>
-            </div>
-            <small id="s5-meta" class="kpi-text">—</small>
+          <div class="widget-actions">
+            <button class="fs-toggle" data-fs-target="#misc-widget">⤢</button>
           </div>
-
-          <!-- GW TOP-3 -->
-          <strong style="margin-top:12px;display:block;">GW</strong>
-          <div id="gw-tasks-dynamic-container"></div>
-        </section>
-      </section>
-    </main>
-
-    <!-- COLUMNA DERECHA — KPIs BCN -->
-    <aside class="col-right">
-      <section class="widget kpi-widget" id="kpi-costes">
-        <h3 class="widget-title">
-          <span>Costes Mantenimiento BCN.</span>
-          <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path>
-          </svg>
-        </h3>
-        <div class="kpi-value large">
-          <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
         </div>
-        <small class="kpi-text" id="kpi-costes-meta"></small>
-      </section>
-
-      <section class="widget kpi-widget" id="lean-widget">
-        <h3 class="widget-title">
-          <span>Estado LEAN</span>
-          <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path>
-          </svg>
-        </h3>
-        <div class="lean-status-container">
-          <div class="lean-status-item"><span>Dg Autocheck:</span><span class="status-tag status-ok">OK</span></div>
-          <div class="lean-status-item"><span>Uniwin:</span><span class="status-tag status-ok">OK</span></div>
-          <div class="lean-status-item"><span>Cs Mobile:</span><span class="status-tag status-alert">Alerta</span></div>
+        <div class="widget-body">
+          <div class="tag">Checklist Enablon / incidencias formales pendiente de integrar aquí igual que MAD.</div>
         </div>
       </section>
 
-      <section class="widget" id="ehs-widget">
-        <h2 class="widget-title">Días con incidentes</h2>
-        <div id="ehs-month" class="kpi-text">—</div>
-        <div id="ehs-spin" class="ehs-controls" role="spinbutton"
-             aria-label="Días con incidentes del mes actual"
-             aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-          <button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-          <div class="ehs-big" id="ehs-days">0</div>
-          <button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
-        </div>
-      </section>
-    </aside>
-  </div>
+    </section>
+  </main>
+</div>
 
-  <!-- SortableJS -->
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+<script>
+  // ===============================
+  // CONFIG / ESTADO GLOBAL
+  // ===============================
+  const UI_SCALE_KEY = 'bcn_ui_scale_v1';
+  const BIG_TIMER_KEY = 'header_big_timer_v1'; // compartido entre estaciones
+  const S5_STATE_KEY = 'bcn_s5_state_v1';
+  const KPI_COSTES_KEY = 'bcn_kpi_costes_v1';
+  const GW_MAP = {}; // id -> task gw_task
 
-  <script>
-    /*************
-     * Helpers
-     *************/
-    const $  = (sel, root=document) => root.querySelector(sel);
-    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
-    const escapeHTML = (s) => String(s ?? '')
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'","&#39;");
+  let timerState = {
+    running: false,
+    startTs: null,
+    offsetMs: 0
+  };
 
-    /*************
-     * UI SCALE
-     *************/
-    (function initUIScaling(){
-      const KEY='ui_scale_v1';
-      const sel = $('#scale-select');
-      if (!sel) return;
-      const saved = localStorage.getItem(KEY) || sel.value || '1.15';
+  let ws;
+
+  // ===============================
+  // INIT
+  // ===============================
+  document.addEventListener('DOMContentLoaded', () => {
+    initScale();
+    initClock();
+    initBigTimer();
+    initFullscreenButtons();
+    initRoster();
+    initKanban();
+    initKaizen();
+    initS5();
+    initGwTop3(); // initial blank
+    initKpiCostes();
+    initPlanificacion();
+    initBriefChecklist();
+    initEhs();
+    initWebSocket();
+    initWakeLockHint();
+  });
+
+  // ===============================
+  // ESCALA UI
+  // ===============================
+  function initScale() {
+    const saved = localStorage.getItem(UI_SCALE_KEY);
+    const select = document.getElementById('scale-select');
+    if (saved) {
       document.documentElement.style.setProperty('--ui-scale', saved);
-      sel.value = saved;
-      sel.addEventListener('change', e => {
-        const v = e.target.value || '1';
-        localStorage.setItem(KEY, v);
-        document.documentElement.style.setProperty('--ui-scale', v);
-      });
-    })();
-
-    /*************
-     * PRESENT FULLSCREEN
-     *************/
-    (function(){
-      const btn = $('#present-btn');
-      if (!btn) return;
-      btn.addEventListener('click', async () => {
-        const host = $('.dashboard-3col') || document.body;
-        try {
-          await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.());
-        } catch(e){ console.warn('Fullscreen fail', e); }
-      });
-    })();
-
-    /*************
-     * Header Timer
-     *************/
-    (function(){
-      const KEY='header_big_timer_v1';
-      let running=false, startedAt=0, elapsed=0, tick=null;
-
-      const host = $('#timer-widget');
-      const display = $('#timer-display');
-      const resetBtn = $('#timer-reset');
-
-      function fmt(ms){
-        const t = Math.floor(ms/1000);
-        const h = Math.floor(t/3600);
-        const m = Math.floor((t%3600)/60);
-        const s = t%60;
-        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-      }
-      function paint(){
-        display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
-      }
-      function save(){
-        try{
-          localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
-        }catch{}
-      }
-      function load(){
-        try{
-          const s = JSON.parse(localStorage.getItem(KEY) || 'null');
-          if (!s) return;
-          running = !!s.running;
-          elapsed = Number(s.elapsed)||0;
-          startedAt = Number(s.startedAt)||0;
-          if (running){
-            const now = Date.now();
-            elapsed = Math.max(elapsed, now - startedAt);
-            startedAt = now - elapsed;
-          }
-        }catch{}
-      }
-      function setUI(){
-        host?.classList.toggle('timer-running', running);
-        resetBtn.disabled = (!running && elapsed===0);
-      }
-      function start(){
-        if (running) return;
-        running = true;
-        startedAt = Date.now() - elapsed;
-        tick = setInterval(paint, 250);
-        setUI(); paint(); save();
-      }
-      function pause(){
-        if (!running) return;
-        running = false;
-        elapsed = Date.now() - startedAt;
-        clearInterval(tick); tick=null;
-        setUI(); paint(); save();
-      }
-      function reset(){
-        running = false;
-        startedAt = 0;
-        elapsed = 0;
-        clearInterval(tick); tick=null;
-        setUI(); paint(); save();
-      }
-
-      display?.addEventListener('click', () => running ? pause() : start());
-      resetBtn?.addEventListener('click', reset);
-      document.addEventListener('visibilitychange', () => {
-        if (!running) return;
-        startedAt = Date.now() - elapsed;
-        paint(); save();
-      });
-
-      window.initHeaderTimer = function(){
-        load(); paint(); setUI();
-        if (running && !tick) tick = setInterval(paint, 250);
-      };
-    })();
-
-    /*************
-     * Fullscreen buttons on widgets/cards
-     *************/
-    const FS_ICONS = {
-      on:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
-      off: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>'
-    };
-    function ensureFullscreenBtn(host){
-      if (!host || host.querySelector('.fs-toggle')) return;
-      const btn = document.createElement('button');
-      btn.className = 'fs-toggle';
-      btn.type = 'button';
-      btn.setAttribute('aria-label','Ver a pantalla completa');
-      btn.title = 'Pantalla completa';
-      btn.innerHTML = FS_ICONS.off;
-      btn.addEventListener('mousedown', e => e.stopPropagation(), true);
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault(); e.stopPropagation();
-        try{
-          if (document.fullscreenElement === host){
-            await document.exitFullscreen?.();
-          } else {
-            await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.());
-          }
-        }catch(err){ console.warn('Fullscreen error', err); }
-      });
-      host.appendChild(btn);
+      if (select) select.value = saved;
     }
-    function initFullscreenToggles(){
-      $$('.widget, .card').forEach(ensureFullscreenBtn);
-      document.addEventListener('fullscreenchange', () => {
-        const current = document.fullscreenElement;
-        $$('.fs-toggle').forEach(btn => {
-          const owner = btn.closest('.widget, .card');
-          const isOn = current === owner;
-          btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
-          btn.setAttribute('aria-label', isOn ? 'Salir de pantalla completa' : 'Ver a pantalla completa');
-          btn.title = isOn ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa';
-        });
-        document.documentElement.classList.toggle('fs-zoom', !!current);
-      });
-    }
+    select.addEventListener('change', () => {
+      const val = select.value || '1';
+      document.documentElement.style.setProperty('--ui-scale', val);
+      localStorage.setItem(UI_SCALE_KEY, val);
+    });
+  }
 
-    /*************
-     * API helpers
-     *************/
-    async function apiJSON(url, opts={}){
-      const r = await fetch(url, {
-        headers:{'Content-Type':'application/json'},
-        ...opts
-      });
-      if (!r.ok) throw new Error(`${opts.method||'GET'} ${url} -> ${r.status}`);
-      return r.headers.get('content-type')?.includes('json') ? r.json() : null;
-    }
-    const createTaskOnServer = (data) =>
-      apiJSON('/api/tasks', { method:'POST', body:JSON.stringify(data) });
-    const updateTaskOnServer = (id, data) =>
-      apiJSON(`/api/tasks/${id}`, { method:'PUT', body:JSON.stringify(data) });
-    const deleteTaskOnServer = (id) =>
-      apiJSON(`/api/tasks/${id}`, { method:'DELETE' });
-    const fetchTasks = () => apiJSON('/api/tasks');
-    const fetchExternal = () => apiJSON('/api/external-table', { cache:'no-store' });
-    const fetchRoster = () => apiJSON('/api/roster/current', { cache:'no-store' });
-
-    /*************
-     * GW TOP-3
-     *************/
-    const GW_MAP = new Map();
-    const gwGetDate = (t) => {
-      const cand = t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
-      const d = cand ? new Date(cand) : null;
-      return (d && !isNaN(d)) ? d.getTime() : -Infinity;
-    };
-    function renderGwTask(task, elementId){
-      const container = $('#gw-tasks-dynamic-container');
-      if (!container) return;
-      let row = document.getElementById(elementId);
-      const checkboxId = `gw-check-${task.id}`;
-      const noteId = `gw-note-${task.id}`;
-      if (!row){
-        row = document.createElement('div');
-        row.id = elementId;
-        container.prepend(row);
-      }
-      row.className = 'gw-task-item' + (task.is_completed ? ' completed' : '');
-      row.innerHTML = `
-        <input type="checkbox" id="${checkboxId}" ${task.is_completed ? 'checked' : ''}>
-        <label for="${checkboxId}">${escapeHTML(task.title || '')}</label>
-        <input type="text" class="gw-note" id="${noteId}" placeholder="Añadir nota (opcional)"
-               ${task.is_completed ? '' : 'disabled'}
-               value="${escapeHTML(task.note || '')}">
-      `;
-    }
-    function renderGwTop3(){
-      const cont = $('#gw-tasks-dynamic-container');
-      if (!cont) return;
-      cont.innerHTML = '';
-      const top3 = [...GW_MAP.values()]
-        .sort((a,b)=> gwGetDate(b)-gwGetDate(a))
-        .slice(0,3);
-      top3.slice().reverse().forEach(t => renderGwTask(t, `task-${t.id}`));
-    }
-
-    /*************
-     * RENDER CARDS
-     *************/
-    function updateAllColumnCounts(){
-      $$('#kanban-widget .kanban-column, #kaizen-widget .kanban-column').forEach(col => {
-        const countEl = $('.column-title .count', col);
-        const items = $('.cards-container', col)?.children.length || 0;
-        if (countEl) countEl.textContent = `(${items})`;
-      });
-    }
-
-    function renderBoardCard(task, elementId){
-      const safeStatus = (task.status || '').replace(/\s+/g,'-');
-      const colId = `${task.task_type}-${safeStatus}`;
-      const col = document.getElementById(colId);
-      if (!col) return;
-
-      let card = document.getElementById(elementId);
-      if (!card){
-        card = document.createElement('div');
-        card.id = elementId;
-      }
-      card.className = 'card';
-      card.dataset.status = safeStatus;
-
-      const catKey = (task.category || '').toLowerCase();
-      card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento');
-      if (['seguridad','incidencias','mantenimiento'].includes(catKey)){
-        card.classList.add(`cat-${catKey}`);
-      }
-
-      const creationDate = task.created_at ? new Date(task.created_at).toISOString().split('T')[0] : '—';
-      const due = task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '—';
-      const catLabel = catKey ? (catKey[0].toUpperCase() + catKey.slice(1)) : 'General';
-
-      card.innerHTML = `
-        <div class="card-content">
-          <div class="card-title">
-            ${escapeHTML(task.title || '')}
-            <span class="cat-chip ${catKey ? `is-${catKey}`:''}">${escapeHTML(catLabel)}</span>
-          </div>
-          <div class="card-details">Alta: ${escapeHTML(creationDate)} • Objetivo: ${escapeHTML(due)}</div>
-          <div class="card-assignee">${escapeHTML(task.assigned_to || 'Sin asignar')}</div>
-        </div>
-        <div class="card-actions">
-          <button class="delete-card-btn" aria-label="Eliminar tarjeta">
-            <svg class="icon" viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
-              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM2.5 3V2h11v1h-11z"/>
-            </svg>
-          </button>
-        </div>
-      `;
-      ensureFullscreenBtn(card);
-      if (card.parentElement !== col) col.prepend(card);
-    }
-
-    function renderKaizenCard(task, elementId){
-      const safeStatus = (task.status || 'Proyectos').replace(/\s+/g,'-');
-      const colId = `kaizen-${safeStatus}`;
-      const col = document.getElementById(colId);
-      if (!col) return;
-
-      let card = document.getElementById(elementId);
-      if (!card){
-        card = document.createElement('div');
-        card.id = elementId;
-      }
-      card.className = 'card';
-      card.dataset.status = safeStatus;
-
-      let dueHuman = '';
-      if (task.due_date){
-        const d = new Date(task.due_date);
-        if (!isNaN(d)) dueHuman = d.toLocaleDateString('es-ES');
-      }
-
-      card.innerHTML = `
-        <div class="card-content">
-          <div class="card-title">${escapeHTML(task.title || '')}</div>
-          <div class="card-details">
-            Responsable: ${escapeHTML(task.assigned_to || '—')}
-            ${dueHuman ? ` • Fecha máx: ${escapeHTML(dueHuman)}` : ''}
-          </div>
-        </div>
-        <div class="card-actions">
-          <button class="delete-card-btn" aria-label="Eliminar tarjeta">
-            <svg class="icon" viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
-              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM2.5 3V2h11v1h-11z"/>
-            </svg>
-          </button>
-        </div>
-      `;
-      ensureFullscreenBtn(card);
-      if (card.parentElement !== col) col.prepend(card);
-    }
-
-    /*************
-     * EVENTOS
-     *************/
-    function setupEventListeners(){
-      // Alta Kanban
-      $('#new-kanban-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const f = e.target;
-        const data = {
-          task_type:'kanban_rapida',
-          status:'Abiertas',
-          category:f.elements.category.value,
-          title:(f.elements.title.value||'').trim(),
-          due_date:f.elements.due_date.value,
-          assigned_to:(f.elements.assigned_to.value||'').trim()
-        };
-        if (!data.category || !data.title || !data.due_date) return;
-        try{
-          await createTaskOnServer(data);
-          f.reset();
-          $('#problem-category').selectedIndex = 0;
-        }catch(err){
-          alert('Error: No se pudo crear la tarjeta.');
-          console.error(err);
-        }
-      });
-
-      // Alta Kaizen
-      $('#new-kaizen-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const f = e.target;
-        const data = {
-          task_type:'kaizen',
-          status:'Proyectos',
-          title:(f.elements.title.value||'').trim(),
-          assigned_to:(f.elements.assigned_to.value||'').trim(),
-          due_date:f.elements.due_date.value || null
-        };
-        if (!data.title) return;
-        try{
-          await createTaskOnServer(data);
-          f.reset();
-          updateAllColumnCounts();
-        }catch{
-          alert('No se pudo crear el KAIZEN.');
-        }
-      });
-
-      // Borrar tarjetas
-      document.addEventListener('click', async (e) => {
-        const btn = e.target.closest('.delete-card-btn');
-        if (!btn) return;
-        const card = btn.closest('.card');
-        if (!card) return;
-        const id = card.id.replace('task-','');
-        if (!id) return;
-        if (confirm('¿Seguro que quieres eliminar esta tarjeta?')){
-          try{
-            await deleteTaskOnServer(id);
-            card.remove();
-            if (GW_MAP.has(Number(id))){
-              GW_MAP.delete(Number(id));
-              renderGwTop3();
-            }
-            updateAllColumnCounts();
-          }catch{
-            alert('No se pudo eliminar.');
-          }
-        }
-      });
-
-      // GW check / notas
-      const rot = $('#rotativas-widget');
-      rot?.addEventListener('change', async (e) => {
-        if (e.target.type === 'checkbox' && e.target.closest('.gw-task-item')){
-          const item = e.target.closest('.gw-task-item');
-          const id = item.id.replace('task-','');
-          const done = e.target.checked;
-          const note = item.querySelector('.gw-note');
-          if (note) note.disabled = !done;
-          item.classList.toggle('completed', done);
-          try{
-            await apiJSON(`/api/tasks/${id}/complete`, {
-              method:'PUT',
-              body:JSON.stringify({ is_completed:done })
-            });
-          }catch(err){
-            e.target.checked = !done;
-            item.classList.toggle('completed', !done);
-            if (note) note.disabled = done;
-            alert('No se pudo actualizar la tarea (GW).');
-          }
-        }
-      });
-      rot?.addEventListener('keydown', async (e) => {
-        if (e.target.classList.contains('gw-note') && e.key === 'Enter'){
-          e.preventDefault();
-          const id = e.target.id.replace('gw-note-','');
-          try{
-            await apiJSON(`/api/tasks/${id}/note`, {
-              method:'PUT',
-              body:JSON.stringify({ note:e.target.value || '' })
-            });
-            e.target.blur();
-          }catch{
-            alert('No se pudo guardar la nota.');
-          }
-        }
-      });
-      rot?.addEventListener('blur', async (e) => {
-        if (e.target.classList.contains('gw-note')){
-          const id = e.target.id.replace('gw-note-','');
-          try{
-            await apiJSON(`/api/tasks/${id}/note`, {
-              method:'PUT',
-              body:JSON.stringify({ note:e.target.value || '' })
-            });
-          }catch{}
-        }
-      }, true);
-    }
-
-    /*************
-     * KPIs Costes
-     *************/
-    const formatEuro = (n) =>
-      (n==null || Number.isNaN(n))
-        ? '—'
-        : new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
-
-    function updateKpiTotalCost(value, timestamp){
-      const valueEl = $('#kpi-total-cost');
-      const metaEl  = $('#kpi-costes-meta');
-      const card    = $('#kpi-costes');
-      if (!valueEl || !card) return;
-      valueEl.textContent = formatEuro(value);
-      metaEl.textContent = timestamp
-        ? `Actualizado: ${new Date(timestamp).toLocaleString('es-ES')}`
-        : '';
-      card.classList.remove('flash'); void card.offsetWidth;
-      card.classList.add('flash');
-      try{
-        localStorage.setItem('kpi_total_cost', JSON.stringify({value, timestamp:timestamp || null}));
-      }catch{}
-    }
-    function hydrateKpiTotalCost(){
-      try{
-        const cached = JSON.parse(localStorage.getItem('kpi_total_cost') || 'null');
-        if (cached && Number.isFinite(cached.value)){
-          updateKpiTotalCost(cached.value, cached.timestamp);
-        }
-      }catch{}
-    }
-
-    /*************
-     * EHS BCN
-     *************/
-    function initEhs(){
+  // ===============================
+  // RELOJ
+  // ===============================
+  function initClock() {
+    const timeEl = document.getElementById('clock-time');
+    const dateEl = document.getElementById('clock-date');
+    const update = () => {
       const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      const daysInMonth = new Date(year, month+1, 0).getDate();
-      const monthEl = $('#ehs-month');
-      const daysEl  = $('#ehs-days');
-      const spinEl  = $('#ehs-spin');
-      if (!monthEl || !daysEl || !spinEl) return;
+      timeEl.textContent = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      dateEl.textContent = now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+    update();
+    setInterval(update, 1000 * 15);
+  }
 
-      monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long', year:'numeric'});
-
-      const monthKey = `${year}-${month+1}`;
-      const lastKey  = localStorage.getItem('ehs_month_key');
-      let days = Number(localStorage.getItem('ehs_days_month')) || 0;
-      if (lastKey !== monthKey) days = 0;
-
-      function render(){
-        days = Math.max(0, Math.min(daysInMonth, Math.trunc(days)));
-        daysEl.textContent = days;
-        spinEl.setAttribute('aria-valuemin','0');
-        spinEl.setAttribute('aria-valuemax', String(daysInMonth));
-        spinEl.setAttribute('aria-valuenow', String(days));
-        localStorage.setItem('ehs_days_month', String(days));
-        localStorage.setItem('ehs_month_key', monthKey);
-      }
-      const inc = () => { if (days < daysInMonth){ days++; render(); } };
-      const dec = () => { if (days > 0){ days--; render(); } };
-
-      $$('#ehs-spin .ehs-btn').forEach(btn => {
-        btn.addEventListener('click', () => (btn.dataset.op === 'inc' ? inc() : dec()));
-      });
-
-      spinEl.addEventListener('keydown', (e) => {
-        if (e.key==='ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
-        if (e.key==='ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
-        if (e.key==='PageUp'){ e.preventDefault(); days = Math.min(daysInMonth, days+5); render(); }
-        if (e.key==='PageDown'){ e.preventDefault(); days = Math.max(0, days-5); render(); }
-        if (e.key==='Home'){ e.preventDefault(); days = 0; render(); }
-        if (e.key==='End'){ e.preventDefault(); days = daysInMonth; render(); }
-      });
-
-      render();
+  // ===============================
+  // TIMER HEADER (compartido)
+  // ===============================
+  function initBigTimer() {
+    const display = document.getElementById('big-timer-display');
+    const resetBtn = document.getElementById('timer-reset-btn');
+    const saved = localStorage.getItem(BIG_TIMER_KEY);
+    if (saved) {
+      try {
+        timerState = JSON.parse(saved);
+      } catch (e) {}
     }
-    function setEhsDays(n){
-      const daysEl = $('#ehs-days');
-      const spinEl = $('#ehs-spin');
-      if (!daysEl || !spinEl) return;
-      const now = new Date();
-      const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-      const v = Math.max(0, Math.min(daysInMonth, Number(n)||0));
-      daysEl.textContent = v;
-      spinEl.setAttribute('aria-valuenow', String(v));
-      localStorage.setItem('ehs_days_month', String(v));
-    }
-
-    /*************
-     * Team Roster BCN (solo lectura)
-     *************/
-    function renderRoster(listEl, people, meta){
-      if (!listEl) return;
-      listEl.innerHTML = '';
-      if (!Array.isArray(people) || !people.length){
-        listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del informe actual.</div>';
+    const syncDisplay = () => {
+      const totalMs = timerState.running
+        ? (Date.now() - timerState.startTs) + (timerState.offsetMs || 0)
+        : (timerState.offsetMs || 0);
+      const totalSec = Math.max(0, Math.floor(totalMs / 1000));
+      const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const s = String(totalSec % 60).padStart(2, '0');
+      display.textContent = `${h}:${m}:${s}`;
+    };
+    const persist = () => {
+      localStorage.setItem(BIG_TIMER_KEY, JSON.stringify(timerState));
+    };
+    display.addEventListener('click', () => {
+      if (!timerState.running) {
+        timerState.running = true;
+        timerState.startTs = Date.now();
       } else {
-        people.forEach(p => {
-          const name = p.nombre_completo || p.name || '—';
-          const horario = p.horario || '';
-          const obs = p.observaciones || '';
-          const row = document.createElement('div');
-          row.className = 'team-row';
-          row.innerHTML = `
-            <div class="team-left">
-              <span class="team-name">${escapeHTML(name)}</span>
-              ${horario ? `<small class="meta">• ${escapeHTML(horario)}</small>` : ''}
-              ${obs ? `<small class="meta">• ${escapeHTML(obs)}</small>` : ''}
-            </div>
-          `;
-          listEl.appendChild(row);
-        });
+        // pause
+        timerState.running = false;
+        timerState.offsetMs = (Date.now() - timerState.startTs) + (timerState.offsetMs || 0);
+        timerState.startTs = null;
       }
-      const metaEl = $('#team-meta');
-      if (metaEl){
-        metaEl.textContent = meta
-          ? [meta.shift, meta.window].filter(Boolean).join(' • ') || '—'
-          : '—';
+      persist();
+      syncDisplay();
+    });
+    resetBtn.addEventListener('click', () => {
+      timerState = { running: false, startTs: null, offsetMs: 0 };
+      persist();
+      syncDisplay();
+    });
+    syncDisplay();
+    setInterval(() => {
+      if (timerState.running) {
+        syncDisplay();
       }
-    }
-    async function initTeamRoster(){
-      const list = $('#team-list');
-      if (!list) return;
-      try{
-        const state = await fetchRoster();
-        if (state) renderRoster(list, state.people || [], state.meta || null);
-        else list.innerHTML = '<div style="color:var(--text-muted)">Sin datos del informe. Añade manualmente o sube el Excel.</div>';
-      }catch{
-        list.innerHTML = '<div style="color:var(--text-muted)">No se pudo cargar el roster.</div>';
+    }, 500);
+  }
+
+  // ===============================
+  // FULLSCREEN
+  // ===============================
+  function initFullscreenButtons() {
+    const presentBtn = document.getElementById('present-btn');
+    const dashboard = document.getElementById('dashboard-root');
+
+    function toggleFsFor(el) {
+      if (!document.fullscreenElement) {
+        el.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
       }
     }
 
-    /*************
-     * Planificación BCN (whitelist columnas)
-     *************/
-    const PLANIF_WHITELIST = [
+    presentBtn.addEventListener('click', () => toggleFsFor(dashboard));
+
+    document.querySelectorAll('.fs-toggle').forEach(btn => {
+      const targetSel = btn.getAttribute('data-fs-target');
+      const target = document.querySelector(targetSel);
+      if (!target) return;
+      btn.addEventListener('click', () => toggleFsFor(target));
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      // Icon / estado si quieres diferenciar. Aquí mantenemos simple.
+    });
+  }
+
+  // ===============================
+  // ROSTER
+  // ===============================
+  async function initRoster() {
+    await loadRoster();
+    const fileInput = document.getElementById('roster-file');
+    if (fileInput) {
+      fileInput.addEventListener('change', handleRosterUpload);
+    }
+  }
+
+  async function loadRoster() {
+    try {
+      const res = await fetch('/api/roster/current');
+      if (!res.ok) return;
+      const data = await res.json();
+      renderRoster(data);
+    } catch (e) {
+      console.warn('Roster BCN error', e);
+    }
+  }
+
+  function renderRoster(data) {
+    const list = document.getElementById('team-list');
+    const metaDate = document.getElementById('team-sheet-date');
+    const metaShift = document.getElementById('team-shift');
+    const metaWindow = document.getElementById('team-window');
+    const countPill = document.getElementById('team-count-pill');
+    list.innerHTML = '';
+    if (!data || !Array.isArray(data.people)) {
+      countPill.textContent = '0 personas';
+      return;
+    }
+
+    metaDate.textContent = data.sheet_date || '--';
+    metaShift.textContent = data.shift || '--';
+    metaWindow.textContent = data.window || '--';
+
+    data.people.forEach(person => {
+      const row = document.createElement('div');
+      row.className = 'team-row';
+      row.dataset.id = person.id || person.nombre_completo;
+
+      const name = document.createElement('div');
+      name.className = 'team-name';
+      name.textContent = person.nombre_completo || '-';
+
+      const horario = document.createElement('div');
+      horario.textContent = person.horario || '';
+
+      const presence = document.createElement('div');
+      const pBtn = document.createElement('div');
+      pBtn.className = 'presence-toggle';
+      const isPresent = person.attendance !== false;
+      if (!isPresent) pBtn.classList.add('off');
+      pBtn.textContent = isPresent ? '✓' : '✕';
+      pBtn.addEventListener('click', () => togglePresence(person, pBtn));
+      presence.appendChild(pBtn);
+
+      const zoneWrap = document.createElement('div');
+      const zoneSel = document.createElement('select');
+      zoneSel.className = 'zone-select';
+      const zones = ['', 'Isla', 'Dorada', 'Import', 'Export', 'Rampa', 'Clasificación', 'Oficina'];
+      zones.forEach(z => {
+        const opt = document.createElement('option');
+        opt.value = z;
+        opt.textContent = z || 'Zona';
+        if ((person.zone || person.zona) === z) opt.selected = true;
+        zoneSel.appendChild(opt);
+      });
+      zoneSel.addEventListener('change', () => updateZone(person, zoneSel.value));
+      zoneWrap.appendChild(zoneSel);
+
+      row.appendChild(name);
+      row.appendChild(horario);
+      row.appendChild(presence);
+      row.appendChild(zoneWrap);
+
+      list.appendChild(row);
+    });
+
+    countPill.textContent = `${data.people.length} personas`;
+  }
+
+  async function handleRosterUpload(ev) {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      await fetch('/api/roster/upload', {
+        method: 'POST',
+        body: formData
+      });
+      await loadRoster();
+    } catch (e) {
+      console.warn('Roster upload BCN error', e);
+    }
+  }
+
+  async function togglePresence(person, btn) {
+    const newVal = btn.classList.contains('off');
+    btn.classList.toggle('off', !newVal);
+    btn.textContent = newVal ? '✓' : '✕';
+    try {
+      await fetch('/api/roster/presence', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: person.id,
+          nombre_completo: person.nombre_completo,
+          attendance: newVal
+        })
+      });
+    } catch (e) {
+      console.warn('Error update presence BCN', e);
+    }
+  }
+
+  async function updateZone(person, zone) {
+    try {
+      await fetch('/api/roster/zone', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: person.id,
+          nombre_completo: person.nombre_completo,
+          zone
+        })
+      });
+    } catch (e) {
+      console.warn('Error update zone BCN', e);
+    }
+  }
+
+  // ===============================
+  // KANBAN RAPIDA BCN
+  // ===============================
+  function initKanban() {
+    // Sortable configuración táctil suave
+    const sortableOptions = {
+      group: 'kanban_rapida',
+      animation: 120,
+      handle: undefined,
+      ghostClass: 'drag-ghost',
+      forceFallback: true,
+      delayOnTouchOnly: true,
+      delay: 80,
+      onEnd: onKanbanDrop
+    };
+
+    ['Abiertas','EnCurso','Cerradas','Vencidas'].forEach(status => {
+      const el = document.getElementById('kanban_rapida-' + status);
+      if (el) new Sortable(el, sortableOptions);
+    });
+
+    document.getElementById('kanban-form').addEventListener('submit', createKanbanTask);
+
+    // Carga inicial tareas
+    loadTasks();
+  }
+
+  async function loadTasks() {
+    try {
+      const res = await fetch('/api/tasks');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+      data.forEach(t => processTaskUpdate(t, { silent: true }));
+      updateKanbanCounters();
+    } catch (e) {
+      console.warn('Error load tasks BCN', e);
+    }
+  }
+
+  function renderKanbanCard(task) {
+    if (task.station && task.station !== 'BCN') return; // filtramos
+    const baseId = 'kanban_rapida-' + (task.status || 'Abiertas');
+    const col = document.getElementById(baseId);
+    if (!col) return;
+
+    // borrar previa
+    const existing = document.querySelector(`.kanban-card[data-id="${task.id}"]`);
+    if (existing && existing.parentElement !== col) {
+      existing.parentElement.removeChild(existing);
+    }
+
+    let card = existing || document.createElement('div');
+    card.className = 'kanban-card';
+    card.dataset.id = task.id;
+    card.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.className = 'kanban-title';
+    title.textContent = task.title || '(Sin título)';
+
+    const meta = document.createElement('div');
+    meta.className = 'kanban-meta';
+
+    const cat = (task.category || '').toLowerCase();
+    if (cat) {
+      const b = document.createElement('span');
+      b.className = 'badge ' + getCategoryBadgeClass(cat);
+      b.textContent = task.category;
+      meta.appendChild(b);
+    }
+
+    if (task.due_date) {
+      const due = document.createElement('span');
+      due.className = 'badge';
+      due.textContent = 'Vence: ' + formatShortDate(task.due_date);
+      meta.appendChild(due);
+    }
+
+    if (task.assigned_to) {
+      const asg = document.createElement('span');
+      asg.className = 'badge';
+      asg.textContent = 'Resp: ' + task.assigned_to;
+      meta.appendChild(asg);
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-delete';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      deleteTask(task.id);
+    });
+
+    card.appendChild(title);
+    card.appendChild(meta);
+    card.appendChild(delBtn);
+
+    col.appendChild(card);
+  }
+
+  function getCategoryBadgeClass(cat) {
+    if (cat.includes('seguridad')) return 'badge-cat-seguridad';
+    if (cat.includes('incidencia')) return 'badge-cat-incidencias';
+    if (cat.includes('mantenimiento')) return 'badge-cat-mantenimiento';
+    if (cat.includes('calidad')) return 'badge-cat-calidad';
+    if (cat.includes('servicio')) return 'badge-cat-servicio';
+    return '';
+  }
+
+  async function createKanbanTask(ev) {
+    ev.preventDefault();
+    const form = ev.target;
+    const payload = {
+      task_type: 'kanban_rapida',
+      status: 'Abiertas',
+      category: form.category.value,
+      title: form.title.value,
+      due_date: form.due_date.value || null,
+      assigned_to: form.assigned_to.value || null,
+      station: 'BCN'
+    };
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const created = await res.json();
+        processTaskUpdate(created);
+        form.reset();
+      }
+    } catch (e) {
+      console.warn('Error create kanban BCN', e);
+    }
+  }
+
+  async function onKanbanDrop(evt) {
+    const card = evt.item;
+    const id = card.dataset.id;
+    if (!id) return;
+    const colId = evt.to.id; // ej. kanban_rapida-EnCurso
+    const status = colId.replace('kanban_rapida-', '');
+    try {
+      await fetch(`/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+    } catch (e) {
+      console.warn('Error update status BCN', e);
+    }
+    updateKanbanCounters();
+  }
+
+  function updateKanbanCounters() {
+    const map = {
+      'Abiertas': 'count-abiertas',
+      'EnCurso': 'count-encurso',
+      'Cerradas': 'count-cerradas',
+      'Vencidas': 'count-vencidas'
+    };
+    Object.entries(map).forEach(([status, elId]) => {
+      const col = document.getElementById('kanban_rapida-' + status);
+      const n = col ? col.querySelectorAll('.kanban-card').length : 0;
+      const el = document.getElementById(elId);
+      if (el) el.textContent = n;
+    });
+  }
+
+  async function deleteTask(id) {
+    try {
+      await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      const card = document.querySelector(`.kanban-card[data-id="${id}"]`);
+      if (card && card.parentElement) {
+        card.parentElement.removeChild(card);
+      }
+      updateKanbanCounters();
+    } catch (e) {
+      console.warn('Error delete task BCN', e);
+    }
+  }
+
+  // ===============================
+  // KAIZEN BCN
+  // ===============================
+  function initKaizen() {
+    ['Pendiente','EnCurso','Hecho'].forEach(status => {
+      const el = document.getElementById('kaizen-' + status);
+      if (el) {
+        new Sortable(el, {
+          group: 'kaizen',
+          animation: 120,
+          forceFallback: true,
+          delayOnTouchOnly: true,
+          delay: 80,
+          onEnd: evt => {
+            const id = evt.item.dataset.id;
+            const newStatus = evt.to.id.replace('kaizen-','');
+            if (!id) return;
+            fetch(`/api/tasks/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: newStatus })
+            }).catch(e => console.warn('KAIZEN move error BCN', e));
+          }
+        });
+      }
+    });
+
+    document.getElementById('kaizen-form').addEventListener('submit', createKaizen);
+  }
+
+  function renderKaizenCard(task) {
+    if (task.station && task.station !== 'BCN') return;
+    const col = document.getElementById('kaizen-' + (task.status || 'Pendiente'));
+    if (!col) return;
+    let card = document.querySelector(`.kaizen-card[data-id="${task.id}"]`);
+    if (!card) {
+      card = document.createElement('div');
+      card.className = 'kaizen-card';
+      card.dataset.id = task.id;
+      col.appendChild(card);
+    } else {
+      card.innerHTML = '';
+    }
+
+    const t = document.createElement('div');
+    t.textContent = task.title || '(Sin título)';
+    const o = document.createElement('div');
+    o.style.color = 'var(--text-soft)';
+    o.textContent = (task.owner || task.assigned_to) ? 'Resp: ' + (task.owner || task.assigned_to) : '';
+    card.appendChild(t);
+    if (o.textContent) card.appendChild(o);
+  }
+
+  async function createKaizen(ev) {
+    ev.preventDefault();
+    const form = ev.target;
+    const payload = {
+      task_type: 'kaizen',
+      status: 'Pendiente',
+      title: form.title.value,
+      owner: form.owner.value || null,
+      station: 'BCN'
+    };
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const created = await res.json();
+        processTaskUpdate(created);
+        form.reset();
+      }
+    } catch (e) {
+      console.warn('Error create KAIZEN BCN', e);
+    }
+  }
+
+  // ===============================
+  // 5S & GW TOP 3
+  // ===============================
+  function initS5() {
+    const saved = localStorage.getItem(S5_STATE_KEY);
+    let state = { completed: [] };
+    if (saved) {
+      try { state = JSON.parse(saved); } catch(e){}
+    }
+    const pills = document.querySelectorAll('.s5-pill');
+    const meta = document.getElementById('s5-meta');
+
+    const refresh = () => {
+      let count = 0;
+      pills.forEach(p => {
+        const key = p.dataset.s;
+        const active = state.completed.includes(key);
+        p.classList.toggle('active', active);
+        if (active) count++;
+      });
+      meta.textContent = `${count}/5 completadas • Actualizado: ${new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`;
+      localStorage.setItem(S5_STATE_KEY, JSON.stringify(state));
+    };
+
+    pills.forEach(p => {
+      p.addEventListener('click', () => {
+        const key = p.dataset.s;
+        if (!state.completed.includes(key)) {
+          state.completed.push(key);
+        } else {
+          state.completed = state.completed.filter(k => k !== key);
+        }
+        refresh();
+      });
+    });
+
+    refresh();
+  }
+
+  function initGwTop3() {
+    renderGwTop3();
+  }
+
+  function renderGwTop3() {
+    const container = document.getElementById('gw-top3');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const tasks = Object.values(GW_MAP)
+      .filter(t => !t.station || t.station === 'BCN')
+      .sort((a,b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
+      .slice(0,3);
+
+    if (!tasks.length) {
+      container.innerHTML = `<div class="tag">Sin acciones GW recientes para BCN.</div>`;
+      return;
+    }
+
+    tasks.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'gw-item';
+      row.dataset.id = t.id;
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!t.is_completed;
+      cb.addEventListener('change', () => toggleGwComplete(t, cb));
+
+      const label = document.createElement('div');
+      label.textContent = t.title || '(sin título)';
+
+      const note = document.createElement('textarea');
+      note.className = 'gw-note';
+      note.value = t.note || '';
+      note.placeholder = 'Nota al completar (opcional)';
+      note.disabled = !cb.checked;
+      note.addEventListener('change', () => updateGwNote(t, note.value));
+
+      row.appendChild(cb);
+      row.appendChild(label);
+      row.appendChild(note);
+
+      container.appendChild(row);
+    });
+  }
+
+  async function toggleGwComplete(task, cb) {
+    const completed = cb.checked;
+    const noteEl = cb.parentElement.querySelector('.gw-note');
+    if (noteEl) noteEl.disabled = !completed;
+    try {
+      await fetch(`/api/tasks/${task.id}/complete`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_completed: completed })
+      });
+      task.is_completed = completed;
+    } catch(e) {
+      console.warn('Error GW complete BCN', e);
+    }
+  }
+
+  async function updateGwNote(task, note) {
+    try {
+      await fetch(`/api/tasks/${task.id}/note`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note })
+      });
+      task.note = note;
+    } catch(e) {
+      console.warn('Error GW note BCN', e);
+    }
+  }
+
+  // ===============================
+  // KPI COSTES BCN
+  // ===============================
+  function initKpiCostes() {
+    const saved = localStorage.getItem(KPI_COSTES_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        applyKpiCostes(data.value, data.updated_at, { noFlash: true });
+      } catch(e){}
+    }
+  }
+
+  function applyKpiCostes(value, updatedAt, opts = {}) {
+    const el = document.getElementById('kpi-costes-value');
+    const up = document.getElementById('kpi-costes-updated');
+    if (!el || !up) return;
+    el.textContent = `${Number(value || 0).toLocaleString('es-ES',{minimumFractionDigits:0})} €`;
+    up.textContent = `Actualizado: ${updatedAt ? new Date(updatedAt).toLocaleString('es-ES') : 'N/D'}`;
+    localStorage.setItem(KPI_COSTES_KEY, JSON.stringify({
+      value,
+      updated_at: updatedAt || new Date().toISOString()
+    }));
+    if (!opts.noFlash) {
+      el.classList.remove('flash');
+      void el.offsetWidth;
+      el.classList.add('flash');
+    }
+  }
+
+  // ===============================
+  // PLANIFICACIÓN EXTERNA
+  // ===============================
+  async function initPlanificacion() {
+    await loadExternalTable();
+  }
+
+  async function loadExternalTable() {
+    try {
+      const res = await fetch('/api/external-table');
+      if (!res.ok) return;
+      const data = await res.json();
+      renderExternalTable(data);
+    } catch(e) {
+      console.warn('Error external table BCN', e);
+    }
+  }
+
+  function renderExternalTable(data) {
+    const tbody = document.getElementById('planificacion-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!Array.isArray(data)) return;
+    const colsAllow = [
       'FlightId',
       'FlightType',
       'AircraftType',
@@ -1482,319 +2053,165 @@
       'PiecesProgress.Members.Manifested.Item1',
       'WeightProgress.Members.Manifested.Item1'
     ];
-    function renderPlanif(payload){
-      const cols = payload?.columns || [];
-      const rows = payload?.rows || [];
-      const fetchedAt = payload?.fetched_at || null;
-
-      const thead = $('#planif-table thead');
-      const tbody = $('#planif-table tbody');
-      const meta  = $('#planif-meta');
-      const foot  = $('#planif-foot');
-      if (!thead || !tbody) return;
-
-      const selected = PLANIF_WHITELIST
-        .map(name => ({name, idx:cols.indexOf(name)}))
-        .filter(c => c.idx !== -1);
-
-      if (!selected.length){
-        thead.innerHTML = '';
-        tbody.innerHTML = '<tr><td>No se encontraron las columnas pedidas.</td></tr>';
-        if (meta) meta.textContent = '—';
-        if (foot) foot.textContent = '';
-        return;
-      }
-
-      thead.innerHTML = '<tr>' + selected.map(c => `<th>${escapeHTML(c.name)}</th>`).join('') + '</tr>';
-
-      const MAX = 400;
-      const slice = rows.slice(0, MAX);
-      const frag = document.createDocumentFragment();
-      slice.forEach(r => {
-        const tr = document.createElement('tr');
-        selected.forEach(c => {
-          const v = r[c.idx];
-          const td = document.createElement('td');
-          td.textContent = (v==null) ? '' : String(v);
-          tr.appendChild(td);
-        });
-        frag.appendChild(tr);
+    data.forEach(row => {
+      const tr = document.createElement('tr');
+      colsAllow.forEach(c => {
+        const td = document.createElement('td');
+        td.textContent = resolvePath(row, c) ?? '';
+        tr.appendChild(td);
       });
-      tbody.innerHTML = '';
-      tbody.appendChild(frag);
-
-      if (meta){
-        meta.textContent =
-          `Filas: ${rows.length} • Actualizado: ${
-            fetchedAt ? new Date(fetchedAt).toLocaleString('es-ES') : '—'
-          }`;
-      }
-      if (foot){
-        foot.textContent = rows.length > MAX
-          ? `Mostrando ${slice.length} de ${rows.length} filas.`
-          : `Filas: ${rows.length}`;
-      }
-    }
-    async function loadPlanifTable(){
-      try{
-        const st = await fetchExternal();
-        if (st) renderPlanif(st);
-      }catch(e){
-        console.error('Planif error', e);
-      }
-    }
-
-    /*************
-     * WebSocket BCN
-     *************/
-    let wsAttempts = 0;
-    function setConn(status, msg){
-      const b = $('#conn-banner');
-      if (!b) return;
-      if (status === 'ok'){
-        b.textContent = msg || 'Conectado';
-        b.classList.add('ok');
-        setTimeout(() => b.classList.add('hidden'), 1200);
-      } else {
-        b.textContent = msg || 'Sin conexión — reconectando…';
-        b.classList.remove('ok','hidden');
-      }
-    }
-    window.addEventListener('online',  () => setConn('ok','Conexión restaurada'));
-    window.addEventListener('offline', () => setConn('ko','Sin conexión'));
-
-    function wsBackoff(){
-      wsAttempts++;
-      const base = 500 * Math.pow(1.5, wsAttempts);
-      return Math.min(10000, base) + Math.floor(Math.random()*400);
-    }
-
-    function connectWebSocket(){
-      const wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`;
-      const socket = new WebSocket(wsUrl);
-
-      socket.onopen = () => {
-        wsAttempts = 0;
-        setConn('ok');
-        console.log('✅ WS conectado');
-      };
-      socket.onmessage = (ev) => {
-        try{
-          processTaskUpdate(JSON.parse(ev.data));
-        }catch{}
-      };
-      socket.onclose = () => {
-        setConn('ko');
-        setTimeout(connectWebSocket, wsBackoff());
-      };
-      socket.onerror = (e) => {
-        console.warn('WS error', e);
-        try{ socket.close(); }catch{}
-      };
-    }
-
-    /*************
-     * 5S localStorage
-     *************/
-    const S5_STATE_KEY = 's5_state_v1';
-    function loadS5State(){
-      try{ return JSON.parse(localStorage.getItem(S5_STATE_KEY) || '{}'); }
-      catch{ return {}; }
-    }
-    function saveS5State(state){
-      try{ localStorage.setItem(S5_STATE_KEY, JSON.stringify(state)); }
-      catch{}
-    }
-    function render5S(){
-      const strip = $('#s5-strip');
-      if (!strip) return;
-      const state = loadS5State();
-      let done = 0;
-      strip.querySelectorAll('.s5-pill').forEach(btn => {
-        const k = btn.dataset.key;
-        const on = !!state[k];
-        btn.classList.toggle('on', on);
-        if (on) done++;
-      });
-      const meta = $('#s5-meta');
-      if (meta){
-        const ts = state.updated_at
-          ? new Date(state.updated_at).toLocaleString('es-ES')
-          : null;
-        meta.textContent = `${done}/5 completadas${ts ? ` • Actualizado: ${ts}` : ''}`;
-      }
-    }
-    function toggle5S(key, el){
-      const state = loadS5State();
-      state[key] = !state[key];
-      state.updated_at = new Date().toISOString();
-      saveS5State(state);
-      render5S();
-      if (el){
-        el.classList.add('bump');
-        setTimeout(() => el.classList.remove('bump'), 220);
-      }
-    }
-    function init5S(){
-      const strip = $('#s5-strip');
-      if (!strip) return;
-      strip.addEventListener('click', (e) => {
-        const btn = e.target.closest('.s5-pill');
-        if (!btn) return;
-        const key = btn.dataset.key;
-        if (!key) return;
-        toggle5S(key, btn);
-      });
-      render5S();
-    }
-
-    /*************
-     * SORTABLE
-     *************/
-    function makeColumnsSortable(){
-      $$('#kanban-widget .cards-container').forEach(container => {
-        new Sortable(container, {
-          group:'kanban-board',
-          animation:150,
-          ghostClass:'sortable-ghost',
-          dragClass:'sortable-drag',
-          onEnd:handleDragEnd
-        });
-      });
-      $$('#kaizen-widget .cards-container').forEach(container => {
-        new Sortable(container, {
-          group:'kaizen-board',
-          animation:150,
-          ghostClass:'sortable-ghost',
-          dragClass:'sortable-drag',
-          onEnd:handleDragEnd
-        });
-      });
-    }
-    async function handleDragEnd({ item, to, from, oldIndex }){
-      if (to === from) return;
-      const taskId = item.id.replace('task-','');
-      const newStatus = to.dataset.status;
-      try{
-        await updateTaskOnServer(taskId, { status:newStatus });
-      }catch{
-        from.insertBefore(item, from.children[oldIndex] || null);
-        alert('No se pudo actualizar el estado en el servidor.');
-      }finally{
-        updateAllColumnCounts();
-      }
-    }
-
-    /*************
-     * WS: processTaskUpdate (BCN)
-     *************/
-    function processTaskUpdate(data){
-      if (!data) return;
-
-      // KPI Coste BCN
-      if (data.type === 'kpi_update' || data.type === 'kpi_state' || (data.metric && data.tab)){
-        const metric = String(data.metric || '').trim().toLowerCase();
-        const tab = String(data.tab || '').trim();
-        if (metric === 'total cost' && (!tab || tab === 'BCN')){
-          let v = data.value;
-          if (typeof v === 'string'){
-            const m = v.match(/-?\d+(?:[.,]\d+)?/);
-            v = m ? parseFloat(m[0].replace(',','.')) : null;
-          } else if (Array.isArray(v)){
-            const first = v[0] || {};
-            v = first['[Total Cost]'] ?? first['Total Cost'] ?? first.value ?? null;
-          } else if (v && typeof v === 'object'){
-            v = v['[Total Cost]'] ?? v['Total Cost'] ?? v.value ?? null;
-          }
-          if (Number.isFinite(v)) updateKpiTotalCost(v, data.timestamp);
-        }
-        return;
-      }
-
-      // Tabla externa
-      if ((data.type === 'table_ping' || data.type === 'table_state') && data.table === 'external'){
-        loadPlanifTable();
-        return;
-      }
-
-      // Roster
-      if (data.type === 'roster_update'){
-        renderRoster($('#team-list'), data.people || [], data.meta || null);
-        return;
-      }
-
-      // EHS
-      if (data.type === 'ehs_update' && Number.isFinite(data.days)){
-        setEhsDays(data.days);
-        return;
-      }
-
-      const elementId = data.id ? `task-${data.id}` : '';
-      if (!elementId) return;
-
-      // Delete
-      if (data.action === 'delete'){
-        document.getElementById(elementId)?.remove();
-        if (data.task_type === 'gw_task'){
-          GW_MAP.delete(data.id);
-          renderGwTop3();
-        }
-        updateAllColumnCounts();
-        return;
-      }
-
-      // By task_type
-      switch (data.task_type){
-        case 'kanban_rapida':
-          renderBoardCard(data, elementId);
-          updateAllColumnCounts();
-          break;
-        case 'kaizen':
-          renderKaizenCard(data, elementId);
-          updateAllColumnCounts();
-          break;
-        case 'gw_task':
-          GW_MAP.set(data.id, data);
-          renderGwTop3();
-          break;
-        default:
-          console.warn('task_type desconocido:', data.task_type);
-      }
-    }
-
-    /*************
-     * INIT
-     *************/
-    document.addEventListener('DOMContentLoaded', async () => {
-      initFullscreenToggles();
-      makeColumnsSortable();
-      setupEventListeners();
-      hydrateKpiTotalCost();
-      initEhs();
-      init5S();
-      initHeaderTimer();
-
-      await Promise.allSettled([
-        loadPlanifTable(),
-        initTeamRoster()
-      ]);
-
-      try{
-        const tasks = await fetchTasks();
-        $$('.cards-container').forEach(c => c.innerHTML = '');
-        const gw = $('#gw-tasks-dynamic-container');
-        if (gw) gw.innerHTML = '';
-        GW_MAP.clear();
-        (tasks || []).forEach(processTaskUpdate);
-        updateAllColumnCounts();
-      }catch(e){
-        console.error('Error cargando tareas', e);
-      }
-
-      connectWebSocket();
+      tbody.appendChild(tr);
     });
-  </script>
+  }
 
-  <div id="conn-banner" class="conn-banner hidden" role="status" aria-live="polite"></div>
+  function resolvePath(obj, path) {
+    return path.split('.').reduce((acc, k) => acc && acc[k] !== undefined ? acc[k] : null, obj);
+  }
+
+  // ===============================
+  // BRIEF CHECKLIST (help dinámico)
+  // ===============================
+  function initBriefChecklist() {
+    const helpEl = document.getElementById('brief-help');
+    document.querySelectorAll('#brief-check .check-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const help = card.getAttribute('data-help') || '';
+        const target = card.getAttribute('data-target');
+        helpEl.textContent = help;
+        if (target) {
+          const w = document.querySelector(target);
+          if (w) {
+            w.classList.add('flash');
+            setTimeout(() => w.classList.remove('flash'), 500);
+          }
+        }
+      });
+    });
+  }
+
+  // ===============================
+  // EHS
+  // ===============================
+  function initEhs() {
+    document.querySelectorAll('#ehs-widget [data-ehs-delta]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [type, delta] = btn.getAttribute('data-ehs-delta').split(':');
+        const valEl = type === 'safe' ? document.getElementById('ehs-days-safe') : document.getElementById('ehs-days-inc');
+        let val = parseInt(valEl.textContent || '0', 10) || 0;
+        val += (delta === '+1' ? 1 : -1);
+        if (val < 0) val = 0;
+        valEl.textContent = String(val);
+        document.getElementById('ehs-updated').textContent =
+          'Actualizado manualmente • pendiente sincronización server';
+      });
+    });
+  }
+
+  // ===============================
+  // WEBSOCKET
+  // ===============================
+  function initWebSocket() {
+    try {
+      ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    } catch(e) {
+      console.warn('WS BCN error create', e);
+      return;
+    }
+
+    ws.onopen = () => {
+      // opcional: enviar handshake si backend lo usa
+    };
+
+    ws.onmessage = (event) => {
+      let msg;
+      try { msg = JSON.parse(event.data); } catch(e){ return; }
+
+      if (msg.type === 'kpi_update' || msg.type === 'kpi_state') {
+        if (msg.key === 'bcn_costes' || msg.kpi === 'bcn_costes') {
+          applyKpiCostes(msg.value, msg.updated_at);
+        }
+      } else if (msg.type === 'table_state' || msg.type === 'table_ping') {
+        if (msg.table === 'external') {
+          loadExternalTable();
+        }
+      } else if (msg.type === 'roster_update') {
+        loadRoster();
+      } else if (msg.type === 'ehs_update') {
+        applyEhsState(msg);
+      } else if (msg.task_type) {
+        // mensajes de tareas en tiempo real
+        processTaskUpdate(msg);
+      }
+    };
+
+    ws.onclose = () => {
+      // reconexión simple
+      setTimeout(initWebSocket, 5000);
+    };
+  }
+
+  function applyEhsState(msg) {
+    if (typeof msg.days_safe === 'number') {
+      document.getElementById('ehs-days-safe').textContent = msg.days_safe;
+    }
+    if (typeof msg.days_inc === 'number') {
+      document.getElementById('ehs-days-inc').textContent = msg.days_inc;
+    }
+    document.getElementById('ehs-updated').textContent =
+      'Actualizado desde servidor: ' + new Date().toLocaleString('es-ES');
+  }
+
+  // ===============================
+  // TASK UPDATE GENÉRICO (clave)
+  // ===============================
+  function processTaskUpdate(task, opts = {}) {
+    if (!task) return;
+
+    // sincronización eliminación
+    if (task.action === 'delete' && task.id) {
+      const el = document.querySelector(`[data-id="${task.id}"]`);
+      if (el && el.parentElement) el.parentElement.removeChild(el);
+      if (task.task_type === 'kanban_rapida') updateKanbanCounters();
+      if (task.task_type === 'gw_task') {
+        delete GW_MAP[task.id];
+        renderGwTop3();
+      }
+      return;
+    }
+
+    // según tipo
+    switch (task.task_type) {
+      case 'kanban_rapida':
+        renderKanbanCard(task);
+        if (!opts.silent) updateKanbanCounters();
+        break;
+      case 'kaizen':
+        renderKaizenCard(task);
+        break;
+      case 'gw_task':
+        GW_MAP[task.id] = task;
+        renderGwTop3();
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ===============================
+  // UTILIDADES
+  // ===============================
+  function formatShortDate(str) {
+    if (!str) return '';
+    const d = new Date(str);
+    if (isNaN(d)) return str;
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+  }
+
+  function initWakeLockHint() {
+    // No forzamos wakeLock (no todos los navegadores lo soportan),
+    // pero dejamos este stub listo si queréis activarlo:
+    // if ('wakeLock' in navigator) { ... }
+  }
+</script>
 </body>
 </html>
