@@ -1328,6 +1328,16 @@ RECORDAR: En caso de accidente…
 
 </div>
 
+<strong style="margin-top: 12px; display:block;">GW</strong>
+
+<form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin:4px 0 6px;">
+  <input type="file" id="gw-file" accept=".xlsx,.xls"
+         style="flex:1; padding:6px; border:1px solid var(--border); border-radius:8px;">
+  <button class="btn-primary" type="submit" style="padding:6px 10px;">Subir GW Excel</button>
+</form>
+<small id="gw-upload-status" class="kpi-text">—</small>
+
+<div id="gw-tasks-dynamic-container"></div>
 
 <!-- GW: solo TOP-3 por última fecha -->
 <strong style="margin-top: 12px; display:block;">GW</strong>
@@ -1368,6 +1378,48 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
+(function initGwUpload(){
+  const form   = document.getElementById('gw-upload-form');
+  const input  = document.getElementById('gw-file');
+  const status = document.getElementById('gw-upload-status');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const f = input.files?.[0];
+    if (!f){
+      status.textContent = 'Selecciona un Excel de GW';
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('file', f);
+
+    status.textContent = 'Subiendo…';
+    try{
+      const res  = await fetch('/api/gw/import-xlsx', {
+        method: 'POST',
+        body: fd,
+        // si lo proteges con API_KEY:
+        // headers: { 'x-api-key': 'EstE-eS-mI_s3cr3t0-Sup3r-L4rg0-y-c0mpl3j0-p4r4-eL-d4shb04rd"' }
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al importar');
+
+      status.textContent = `OK: ${data.inserted || 0} Gemba Walks cargados`;
+      // recarga GW desde tareas
+      GW_MAP.clear();
+      await loadAllTasks();
+    }catch(err){
+      console.error(err);
+      status.textContent = `Error: ${err.message || err}`;
+    }finally{
+      input.value = '';
+    }
+  });
+})();
+
+
 // === PDF Incidentes: subida y render ===
 (function initIncidentsPdfUpload(){
   const form   = document.getElementById('incidents-pdf-form');
@@ -1690,16 +1742,44 @@ return (d && !isNaN(d)) ? d.getTime() : -Infinity;
 
 
 
-function renderGwTop3(){
-const cont = document.getElementById('gw-tasks-dynamic-container');
-if(!cont) return;
-cont.innerHTML = '';
-const top3 = [...GW_MAP.values()]
-.sort((a,b) => gwGetDate(b) - gwGetDate(a))
-.slice(0, 3);
-// renderGwTask hace prepend → invertimos para que el más reciente quede arriba
-top3.slice().reverse().forEach(t => renderGwTask(t, `task-${t.id}`));
+function gwUrgency(t){
+  // 1) usar columna days_left del backend
+  if (t.ap1_days_left != null && !isNaN(t.ap1_days_left)) {
+    return Number(t.ap1_days_left);
+  }
+  if (t.days_left != null && !isNaN(t.days_left)) {
+    return Number(t.days_left);
+  }
+
+  // 2) si no, calcular desde gw_date / due_date
+  const cand = t.gw_date || t.due_date;
+  if (cand){
+    const d = new Date(cand);
+    if (!isNaN(d)) {
+      const diff = Math.round((d - new Date()) / 86400000);
+      return diff;
+    }
+  }
+
+  // sin info → lo mandamos al final
+  return 99999;
 }
+
+function renderGwTop3(){
+  const cont = document.getElementById('gw-tasks-dynamic-container');
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  const all = [...GW_MAP.values()].filter(isForThisStation);
+
+  // ordenar por urgencia (menos días restantes primero)
+  all.sort((a,b) => gwUrgency(a) - gwUrgency(b));
+
+  const top = all.slice(0, 3);   // si quieres más, cambia aquí
+
+  top.forEach(t => renderGwTask(t, `task-${t.id}`));
+}
+
 
 /* ===== 5S: estado, render y persistencia local ===== */
 
@@ -2401,18 +2481,45 @@ ensureFullscreenBtn(card);
 }
 
 function renderGwTask(task, elementId){
-const container=document.getElementById('gw-tasks-dynamic-container'); if(!container) return;
-let el=document.getElementById(elementId); const chkId=`gw-check-${task.id}`; const noteId=`gw-note-${task.id}`;
-if(!el){ el=document.createElement('div'); el.id=elementId; container.prepend(el); }
-el.className='gw-task-item';
-el.innerHTML = `
-      <input type="checkbox" id="${chkId}" ${task.is_completed ? 'checked' : ''}>
-      <label for="${chkId}">${task.title}</label>
-      <input type="text" class="gw-note" id="${noteId}" placeholder="Añadir nota (opcional)" ${task.is_completed ? '' : 'disabled'} value="${task.note ? String(task.note).replace(/"/g,'&quot;') : ''}">
-    `;
-el.classList.toggle('completed', !!task.is_completed);
-el.classList.add('highlight-gw'); setTimeout(()=> el.classList.remove('highlight-gw'), 2000);
+  const container = document.getElementById('gw-tasks-dynamic-container');
+  if (!container) return;
+
+  let el = document.getElementById(elementId);
+  if (!el){
+    el = document.createElement('div');
+    el.id = elementId;
+    container.appendChild(el);
+  }
+
+  const days = gwUrgency(task);
+  const due  = task.gw_date || task.due_date || '';
+  const dueTxt = due ? new Date(due).toLocaleDateString('es-ES') : '—';
+
+  let labelDays;
+  if (days === 99999){
+    labelDays = 'Sin fecha';
+  } else if (days === 0){
+    labelDays = 'HOY';
+  } else if (days > 0){
+    labelDays = `Quedan ${days} días`;
+  } else {
+    labelDays = `Vencido hace ${Math.abs(days)} días`;
+  }
+
+  const note = task.note || '';
+
+  el.className = 'gw-task-item';
+  el.innerHTML = `
+    <div class="card-content">
+      <div class="card-title" style="font-size:.9rem;">${esc(task.title || '')}</div>
+      <div class="card-details" style="font-size:.8rem; color:var(--text-muted);">
+        ${labelDays} • Due: ${dueTxt}
+        ${note ? ' • ' + esc(note) : ''}
+      </div>
+    </div>
+  `;
 }
+
 
 function updateAllColumnCounts(){
 document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
@@ -3174,6 +3281,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
