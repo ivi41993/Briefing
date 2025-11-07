@@ -3638,10 +3638,21 @@ async def _roster_watcher():
 
 
 
-app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
+from pathlib import Path
+
+# Ruta absoluta al directorio del frontend de Madrid
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+if not FRONTEND_DIR.exists():
+    # Log visible en Render si algo va mal con la ruta
+    print(f"⚠️ FRONTEND_DIR no existe: {FRONTEND_DIR}")
+
+app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
