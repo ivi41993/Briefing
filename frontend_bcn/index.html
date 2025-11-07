@@ -35,6 +35,12 @@ html{ font-size: calc(16px * var(--ui-scale)); }
   --cat-ser:#fef9c3;
 }
 
+:focus-visible{
+  outline:2px solid var(--brand-red-600);
+  outline-offset:2px;
+}
+
+  
 /* Base */
 html,body{ background:var(--bg-page); color:var(--text); height:100%; }
 body{
@@ -105,6 +111,43 @@ header h1{
   filter:saturate(110%);
 }
 
+.top-bar{
+  position:sticky;
+  top:0;
+  z-index:20;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:
+    8px
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-right))
+    4px
+    max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+  background:linear-gradient(to bottom, rgba(247,248,250,0.98), rgba(247,248,250,0.92));
+  backdrop-filter:blur(6px);
+}
+.top-bar-left{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:.78rem;
+  color:var(--text-muted);
+}
+.top-bar select{
+  padding:4px 8px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  font-size:.8rem;
+  background:#fff;
+}
+.top-bar-right .btn-primary{
+  padding:8px 14px;
+  min-height:36px;
+  box-shadow:0 4px 12px rgba(220,38,38,.2);
+}
+
+  
 /* ======= Layout 3 columnas ======= */
 .dashboard-3col{
   min-height: 100svh;
@@ -662,17 +705,43 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 @media (prefers-reduced-motion: reduce){
   * { animation:none !important; transition:none !important; }
 }
+
+.widget--zoomed{
+  position:fixed;
+  inset: max(env(safe-area-inset-top), 8px)
+        max(env(safe-area-inset-right), 8px)
+        max(env(safe-area-inset-bottom), 8px)
+        max(env(safe-area-inset-left), 8px);
+  z-index:40;
+  background:#ffffff;
+  border-radius:16px;
+  box-shadow:0 18px 60px rgba(15,23,42,.32);
+  overflow:auto;
+}
+.widget--zoomed .fs-toggle{
+  z-index:41;
+}
+
 </style>
 </head>
 <body>
-<!-- Selector escala -->
-<select id="scale-select" aria-label="Escala UI">
-  <option value="1">100%</option>
-  <option value="1.15" selected>115%</option>
-  <option value="1.3">130%</option>
-  <option value="1.5">150%</option>
-</select>
-<button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">Presentar</button>
+<div class="top-bar" role="banner">
+  <div class="top-bar-left">
+    <label for="scale-select" class="top-label">Escala</label>
+    <select id="scale-select" aria-label="Escala UI">
+      <option value="1">100%</option>
+      <option value="1.15" selected>115%</option>
+      <option value="1.3">130%</option>
+      <option value="1.5">150%</option>
+    </select>
+  </div>
+  <div class="top-bar-right">
+    <button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">
+      Modo presentación
+    </button>
+  </div>
+</div>
+
 
 <div class="dashboard-3col">
   <!-- HEADER -->
@@ -1204,9 +1273,11 @@ function initFullscreenToggles(){
       const isOn = cur === owner;
       btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
       btn.setAttribute('aria-label', isOn ? 'Salir de pantalla completa' : 'Ver a pantalla completa');
+      btn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
     });
     document.documentElement.classList.toggle('fs-zoom', !!cur);
   });
+
 
   document.getElementById('present-btn')?.addEventListener('click', async ()=>{
     const host = document.querySelector('.dashboard-3col') || document.body;
@@ -2370,26 +2441,33 @@ function openWidgetFromChecklist(targetId){
     return;
   }
 
-  // Llevarlo a la vista
+    // Llevarlo a la vista
   el.scrollIntoView({ behavior:'smooth', block:'center' });
 
-  // Asegurar botón de fullscreen (por consistencia visual)
+  // Asegurar botón de fullscreen
   try { ensureFullscreenBtn(el); } catch {}
 
-  // Intentar fullscreen real (depende del navegador)
+  // Intentar fullscreen real
   if (el.requestFullscreen) {
     el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
-      // Si falla por permisos, al menos se queda centrado.
+      // Fallback visual si el navegador bloquea fullscreen
+      el.classList.add('widget--zoomed');
+      setTimeout(()=> el.classList.remove('widget--zoomed'), 120000);
     });
+  } else {
+    // Fallback en navegadores sin API
+    el.classList.add('widget--zoomed');
+    setTimeout(()=> el.classList.remove('widget--zoomed'), 120000);
   }
 }
+
 
 (function initBriefExplain(){
   const host   = document.getElementById('brief-check');
   if (!host) return;
 
   const targetText = host.querySelector('#brief-check-explain .br-explain-text');
-  const DEFAULT_MSG = 'Pasa el ratón por cada punto para ver una explicación.';
+  const DEFAULT_MSG = 'Pasa el ratón o toca para ver la guía. Haz clic para abrir el bloque correspondiente.';
 
   const setText = (t)=> {
     if (targetText) targetText.textContent = t || DEFAULT_MSG;
@@ -2405,6 +2483,11 @@ function openWidgetFromChecklist(targetId){
       card.getAttribute('data-target') ||
       card.getAttribute('data-targer') ||
       '';
+        if (targetId) {
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-controls', targetId);
+    }
+
 
     // Hover / foco: texto explicativo
     card.addEventListener('mouseenter', ()=> setText(msg));
