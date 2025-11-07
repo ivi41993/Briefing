@@ -2364,37 +2364,78 @@ window.updateSpotlightRouting = updateSpotlightRouting;
 /* Checklist → abrir widgets */
 function openWidgetFromChecklist(targetId){
   if (!targetId) return;
-  const el=document.getElementById(targetId);
-  if (!el) return;
-  el.scrollIntoView({behavior:'smooth', block:'center'});
-  ensureFullscreenBtn(el);
-}
-(function initBriefExplain(){
-  const host=document.getElementById('brief-check');
-  if (!host) return;
-  const label=host.querySelector('.br-explain-text');
-  const DEF='Pasa el ratón o toca cada punto para ver qué revisar.';
-  function setText(t){ if(label) label.textContent = t || DEF; }
-  host.querySelectorAll('.check-card').forEach(card=>{
-    const msg=card.dataset.help || card.querySelector('.check-title')?.textContent || '';
-    const targetId=card.dataset.target;
-    card.addEventListener('mouseenter', ()=>setText(msg));
-    card.addEventListener('mouseleave', ()=>setText());
-    card.addEventListener('focusin', ()=>setText(msg));
-    card.addEventListener('focusout', ()=>setText());
-    card.addEventListener('click', e=>{
-      if (e.target.tagName==='INPUT' || e.target.tagName==='LABEL') return;
-      if (targetId) openWidgetFromChecklist(targetId);
+  const el = document.getElementById(targetId);
+  if (!el) {
+    console.warn('Checklist target no encontrado:', targetId);
+    return;
+  }
+
+  // Llevarlo a la vista
+  el.scrollIntoView({ behavior:'smooth', block:'center' });
+
+  // Asegurar botón de fullscreen (por consistencia visual)
+  try { ensureFullscreenBtn(el); } catch {}
+
+  // Intentar fullscreen real (depende del navegador)
+  if (el.requestFullscreen) {
+    el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
+      // Si falla por permisos, al menos se queda centrado.
     });
-    card.addEventListener('keydown', e=>{
-      if (e.key==='Enter' || e.key===' '){
+  }
+}
+
+(function initBriefExplain(){
+  const host   = document.getElementById('brief-check');
+  if (!host) return;
+
+  const targetText = host.querySelector('#brief-check-explain .br-explain-text');
+  const DEFAULT_MSG = 'Pasa el ratón por cada punto para ver una explicación.';
+
+  const setText = (t)=> {
+    if (targetText) targetText.textContent = t || DEFAULT_MSG;
+  };
+
+  host.querySelectorAll('.check-card').forEach(card => {
+    const msg =
+      card.getAttribute('data-help') ||
+      card.querySelector('.check-title')?.textContent ||
+      '';
+    // Soportar tanto data-target como el posible typo data-targer
+    const targetId =
+      card.getAttribute('data-target') ||
+      card.getAttribute('data-targer') ||
+      '';
+
+    // Hover / foco: texto explicativo
+    card.addEventListener('mouseenter', ()=> setText(msg));
+    card.addEventListener('mouseleave', ()=> setText());
+    card.addEventListener('focusin',    ()=> setText(msg));
+    card.addEventListener('focusout',   ()=> setText());
+
+    // Click en la tarjeta → abrir widget en fullscreen
+    card.addEventListener('click', (e)=>{
+      // No interceptar clics en radios/labels
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+      if (targetId) {
         e.preventDefault();
-        if (targetId) openWidgetFromChecklist(targetId);
+        openWidgetFromChecklist(targetId);
+      }
+    });
+
+    // Teclado: Enter o Space con foco en la tarjeta
+    card.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (targetId) {
+          e.preventDefault();
+          openWidgetFromChecklist(targetId);
+        }
       }
     });
   });
+
   setText();
 })();
+
 
 /* ==========================
    Carga inicial
