@@ -816,6 +816,153 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import UploadFile, File, Header
+from io import BytesIO
+import pandas as pd
+import uuid
+from typing import Optional
+
+# ... aquí ya tienes: tasks_in_memory_store, sanitize_task, save_tasks_to_disk, manager, API_KEY ...
+
+def _norm(s: str) -> str:
+    return (s or "").strip().lower()
+
+def _pick(colmap, *names):
+    for n in names:
+        if _norm(n) in colmap:
+            return colmap[_norm(n)]
+    return None
+
+@app.post("/api/gw/import-xlsx")
+async def import_gw_xlsx(
+    file: UploadFile = File(...),
+    x_api_key: Optional[str] = Header(None)
+):
+    # opcional: protege con tu clave del dashboard
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+
+    fname = (file.filename or "").lower()
+    if not (fname.endswith(".xlsx") or fname.endswith(".xls")):
+        raise HTTPException(status_code=400, detail="Sube un .xlsx/.xls")
+
+    raw = await file.read()
+    try:
+        df = pd.read_excel(BytesIO(raw), dtype=str)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo leer el Excel: {e}")
+
+    if df.empty:
+        raise HTTPException(status_code=400, detail="El Excel está vacío")
+
+    # Mapa normalizado de columnas
+    colmap = {_norm(c): c for c in df.columns}
+
+    col_country   = _pick(colmap, "country")
+    col_desc      = _pick(colmap, "gemba walk description")
+    col_ap1_due   = _pick(colmap, "ap1 due date")
+    col_ap1_days  = _pick(colmap, "ap1 days left/overdue")
+    col_ap1_resp  = _pick(colmap, "ap1 responsible")
+
+    required = [col_desc, col_ap1_due, col_ap1_days]
+    if not all(required):
+        missing = []
+        if not col_desc:     missing.append("Gemba Walk description")
+        if not col_ap1_due:  missing.append("AP1 Due Date")
+        if not col_ap1_days: missing.append("AP1 Days Left/Overdue")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Faltan columnas obligatorias: {', '.join(missing)}"
+        )
+
+    # Borra GW antiguos de MAD para no duplicar (solo gw_task de esta estación)
+    to_delete = [
+        tid for tid, t in tasks_in_memory_store.items()
+        if t.get("task_type") == "gw_task"
+        and str(t.get("station", "")).upper() == "MAD"
+    ]
+    for tid in to_delete:
+        tasks_in_memory_store.pop(tid, None)
+
+    new_tasks = []
+    today = pd.Timestamp.utcnow().normalize()
+
+    for _, row in df.iterrows():
+        desc = str(row.get(col_desc, "") or "").strip()
+        due_raw = row.get(col_ap1_due)
+        days_raw = row.get(col_ap1_days)
+
+        if not desc:
+            continue
+
+        # Due date → ISO
+        try:
+            due = pd.to_datetime(due_raw, dayfirst=True, errors="coerce")
+        except Exception:
+            due = pd.NaT
+
+        if pd.isna(due):
+            # sin fecha no nos sirve como GW accionable
+            continue
+
+        due_date = due.date().isoformat()
+
+        # Days left / overdue → int (permite negativos)
+        days_left = None
+        if days_raw not in (None, "", "nan"):
+            try:
+                days_left = int(float(str(days_raw).replace(",", ".").strip()))
+            except Exception:
+                pass
+
+        # Si no viene days_left, lo calculamos
+        if days_left is None:
+            days_left = int((due.normalize() - today).days)
+
+        resp = (str(row.get(col_ap1_resp)) or "").strip()
+        country = (str(row.get(col_country)) or "").strip()
+
+        note_parts = []
+        if resp:
+            note_parts.append(f"Resp: {resp}")
+        note_parts.append(f"Vence: {due_date}")
+        note_parts.append(f"Días restantes: {days_left}")
+        if country:
+            note_parts.append(f"Country: {country}")
+        note = " • ".join(note_parts)
+
+        # ID estable por contenido (para que la misma fila no genere IDs nuevos)
+        stable_id_seed = f"MAD|{desc}|{due_date}|{country}"
+        tid = str(uuid.uuid5(uuid.NAMESPACE_DNS, stable_id_seed))
+
+        task = sanitize_task({
+            "id": tid,
+            "task_type": "gw_task",
+            "title": desc,           # lo que mostraremos en GW
+            "station": "MAD",
+            "gw_date": due_date,     # usamos para ordenar
+            "due_date": due_date,
+            "ap1_days_left": days_left,
+            "note": note,
+            "is_completed": False,
+        })
+
+        tasks_in_memory_store[task["id"]] = task
+        new_tasks.append(task)
+
+    save_tasks_to_disk()
+
+    # Notifica por WebSocket al dashboard
+    for t in new_tasks:
+        await manager.broadcast(t)
+
+    return {
+        "ok": True,
+        "deleted_old": len(to_delete),
+        "inserted": len(new_tasks)
+    }
+
+
 
 # =========================================================
 # Endpoints Tareas
@@ -1122,3 +1269,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main_bcn:app", host="0.0.0.0", port=8001, reload=True)
+
