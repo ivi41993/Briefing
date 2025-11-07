@@ -1607,7 +1607,17 @@ async def _roster_watcher():
 # -----------------------------------
 # Frontend estático
 # -----------------------------------
-app.mount("/", StaticFiles(directory="../frontend_bcn", html=True), name="static")
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+FRONTEND_BCN_DIR = Path(__file__).resolve().parent.parent / "frontend_bcn"
+
+if not FRONTEND_BCN_DIR.exists():
+    print(f"⚠️ FRONTEND_BCN_DIR no existe: {FRONTEND_BCN_DIR}")
+
+app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="static")
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
