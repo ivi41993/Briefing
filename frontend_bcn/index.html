@@ -1610,6 +1610,68 @@ async function initTeamRoster(){
   });
 })();
 
+/* Alta manual de persona en Equipo/Turno (persistente) */
+(function initTeamAddForm(){
+  const form  = document.getElementById('team-form');
+  const input = document.getElementById('team-name');
+  const list  = document.getElementById('team-list');
+  if (!form || !input || !list) return;
+
+  async function syncServerAdd(name){
+    // Endpoint esperado en backend: POST /api/roster/add
+    // payload: { person, station, date, shift }
+    const payload = {
+      person: name,
+      station: STATION_CODE,
+      date:   TEAM_STATE?.sheet_date || null,
+      shift:  TEAM_STATE?.shift || computeShift().name
+    };
+    const res = await fetch('/api/roster/add', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    // Si el backend confirma, refrescamos del servidor para tener sheet_date/shift/IDs correctos
+    if (res.ok) {
+      const cur = await fetchServerRoster();
+      if (cur) renderRoster(list, cur.people||[], cur);
+      return true;
+    }
+    return false;
+  }
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const raw = (input.value||'').trim();
+    if (!raw) return;
+
+    // Evita duplicados por nombre
+    const exists = (TEAM_STATE?.people||[]).some(p =>
+      String(p?.nombre_completo||'').trim().toLowerCase() === raw.toLowerCase()
+    );
+    if (exists){
+      input.value = '';
+      return;
+    }
+
+    // 1) Alta optimista para feedback inmediato
+    const newPerson = { nombre_completo: raw, horario: '', observaciones: '' };
+    const next = [...(TEAM_STATE?.people||[]), newPerson];
+    renderRoster(list, next, TEAM_STATE);
+
+    // 2) Persistir en servidor (si falla, mantenemos la vista y logueamos)
+    try{
+      const ok = await syncServerAdd(raw);
+      if (!ok) console.warn('No se pudo persistir /api/roster/add. Se mantiene solo en cliente.');
+    }catch(err){
+      console.warn('Error al persistir /api/roster/add', err);
+    }finally{
+      input.value = '';
+      updateSpotlightRouting?.();
+    }
+  });
+})();
+
 /* ==========================
    Prev shift note (local)
 ========================== */
