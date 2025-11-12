@@ -1470,6 +1470,20 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
+/* Estación actual (BCN por título o ?station=) */
+const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
+const STATION_CODE = (
+  (new URLSearchParams(location.search).get('station') || '')
+    .toUpperCase()
+  ||
+  ((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || ['','BCN'])[1]).toUpperCase()
+);
+/* ==========================
+   Actualizaciones operativas (localStorage)
+========================== */
+const OPS_SECTIONS_KEY = 'ops_updates_sections_v1';
+const OPS_LINES_KEY    = 'ops_updates_lines_v1';
+
 function opsKey(base){ return `${base}_${STATION_CODE}`; }
 
 const OPS_SECTIONS_KEY = opsKey('ops_updates_sections_v1');
@@ -1736,14 +1750,7 @@ function initSafetyDailyWidget(){
   // Accesibilidad: Enter en textarea -> salto de línea normal; ya OK por defecto.
 }
 
-/* Estación actual (BCN por título o ?station=) */
-const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
-const STATION_CODE = (
-  (new URLSearchParams(location.search).get('station') || '')
-    .toUpperCase()
-  ||
-  ((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || ['','BCN'])[1]).toUpperCase()
-);
+
 
 /* Acepta tareas sin estación o con station = STATION_CODE */
 function isForThisStation(obj){
@@ -2573,11 +2580,6 @@ async function loadIncidentes(){
   });
 })();
 
-/* ==========================
-   Actualizaciones operativas (localStorage)
-========================== */
-const OPS_SECTIONS_KEY = 'ops_updates_sections_v1';
-const OPS_LINES_KEY    = 'ops_updates_lines_v1';
 
 function opsLoad(){
   let sections = [];
