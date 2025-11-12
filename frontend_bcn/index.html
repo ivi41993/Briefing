@@ -752,6 +752,55 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
   color: var(--text-muted);
 }
 
+/* Tarjetas editables de Incidentes */
+#incidentes-widget .incident-card-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap:12px;
+  margin:10px 0 4px;
+}
+@media (max-width:1100px){
+  #incidentes-widget .incident-card-grid{
+    grid-template-columns: 1fr;
+  }
+}
+#incidentes-widget .incident-card{
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:12px;
+  box-shadow:0 6px 16px rgba(17,24,39,.06);
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+#incidentes-widget .incident-card-title{
+  font-weight:800;
+  font-size:.95rem;
+  color:var(--brand-red-700);
+  display:flex; align-items:center; gap:8px;
+}
+#incidentes-widget .incident-card-body{
+  min-height:84px;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:#fff;
+  line-height:1.4;
+  outline:none;
+}
+#incidentes-widget .incident-card-body:focus{
+  border-color: var(--brand-red-500);
+  box-shadow: 0 0 0 3px rgba(239,68,68,.12);
+}
+/* Placeholder para contenteditable */
+[contenteditable][data-placeholder]:empty:before{
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+  pointer-events:none;
+}
+
+
 </style>
 </head>
 <body>
@@ -1019,11 +1068,38 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 
 
 
-      <ul class="title-bullets" aria-label="Guía rápida de incidentes">
-        <li class="title-chip">Qué hacer</li>
-        <li class="title-chip">A quién avisar</li>
-        <li class="title-chip">Dónde están los equipos</li>
-      </ul>
+      <div class="incident-card-grid" aria-label="Procedimientos de incidentes">
+  <div class="incident-card">
+    <div class="incident-card-title">Qué hacer</div>
+    <div id="incident-what"
+         class="incident-card-body"
+         role="textbox"
+         aria-label="Qué hacer en caso de incidente"
+         contenteditable="true"
+         data-placeholder="Describe el procedimiento paso a paso…"></div>
+  </div>
+
+  <div class="incident-card">
+    <div class="incident-card-title">A quién avisar</div>
+    <div id="incident-who"
+         class="incident-card-body"
+         role="textbox"
+         aria-label="A quién avisar en caso de incidente"
+         contenteditable="true"
+         data-placeholder="Nombres, teléfonos, radio, cadena de avisos…"></div>
+  </div>
+
+  <div class="incident-card">
+    <div class="incident-card-title">Dónde están los equipos</div>
+    <div id="incident-where"
+         class="incident-card-body"
+         role="textbox"
+         aria-label="Dónde están los equipos de emergencia"
+         contenteditable="true"
+         data-placeholder="Extintores, botiquines, DESA, salidas de emergencia…"></div>
+  </div>
+</div>
+
 
       <!-- Subida PDF -->
       <form id="incidents-pdf-form"
