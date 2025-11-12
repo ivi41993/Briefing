@@ -1032,6 +1032,47 @@ color: var(--text-muted);
 }
 #incidentes-widget .title-chip:hover{ box-shadow:0 0 0 3px rgba(239,68,68,.12); transform:none; filter:none; }
 
+/* ===== Actualizaciones Operativas + Seguridad & Protección ===== */
+.ops-list, .sec-list{
+  display:flex; flex-direction:column; gap:10px;
+}
+.ops-item, .sec-item{
+  border:1px solid var(--border); border-radius:10px; background:#fff; padding:10px 12px;
+  display:flex; flex-direction:column; gap:6px;
+}
+.meta-row{ color:var(--text-muted); font-size:.82rem; display:flex; gap:10px; flex-wrap:wrap; }
+.badge{
+  display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--border);
+  border-radius:999px; background:#fff; font-weight:700; font-size:.78rem;
+}
+
+/* Form compacto dentro de tarjeta */
+.inline-form{ display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; align-items:center; }
+.inline-form input, .inline-form select{ padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+@media (max-width:700px){
+  .inline-form{ grid-template-columns: 1fr; }
+}
+
+/* Píldoras de riesgo/estado en Seguridad */
+.risk-pill{
+  display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border);
+  border-radius:999px; background:#fff; font-size:.82rem; font-weight:700; cursor:pointer; user-select:none;
+}
+.risk-pill.on{ background:#ffe3e3; color:#991b1b; border-color:#fecaca; }
+
+/* Nota de seguridad */
+.sec-note{
+  width:100%; min-height:60px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff; font-size:.9rem;
+}
+
+/* —— Distribución checklist “como BCN”: 3 columnas en desktop —— */
+#brief-check .check-grid{
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+}
+@media (max-width:1100px){
+  #brief-check .check-grid{ grid-template-columns: 1fr; }
+}
+
   
 </style>
 </head>
@@ -1136,7 +1177,7 @@ color: var(--text-muted);
 
 <div class="check-card" tabindex="0"
      data-help="Cambios operativos: revisar CQC o WWM"
-     data-targer="kanban-widget">
+     data-target="ops-updates-widget">
   <span class="check-title">2) Actualizaciones operativas</span>
 <div class="check-actions" role="group" aria-label="Bloque 2">
 <input id="c2ok"  type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
@@ -1156,7 +1197,7 @@ color: var(--text-muted);
 
 <div class="check-card" tabindex="0"
      data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad."
-     data-target="rotativas-widget">
+     data-target="seguridad-widget">
   <span class="check-title">4) Seguridad y protección</span>
 <div class="check-actions" role="group" aria-label="Bloque 4">
 <input id="c4ok"  type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
@@ -1250,6 +1291,42 @@ color: var(--text-muted);
 </form>
 </div>
 
+<!-- ACTUALIZACIONES OPERATIVAS -->
+<div class="widget" id="ops-updates-widget">
+  <h2 class="widget-title">Actualizaciones Operativas</h2>
+
+  <form id="ops-form" class="inline-form" autocomplete="off">
+    <input type="text" id="ops-title" placeholder="Cambio / Instrucción…" required>
+    <select id="ops-impact" required>
+      <option value="" disabled selected>Impacto…</option>
+      <option>Alto</option><option>Medio</option><option>Bajo</option>
+    </select>
+    <button class="btn-primary" type="submit">Añadir</button>
+  </form>
+
+  <small class="kpi-text" id="ops-meta">—</small>
+  <div class="ops-list" id="ops-list"></div>
+</div>
+
+<!-- SEGURIDAD Y PROTECCIÓN -->
+<div class="widget" id="seguridad-widget">
+  <h2 class="widget-title">Seguridad y Protección</h2>
+
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+    <button type="button" class="risk-pill" data-risk="EPIs">EPIs</button>
+    <button type="button" class="risk-pill" data-risk="Permisos">Permisos</button>
+    <button type="button" class="risk-pill" data-risk="Accesos">Accesos</button>
+    <button type="button" class="risk-pill" data-risk="Cargas">Cargas</button>
+    <button type="button" class="risk-pill" data-risk="Vehículos">Vehículos</button>
+  </div>
+
+  <textarea id="sec-note" class="sec-note" placeholder="Notas/brief de seguridad del turno…"></textarea>
+  <div class="sec-list" id="sec-list" style="margin-top:10px;"></div>
+  <small class="kpi-text" id="sec-meta">—</small>
+</div>
+
+
+  
 <!-- INCIDENTES (ENABLON) -->
 <div class="widget" id="incidentes-widget">
 <h2 class="widget-title"><span>Incidentes *ESTAMOS A LA ESPERA DE CONSEGUIR LA CONEXION CON PULSE*</span></h2>
@@ -3027,6 +3104,126 @@ const msToNextMin = (60 - now.getSeconds())*1000 - now.getMilliseconds();
 setTimeout(()=>{ paintDateTimeAndShift(); setInterval(paintDateTimeAndShift, 60000); }, Math.max(0, msToNextMin));
 }
 
+/* ===== Actualizaciones Operativas (local + opcional backend) ===== */
+const OPS_KEY = 'ops_updates_v1';
+function ops_load(){ try{ return JSON.parse(localStorage.getItem(OPS_KEY)||'[]'); }catch{ return []; } }
+function ops_save(list){ try{ localStorage.setItem(OPS_KEY, JSON.stringify(list)); }catch{} }
+
+function ops_render(){
+  const list = ops_load();
+  const wrap = document.getElementById('ops-list');
+  const meta = document.getElementById('ops-meta');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  list.sort((a,b)=> (b.ts||0)-(a.ts||0)).forEach((it, idx)=>{
+    const el = document.createElement('div');
+    el.className = 'ops-item';
+    const when = it.ts ? new Date(it.ts).toLocaleString('es-ES') : '—';
+    el.innerHTML = `
+      <div style="font-weight:700">${esc(it.title||'')}</div>
+      <div class="meta-row">
+        <span class="badge">Impacto: ${esc(it.impact||'—')}</span>
+        <span class="badge">Fecha: ${when}</span>
+      </div>`;
+    wrap.appendChild(el);
+  });
+  if(meta) meta.textContent = `${list.length} actualizaciones • Última: ${list[0]?.ts ? new Date(list[0].ts).toLocaleString('es-ES') : '—'}`;
+}
+
+(function initOps(){
+  const form = document.getElementById('ops-form');
+  if(!form) return;
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const title  = document.getElementById('ops-title').value.trim();
+    const impact = document.getElementById('ops-impact').value;
+    if(!title || !impact) return;
+    const list = ops_load();
+    list.push({ title, impact, ts: Date.now(), station: STATION_CODE });
+    ops_save(list);
+    // opcional backend:
+    try{
+      await fetch('/api/ops-updates', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ title, impact, station: STATION_CODE, timestamp: new Date().toISOString() })
+      }).catch(()=>{});
+    }catch{}
+    form.reset();
+    ops_render();
+  });
+  ops_render();
+})();
+
+/* ===== Seguridad y protección (estado rápido + notas) ===== */
+const SEC_KEY = 'seguridad_state_v1';
+function sec_load(){ try{ return JSON.parse(localStorage.getItem(SEC_KEY)||'{"risks":{}}'); }catch{ return {risks:{}}; } }
+function sec_save(s){ try{ localStorage.setItem(SEC_KEY, JSON.stringify(s)); }catch{} }
+
+function sec_render(){
+  const state = sec_load();
+  // pinta toggles
+  document.querySelectorAll('#seguridad-widget .risk-pill').forEach(btn=>{
+    const k = btn.dataset.risk;
+    btn.classList.toggle('on', !!state.risks?.[k]);
+  });
+  // pinta nota
+  const note = document.getElementById('sec-note');
+  if(note && typeof state.note === 'string') note.value = state.note;
+
+  // listado histórico mínimo (si quieres ver marcas)
+  const list = document.getElementById('sec-list');
+  const meta = document.getElementById('sec-meta');
+  if(list){
+    list.innerHTML = '';
+    const active = Object.entries(state.risks||{}).filter(([,v])=>v).map(([k])=>k);
+    if(active.length){
+      const el = document.createElement('div');
+      el.className = 'sec-item';
+      el.innerHTML = `
+        <div style="font-weight:700">Riesgos activos del turno</div>
+        <div class="meta-row">${active.map(k=>`<span class="badge">${esc(k)}</span>`).join(' ')}</div>`;
+      list.appendChild(el);
+    }
+    if(meta) meta.textContent = `Riesgos activos: ${active.length} • Actualizado: ${new Date().toLocaleString('es-ES')}`;
+  }
+}
+
+(function initSeguridad(){
+  const host = document.getElementById('seguridad-widget');
+  if(!host) return;
+
+  // toggles
+  host.addEventListener('click', async (e)=>{
+    const pill = e.target.closest('.risk-pill');
+    if(!pill) return;
+    const st = sec_load();
+    const k  = pill.dataset.risk;
+    st.risks = st.risks || {};
+    st.risks[k] = !st.risks[k];
+    st.ts = Date.now();
+    sec_save(st);
+    // opcional backend:
+    try{
+      await fetch('/api/security/state', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ station: STATION_CODE, risks: st.risks, timestamp: new Date().toISOString() })
+      }).catch(()=>{});
+    }catch{}
+    sec_render();
+  });
+
+  // nota
+  const note = document.getElementById('sec-note');
+  note?.addEventListener('input', ()=>{
+    const st = sec_load();
+    st.note = note.value || '';
+    st.ts = Date.now();
+    sec_save(st);
+  });
+
+  sec_render();
+})();
+
 /* ===== Unión Checklist → Widgets (spotlight) ===== */
 function rosterComplete(){
 const total = (TEAM_STATE?.people || []).length;
@@ -3063,9 +3260,9 @@ function setSpotlight(ids){
 function updateSpotlightRouting(){
   if (!rosterComplete()) return setSpotlight(['team-widget']);
   if (readC('c1') !== 'OK') return setSpotlight(['prev-shift-widget']);
-  if (readC('c2') !== 'OK') return setSpotlight(['kpi-center']);
+  if (readC('c2') !== 'OK') return setSpotlight(['ops-updates-widget']);
   if (readC('c3') !== 'OK') return setSpotlight(['team-widget']);
-  if (readC('c4') !== 'OK') return setSpotlight(['rotativas-widget']);
+  if (readC('c4') !== 'OK') return setSpotlight(['seguridad-widget']);
   if (readC('c5') !== 'OK') return setSpotlight(['incidentes-widget']);
   if (readC('c6') !== 'OK') return setSpotlight(['kpi-center','kpi-costes']);
   if (readC('c7') !== 'OK') return setSpotlight(['kanban-widget']);
@@ -3159,6 +3356,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
