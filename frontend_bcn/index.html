@@ -982,6 +982,99 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 @keyframes ops-pop2 { 0%{transform:translateY(-2px);} 100%{transform:translateY(0);} }
 .ops-line-card.highlight-new{ animation: ops-pop2 .2s ease-out, blink-glow 1.1s ease-in-out 1; }
 
+/* ===== Fixes & Polish ===== */
+
+/* Botón compacto usado en Kanban/Ops */
+.btn-compact{
+  border:1px solid var(--border);
+  background:#fff;
+  border-radius:10px;
+  padding:6px 10px;
+  font-weight:700;
+  font-size:.82rem;
+  cursor:pointer;
+  transition:transform .1s, box-shadow .15s, border-color .15s;
+}
+.btn-compact:hover{ transform:translateY(-1px); box-shadow:0 4px 12px rgba(17,24,39,.08); }
+.btn-compact:focus-visible{ outline:2px solid var(--brand-red-500); outline-offset:2px; }
+
+/* Cronómetro header (faltaban estilos) */
+.header-timer{
+  display:flex; align-items:center; gap:10px;
+  border:1px solid var(--border); border-radius:12px; background:#fff; padding:8px 10px;
+}
+.timer-face{ position:relative; display:flex; align-items:center; gap:8px; }
+.timer-display{
+  font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+  font-weight:800; letter-spacing:.5px;
+  font-variant-numeric:tabular-nums; cursor:pointer; user-select:none;
+}
+.timer-dot{
+  width:8px; height:8px; border-radius:50%; background:#d1d5db;
+  transition: background .2s;
+}
+.timer-reset{
+  border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px 10px;
+  font-weight:700; font-size:.82rem; cursor:pointer;
+}
+.timer-running .timer-dot{ background:var(--brand-red-500); }
+
+/* Scrollbar suave (Chromium/Edge/Firefox) */
+*{ scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent; }
+*::-webkit-scrollbar{ height:8px; width:8px; }
+*::-webkit-scrollbar-thumb{ background:#cbd5e1; border-radius:10px; }
+*::-webkit-scrollbar-track{ background:transparent; }
+
+/* Snap en columnas para listas largas */
+.cards-container{ scroll-snap-type:y proximity; }
+.card{ scroll-snap-align:start; }
+
+/* Kanban: refuerzo de contraste por categoría (borde izq.) */
+#kanban-widget .card.cat-seguridad     { border-left:6px solid #ef4444; }
+#kanban-widget .card.cat-incidencias   { border-left:6px solid #f59e0b; }
+#kanban-widget .card.cat-mantenimiento { border-left:6px solid #10b981; }
+#kanban-widget .card.cat-calidad       { border-left:6px solid #a855f7; }
+#kanban-widget .card.cat-servicio      { border-left:6px solid #eab308; }
+
+/* Píldora de categoría coherente (por si no hay chip en título) */
+#kanban-widget .card .cat-chip{ background:#fff; border-color:#e5e7eb; }
+#kanban-widget .card.cat-seguridad  .cat-chip{ background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+#kanban-widget .card.cat-incidencias .cat-chip{ background:#fff1e6; color:#7a3800; border-color:#ffd7b5; }
+#kanban-widget .card.cat-mantenimiento .cat-chip{ background:#eaf8f0; color:#065f46; border-color:#b7f0d3; }
+#kanban-widget .card.cat-calidad .cat-chip{ background:#fce7ff; color:#6b21a8; border-color:#f0abfc; }
+#kanban-widget .card.cat-servicio .cat-chip{ background:#fef9c3; color:#854d0e; border-color:#fde68a; }
+
+/* Top-bar sombra sutil al hacer scroll */
+.top-bar{ box-shadow:0 1px 0 rgba(0,0,0,.04); }
+@supports(selector(:has(*))){
+  .top-bar:has(+ .dashboard-3col .col-middle:where(:not(:hover))) { box-shadow:0 1px 0 rgba(0,0,0,.06); }
+}
+
+/* Imprimir: oculta cromo y deja contenido clave limpio */
+@media print{
+  .top-bar, .fs-toggle, #present-btn, .new-item-form, .ops-toolbar, .ops-actions { display:none !important; }
+  body{ background:white !important; }
+  .widget, .kpi-tile{ break-inside:avoid; box-shadow:none; border-color:#ddd; }
+}
+
+/* Dark mode manteniendo la marca */
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg-page:#0f172a; --bg-card:#0b1220; --border:#1f2937; --text:#e5e7eb; --text-muted:#94a3b8;
+  }
+  .btn-primary{ box-shadow:0 6px 16px rgba(239,68,68,.25); }
+  .kpi-tile, .widget, .card{ box-shadow:0 6px 18px rgba(0,0,0,.35); }
+  .presence-toggle{ background:#0b1220; }
+  .table-scroll thead th{ background:#0f172a; }
+  .fs-toggle{ background:rgba(15,23,42,.85); }
+}
+
+/* Placeholders contenteditable (unificados) */
+[contenteditable][data-placeholder]:empty:before{
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+  pointer-events: none;
+}
 
 </style>
 </head>
@@ -1162,6 +1255,8 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
     <option value="Baja">Baja</option>
   </select>
   <button type="button" class="btn" id="ops-export">Copiar resumen</button>
+  <div id="ops-lines-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
+
 </div>
 
 
@@ -1189,19 +1284,7 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
     </div>
   </div>
 </div>
-    <!-- Columna derecha: líneas rápidas -->
-<div class="ops-card">
-  <strong>Lista rápida (líneas)</strong>
-  <div id="ops-quicklines"
-       class="ops-quicklines"
-       role="textbox" aria-multiline="true"
-       contenteditable="true"
-       data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
-  <small class="kpi-text">Consejo: usa una línea por actualización, p.ej. “Cambio layout export • vigencia hoy”.</small>
-
-  <!-- 🔧 FALTA ESTE CONTENEDOR -->
-  <div id="ops-lines-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
-</div>
+   
 
 
 
@@ -1630,6 +1713,14 @@ function loadJson(key, fallback){
 function saveJson(key, val){
   try{ localStorage.setItem(key, JSON.stringify(val)); }catch{}
 }
+
+(function ensureUniqueQuicklines(){
+  const nodes = document.querySelectorAll('#ops-quicklines');
+  if (nodes.length > 1){
+    nodes.forEach((n,i)=>{ if(i>0) n.remove(); });
+  }
+})();
+
 
 // —— tips diarios
 function todayKey(){
@@ -2841,6 +2932,8 @@ function initOpsUpdates(){
     if (!confirm('¿Vaciar “Actualizaciones operativas”?')) return;
     const empty = {sections:[{title:'Cambios turno', body:''}], lines:''};
     opsRender(empty); opsSave(empty);
+    saveRenderedOpsLines([]);           // ← limpia tarjetas derivadas
+    renderOpsLines([]);                 // ← repinta vacío
   });
 
   // Accesibilidad: Enter = salto línea en contenteditable
@@ -3106,6 +3199,15 @@ function renderBoardCard(task, elementId){
       </button>
     </div>
   `;
+  // en renderBoardCard(), tras construir innerHTML:
+const content = card.querySelector('.card-content');
+if (content && !content.querySelector('.cat-chip')) {
+  const chip = document.createElement('span');
+  chip.className = 'cat-chip';
+  chip.textContent = catLabel;
+  content.querySelector('.card-title')?.appendChild(chip);
+}
+
   ensureFullscreenBtn(card);
   if (card.parentElement !== col) col.prepend(card);
 
