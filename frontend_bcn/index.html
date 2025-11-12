@@ -1189,6 +1189,20 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
     </div>
   </div>
 </div>
+    <!-- Columna derecha: líneas rápidas -->
+<div class="ops-card">
+  <strong>Lista rápida (líneas)</strong>
+  <div id="ops-quicklines"
+       class="ops-quicklines"
+       role="textbox" aria-multiline="true"
+       contenteditable="true"
+       data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
+  <small class="kpi-text">Consejo: usa una línea por actualización, p.ej. “Cambio layout export • vigencia hoy”.</small>
+
+  <!-- 🔧 FALTA ESTE CONTENEDOR -->
+  <div id="ops-lines-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
+</div>
+
 
 
     <!-- KANBAN FEEDBACK DIRECTO -->
@@ -1478,11 +1492,7 @@ const STATION_CODE = (
   ||
   ((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || ['','BCN'])[1]).toUpperCase()
 );
-/* ==========================
-   Actualizaciones operativas (localStorage)
-========================== */
-const OPS_SECTIONS_KEY = 'ops_updates_sections_v1';
-const OPS_LINES_KEY    = 'ops_updates_lines_v1';
+
 
 function opsKey(base){ return `${base}_${STATION_CODE}`; }
 
