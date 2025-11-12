@@ -722,6 +722,36 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
   z-index:41;
 }
 
+/* Placeholders para contenteditable */
+[contenteditable][data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Campos editables de incidentes */
+#incidentes-widget .incident-input,
+#incidentes-widget #incident-remember {
+  min-height: 84px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  line-height: 1.4;
+  box-shadow: 0 6px 16px rgba(17,24,39,.04);
+  outline: none;
+}
+#incidentes-widget .incident-field {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+#incidentes-widget .incident-field label {
+  font-weight: 700;
+  font-size: .9rem;
+  color: var(--text-muted);
+}
+
 </style>
 </head>
 <body>
@@ -946,9 +976,48 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
         <span>Incidentes / Seguridad BCN</span>
       </h2>
 
-      <div class="incident-remember" role="note">
+      <div id="incident-remember"
+           class="incident-remember"
+           role="textbox"
+           aria-label="Recordatorio general de seguridad"
+           contenteditable="true"
+           data-placeholder="Escribe aquí el recordatorio general (EPIs, comunicación, registro, etc.)…">
         RECORDAR: Uso correcto de EPIs, comunicación inmediata y registro en sistema oficial.
       </div>
+
+      <div class="incident-fields">
+        <div class="incident-field">
+          <label for="incident-what">Qué hacer</label>
+          <div id="incident-what"
+               class="incident-input"
+               role="textbox"
+               aria-label="Qué hacer en caso de incidente"
+               contenteditable="true"
+               data-placeholder="Describe el procedimiento paso a paso…"></div>
+        </div>
+      
+        <div class="incident-field">
+          <label for="incident-who">A quién avisar</label>
+          <div id="incident-who"
+               class="incident-input"
+               role="textbox"
+               aria-label="A quién avisar en caso de incidente"
+               contenteditable="true"
+               data-placeholder="Nombres, teléfonos, radio, cadena de avisos…"></div>
+        </div>
+      
+        <div class="incident-field">
+          <label for="incident-where">Dónde están los equipos</label>
+          <div id="incident-where"
+               class="incident-input"
+               role="textbox"
+               aria-label="Dónde están los equipos de emergencia"
+               contenteditable="true"
+               data-placeholder="Extintores, botiquines, desfibrilador, salidas de emergencia…"></div>
+        </div>
+      </div>
+
+
 
       <ul class="title-bullets" aria-label="Guía rápida de incidentes">
         <li class="title-chip">Qué hacer</li>
@@ -1903,6 +1972,51 @@ async function loadIncidentes(){
     }
   });
 })();
+
+/* ==========================
+   Incidentes (edición local)
+========================== */
+(function initIncidentEditableFields(){
+  const FIELDS = [
+    ['incident-remember', 'inc_bcn_remember_v1'],
+    ['incident-what',     'inc_bcn_what_v1'],
+    ['incident-who',      'inc_bcn_who_v1'],
+    ['incident-where',    'inc_bcn_where_v1']
+  ];
+
+  FIELDS.forEach(([id, key])=>{
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    // Carga inicial
+    try{
+      const saved = localStorage.getItem(key);
+      if (saved !== null) el.textContent = saved;
+    }catch(e){}
+
+    // Guardado (debounce)
+    let t;
+    const save = ()=>{
+      try{
+        localStorage.setItem(key, el.textContent || '');
+      }catch(e){}
+    };
+    el.addEventListener('input', ()=>{
+      clearTimeout(t);
+      t = setTimeout(save, 350);
+    });
+    el.addEventListener('blur', save);
+
+    // Accesibilidad: Enter inserta salto de línea (y no dispara nada extraño)
+    el.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter') {
+        document.execCommand?.('insertLineBreak');
+        e.preventDefault();
+      }
+    });
+  });
+})();
+
 
 /* ==========================
    KPI Costes
