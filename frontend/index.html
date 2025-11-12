@@ -1072,6 +1072,11 @@ color: var(--text-muted);
 @media (max-width:1100px){
   #brief-check .check-grid{ grid-template-columns: 1fr; }
 }
+#incidentes-widget .incident-remember.filled{
+  background:#fff;
+  color: var(--brand-red-700);
+  border: 3px solid var(--brand-red-600);
+}
 
   
 </style>
@@ -1335,15 +1340,41 @@ color: var(--text-muted);
 <h2 class="widget-title"><span>Incidentes *ESTAMOS A LA ESPERA DE CONSEGUIR LA CONEXION CON PULSE*</span></h2>
 
 <!-- RECORDAR entre título y bullets -->
-<div class="incident-remember" role="note">
-RECORDAR: En caso de accidente…
-</div>
+<!-- PROTOCOLO DE INCIDENTES (editable) -->
+<form id="incidents-protocol-form" class="inline-form" autocomplete="off" 
+      style="display:grid;grid-template-columns:1fr;gap:8px;margin:10px 0 12px;">
+  <div class="ops-item">
+    <label for="ip-understanding-note" style="font-weight:700;">Asegurar comprensión del procedimiento (resumen explicado hoy)</label>
+    <textarea id="ip-understanding-note" rows="2" placeholder="Ej.: Procedimiento ‘Pulse/Enablon’ explicado a todo el personal del turno, con roles y tiempos…"
+              style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+  </div>
 
-<ul class="title-bullets" aria-label="Guía rápida de incidentes">
-<li class="title-chip" title="Qué hacer">Qué hacer</li>
-<li class="title-chip" title="A quién avisar">A quién avisar</li>
-<li class="title-chip" title="Dónde están las herramientas">Dónde están las herramientas</li>
-</ul>
+  <div class="ops-item">
+    <label for="ip-what-to-do" style="font-weight:700;">Qué hacer si algo sale mal</label>
+    <textarea id="ip-what-to-do" rows="2" placeholder="Ej.: Parada segura, avisar a supervisor, acordonar zona, activar protocolo, registrar en Pulse/Enablon…"
+              style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+  </div>
+
+  <div class="ops-item">
+    <label for="ip-contacts" style="font-weight:700;">A quién informar / pedir apoyo inmediato</label>
+    <input id="ip-contacts" type="text" 
+           placeholder="Ej.: Supervisor (666 111 222), QHSSE (666 333 444), Emergencias 112…" 
+           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+  </div>
+
+  <div class="ops-item">
+    <label for="ip-tools-location" style="font-weight:700;">Dónde están las herramientas de emergencia</label>
+    <input id="ip-tools-location" type="text" 
+           placeholder="Ej.: Botón paro: muelle 3; extintores: pasillo central; botiquín: oficina Ops…"
+           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+  </div>
+
+  <div class="meta-row">
+    <button class="btn-primary" type="submit" style="justify-self:start;">Guardar protocolo</button>
+    <small id="incidents-protocol-status" class="kpi-text">—</small>
+  </div>
+</form>
+
 
 <!-- Subida de PDF (Incidentes) -->
 <form id="incidents-pdf-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
@@ -3514,6 +3545,130 @@ updateSpotlightRouting?.();
 console.log('Dashboard inicializado correctamente');
 });
 
+/* ===== Protocolo de Incidentes (editable) ===== */
+(function initIncidentsProtocol(){
+  const FORM_KEY = 'incidents_protocol_v1';
+  const form  = document.getElementById('incidents-protocol-form');
+  const sEl   = document.getElementById('incidents-protocol-status');
+  const note  = document.getElementById('ip-understanding-note');
+  const todo  = document.getElementById('ip-what-to-do');
+  const cont  = document.getElementById('ip-contacts');
+  const tools = document.getElementById('ip-tools-location');
+  const banner= document.querySelector('#incidentes-widget .incident-remember');
+  const chips = document.querySelector('#incidentes-widget .title-bullets');
+
+  if (!form) return;
+
+  const esc = (s)=> String(s??'').trim();
+
+  function shorten(s, max=50){
+    s = esc(s);
+    if (s.length <= max) return s;
+    return s.slice(0, max-1) + '…';
+  }
+
+  function saveLocal(state){
+    try { localStorage.setItem(FORM_KEY, JSON.stringify(state)); } catch {}
+  }
+  function loadLocal(){
+    try { return JSON.parse(localStorage.getItem(FORM_KEY)||'null'); } catch { return null; }
+  }
+
+  function paint(state){
+    if (!state) return;
+    if (note)  note.value  = state.understanding_note || '';
+    if (todo)  todo.value  = state.what_to_do || '';
+    if (cont)  cont.value  = state.contacts || '';
+    if (tools) tools.value = state.tools_location || '';
+
+    // Actualiza banner “RECORDAR…”
+    if (banner){
+      const txt = esc(state.what_to_do);
+      banner.textContent = txt ? `RECORDAR: ${txt}` : 'RECORDAR: En caso de accidente…';
+      banner.classList.toggle('filled', !!esc(state.what_to_do));
+
+    }
+    // Actualiza chips del título con resúmenes
+    if (chips){
+      chips.innerHTML = `
+        <li class="title-chip" title="Qué hacer">${shorten(state.what_to_do || 'Qué hacer')}</li>
+        <li class="title-chip" title="A quién avisar">${shorten(state.contacts || 'A quién avisar')}</li>
+        <li class="title-chip" title="Herramientas">${shorten(state.tools_location || 'Herramientas')}</li>
+        <li class="title-chip" title="Comprensión">${shorten(state.understanding_note || 'Comprensión del procedimiento')}</li>
+      `;
+    }
+    // Pista de guardado
+    if (sEl) {
+      const when = state.saved_at ? new Date(state.saved_at).toLocaleString('es-ES') : '—';
+      sEl.textContent = `Guardado: ${when}`;
+    }
+  }
+
+  async function pullServer(){
+    try{
+      const r = await fetch('/api/incidents/protocol', {cache:'no-store'});
+      if (!r.ok) return null;
+      const data = await r.json();
+      if (data && typeof data === 'object') return data;
+      return null;
+    }catch{ return null; }
+  }
+
+  async function pushServer(state){
+    try{
+      await fetch('/api/incidents/protocol', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(state)
+      });
+    }catch{/* opcional */}
+  }
+
+  function collect(){
+    return {
+      understanding_note: esc(note?.value),
+      what_to_do:         esc(todo?.value),
+      contacts:           esc(cont?.value),
+      tools_location:     esc(tools?.value),
+      station:            (typeof STATION_CODE !== 'undefined' ? STATION_CODE : undefined),
+      saved_at:           new Date().toISOString()
+    };
+  }
+
+  function autosave(){
+    const st = collect();
+    saveLocal(st);
+    paint(st);
+    pushServer(st); // opcional: no bloquea
+  }
+
+  // Carga inicial: servidor → local → vacío
+  (async ()=>{
+    const server = await pullServer();
+    if (server){
+      saveLocal(server);
+      paint(server);
+      return;
+    }
+    const cached = loadLocal();
+    if (cached){ paint(cached); }
+  })();
+
+  // Guardado manual (botón)
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    autosave();
+  });
+
+  // Guardado automático (cada cambio)
+  [note, todo, cont, tools].forEach(el=>{
+    el?.addEventListener('input', ()=> {
+      // Debounce ligero
+      clearTimeout(el._t);
+      el._t = setTimeout(autosave, 300);
+    });
+  });
+})();
 
 
 
@@ -3521,61 +3676,3 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
