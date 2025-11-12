@@ -472,6 +472,86 @@ latest_external_table: Dict[str, Any] = {
     "fetched_at": None,
     "version": 0,
 }
+# === ADD: Personas manuales (modelo + storage) ===
+PERSONS_DB = os.getenv("PERSONS_DB", "./data/roster_persons.json")
+manual_persons_store: Dict[str, Any] = {}
+
+class Person(BaseModel):
+    id: str | None = None
+    apellidos: str
+    nombre: str
+    nombre_completo: str | None = None
+    horario: str | None = None
+    observaciones: str | None = None
+    fecha: str  # YYYY-MM-DD
+    turno: str  # Mañana|Tarde|Noche
+    source: str | None = "manual"
+
+_TURNO_TO_HORARIO = {
+    "Mañana": "06:00–14:00",
+    "Tarde":  "14:00–22:00",
+    "Noche":  "22:00–06:00",
+}
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip())
+
+def _titlecase(s: str) -> str:
+    return " ".join(w.capitalize() for w in _norm(s).split(" "))
+
+def _manual_person_key(p: dict) -> str:
+    return f"{_norm(p.get('apellidos','')).lower()}|{_norm(p.get('nombre','')).lower()}"
+
+def _person_defaults(d: dict) -> dict:
+    d = dict(d)
+    d["turno"] = d.get("turno") or ""
+    if not d.get("horario"):
+        d["horario"] = _TURNO_TO_HORARIO.get(d["turno"], "")
+    d["apellidos"] = _titlecase(d.get("apellidos",""))
+    d["nombre"]    = _titlecase(d.get("nombre",""))
+    d["nombre_completo"] = d.get("nombre_completo") or (f"{d['apellidos']}, {d['nombre']}".strip(", "))
+    d["observaciones"] = d.get("observaciones") or "Incorporado (manual)"
+    d["source"] = "manual"
+    if not d.get("id"):
+        # id determinista para evitar duplicados accidentales
+        base = f"{d.get('fecha','')}|{d.get('turno','')}|{_manual_person_key(d)}"
+        d["id"] = str(uuid.uuid5(uuid.NAMESPACE_URL, base))
+    return d
+
+def _atomic_write_json_generic(path: str, data: Any):
+    p = Path(path); p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        try:
+            if Path(tmp).exists(): os.remove(tmp)
+        except Exception:
+            pass
+
+def save_persons_to_disk():
+    try:
+        payload = list(manual_persons_store.values())
+        _atomic_write_json_generic(PERSONS_DB, payload)
+    except Exception as e:
+        print("⚠️ Error guardando personas:", repr(e))
+
+def load_persons_from_disk():
+    try:
+        p = Path(PERSONS_DB)
+        if not p.exists(): return
+        with p.open("r", encoding="utf-8") as fh:
+            arr = json.load(fh) or []
+        manual_persons_store.clear()
+        for raw in arr:
+            d = _person_defaults(raw)
+            manual_persons_store[d["id"]] = d
+        print(f"🗂️ Cargadas {len(manual_persons_store)} personas manuales desde {PERSONS_DB}")
+    except Exception as e:
+        print("⚠️ Error leyendo personas:", repr(e))
+
 
 class ConnectionManager:
     def __init__(self):
@@ -1391,6 +1471,7 @@ def api_external_status():
 @app.on_event("startup")
 async def _startup_ext():
     load_tasks_from_disk()
+    load_persons_from_disk()
     app.state._roster = asyncio.create_task(_roster_watcher())
     app.state._ext = ExternalConnector()
     app.state._poller = asyncio.create_task(app.state._ext.run())
@@ -1547,7 +1628,40 @@ async def _build_roster_state(force=False) -> dict:
         else:
             people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift)
 
-        roster_cache.update({
+
+        
+        # === ADD: fusionar personas manuales con Excel ===
+manual_today = [
+    d for d in manual_persons_store.values()
+    if d.get("fecha") == sheet_date.isoformat() and d.get("turno") == shift
+]
+
+# índice por clave normalizada para detectar duplicados nombre/apellido
+def _k(row: dict) -> str:
+    return f"{_norm(row.get('apellidos','')).lower()}|{_norm(row.get('nombre','')).lower()}"
+
+excel_idx: Dict[str, int] = {_k(r): i for i, r in enumerate(people)}
+for m in manual_today:
+    k = _k(m)
+    if k in excel_idx:
+        # ya está en Excel: mergea observaciones
+        i = excel_idx[k]
+        obs_old = _norm(people[i].get("observaciones",""))
+        obs_new = _norm(m.get("observaciones",""))
+        if obs_new and obs_new.lower() not in obs_old.lower():
+            people[i]["observaciones"] = (obs_old + (" · " if obs_old and obs_new else "") + obs_new).strip(" ·")
+    else:
+        # no está: añadir como nueva fila con marca 'manual'
+        people.append({
+            "apellidos": m["apellidos"],
+            "nombre": m["nombre"],
+            "nombre_completo": m.get("nombre_completo") or f"{m['apellidos']}, {m['nombre']}",
+            "horario": m["horario"],
+            "observaciones": m.get("observaciones","Incorporado (manual)"),
+            "source": "manual",
+        })
+
+roster_cache.update({
             "file_mtime": mtime,
             "sheet_date": sheet_date,
             "shift": shift,
@@ -1568,6 +1682,62 @@ async def _build_roster_state(force=False) -> dict:
             "updated_at": roster_cache["updated_at"],
         })
     return roster_cache
+
+# === ADD: Endpoints Personas manuales ===
+from fastapi import Depends
+
+def _require_api_key(x_api_key: Optional[str] = Header(None)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+
+@app.post("/api/roster/persons")
+async def add_persons(payload: Any, x_api_key: None = Depends(_require_api_key)):
+    # acepta objeto único o lista
+    items = payload if isinstance(payload, list) else [payload]
+    upserts = []
+    for it in items:
+        d = _person_defaults(it or {})
+        manual_persons_store[d["id"]] = d
+        upserts.append(d)
+    save_persons_to_disk()
+    # refresca roster y emite update
+    await _build_roster_state(force=True)
+    for d in upserts:
+        await manager.broadcast({"type":"roster_manual_upsert","id":d["id"]})
+    return {"ok": True, "upserts": len(upserts), "ids": [d["id"] for d in upserts]}
+
+@app.put("/api/roster/persons/{pid}")
+async def update_person(pid: str, payload: dict, x_api_key: None = Depends(_require_api_key)):
+    if pid not in manual_persons_store:
+        raise HTTPException(status_code=404, detail="Persona no encontrada")
+    cur = manual_persons_store[pid]
+    cur.update(payload or {})
+    cur = _person_defaults(cur)
+    manual_persons_store[pid] = cur
+    save_persons_to_disk()
+    await _build_roster_state(force=True)
+    await manager.broadcast({"type":"roster_manual_upsert","id":pid})
+    return {"ok": True, "id": pid}
+
+@app.delete("/api/roster/persons/{pid}")
+async def delete_person(pid: str, x_api_key: None = Depends(_require_api_key)):
+    if pid not in manual_persons_store:
+        raise HTTPException(status_code=404, detail="Persona no encontrada")
+    manual_persons_store.pop(pid, None)
+    save_persons_to_disk()
+    await _build_roster_state(force=True)
+    await manager.broadcast({"type":"roster_manual_delete","id":pid})
+    return {"ok": True, "id": pid}
+
+@app.get("/api/roster/persons")
+def list_persons(date: Optional[str] = None, shift: Optional[str] = None, x_api_key: None = Depends(_require_api_key)):
+    vals = list(manual_persons_store.values())
+    if date:
+        vals = [p for p in vals if p.get("fecha") == date]
+    if shift:
+        vals = [p for p in vals if p.get("turno") == shift]
+    return vals
+
 
 @app.get("/api/roster/current")
 async def get_roster_current():
@@ -1620,4 +1790,5 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
