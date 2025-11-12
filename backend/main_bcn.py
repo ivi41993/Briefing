@@ -1552,33 +1552,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# -----------------------------------
-# Lifespan: lanzar/limpiar poller (NUEVO)
-# -----------------------------------
-@app.on_event("startup")
-async def _startup():
-    # lanza el poller sólo si hay EXT_URL
-    if EXT_URL:
-        app.state._poller = asyncio.create_task(_poller_task())
 
-@app.on_event("shutdown")
-async def _shutdown():
-    task: asyncio.Task = getattr(app.state, "_poller", None)
-    if task and not task.done():
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-
-@app.on_event("startup")
-async def _startup():
-    # 1) cargar tareas persistidas
-    load_tasks_from_disk()
-
-    # 2) lanzar el poller de la tabla externa (como ya tenías)
-    if EXT_URL:
-        app.state._poller = asyncio.create_task(_poller_task())
 # ====== ROSTER: construir estado desde Excel y publicar por WS ======
 roster_cache: dict[str, Any] = {
     "file_mtime": None,
@@ -1631,37 +1605,38 @@ async def _build_roster_state(force=False) -> dict:
 
         
         # === ADD: fusionar personas manuales con Excel ===
-manual_today = [
-    d for d in manual_persons_store.values()
-    if d.get("fecha") == sheet_date.isoformat() and d.get("turno") == shift
-]
+        # === ADD: fusionar personas manuales con Excel ===
+        manual_today = [
+            d for d in manual_persons_store.values()
+            if d.get("fecha") == sheet_date.isoformat() and d.get("turno") == shift
+        ]
 
-# índice por clave normalizada para detectar duplicados nombre/apellido
-def _k(row: dict) -> str:
-    return f"{_norm(row.get('apellidos','')).lower()}|{_norm(row.get('nombre','')).lower()}"
+        # índice por clave normalizada para detectar duplicados nombre/apellido
+        def _k(row: dict) -> str:
+            return f"{_norm(row.get('apellidos','')).lower()}|{_norm(row.get('nombre','')).lower()}"
 
-excel_idx: Dict[str, int] = {_k(r): i for i, r in enumerate(people)}
-for m in manual_today:
-    k = _k(m)
-    if k in excel_idx:
-        # ya está en Excel: mergea observaciones
-        i = excel_idx[k]
-        obs_old = _norm(people[i].get("observaciones",""))
-        obs_new = _norm(m.get("observaciones",""))
-        if obs_new and obs_new.lower() not in obs_old.lower():
-            people[i]["observaciones"] = (obs_old + (" · " if obs_old and obs_new else "") + obs_new).strip(" ·")
-    else:
-        # no está: añadir como nueva fila con marca 'manual'
-        people.append({
-            "apellidos": m["apellidos"],
-            "nombre": m["nombre"],
-            "nombre_completo": m.get("nombre_completo") or f"{m['apellidos']}, {m['nombre']}",
-            "horario": m["horario"],
-            "observaciones": m.get("observaciones","Incorporado (manual)"),
-            "source": "manual",
-        })
+        excel_idx: Dict[str, int] = {_k(r): i for i, r in enumerate(people)}
+        for m in manual_today:
+            k = _k(m)
+            if k in excel_idx:
+                # ya está en Excel: mergea observaciones
+                i = excel_idx[k]
+                obs_old = _norm(people[i].get("observaciones",""))
+                obs_new = _norm(m.get("observaciones",""))
+                if obs_new and obs_new.lower() not in obs_old.lower():
+                    people[i]["observaciones"] = (obs_old + (" · " if obs_old and obs_new else "") + obs_new).strip(" ·")
+            else:
+                # no está: añadir como nueva fila con marca 'manual'
+                people.append({
+                    "apellidos": m["apellidos"],
+                    "nombre": m["nombre"],
+                    "nombre_completo": m.get("nombre_completo") or f"{m['apellidos']}, {m['nombre']}",
+                    "horario": m["horario"],
+                    "observaciones": m.get("observaciones","Incorporado (manual)"),
+                    "source": "manual",
+                })
 
-roster_cache.update({
+        roster_cache.update({
             "file_mtime": mtime,
             "sheet_date": sheet_date,
             "shift": shift,
@@ -1681,6 +1656,7 @@ roster_cache.update({
             "source": "excel",
             "updated_at": roster_cache["updated_at"],
         })
+
     return roster_cache
 
 # === ADD: Endpoints Personas manuales ===
@@ -1790,5 +1766,6 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
