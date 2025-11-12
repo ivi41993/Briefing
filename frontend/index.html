@@ -412,8 +412,8 @@ background:#ecfdf5; border-color:rgba(16,185,129,.6);
 box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
 }
 .header-left{ display:flex; flex-direction:column; gap:2px; }
-#now-header{ font-size:.95rem; color:var(--text-muted); 
-             role="status" aria-live="polite"}
+#now-header{ font-size:.95rem; color:var(--text-muted); }
+
 
 .shift-chip{
 display:inline-flex; align-items:center; gap:6px;
@@ -1000,6 +1000,38 @@ color: var(--text-muted);
 #kanban-widget .card.cat-calidad  { background: var(--cat-cal); }
 #kanban-widget .card.cat-servicio { background: var(--cat-ser); }
 
+/* Compact buttons usados en tarjetas */
+.btn-compact{
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:4px 10px; border:1px solid var(--border);
+  border-radius:999px; background:#fff; font-size:.8rem; cursor:pointer;
+}
+.btn-compact:hover{ filter:saturate(108%); transform:translateY(-1px); }
+
+/* Base del cronómetro (si no está) */
+.header-timer{ display:flex; align-items:center; gap:10px; }
+.header-timer .timer-face{ display:flex; align-items:center; gap:10px; }
+.header-timer .timer-display{ font-family:"Space Grotesk", Inter, system-ui, sans-serif; font-weight:800; }
+.header-timer .timer-dot{ width:10px; height:10px; border-radius:50%; background: var(--brand-red-600); opacity:.75; }
+.header-timer .timer-reset{ border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
+
+/* Chips rojas en Incidentes (versión borde rojo + fondo blanco) — deja solo una */
+#incidentes-widget .incident-remember{
+  margin: 6px 0 8px; padding: 10px 12px;
+  background:#fff; color: var(--brand-red-700);
+  border: 2px solid var(--brand-red-600); border-radius: 12px; box-shadow:none;
+  font-weight:800; letter-spacing:.2px;
+}
+#incidentes-widget .title-bullets{
+  list-style:none; margin:0 0 10px; padding:0; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+}
+#incidentes-widget .title-chip{
+  display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px;
+  font-size:.8rem; font-weight:700; background:#fff; color: var(--brand-red-700);
+  border: 2px solid var(--brand-red-600); box-shadow:none;
+}
+#incidentes-widget .title-chip:hover{ box-shadow:0 0 0 3px rgba(239,68,68,.12); transform:none; filter:none; }
+
   
 </style>
 </head>
@@ -1012,12 +1044,14 @@ color: var(--text-muted);
 </select>
 <button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">Presentar</button>
 
+
+
 <div class="dashboard-3col">
 <!-- HEADER -->
 <header>
 <div class="header-left">
 <h1>Factory Floor Dashboard - WFS4 MAD</h1>
-<div id="now-header">—</div>
+<div id="now-header" role="status" aria-live="polite">—</div>
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
 
@@ -1339,9 +1373,7 @@ RECORDAR: En caso de accidente…
 
 <div id="gw-tasks-dynamic-container"></div>
 
-<!-- GW: solo TOP-3 por última fecha -->
-<strong style="margin-top: 12px; display:block;">GW</strong>
-<div id="gw-tasks-dynamic-container"></div>
+
 </div>
 </div>
 
@@ -1469,100 +1501,7 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
   });
 
   
-function renderIncidentes(state){
-  const tbl  = document.getElementById('incidentes-table');
-  const meta = document.getElementById('incidentes-meta');
-  if (!tbl) return;
 
-  const cols = Array.isArray(state?.columns) ? state.columns : [];
-  const rows = Array.isArray(state?.rows) ? state.rows : [];
-  const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
-
-  // Normalizador de claves (quita espacios, acentos, may/min)
-  const norm = (s)=> String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'')
-                    .replace(/\s+/g,' ').trim();
-
-  const rowsAreObjects = rows[0] && !Array.isArray(rows[0]) && typeof rows[0] === 'object';
-
-  // Si las filas son objetos y no nos sirven las "columns", calcúlalas de las claves reales
-  const candidateCols = rowsAreObjects
-    ? Array.from(new Set(rows.flatMap(r => Object.keys(r||{}))))
-    : cols.slice();
-
-  // Mapa normalizado → nombre real (para lookup flexible)
-  const colNameByNorm = new Map(candidateCols.map(c => [norm(c).toLowerCase(), c]));
-
-  // Helper: elige la PRIMERA columna que exista (por varios alias)
-  const pick = (...aliases) => {
-    for (const a of aliases){
-      const key = norm(a).toLowerCase();
-      if (rowsAreObjects && colNameByNorm.has(key)) return { name: colNameByNorm.get(key), idx: cols.indexOf(colNameByNorm.get(key)) };
-      if (!rowsAreObjects){
-        const i = cols.findIndex(c => norm(c).toLowerCase() === key);
-        if (i !== -1) return { name: cols[i], idx: i };
-      }
-    }
-    return null;
-  };
-
-  // Candidatas típicas (cubre Enablon/EHS comunes)
-  let selected = [
-    pick('Id','ID','Incident Id','IncidentId','Number','Reference','Case Number','Incident No'),
-    pick('Title','Name','Short Description','Subject','Summary','Description'),
-    pick('Status','State','Workflow Status','Current Status'),
-    pick('Priority','Severity','Risk Level','Criticality'),
-    pick('Category','Type','Incident Type','SubType','Classification'),
-    pick('Site','Location','Area','Department','Plant'),
-    pick('Created','Created At','Creation Date','Date','Reported On','Report Date','Start Date'),
-    pick('Due Date','Target Date','Deadline','Expiration Date'),
-    pick('Owner','Assigned To','Assignee','Responsible','Manager')
-  ].filter(Boolean);
-
-  // Si no salió nada, toma las primeras 6 que existan de verdad
-  if (selected.length === 0){
-    const base = candidateCols.slice(0, 6);
-    selected = base.map(n => ({ name:n, idx: cols.indexOf(n) }));
-  }
-
-  const esc = (s)=> String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-                                   .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-                                   .replace(/'/g,"&#39;");
-
-  // Si aun así no hay columnas visibles, muestra mensaje claro
-  if (selected.length === 0){
-    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
-    if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
-    console.warn('[Incidentes] Sin columnas seleccionables', { state });
-    return;
-  }
-
-  // Cabecera
-  let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
-
-  // Cuerpo (hasta 200 filas)
-  const MAX_ROWS = 4;
-  const slice = rows.slice(0, MAX_ROWS);
-  let tbody = '<tbody>';
-  for (const r of slice){
-    if (rowsAreObjects){
-      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.name] == null ? '' : esc(String(r[c.name]))}</td>`).join('') + '</tr>';
-    } else {
-      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
-    }
-  }
-  if (rows.length > MAX_ROWS){
-    tbody += `<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length} incidentes…</td></tr>`;
-  }
-  tbody += '</tbody>';
-
-  tbl.innerHTML = thead + tbody;
-  if (meta) meta.textContent = `Columnas reales: ${candidateCols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
-
-  // DEBUG útil (lo puedes quitar luego)
-  console.debug('[Incidentes] Render OK', { rowsAreObjects, selected, candidateCols, previewRow: rows[0] });
-}
-  // (Te falta también enganchar el submit; véase punto 2)
-})();  // ✅ CIERRE NECESARIO
 
 (function initRosterUpload(){
 const form   = document.getElementById('roster-upload-form');
@@ -2095,8 +2034,22 @@ document.addEventListener('click', handleDeleteClick);
 const rot=document.getElementById('rotativas-widget');
 // GW
 rot.addEventListener('change', handleGwTick);
-rot.addEventListener('keydown',(e)=>{ if(e.target.classList.contains('gw-note') && e.key==='Enter')if(e.key==='Escape'){ e.preventDefault(); e.target.blur(); }
-{ e.preventDefault(); const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); e.target.blur(); }});
+rot.addEventListener('keydown',(e)=>{
+  const note = e.target.closest('.gw-note') ? e.target : null;
+  if (!note) return;
+
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    const id = note.id.replace('gw-note-','');
+    updateTaskNote(id, note.value).catch(console.error);
+    note.blur();
+  }
+  if (e.key === 'Escape'){
+    e.preventDefault();
+    note.blur();
+  }
+});
+
 rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); } }, true);
 }
 
@@ -2600,92 +2553,6 @@ function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;
 // normaliza (espacios, acentos, may/min) para buscar columnas por alias
 const norm = (s)=> String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' ').trim().toLowerCase();
 
-function renderIncidentes(state){
-  const tbl  = document.getElementById('incidentes-table');
-  const meta = document.getElementById('incidentes-meta');
-  if (!tbl) return;
-
-  const cols = Array.isArray(state?.columns) ? state.columns : [];
-  const rows = Array.isArray(state?.rows) ? state.rows : [];
-  const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
-
-  // ¿filas como objetos?
-  const rowsAreObjects = rows[0] && typeof rows[0] === 'object' && !Array.isArray(rows[0]);
-
-  // set de columnas candidatas reales
-  const candidateCols = rowsAreObjects
-    ? Array.from(new Set(rows.flatMap(r => Object.keys(r||{}))))
-    : cols.slice();
-
-  const colNameByNorm = new Map(candidateCols.map(c => [norm(c), c]));
-
-  // helper para elegir primera columna existente por alias
-  const pick = (...aliases) => {
-    for (const a of aliases){
-      const key = norm(a);
-      if (rowsAreObjects && colNameByNorm.has(key)) return { name: colNameByNorm.get(key), idx: cols.indexOf(colNameByNorm.get(key)) };
-      if (!rowsAreObjects){
-        const i = cols.findIndex(c => norm(c) === key);
-        if (i !== -1) return { name: cols[i], idx: i };
-      }
-    }
-    return null;
-  };
-
-  // —— Selección priorizando “título de accidente” ——
-  let selected = [
-    // ID
-    pick('Id','ID','Incident Id','IncidentId','Number','Reference','Case Number','Incident No'),
-    // Título del accidente (ES/EN) — PRIORIDAD SOBRE event_type
-    pick('Accidente','Título Accidente','Titulo Accidente','Accident Title','accident_title','incident_title','Title','Name','Short Description','Subject','Summary','Description'),
-    // Estado
-    pick('Status','State','Workflow Status','Current Status'),
-    // Severidad / Prioridad
-    pick('Priority','Severity','Risk Level','Criticality'),
-    // Categoría / Tipo — incluye event_type como alias
-    pick('Category','Type','Incident Type','SubType','Classification','event_type'),
-    // Ubicación
-    pick('Site','Location','Area','Department','Plant'),
-    // Fechas
-    pick('Created','Created At','Creation Date','Date','Reported On','Report Date','Start Date'),
-    pick('Due Date','Target Date','Deadline','Expiration Date'),
-    // Responsable
-    pick('Owner','Assigned To','Assignee','Responsible','Manager')
-  ].filter(Boolean);
-
-  if (selected.length === 0){
-    const base = candidateCols.slice(0, 6);
-    selected = base.map(n => ({ name:n, idx: cols.indexOf(n) }));
-  }
-
-  if (selected.length === 0){
-    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
-    if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
-    return;
-  }
-
-  // Cabecera
-  let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
-
-  // Cuerpo (hasta 200)
-  const MAX_ROWS = 4;
-  const slice = rows.slice(0, MAX_ROWS);
-  let tbody = '<tbody>';
-  for (const r of slice){
-    if (rowsAreObjects){
-      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.name] == null ? '' : esc(String(r[c.name]))}</td>`).join('') + '</tr>';
-    } else {
-      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
-    }
-  }
-  if (rows.length > MAX_ROWS){
-    tbody += `<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length} incidentes…</td></tr>`;
-  }
-  tbody += '</tbody>';
-
-  tbl.innerHTML = thead + tbody;
-  if (meta) meta.textContent = `Columnas reales: ${candidateCols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
-}
 
 async function loadIncidentes(){
   const tbl  = document.getElementById('incidentes-table');
@@ -2721,65 +2588,74 @@ async function loadIncidentes(){
 
 
 function renderIncidentes(state){
-const tbl  = document.getElementById('incidentes-table');
-const meta = document.getElementById('incidentes-meta');
-if(!tbl) return;
+  const tbl  = document.getElementById('incidentes-table');
+  const meta = document.getElementById('incidentes-meta');
+  if (!tbl) return;
 
-const cols = Array.isArray(state?.columns) ? state.columns : [];
-const rows = Array.isArray(state?.rows) ? state.rows : [];
-const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
+  const cols = Array.isArray(state?.columns) ? state.columns : [];
+  const rows = Array.isArray(state?.rows) ? state.rows : [];
+  const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
 
-// Helper para elegir la PRIMERA columna que exista
-const pick = (...cands) => {
-for (const name of cands){
-const idx = cols.indexOf(name);
-if (idx !== -1) return { name, idx };
-}
-return null;
-};
+  const rowsAreObjects = rows[0] && typeof rows[0] === 'object' && !Array.isArray(rows[0]);
+  const candidateCols = rowsAreObjects
+    ? Array.from(new Set(rows.flatMap(r => Object.keys(r||{}))))
+    : cols.slice();
 
-// Candidatas típicas de Enablon / EHS
-let selected = [
-pick('Id','ID','IncidentId','IncidentID','Number','Reference','IncidentNo','CaseNumber'),
-pick('Title','Name','ShortDescription','Subject','Summary','Description'),
-pick('Status','State','WorkflowStatus','CurrentStatus'),
-pick('Priority','Severity','RiskLevel','Criticality'),
-pick('Category','Type','IncidentType','SubType','Classification'),
-pick('Site','Location','Area','Department','Plant'),
-pick('Created','CreatedAt','CreationDate','Date','CreatedOn','ReportedOn','ReportDate','StartDate'),
-pick('DueDate','TargetDate','Deadline','ExpirationDate'),
-pick('Owner','AssignedTo','Assignee','Responsible','Manager')
-].filter(Boolean);
+  const norm = (s)=> String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' ').trim().toLowerCase();
+  const colNameByNorm = new Map(candidateCols.map(c => [norm(c), c]));
+  const pick = (...aliases) => {
+    for (const a of aliases){
+      const key = norm(a);
+      if (rowsAreObjects && colNameByNorm.has(key)) return { name: colNameByNorm.get(key), idx: cols.indexOf(colNameByNorm.get(key)) };
+      if (!rowsAreObjects){
+        const i = cols.findIndex(c => norm(c) === key);
+        if (i !== -1) return { name: cols[i], idx: i };
+      }
+    }
+    return null;
+  };
 
-// Si no encontramos nada, usa las primeras 6 columnas como fallback
-if (selected.length === 0 && cols.length){
-const n = Math.min(cols.length, 6);
-selected = Array.from({length:n}, (_,i)=>({ name: cols[i], idx: i }));
-}
+  let selected = [
+    pick('Id','ID','Incident Id','IncidentId','Number','Reference','Case Number','Incident No'),
+    pick('Accidente','Título Accidente','Titulo Accidente','Accident Title','accident_title','incident_title','Title','Name','Short Description','Subject','Summary','Description'),
+    pick('Status','State','Workflow Status','Current Status'),
+    pick('Priority','Severity','Risk Level','Criticality'),
+    pick('Category','Type','Incident Type','SubType','Classification','event_type'),
+    pick('Site','Location','Area','Department','Plant'),
+    pick('Created','Created At','Creation Date','Date','Reported On','Report Date','Start Date'),
+    pick('Due Date','Target Date','Deadline','Expiration Date'),
+    pick('Owner','Assigned To','Assignee','Responsible','Manager')
+  ].filter(Boolean);
 
-if (selected.length === 0){
-tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
-if (meta) meta.textContent = `Filas: ${rows.length} • Actualizado: ${ts}`;
-return;
-}
+  if (selected.length === 0){
+    const base = candidateCols.slice(0, 6);
+    selected = base.map(n => ({ name:n, idx: cols.indexOf(n) }));
+  }
 
-// Cabecera
-let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
+  if (selected.length === 0){
+    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
+    if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+    return;
+  }
 
-// Cuerpo (limita a 200 filas para no sobrecargar DOM)
-let tbody = '<tbody>';
-const MAX_ROWS = 200;
-const slice = rows.slice(0, MAX_ROWS);
-for (const r of slice){
-tbody += '<tr>' + selected.map(c => `<td>${r[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
-}
-if (rows.length > MAX_ROWS){
-tbody += `<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length} incidentes…</td></tr>`;
-}
-tbody += '</tbody>';
+  let thead = '<thead><tr>' + selected.map(c => `<th>${esc(c.name)}</th>`).join('') + '</tr></thead>';
+  const MAX_ROWS = 4;
+  const slice = rows.slice(0, MAX_ROWS);
+  let tbody = '<tbody>';
+  for (const r of slice){
+    if (rowsAreObjects){
+      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.name] == null ? '' : esc(String(r[c.name]))}</td>`).join('') + '</tr>';
+    } else {
+      tbody += '<tr>' + selected.map(c => `<td>${r?.[c.idx] == null ? '' : esc(String(r[c.idx]))}</td>`).join('') + '</tr>';
+    }
+  }
+  if (rows.length > MAX_ROWS){
+    tbody += `<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length} incidentes…</td></tr>`;
+  }
+  tbody += '</tbody>';
 
-tbl.innerHTML = thead + tbody;
-if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+  tbl.innerHTML = thead + tbody;
+  if (meta) meta.textContent = `Columnas reales: ${candidateCols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
 }
 
 
@@ -3168,38 +3044,34 @@ const sel = document.querySelector(`#brief-check input[name="${name}"]:checked`)
 return sel ? sel.value : null;
 }
 function setSpotlight(ids){
-const ALL = [
-'team-widget',
-'prev-shift-widget',
-'planif-widget',
-'rotativas-widget',   // 5S & GW
-'incidentes-widget',
-'kanban-widget',
-'lean-widget',
-  'kpi-costes'
-];
-ALL.forEach(id=>{
-const el = document.getElementById(id);
-if (!el) return;
-el.classList.toggle('spotlight-blink', ids.includes(id));
-});
+  const ALL = [
+    'team-widget',
+    'prev-shift-widget',
+    'rotativas-widget',   // 5S & GW
+    'incidentes-widget',
+    'kanban-widget',
+    'kpi-center',         // KPIs operativos (centro)
+    'kpi-costes'          // costes (derecha-centro)
+  ];
+  ALL.forEach(id=>{
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('spotlight-blink', ids.includes(id));
+  });
 }
+
 function updateSpotlightRouting(){
-// Paso 0: completar Equipo / Turno
-if (!rosterComplete()) return setSpotlight(['team-widget']);
-
-// Luego avanza según checklist 1→6
-if (readC('c1') !== 'OK') return setSpotlight(['prev-shift-widget']);   // Highlights
-if (readC('c2') !== 'OK') return setSpotlight(['planif-widget']);       // Actualizaciones operativas
-if (readC('c3') !== 'OK') return setSpotlight(['team-widget']);         // Dotación y recursos
-if (readC('c4') !== 'OK') return setSpotlight(['rotativas-widget']);    // Seguridad y protección
-if (readC('c5') !== 'OK') return setSpotlight(['incidentes-widget']);   // Prep/reportes incidentes
-if (readC('c6') !== 'OK') return setSpotlight(['lean-widget','kpi-costes']);
-if (readC('c7') !== 'OK') return setSpotlight(['kanban-widget']);// Feedback → Acciones
-
-// Todo OK → sin parpadeo
-setSpotlight([]);
+  if (!rosterComplete()) return setSpotlight(['team-widget']);
+  if (readC('c1') !== 'OK') return setSpotlight(['prev-shift-widget']);
+  if (readC('c2') !== 'OK') return setSpotlight(['kpi-center']);
+  if (readC('c3') !== 'OK') return setSpotlight(['team-widget']);
+  if (readC('c4') !== 'OK') return setSpotlight(['rotativas-widget']);
+  if (readC('c5') !== 'OK') return setSpotlight(['incidentes-widget']);
+  if (readC('c6') !== 'OK') return setSpotlight(['kpi-center','kpi-costes']);
+  if (readC('c7') !== 'OK') return setSpotlight(['kanban-widget']);
+  setSpotlight([]);
 }
+
 window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
 (function initBriefExplain(){
@@ -3287,6 +3159,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
