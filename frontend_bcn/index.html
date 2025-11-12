@@ -800,6 +800,50 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
   pointer-events:none;
 }
 
+/* === Actualizaciones operativas === */
+#ops-updates-widget .ops-actions{
+  display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;
+}
+#ops-updates-widget .ops-actions .btn{
+  border:1px solid var(--border); background:#fff; border-radius:10px;
+  padding:8px 12px; cursor:pointer; font-weight:700; font-size:.85rem;
+}
+#ops-updates-widget .ops-grid{
+  display:grid; gap:12px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width:1100px){
+  #ops-updates-widget .ops-grid{ grid-template-columns: 1fr; }
+}
+
+/* Tarjeta tipo secciones (reusa estética de incidentes) */
+#ops-updates-widget .ops-card{
+  background:#fff; border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 6px 16px rgba(17,24,39,.06); padding:12px; display:flex; flex-direction:column; gap:10px;
+}
+#ops-updates-widget .ops-section{
+  border:1px solid var(--border); border-radius:10px; background:#fff; padding:10px; display:grid; gap:8px;
+}
+#ops-updates-widget .ops-section-title{
+  font-weight:800; color:var(--brand-red-700);
+  border:1px solid var(--border); border-radius:8px; padding:8px; outline:none;
+}
+#ops-updates-widget .ops-section-body{
+  min-height:84px; line-height:1.4; outline:none;
+  border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:#fff;
+}
+/* Lista rápida por líneas */
+#ops-updates-widget .ops-quicklines{
+  min-height:120px; line-height:1.45; outline:none;
+  border:1px solid var(--border); border-radius:10px; padding:12px; background:#fff;
+}
+
+/* Placeholder contenteditable */
+#ops-updates-widget [contenteditable][data-placeholder]:empty:before{
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+  pointer-events:none;
+}
 
 </style>
 </head>
@@ -906,7 +950,7 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 
         <div class="check-card" tabindex="0"
              data-help="Revisar objetivos y carga de trabajo, cambios en los procedimientos y actualizaciones en equipos"
-             data-target="kanban-widget">
+             data-target="ops-updates-widget">
           <span class="check-title">2) Actualizaciones operativas</span>
           <div class="check-actions" role="group" aria-label="Bloque 2">
             <input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
@@ -967,6 +1011,36 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 
       <small class="kpi-text" id="brief-check-meta">—</small>
     </div>
+
+    <!-- ACTUALIZACIONES OPERATIVAS -->
+<div class="widget" id="ops-updates-widget">
+  <h2 class="widget-title">Actualizaciones operativas</h2>
+
+  <div class="ops-actions">
+    <button type="button" class="btn" id="ops-add-section">+ Nueva sección</button>
+    <button type="button" class="btn" id="ops-clear">Vaciar</button>
+  </div>
+
+  <div class="ops-grid">
+    <!-- Columna izquierda: secciones -->
+    <div class="ops-card">
+      <strong>Secciones</strong>
+      <div id="ops-sections"></div>
+    </div>
+
+    <!-- Columna derecha: líneas rápidas -->
+    <div class="ops-card">
+      <strong>Lista rápida (líneas)</strong>
+      <div id="ops-quicklines"
+           class="ops-quicklines"
+           role="textbox" aria-multiline="true"
+           contenteditable="true"
+           data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
+      <small class="kpi-text">Consejo: usa una línea por actualización, p.ej. “Cambio layout export • vigencia hoy”.</small>
+    </div>
+  </div>
+</div>
+
 
     <!-- KANBAN FEEDBACK DIRECTO -->
     <div class="widget" id="kanban-widget">
@@ -1034,37 +1108,7 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
         RECORDAR: Uso correcto de EPIs, comunicación inmediata y registro en sistema oficial.
       </div>
 
-      <div class="incident-fields">
-        <div class="incident-field">
-          <label for="incident-what">Qué hacer</label>
-          <div id="incident-what"
-               class="incident-input"
-               role="textbox"
-               aria-label="Qué hacer en caso de incidente"
-               contenteditable="true"
-               data-placeholder="Describe el procedimiento paso a paso…"></div>
-        </div>
-      
-        <div class="incident-field">
-          <label for="incident-who">A quién avisar</label>
-          <div id="incident-who"
-               class="incident-input"
-               role="textbox"
-               aria-label="A quién avisar en caso de incidente"
-               contenteditable="true"
-               data-placeholder="Nombres, teléfonos, radio, cadena de avisos…"></div>
-        </div>
-      
-        <div class="incident-field">
-          <label for="incident-where">Dónde están los equipos</label>
-          <div id="incident-where"
-               class="incident-input"
-               role="textbox"
-               aria-label="Dónde están los equipos de emergencia"
-               contenteditable="true"
-               data-placeholder="Extintores, botiquines, desfibrilador, salidas de emergencia…"></div>
-        </div>
-      </div>
+     
 
 
 
@@ -2093,7 +2137,137 @@ async function loadIncidentes(){
   });
 })();
 
+/* ==========================
+   Actualizaciones operativas (localStorage)
+========================== */
+const OPS_SECTIONS_KEY = 'ops_updates_sections_v1';
+const OPS_LINES_KEY    = 'ops_updates_lines_v1';
 
+function opsLoad(){
+  let sections = [];
+  let lines = '';
+  try{
+    sections = JSON.parse(localStorage.getItem(OPS_SECTIONS_KEY) || '[]');
+  }catch{}
+  try{
+    lines = localStorage.getItem(OPS_LINES_KEY) || '';
+  }catch{}
+  if (!Array.isArray(sections) || !sections.length){
+    sections = [{title:'Cambios turno', body:''}];
+  }
+  return {sections, lines};
+}
+function opsSave({sections, lines}){
+  try{ localStorage.setItem(OPS_SECTIONS_KEY, JSON.stringify(sections||[])); }catch{}
+  try{ localStorage.setItem(OPS_LINES_KEY, String(lines??'')); }catch{}
+}
+
+function opsSerializeFromDOM(){
+  const cont = document.getElementById('ops-sections');
+  const quick = document.getElementById('ops-quicklines');
+  const sections = [...(cont?.querySelectorAll('.ops-section')||[])].map(sec=>{
+    const t = sec.querySelector('.ops-section-title')?.textContent || '';
+    const b = sec.querySelector('.ops-section-body')?.textContent || '';
+    return {title:t.trim(), body:b.trim()};
+  });
+  const lines = (quick?.textContent||'').trim();
+  return {sections, lines};
+}
+
+function opsRender(data){
+  const cont = document.getElementById('ops-sections');
+  const quick = document.getElementById('ops-quicklines');
+  if (!cont) return;
+
+  cont.innerHTML = '';
+  (data.sections||[]).forEach((s, idx)=>{
+    const el = document.createElement('div');
+    el.className = 'ops-section';
+    el.innerHTML = `
+      <div class="ops-section-title"
+           role="textbox" aria-label="Título de sección" contenteditable="true"
+           data-placeholder="Título de sección…">${esc(s.title||'')}</div>
+      <div class="ops-section-body"
+           role="textbox" aria-label="Contenido de sección" contenteditable="true"
+           data-placeholder="Escribe las actualizaciones (una por línea)…">${esc(s.body||'')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-compact" data-act="addline">+ Línea</button>
+        <button type="button" class="btn-compact" data-act="delete">Eliminar sección</button>
+      </div>
+    `;
+    cont.appendChild(el);
+  });
+
+  if (quick){
+    quick.textContent = data.lines || '';
+  }
+
+  // listeners de edición (debounce)
+  let t;
+  const scheduleSave = ()=>{
+    clearTimeout(t);
+    t = setTimeout(()=>{
+      const state = opsSerializeFromDOM();
+      opsSave(state);
+    }, 300);
+  };
+
+  cont.addEventListener('input', scheduleSave);
+  quick?.addEventListener('input', scheduleSave);
+
+  // botones por sección
+  cont.querySelectorAll('.ops-section').forEach(sec=>{
+    sec.addEventListener('click', e=>{
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const act = btn.getAttribute('data-act');
+      if (act === 'addline'){
+        const body = sec.querySelector('.ops-section-body');
+        if (body){
+          // inserta salto de línea al final
+          body.focus();
+          document.execCommand?.('insertLineBreak');
+          scheduleSave();
+        }
+      }
+      if (act === 'delete'){
+        sec.remove();
+        scheduleSave();
+      }
+    });
+  });
+}
+
+function initOpsUpdates(){
+  const addBtn = document.getElementById('ops-add-section');
+  const clearBtn = document.getElementById('ops-clear');
+  const state = opsLoad();
+  opsRender(state);
+
+  addBtn?.addEventListener('click', ()=>{
+    const cur = opsSerializeFromDOM();
+    cur.sections.push({title:'Nueva sección', body:''});
+    opsRender(cur);
+    opsSave(cur);
+  });
+
+  clearBtn?.addEventListener('click', ()=>{
+    if (!confirm('¿Vaciar “Actualizaciones operativas”?')) return;
+    const empty = {sections:[{title:'Cambios turno', body:''}], lines:''};
+    opsRender(empty); opsSave(empty);
+  });
+
+  // Accesibilidad: Enter = salto línea en contenteditable
+  document.getElementById('ops-updates-widget')?.addEventListener('keydown', e=>{
+    const ce = e.target.getAttribute?.('contenteditable');
+    if (ce === 'true' && e.key === 'Enter'){
+      document.execCommand?.('insertLineBreak');
+      e.preventDefault();
+    }
+  });
+}
+
+  
 /* ==========================
    KPI Costes
 ========================== */
@@ -2661,10 +2835,7 @@ function readC(name){
   return sel ? sel.value : null;
 }
 function setSpotlight(ids){
-  const ALL=[
-    'team-widget','prev-shift-widget','rotativas-widget',
-    'incidentes-widget','kanban-widget','kpi-costes'
-  ];
+  const ALL=['team-widget','prev-shift-widget','rotativas-widget','incidentes-widget','kanban-widget','kpi-costes','ops-updates-widget'];
   ALL.forEach(id=>{
     const el=document.getElementById(id);
     if (!el) return;
@@ -2674,7 +2845,7 @@ function setSpotlight(ids){
 function updateSpotlightRouting(){
   if (!rosterComplete()) return setSpotlight(['team-widget']);
   if (readC('c1')!=='OK') return setSpotlight(['prev-shift-widget']);
-  if (readC('c2')!=='OK') return setSpotlight(['kanban-widget']);
+  if (readC('c2')!=='OK') return setSpotlight(['ops-updates-widget']);
   if (readC('c3')!=='OK') return setSpotlight(['team-widget']);
   if (readC('c4')!=='OK') return setSpotlight(['rotativas-widget']);
   if (readC('c5')!=='OK') return setSpotlight(['incidentes-widget']);
@@ -2822,6 +2993,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   try{ loadBoardsInitial(); }catch(e){ console.error('Boards', e); }
   try{ loadIncidentes(); }catch(e){ console.error('Incidentes', e); }
   try{ connectWebSocket(); }catch(e){ console.error('WS', e); }
+  try{ initOpsUpdates(); }catch(e){ console.error('Ops updates', e); }
+
   updateSpotlightRouting?.();
 });
 </script>
