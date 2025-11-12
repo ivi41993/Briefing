@@ -887,6 +887,100 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 }
 #safety-daily-widget .incident-meta{ color:var(--text-muted); font-size:.85rem; }
 #safety-daily-widget .danger{ color:#991b1b; cursor:pointer; }
+/* === Actualizaciones operativas === */
+#ops-updates-widget .ops-form{
+  display:grid; gap:8px; grid-template-columns: 1fr 1fr auto;
+}
+#ops-updates-widget .ops-form input,
+#ops-updates-widget .ops-form select{
+  padding:10px; border:1px solid var(--border); border-radius:10px; background:#fff; font-size:.95rem;
+}
+#ops-updates-widget .ops-form .wide{ grid-column: 1 / -1; }
+#ops-updates-widget .ops-list{
+  display:flex; flex-direction:column; gap:10px; margin-top:10px;
+}
+.ops-item{
+  border:1px solid var(--border);
+  border-left:6px solid var(--brand-red-500);
+  border-radius:12px; background:#fff;
+  box-shadow:0 6px 16px rgba(17,24,39,.06);
+  padding:10px 12px;
+}
+.ops-head{
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+}
+.ops-title{ font-weight:800; }
+.ops-meta{ color:var(--text-muted); font-size:.82rem; display:flex; gap:10px; flex-wrap:wrap; }
+.ops-badge{
+  display:inline-block; padding:2px 8px; border-radius:999px; font-size:.72rem; font-weight:800;
+  background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;
+}
+.ops-body{ margin-top:6px; line-height:1.35; }
+.ops-actions{ display:flex; gap:8px; margin-top:8px; }
+.ops-btn{
+  border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:700; font-size:.85rem;
+}
+
+/* Colores por prioridad */
+.ops-item[data-priority="Alta"]   { border-left-color:#ef4444; }
+.ops-item[data-priority="Media"]  { border-left-color:#f59e0b; }
+.ops-item[data-priority="Baja"]   { border-left-color:#10b981; }
+
+/* Animación al crear */
+@keyframes ops-pop {
+  0% { transform: translateY(-4px); box-shadow:0 0 0 rgba(0,0,0,0); }
+  100% { transform: translateY(0);   box-shadow:0 6px 16px rgba(17,24,39,.10); }
+}
+.ops-item.highlight-new{
+  animation: ops-pop .25s ease-out, blink-glow 1.1s ease-in-out 1;
+}
+
+/* --- OPS: Toolbar, filtros y tarjetas de líneas --- */
+#ops-updates-widget .ops-toolbar{
+  display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 4px;
+}
+#ops-updates-widget .ops-search{
+  flex:1; min-width:200px; padding:8px 10px; border:1px solid var(--border);
+  border-radius:10px; background:#fff; font-size:.9rem;
+}
+#ops-updates-widget .ops-filter{ padding:8px 10px; border:1px solid var(--border);
+  border-radius:10px; background:#fff; font-size:.85rem;
+}
+
+#ops-lines-list{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+.ops-line-card{
+  border:1px solid var(--border); border-left:6px solid var(--brand-red-500);
+  border-radius:12px; background:#fff; box-shadow:0 6px 16px rgba(17,24,39,.06);
+  padding:10px 12px;
+}
+.ops-line-card[aria-selected="true"]{ box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+.ops-line-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.ops-line-title{ font-weight:800; }
+.ops-line-meta{ color:var(--text-muted); font-size:.82rem; display:flex; gap:10px; flex-wrap:wrap; }
+.ops-badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:.72rem; font-weight:800;
+  background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;
+}
+.ops-badge.prio-high{ background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+.ops-badge.prio-med { background:#fff7ed; color:#9a3412; border-color:#fed7aa; }
+.ops-badge.prio-low { background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
+
+.ops-line-actions{ display:flex; gap:8px; margin-top:8px; }
+.ops-line-btn{
+  border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px 10px;
+  cursor:pointer; font-weight:700; font-size:.85rem;
+}
+
+.ops-line-card[data-priority="Alta"]  { border-left-color:#ef4444; }
+.ops-line-card[data-priority="Media"] { border-left-color:#f59e0b; }
+.ops-line-card[data-priority="Baja"]  { border-left-color:#10b981; }
+
+.ops-line-card.is-archived{
+  opacity:.65; background:#fafafa; border-style:dashed;
+}
+
+/* Foco y animación alta */
+@keyframes ops-pop2 { 0%{transform:translateY(-2px);} 100%{transform:translateY(0);} }
+.ops-line-card.highlight-new{ animation: ops-pop2 .2s ease-out, blink-glow 1.1s ease-in-out 1; }
 
 
 </style>
@@ -1059,6 +1153,17 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
     <!-- ACTUALIZACIONES OPERATIVAS -->
 <div class="widget" id="ops-updates-widget">
   <h2 class="widget-title">Actualizaciones operativas</h2>
+  <div class="ops-toolbar" aria-label="Filtros actualizaciones operativas">
+  <input id="ops-search" class="ops-search" type="search" placeholder="Buscar (#etiqueta, @persona, texto)…">
+  <select id="ops-filter-prio" class="ops-filter" title="Filtrar prioridad">
+    <option value="">Todas las prioridades</option>
+    <option value="Alta">Alta (!!)</option>
+    <option value="Media">Media (!)</option>
+    <option value="Baja">Baja</option>
+  </select>
+  <button type="button" class="btn" id="ops-export">Copiar resumen</button>
+</div>
+
 
   <div class="ops-actions">
     <button type="button" class="btn" id="ops-add-section">+ Nueva sección</button>
@@ -1365,6 +1470,11 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
+function opsKey(base){ return `${base}_${STATION_CODE}`; }
+
+const OPS_SECTIONS_KEY = opsKey('ops_updates_sections_v1');
+const OPS_LINES_KEY    = opsKey('ops_updates_lines_v1');
+
 /* ==========================
    Utilidades básicas
 ========================== */
@@ -2563,7 +2673,145 @@ function opsRender(data){
     });
   });
 }
+function parseOpsLine(raw){
+  // Sintaxis:  "Texto libre #Etiqueta @Nombre >2025-11-18 !!"
+  const line=(raw||'').trim().replace(/\s+/g,' ');
+  if(!line) return null;
 
+  // Prioridad
+  let priority='Baja';
+  if(/\B!!\b/.test(line)) priority='Alta';
+  else if(/\B!\b/.test(line)) priority='Media';
+
+  // Etiquetas (#)
+  const tags=[...line.matchAll(/#([\p{L}\d_-]+)/gu)].map(m=>m[1]);
+
+  // Asignado (@)
+  const assigned=([...line.matchAll(/@([\p{L}\d][\p{L}\d._ -]{0,40})/gu)].pop()||[])[1]||null;
+
+  // Vencimiento (>)
+  const dueMatch= line.match(/>(\d{4}-\d{2}-\d{2})/);
+  const dueISO= dueMatch ? dueMatch[1] : null;
+
+  // Título limpio (sin tokens)
+  const title=line
+    .replace(/\B!!\b|\B!\b/g,'')
+    .replace(/#[\p{L}\d_-]+/gu,'')
+    .replace(/@[\p{L}\d][\p{L}\d._ -]{0,40}/gu,'')
+    .replace(/>\d{4}-\d{2}-\d{2}/,'')
+    .trim();
+
+  // Sección por primera #Etiqueta si existe, si no "General"
+  const section = tags.length ? tags[0] : 'General';
+
+  return {
+    id: Date.now() + Math.random(),
+    raw: line,
+    title: title || line,
+    section,
+    tags,
+    priority,
+    assigned,
+    due_date: dueISO,
+    ts: Date.now(),
+    station: STATION_CODE,
+    archived: false,
+  };
+}
+
+function parseQuickLinesToList(){
+  const quick = document.getElementById('ops-quicklines');
+  const text = (quick?.textContent||'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  return text.map(parseOpsLine).filter(Boolean);
+}
+
+function renderOpsLines(list){
+  const host = document.getElementById('ops-lines-list');
+  const search = document.getElementById('ops-search')?.value.trim().toLowerCase() || '';
+  const fPrio  = document.getElementById('ops-filter-prio')?.value || '';
+  if(!host) return;
+
+  // Filtrado
+  let data = list.slice();
+  if (fPrio) data = data.filter(x=>x.priority===fPrio);
+  if (search){
+    data = data.filter(x=>{
+      const hay = [
+        x.title, x.section, x.assigned, (x.tags||[]).join(' ')
+      ].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(search);
+    });
+  }
+
+  // Orden: Alta→Media→Baja y luego más recientes
+  const orderPrio={Alta:0,Media:1,Baja:2};
+  data.sort((a,b)=> (orderPrio[a.priority]-orderPrio[b.priority]) || (b.ts - a.ts));
+
+  host.innerHTML='';
+  data.forEach(it=>{
+    const card = document.createElement('div');
+    card.className='ops-line-card';
+    card.setAttribute('role','listitem');
+    card.dataset.priority = it.priority;
+    card.innerHTML = `
+      <div class="ops-line-head">
+        <div class="ops-line-title">${esc(it.title)}</div>
+        <div class="ops-line-meta">
+          <span class="ops-badge ${it.priority==='Alta'?'prio-high':it.priority==='Media'?'prio-med':'prio-low'}">${esc(it.priority)}</span>
+          ${it.section ? `<span class="ops-badge">#${esc(it.section)}</span>` : ''}
+          ${it.assigned ? `<span>@${esc(it.assigned)}</span>` : ''}
+          ${it.due_date ? `<span>⏲ ${new Date(it.due_date).toLocaleDateString('es-ES')}</span>` : ''}
+          <span>${new Date(it.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
+        </div>
+      </div>
+      <div class="ops-line-actions">
+        <button class="ops-line-btn" data-act="kanban">Mandar al Kanban</button>
+        <button class="ops-line-btn" data-act="pin">${it.archived?'Quitar pin':'Pin/Archivar'}</button>
+        <button class="ops-line-btn" data-act="del">Eliminar</button>
+      </div>
+    `;
+    if (it.archived) card.classList.add('is-archived');
+    host.appendChild(card);
+
+    // acciones
+    card.querySelector('[data-act="kanban"]')?.addEventListener('click', async ()=>{
+      try{
+        await createTaskOnServer({
+          task_type:'kanban_rapida',
+          status:'Abiertas',
+          category:(it.section||'').toLowerCase(), // mapea con tu CAT_LABELS
+          title: it.title,
+          due_date: it.due_date || null,
+          assigned_to: it.assigned || null,
+          station: STATION_CODE
+        });
+        card.setAttribute('aria-selected','true');
+        setTimeout(()=>card.removeAttribute('aria-selected'), 1000);
+      }catch(e){ alert('No se pudo crear en Kanban.'); }
+    });
+
+    card.querySelector('[data-act="pin"]')?.addEventListener('click', ()=>{
+      it.archived = !it.archived;
+      saveRenderedOpsLines(list);
+      renderOpsLines(list);
+    });
+
+    card.querySelector('[data-act="del"]')?.addEventListener('click', ()=>{
+      const idx = list.findIndex(x=>x.id===it.id);
+      if (idx>-1){ list.splice(idx,1); saveRenderedOpsLines(list); renderOpsLines(list); }
+    });
+  });
+}
+
+const OPS_LINES_RENDER_KEY = opsKey('ops_lines_render_v1');
+function loadRenderedOpsLines(){
+  try{ return JSON.parse(localStorage.getItem(OPS_LINES_RENDER_KEY)||'[]'); }catch{ return []; }
+}
+function saveRenderedOpsLines(list){
+  try{ localStorage.setItem(OPS_LINES_RENDER_KEY, JSON.stringify(list||[])); }catch{}
+}
+
+  
 function initOpsUpdates(){
   const addBtn = document.getElementById('ops-add-section');
   const clearBtn = document.getElementById('ops-clear');
@@ -2591,6 +2839,65 @@ function initOpsUpdates(){
       e.preventDefault();
     }
   });
+    // Estado de tarjetas derivadas de quicklines
+  let OPS_LIST = loadRenderedOpsLines();
+  const quick = document.getElementById('ops-quicklines');
+  const listHost = document.getElementById('ops-lines-list');
+
+  function refreshOpsFromQuicklines(){
+    const parsed = parseQuickLinesToList();
+    // mantenemos archivados por raw-title match
+    const archivedSet = new Set(OPS_LIST.filter(x=>x.archived).map(x=>x.raw));
+    OPS_LIST = parsed.map(x => ({...x, archived: archivedSet.has(x.raw)}));
+    saveRenderedOpsLines(OPS_LIST);
+    renderOpsLines(OPS_LIST);
+  }
+
+  // Primera pintura
+  renderOpsLines(OPS_LIST.length ? OPS_LIST : (OPS_LIST = parseQuickLinesToList(), saveRenderedOpsLines(OPS_LIST), OPS_LIST));
+
+  // Listeners
+  let tOps; // debounce
+  quick?.addEventListener('input', ()=>{
+    clearTimeout(tOps);
+    tOps = setTimeout(()=>{
+      const state = opsSerializeFromDOM();
+      opsSave(state);
+      refreshOpsFromQuicklines();
+    }, 250);
+  });
+
+  document.getElementById('ops-search')?.addEventListener('input', ()=>renderOpsLines(OPS_LIST));
+  document.getElementById('ops-filter-prio')?.addEventListener('change', ()=>renderOpsLines(OPS_LIST));
+
+  document.getElementById('ops-export')?.addEventListener('click', async ()=>{
+    const orderPrio={Alta:0,Media:1,Baja:2};
+    const visible = (()=>{ // aplica filtros actuales
+      const s=document.getElementById('ops-search')?.value.trim().toLowerCase()||'';
+      const p=document.getElementById('ops-filter-prio')?.value||'';
+      return OPS_LIST.filter(x=>{
+        if (p && x.priority!==p) return false;
+        if (s){
+          const hay=[x.title,x.section,x.assigned,(x.tags||[]).join(' ')].filter(Boolean).join(' ').toLowerCase();
+          if (!hay.includes(s)) return false;
+        }
+        return true;
+      }).sort((a,b)=> (orderPrio[a.priority]-orderPrio[b.priority]) || (b.ts-a.ts));
+    })();
+    const text = visible.map(x=>{
+      const bits=[`• ${x.title}`];
+      if(x.section)  bits.push(`#${x.section}`);
+      if(x.priority) bits.push(`[${x.priority}]`);
+      if(x.assigned) bits.push(`@${x.assigned}`);
+      if(x.due_date) bits.push(`(${x.due_date})`);
+      return bits.join(' ');
+    }).join('\n');
+    try{
+      await navigator.clipboard.writeText(text||'');
+      alert('Resumen copiado al portapapeles.');
+    }catch{ alert('No se pudo copiar.'); }
+  });
+
 }
 
 /* ==========================
