@@ -845,6 +845,50 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
   pointer-events:none;
 }
 
+/* === Seguridad y protección (diario + manual) === */
+#safety-daily-widget .safety-grid{
+  display:grid; gap:12px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width:1100px){
+  #safety-daily-widget .safety-grid{ grid-template-columns: 1fr; }
+}
+#safety-daily-widget .safety-card{
+  background:#fff; border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 6px 16px rgba(17,24,39,.06); padding:12px; display:flex; flex-direction:column; gap:10px;
+}
+#safety-daily-widget .tips{
+  display:flex; flex-direction:column; gap:8px;
+}
+#safety-daily-widget .tip{
+  border:1px solid var(--border); border-radius:10px; padding:10px; background:#fff;
+  font-weight:600; line-height:1.35;
+}
+#safety-daily-widget .controls{ display:flex; gap:8px; flex-wrap:wrap; }
+#safety-daily-widget .btn{
+  border:1px solid var(--border); background:#fff; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:700; font-size:.85rem;
+}
+
+#safety-daily-widget .incident-form{
+  display:grid; gap:8px; grid-template-columns: 1fr;
+}
+#safety-daily-widget .incident-form input,
+#safety-daily-widget .incident-form textarea{
+  padding:10px; border:1px solid var(--border); border-radius:10px; background:#fff; font-size:.95rem;
+}
+#safety-daily-widget .incident-list{
+  display:flex; flex-direction:column; gap:8px; margin-top:6px;
+}
+#safety-daily-widget .incident-item{
+  border:1px solid var(--border); border-radius:10px; padding:10px; background:#fff;
+}
+#safety-daily-widget .incident-head{
+  display:flex; justify-content:space-between; align-items:center; gap:8px; font-weight:700;
+}
+#safety-daily-widget .incident-meta{ color:var(--text-muted); font-size:.85rem; }
+#safety-daily-widget .danger{ color:#991b1b; cursor:pointer; }
+
+
 </style>
 </head>
 <body>
@@ -970,7 +1014,7 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
 
         <div class="check-card" tabindex="0"
              data-help="Seguridad: EPIs, accesos, consignas específicas BCN."
-             data-target="rotativas-widget">
+             data-target="safety-daily-widget">
           <span class="check-title">4) Seguridad y protección</span>
           <div class="check-actions" role="group" aria-label="Bloque 4">
             <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
@@ -1092,6 +1136,40 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
         <button type="submit" class="btn-primary">Añadir</button>
       </form>
     </div>
+
+    <!-- SEGURIDAD Y PROTECCIÓN (diario + manual) -->
+<div class="widget" id="safety-daily-widget">
+  <h2 class="widget-title">Seguridad y protección — Diario</h2>
+
+  <div class="safety-grid">
+    <!-- Columna izquierda: 2 tips diarios -->
+    <div class="safety-card">
+      <strong>Recordatorios de hoy</strong>
+      <div id="safety-tips" class="tips"></div>
+      <div class="controls">
+        <button type="button" class="btn" id="safety-refresh">Regenerar hoy</button>
+        <button type="button" class="btn" id="safety-history">Historial</button>
+      </div>
+      <small class="kpi-text" id="safety-meta">—</small>
+    </div>
+
+    <!-- Columna derecha: alta manual de incidentes -->
+    <div class="safety-card">
+      <strong>Alta manual de incidentes</strong>
+      <form id="safety-form" class="incident-form" autocomplete="off">
+        <input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
+        <textarea id="safety-desc" rows="4" placeholder="Descripción breve, lugar, personas implicadas…" required></textarea>
+        <div class="controls">
+          <button type="submit" class="btn">Guardar incidente</button>
+          <button type="button" class="btn" id="safety-clear">Vaciar lista</button>
+        </div>
+      </form>
+      <div id="safety-list" class="incident-list" aria-live="polite"></div>
+      <small class="kpi-text" id="safety-inc-meta">—</small>
+    </div>
+  </div>
+</div>
+
 
     <!-- INCIDENTES / PULSE / ENABLON -->
     <div class="widget" id="incidentes-widget">
@@ -1299,6 +1377,254 @@ function esc(s){
     .replace(/'/g,"&#39;");
 }
 function $$(sel){ return Array.from(document.querySelectorAll(sel)); }
+
+/* ==========================
+   Seguridad y protección — diario + manual
+========================== */
+const SAFETY_TIPS_KEY = 'safety_daily_tips_history_v1';
+const SAFETY_INC_KEY  = 'safety_manual_incidents_v1';
+
+// Lista completa de frases (tal cual la facilitaste)
+const SAFETY_TIPS_MASTER = [
+"Temas de seguridad de actualidad (noticias, redes sociales, cambios de nivel de amenaza, etc.).",
+"Incidentes o no conformidades en tu estación u otras.",
+"Resultados de auditorías (aerolíneas, autoridades, autoauditorías).",
+"Próximas auditorías o visitas.",
+"Mantener puertas cerradas cuando no se usen.",
+"Reportar comportamientos sospechosos.",
+"Retar a personas sin acreditación o acompañamiento.",
+"Acompañar a todos los visitantes en todo momento.",
+"Llevar chaleco de alta visibilidad en almacén y zona aire.",
+"Saber dónde están los contactos de emergencia.",
+"Segregar carga segura e insegura.",
+"Revisar signos de manipulación en paquetes.",
+"Llevar la acreditación visible en todo momento.",
+"No llevar mochilas ni bolsas a zonas seguras.",
+"Guardar cintas, precintos y elementos de seguridad de forma segura.",
+"No permitir el acceso de personas no autorizadas.",
+"Preguntar si no se conoce un procedimiento.",
+"No dar información de seguridad a externos.",
+"No permitir personas no autorizadas cerca de carga segura.",
+"No saltarse procedimientos.",
+"Si una carga no es segura, no cargarla y revisarla.",
+"Leer todos los avisos de seguridad y pedir aclaraciones.",
+"Si ves algo, dilo.",
+"Informar si las normas no son prácticas o seguras.",
+"Escalar errores o riesgos de seguridad a la dirección.",
+"Mantener la información sensible segura.",
+"Cumplir siempre las normas y procedimientos de seguridad.",
+"No seguir instrucciones que comprometan la seguridad.",
+"No cargar mercancía con etiquetas de parada o retención.",
+"Animar a los compañeros a cumplir las normas.",
+"Revisar la validez de la acreditación y avisar si va a caducar.",
+"Si no sabes, pregunta; si sabes, enseña.",
+"Pensar en las consecuencias de no cumplir las normas.",
+"Identificar a la persona con la que hablas.",
+"Comparar la foto de la acreditación con la persona.",
+"Registrar entrada y salida de visitantes.",
+"Si ves conductores deambulando, indícale la zona designada.",
+"Mantener puertas de zona aire cerradas.",
+"No interferir con los controles de seguridad.",
+"Al controlar, centrarse en la tarea.",
+"Rechazar o revisar carga dañada.",
+"No aceptar carga sin identificación o documentación.",
+"Revisar que los camiones estén sellados.",
+"Comprobar la identificación de quien recoge la carga.",
+"Contar todas las piezas de un envío.",
+"Comparar el nombre del visitante con el registro.",
+"Comprobar la validez en bases de datos oficiales.",
+"Verificar acuerdos de subcontratistas.",
+"No prestar acreditaciones.",
+"Avisar si se pierde la acreditación.",
+"Comprobar identificación y estatus en cada ocasión.",
+"No permitir acceso no autorizado a zonas restringidas.",
+"Asistir y prestar atención a la reunión de turno.",
+"Presentar la acreditación en lectores de proximidad.",
+"Informar de errores a supervisores.",
+"Todos pueden pulsar el botón de parada de emergencia por seguridad.",
+"Mejor prevenir que curar.",
+"Cooperar en los controles de seguridad.",
+"Avisar si algo no parece correcto.",
+"No manipular ni poner en riesgo sistemas de seguridad.",
+"Sospechar de precintos diferentes en paquetes.",
+"Las fechas límite no justifican saltarse la seguridad.",
+"Dejar trabajar a los perros de seguridad.",
+"Asegurarse de que la carga ha sido revisada.",
+"La seguridad es responsabilidad de todos.",
+"Informar de puertas, ventanas o vallas dañadas.",
+"Retar a desconocidos en el almacén.",
+"Ayudar a los controladores en el escaneo de envíos.",
+"Usar cinta de seguridad para cerrar paquetes revisados.",
+"Usar sellos correctos para indicar el estado de seguridad.",
+"Llamar a la policía si es necesario.",
+"Leer los boletines de seguridad y pedir aclaraciones.",
+"Ayudar a nuevos empleados a cumplir las normas.",
+"Informar de daños en carga, puertas, ventanas, señalización.",
+"Transferir la carga segura inmediatamente a la zona segura.",
+"Guardar carga valiosa en áreas designadas y bajo CCTV.",
+"Asegurarse de que los visitantes devuelvan su acreditación.",
+"Dejar pertenencias personales en la taquilla.",
+"No entregar carga a conductores no autorizados.",
+"Comprobar que los controles de seguridad estén registrados.",
+"Asegurarse de que los archivos de vuelo estén completos.",
+"Comprobar que cada envío tenga el CSD correcto.",
+"La seguridad es para proteger a todos, incluidos tus seres queridos.",
+"Todos deben estar formados según su función.",
+"Adaptar los procedimientos a la seguridad, no al revés.",
+"No tomar fotos en zonas seguras.",
+"No publicar información de seguridad en redes sociales.",
+"No permitir que los clientes decidan el método de control.",
+"No permitir que clientes/conductores usen baños sin acompañamiento.",
+"Mantener cerradas las puertas de zonas restringidas.",
+"Informar siempre de carga dañada.",
+"Informar de carga manipulada o posible robo.",
+"Informar de comportamientos extraños de compañeros.",
+"Conocer el cartel de “whistle blower”.",
+"Concienciación sobre amenazas internas.",
+"No asumir riesgos innecesarios con la seguridad.",
+"No dejar carga segura desatendida fuera de la instalación.",
+"Mantenerse siempre alerta.",
+"No dejar puertas abiertas sin vigilancia.",
+"No compartir procesos de seguridad del sector.",
+"La seguridad es tu responsabilidad."
+];
+
+// —— helpers persistencia
+function loadJson(key, fallback){
+  try{ return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; }catch{ return fallback; }
+}
+function saveJson(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); }catch{}
+}
+
+// —— tips diarios
+function todayKey(){
+  const d = new Date();
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+function hashStr(s){
+  let h=0; for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i))|0; } return Math.abs(h);
+}
+function pickTwoDistinct(arr, seedStr){
+  if(arr.length<2) return arr.slice(0,2);
+  const h = hashStr(seedStr);
+  const i1 = h % arr.length;
+  const i2 = (Math.floor(h/7) + 1) % arr.length;
+  return i1===i2 ? [arr[i1], arr[(i2+1)%arr.length]] : [arr[i1], arr[i2]];
+}
+
+function renderSafetyTips(){
+  const host = document.getElementById('safety-tips');
+  const meta = document.getElementById('safety-meta');
+  if(!host) return;
+  const day = todayKey();
+  let hist = loadJson(SAFETY_TIPS_KEY, {}); // { 'YYYY-MM-DD': [tip1, tip2], ... }
+
+  if(!Array.isArray(hist[day]) || hist[day].length!==2){
+    hist[day] = pickTwoDistinct(SAFETY_TIPS_MASTER, day + '|' + STATION_CODE);
+    saveJson(SAFETY_TIPS_KEY, hist);
+  }
+
+  host.innerHTML = '';
+  hist[day].forEach(t=>{
+    const el = document.createElement('div');
+    el.className = 'tip';
+    el.textContent = t;
+    host.appendChild(el);
+  });
+  if(meta){
+    meta.textContent = `Fecha: ${new Date().toLocaleDateString('es-ES')} • Guardado local`;
+  }
+}
+
+function setupSafetyDaily(){
+  renderSafetyTips();
+  document.getElementById('safety-refresh')?.addEventListener('click', ()=>{
+    // Fuerza nueva selección para hoy: usa un "seed" alterno con la hora
+    const day = todayKey();
+    const hist = loadJson(SAFETY_TIPS_KEY, {});
+    hist[day] = pickTwoDistinct(SAFETY_TIPS_MASTER, day + '|' + Date.now());
+    saveJson(SAFETY_TIPS_KEY, hist);
+    renderSafetyTips();
+  });
+  document.getElementById('safety-history')?.addEventListener('click', ()=>{
+    const hist = loadJson(SAFETY_TIPS_KEY, {});
+    const entries = Object.entries(hist).sort(([a],[b])=>a.localeCompare(b));
+    alert(entries.map(([d,v])=>`${d}:\n• ${v?.[0]||''}\n• ${v?.[1]||''}`).join('\n\n') || 'Sin historial');
+  });
+}
+
+// —— incidentes manuales
+function loadIncidents(){ return loadJson(SAFETY_INC_KEY, []); }
+function saveIncidents(list){ saveJson(SAFETY_INC_KEY, list); }
+
+function renderIncidents(){
+  const listEl = document.getElementById('safety-list');
+  const meta = document.getElementById('safety-inc-meta');
+  if(!listEl) return;
+  const data = loadIncidents();
+  listEl.innerHTML = '';
+  data.slice().reverse().forEach((it, idx)=>{
+    const card = document.createElement('div');
+    card.className = 'incident-item';
+    const ts = new Date(it.ts||Date.now());
+    card.innerHTML = `
+      <div class="incident-head">
+        <span>${esc(it.title||'')}</span>
+        <span class="danger" data-del="${it.id}" title="Eliminar">🗑</span>
+      </div>
+      <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
+      <div>${esc(it.desc||'')}</div>
+    `;
+    listEl.appendChild(card);
+  });
+  if(meta){
+    meta.textContent = `Incidentes guardados: ${data.length}`;
+  }
+
+  listEl.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-del');
+      const cur = loadIncidents().filter(x=>String(x.id)!==String(id));
+      saveIncidents(cur);
+      renderIncidents();
+    });
+  });
+}
+
+function setupSafetyIncidents(){
+  const form = document.getElementById('safety-form');
+  const title = document.getElementById('safety-title');
+  const desc  = document.getElementById('safety-desc');
+  const clear = document.getElementById('safety-clear');
+
+  renderIncidents();
+
+  form?.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const t = (title?.value||'').trim();
+    const d = (desc?.value||'').trim();
+    if(!t || !d) return;
+    const cur = loadIncidents();
+    cur.push({ id: Date.now(), title: t, desc: d, ts: Date.now(), station: STATION_CODE });
+    saveIncidents(cur);
+    title.value=''; desc.value='';
+    renderIncidents();
+  });
+
+  clear?.addEventListener('click', ()=>{
+    if(!confirm('¿Vaciar todos los incidentes guardados?')) return;
+    saveIncidents([]); renderIncidents();
+  });
+}
+
+function initSafetyDailyWidget(){
+  setupSafetyDaily();
+  setupSafetyIncidents();
+
+  // Accesibilidad: Enter en textarea -> salto de línea normal; ya OK por defecto.
+}
 
 /* Estación actual (BCN por título o ?station=) */
 const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
@@ -2267,6 +2593,31 @@ function initOpsUpdates(){
   });
 }
 
+/* ==========================
+   Reordenar checklist + renumerar
+========================== */
+function reorderChecklist(){
+  const grid = document.querySelector('#brief-check .check-grid');
+  if(!grid) return;
+
+  // Detecta las tarjetas por su data-target original
+  const card1 = [...grid.children].find(c => c.querySelector('.check-title')?.textContent?.trim().startsWith('1)'));
+  const card3 = [...grid.children].find(c => c.querySelector('.check-title')?.textContent?.includes('Dotación y recursos'));
+
+  if(card1 && card3 && card3 !== grid.firstElementChild){
+    grid.insertBefore(card3, grid.firstElementChild); // Dotación y recursos → primera
+  }
+
+  // Renumera los prefijos "n) " según el orden visual
+  const cards = [...grid.children];
+  cards.forEach((c, idx)=>{
+    const t = c.querySelector('.check-title');
+    if(!t) return;
+    const raw = t.textContent.replace(/^\s*\d+\)\s*/,''); // quita prefijo existente
+    t.textContent = `${idx+1}) ${raw}`;
+  });
+}
+
   
 /* ==========================
    KPI Costes
@@ -2835,7 +3186,7 @@ function readC(name){
   return sel ? sel.value : null;
 }
 function setSpotlight(ids){
-  const ALL=['team-widget','prev-shift-widget','rotativas-widget','incidentes-widget','kanban-widget','kpi-costes','ops-updates-widget'];
+  const ALL=['team-widget','prev-shift-widget','rotativas-widget','incidentes-widget','kanban-widget','kpi-costes','ops-updates-widget','safety-daily-widget'];
   ALL.forEach(id=>{
     const el=document.getElementById(id);
     if (!el) return;
@@ -2847,7 +3198,7 @@ function updateSpotlightRouting(){
   if (readC('c1')!=='OK') return setSpotlight(['prev-shift-widget']);
   if (readC('c2')!=='OK') return setSpotlight(['ops-updates-widget']);
   if (readC('c3')!=='OK') return setSpotlight(['team-widget']);
-  if (readC('c4')!=='OK') return setSpotlight(['rotativas-widget']);
+  if (readC('c4')!=='OK') return setSpotlight(['safety-daily-widget']);
   if (readC('c5')!=='OK') return setSpotlight(['incidentes-widget']);
   if (readC('c6')!=='OK') return setSpotlight(['kpi-costes']);
   if (readC('c7')!=='OK') return setSpotlight(['kanban-widget']);
@@ -2994,6 +3345,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
   try{ loadIncidentes(); }catch(e){ console.error('Incidentes', e); }
   try{ connectWebSocket(); }catch(e){ console.error('WS', e); }
   try{ initOpsUpdates(); }catch(e){ console.error('Ops updates', e); }
+  try{ reorderChecklist(); }catch(e){ console.error('Checklist reorder', e); }
+  try{ initSafetyDailyWidget(); }catch(e){ console.error('Safety widget', e); }
+
+
 
   updateSpotlightRouting?.();
 });
