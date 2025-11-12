@@ -1321,6 +1321,9 @@ color: var(--text-muted);
   </div>
 
   <textarea id="sec-note" class="sec-note" placeholder="Notas/brief de seguridad del turno…"></textarea>
+  <!-- Recordatorios diarios de seguridad -->
+  <div id="sec-daily-tips" class="sec-list" style="margin-top:10px;"></div>
+
   <div class="sec-list" id="sec-list" style="margin-top:10px;"></div>
   <small class="kpi-text" id="sec-meta">—</small>
 </div>
@@ -3091,6 +3094,16 @@ const paintBadge = (el) => {
 };
 paintBadge(document.getElementById('shift-badge'));         // checklist
 paintBadge(document.getElementById('shift-badge-header'));  // header
+  // Refresca tips si cambió el día
+  const lastTipsKey = 'sec_tips_last_date_v1';
+  try {
+    const today = now.toISOString().slice(0,10);
+    const last = localStorage.getItem(lastTipsKey);
+    if (last !== today){
+      renderDailySecurityTips();
+      localStorage.setItem(lastTipsKey, today);
+    }
+  } catch {}
 
 }
 
@@ -3154,6 +3167,157 @@ function ops_render(){
   ops_render();
 })();
 
+/* ===== Seguridad: tips diarios automáticos (2/día) ===== */
+const SECURITY_TIPS = [
+  "Temas de seguridad de actualidad (noticias, redes sociales, cambios de nivel de amenaza, etc.).",
+  "Incidentes o no conformidades en tu estación u otras.",
+  "Resultados de auditorías (aerolíneas, autoridades, autoauditorías).",
+  "Próximas auditorías o visitas.",
+  "Mantener puertas cerradas cuando no se usen.",
+  "Reportar comportamientos sospechosos.",
+  "Retar a personas sin acreditación o acompañamiento.",
+  "Acompañar a todos los visitantes en todo momento.",
+  "Llevar chaleco de alta visibilidad en almacén y zona aire.",
+  "Saber dónde están los contactos de emergencia.",
+  "Segregar carga segura e insegura.",
+  "Revisar signos de manipulación en paquetes.",
+  "Llevar la acreditación visible en todo momento.",
+  "No llevar mochilas ni bolsas a zonas seguras.",
+  "Guardar cintas, precintos y elementos de seguridad de forma segura.",
+  "No permitir el acceso de personas no autorizadas.",
+  "Preguntar si no se conoce un procedimiento.",
+  "No dar información de seguridad a externos.",
+  "No permitir personas no autorizadas cerca de carga segura.",
+  "No saltarse procedimientos.",
+  "Si una carga no es segura, no cargarla y revisarla.",
+  "Leer todos los avisos de seguridad y pedir aclaraciones.",
+  "Si ves algo, dilo.",
+  "Informar si las normas no son prácticas o seguras.",
+  "Escalar errores o riesgos de seguridad a la dirección.",
+  "Mantener la información sensible segura.",
+  "Cumplir siempre las normas y procedimientos de seguridad.",
+  "No seguir instrucciones que comprometan la seguridad.",
+  "No cargar mercancía con etiquetas de parada o retención.",
+  "Animar a los compañeros a cumplir las normas.",
+  "Revisar la validez de la acreditación y avisar si va a caducar.",
+  "Si no sabes, pregunta; si sabes, enseña.",
+  "Pensar en las consecuencias de no cumplir las normas.",
+  "Identificar a la persona con la que hablas.",
+  "Comparar la foto de la acreditación con la persona.",
+  "Registrar entrada y salida de visitantes.",
+  "Si ves conductores deambulando, indícale la zona designada.",
+  "Mantener puertas de zona aire cerradas.",
+  "No interferir con los controles de seguridad.",
+  "Al controlar, centrarse en la tarea.",
+  "Rechazar o revisar carga dañada.",
+  "No aceptar carga sin identificación o documentación.",
+  "Revisar que los camiones estén sellados.",
+  "Comprobar la identificación de quien recoge la carga.",
+  "Contar todas las piezas de un envío.",
+  "Comparar el nombre del visitante con el registro.",
+  "Comprobar la validez en bases de datos oficiales.",
+  "Verificar acuerdos de subcontratistas.",
+  "No prestar acreditaciones.",
+  "Avisar si se pierde la acreditación.",
+  "Comprobar identificación y estatus en cada ocasión.",
+  "No permitir acceso no autorizado a zonas restringidas.",
+  "Asistir y prestar atención a la reunión de turno.",
+  "Presentar la acreditación en lectores de proximidad.",
+  "Informar de errores a supervisores.",
+  "Todos pueden pulsar el botón de parada de emergencia por seguridad.",
+  "Mejor prevenir que curar.",
+  "Cooperar en los controles de seguridad.",
+  "Avisar si algo no parece correcto.",
+  "No manipular ni poner en riesgo sistemas de seguridad.",
+  "Sospechar de precintos diferentes en paquetes.",
+  "Las fechas límite no justifican saltarse la seguridad.",
+  "Dejar trabajar a los perros de seguridad.",
+  "Asegurarse de que la carga ha sido revisada.",
+  "La seguridad es responsabilidad de todos.",
+  "Informar de puertas, ventanas o vallas dañadas.",
+  "Retar a desconocidos en el almacén.",
+  "Ayudar a los controladores en el escaneo de envíos.",
+  "Usar cinta de seguridad para cerrar paquetes revisados.",
+  "Usar sellos correctos para indicar el estado de seguridad.",
+  "Llamar a la policía si es necesario.",
+  "Leer los boletines de seguridad y pedir aclaraciones.",
+  "Ayudar a nuevos empleados a cumplir las normas.",
+  "Informar de daños en carga, puertas, ventanas, señalización.",
+  "Transferir la carga segura inmediatamente a la zona segura.",
+  "Guardar carga valiosa en áreas designadas y bajo CCTV.",
+  "Asegurarse de que los visitantes devuelvan su acreditación.",
+  "Dejar pertenencias personales en la taquilla.",
+  "No entregar carga a conductores no autorizados.",
+  "Comprobar que los controles de seguridad estén registrados.",
+  "Asegurarse de que los archivos de vuelo estén completos.",
+  "Comprobar que cada envío tenga el CSD correcto.",
+  "La seguridad es para proteger a todos, incluidos tus seres queridos.",
+  "Todos deben estar formados según su función.",
+  "Adaptar los procedimientos a la seguridad, no al revés.",
+  "No tomar fotos en zonas seguras.",
+  "No publicar información de seguridad en redes sociales.",
+  "No permitir que los clientes decidan el método de control.",
+  "No permitir que clientes/conductores usen baños sin acompañamiento.",
+  "Mantener cerradas las puertas de zonas restringidas.",
+  "Informar siempre de carga dañada.",
+  "Informar de carga manipulada o posible robo.",
+  "Informar de comportamientos extraños de compañeros.",
+  "Conocer el cartel de “whistle blower”.",
+  "Concienciación sobre amenazas internas.",
+  "No asumir riesgos innecesarios con la seguridad.",
+  "No dejar carga segura desatendida fuera de la instalación.",
+  "Mantenerse siempre alerta.",
+  "No dejar puertas abiertas sin vigilancia.",
+  "No compartir procesos de seguridad del sector.",
+  "La seguridad es tu responsabilidad."
+];
+
+// hash determinista sencillo a partir de la fecha YYYY-MM-DD
+function hashDateSeed(dateStr){
+  let h = 2166136261; // FNV-1a base
+  for (let i=0;i<dateStr.length;i++){
+    h ^= dateStr.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+// Selecciona N tips distintos de forma determinista por día
+function getDailySecurityTips(n=2, d=new Date()){
+  const dateStr = d.toISOString().slice(0,10); // YYYY-MM-DD
+  const seed = hashDateSeed(dateStr);
+  const L = SECURITY_TIPS.length;
+  if (L === 0) return [];
+
+  // dos índices distintos basados en el seed (sin necesidad de localStorage)
+  const i1 = seed % L;
+  let i2 = (seed * 1103515245 + 12345) % L;  // LCG simple
+  if (i2 === i1) i2 = (i2 + 1) % L;
+
+  const picks = [SECURITY_TIPS[i1], SECURITY_TIPS[i2]];
+  return picks.slice(0, Math.min(n, picks.length));
+}
+
+function renderDailySecurityTips(){
+  const host = document.getElementById('sec-daily-tips');
+  if (!host) return;
+  const tips = getDailySecurityTips(2, new Date());
+  if (!tips.length){
+    host.innerHTML = '';
+    return;
+  }
+  host.innerHTML = `
+    <div class="sec-item" role="note" aria-label="Recordatorios diarios de seguridad">
+      <div style="font-weight:700">Recordatorio diario de seguridad</div>
+      <ul style="margin:0; padding-left:18px;">
+        ${tips.map(t => `<li>${t}</li>`).join('')}
+      </ul>
+      <div class="meta-row"><span class="badge">Fecha: ${new Date().toLocaleDateString('es-ES')}</span></div>
+    </div>
+  `;
+}
+
+
 /* ===== Seguridad y protección (estado rápido + notas) ===== */
 const SEC_KEY = 'seguridad_state_v1';
 function sec_load(){ try{ return JSON.parse(localStorage.getItem(SEC_KEY)||'{"risks":{}}'); }catch{ return {risks:{}}; } }
@@ -3210,6 +3374,7 @@ function sec_render(){
       }).catch(()=>{});
     }catch{}
     sec_render();
+    renderDailySecurityTips();
   });
 
   // nota
@@ -3356,6 +3521,7 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
 
 
