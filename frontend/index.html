@@ -1301,6 +1301,14 @@ color: var(--text-muted);
 #incidentes-widget.vivid .tag-danger{
   background:#ffe3e3; color:#991b1b; font-weight:800; padding:3px 8px; border-radius:999px;
 }
+/* Estado de alerta del cronómetro */
+.header-timer .timer-display {
+  transition: color .2s ease, text-shadow .2s ease;
+}
+.header-timer .timer-display.is-red{
+  color: var(--brand-red-600);
+  text-shadow: 0 0 0 rgba(0,0,0,0); /* suave, opcional */
+}
 
   
 </style>
@@ -2033,67 +2041,105 @@ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'
 // Función $$ ya existe, mantenerla
 function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
 /* ===== CRONÓMETRO EN HEADER ===== */
+/* ===== CRONÓMETRO EN HEADER ===== */
 (function(){
-const KEY='header_big_timer_v1';
-let running=false, startedAt=0, elapsed=0, tick=null;
+  const KEY='header_big_timer_v1';
+  const RED_MS  = 8 * 60 * 1000;   // 8 minutos
+  const STOP_MS = 10 * 60 * 1000;  // 10 minutos (límite)
 
-const $ = (id)=>document.getElementById(id);
-const host = $('timer-widget');
-const face = $('timer-face');
-const display = $('timer-display');
-const resetBtn = $('timer-reset');
+  let running=false, startedAt=0, elapsed=0, tick=null;
 
-function fmt(ms){
-const t = Math.floor(ms/1000);
-const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
-return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-}
-function paint(){ display.textContent = fmt(running ? Date.now()-startedAt : elapsed); }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
-function load(){
-try{
-const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(!s) return;
-running = !!s.running; elapsed = Number(s.elapsed)||0; startedAt = Number(s.startedAt)||0;
-if (running){ const now=Date.now(); elapsed = Math.max(elapsed, now - startedAt); startedAt = now - elapsed; }
-}catch{}
-}
-function setUI(){
-host?.classList.toggle('timer-running', running);
-resetBtn.disabled = (!running && elapsed===0);
-}
-function start(){
-if (running) return;
-running = true;
-startedAt = Date.now() - elapsed;
-tick = setInterval(paint, 250);
-setUI(); paint(); save();
-}
-function pause(){
-if (!running) return;
-running = false;
-elapsed = Date.now() - startedAt;
-clearInterval(tick); tick=null;
-setUI(); paint(); save();
-}
-function reset(){
-running = false; startedAt = 0; elapsed = 0;
-clearInterval(tick); tick=null;
-setUI(); paint(); save();
-}
+  const $ = (id)=>document.getElementById(id);
+  const host    = $('timer-widget');
+  const face    = $('timer-face');
+  const display = $('timer-display');
+  const resetBtn= $('timer-reset');
 
-// Interacción táctil: tocar el tiempo = toggle start/pause
-display?.addEventListener('click', ()=> (running ? pause() : start()));
-resetBtn?.addEventListener('click', reset);
+  function fmt(ms){
+    const t = Math.floor(ms/1000);
+    const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
 
-// Robustez al cambiar visibilidad (suspensión tablet)
-document.addEventListener('visibilitychange', ()=>{ if (!running) return; startedAt = Date.now() - elapsed; paint(); save(); });
+  function paint(){
+    const nowMs   = running ? (Date.now() - startedAt) : elapsed;
+    const clamped = Math.min(nowMs, STOP_MS);
 
-// Init público
-function initHeaderTimer(){
-load(); paint(); setUI();
-if (running && !tick) tick = setInterval(paint, 250);
-}
-window.initHeaderTimer = initHeaderTimer;
+    display.textContent = fmt(clamped);
+    display.classList.toggle('is-red', clamped >= RED_MS);
+
+    // Auto-stop al llegar a 10:00
+    if (running && nowMs >= STOP_MS){
+      running = false;
+      elapsed = STOP_MS;
+      clearInterval(tick); tick=null;
+      setUI(); save();
+    }
+  }
+
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
+  function load(){
+    try{
+      const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(!s) return;
+      running   = !!s.running;
+      elapsed   = Number(s.elapsed)||0;
+      startedAt = Number(s.startedAt)||0;
+      if (running){
+        const now=Date.now();
+        elapsed   = Math.max(elapsed, now - startedAt);
+        startedAt = now - elapsed;
+      }
+      // Si ya estaba en el límite, asegurar estado parado
+      if (elapsed >= STOP_MS){ running=false; elapsed=STOP_MS; }
+    }catch{}
+  }
+
+  function setUI(){
+    host?.classList.toggle('timer-running', running);
+    resetBtn.disabled = (!running && elapsed===0);
+  }
+
+  function start(){
+    if (running) return;
+    if (elapsed >= STOP_MS) return;           // no arrancar si alcanzó el límite
+    running   = true;
+    startedAt = Date.now() - elapsed;
+    tick = setInterval(paint, 250);
+    setUI(); paint(); save();
+  }
+
+  function pause(){
+    if (!running) return;
+    running = false;
+    elapsed = Date.now() - startedAt;
+    clearInterval(tick); tick=null;
+    setUI(); paint(); save();
+  }
+
+  function reset(){
+    running=false; startedAt=0; elapsed=0;
+    clearInterval(tick); tick=null;
+    setUI(); paint(); save();
+    display.classList.remove('is-red');
+  }
+
+  // Interacciones
+  display?.addEventListener('click', ()=> (running ? pause() : start()));
+  resetBtn?.addEventListener('click', reset);
+
+  // Robustez al cambiar visibilidad
+  document.addEventListener('visibilitychange', ()=>{
+    if (!running) return;
+    startedAt = Date.now() - elapsed;
+    paint(); save();
+  });
+
+  // Init público
+  function initHeaderTimer(){
+    load(); paint(); setUI();
+    if (running && !tick) tick = setInterval(paint, 250);
+  }
+  window.initHeaderTimer = initHeaderTimer;
 })();
 
 const UI_SCALE_KEY='ui_scale_v1';
@@ -4593,6 +4639,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
