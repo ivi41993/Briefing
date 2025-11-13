@@ -1612,28 +1612,34 @@ color: var(--text-muted);
 
 
 
-<!-- SEGURIDAD Y PROTECCIÓN -->
+<!-- SEGURIDAD Y PROTECCIÓN (solo dinámicas + 2 frases aleatorias por turno) -->
 <div class="widget vivid" id="seguridad-widget">
   <h2 class="widget-title hero">
     <span class="hero-ico">🛡️</span><span>Seguridad y Protección</span>
     <span class="hero-badge warn">PRIORIDAD</span>
   </h2>
 
-  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-    <button type="button" class="risk-pill" data-risk="EPIs">EPIs</button>
-    <button type="button" class="risk-pill" data-risk="Permisos">Permisos</button>
-    <button type="button" class="risk-pill" data-risk="Accesos">Accesos</button>
-    <button type="button" class="risk-pill" data-risk="Cargas">Cargas</button>
-    <button type="button" class="risk-pill" data-risk="Vehículos">Vehículos</button>
-  </div>
+  <!-- Alta de tarjeta dinámica -->
+  <form id="sec-form" class="inline-form" autocomplete="off" style="margin-bottom:8px;">
+    <input type="text" id="sec-title" placeholder="Añadir tarjeta de seguridad…" required>
+    <input type="text" id="sec-owner" placeholder="Responsable (opcional)">
+    <button type="submit" class="btn-primary">Añadir</button>
+  </form>
 
-  <textarea id="sec-note" class="sec-note" placeholder="Notas/brief de seguridad del turno…"></textarea>
-  <!-- Recordatorios diarios de seguridad -->
-  <div id="sec-daily-tips" class="sec-list" style="margin-top:10px;"></div>
-
-  <div class="sec-list" id="sec-list" style="margin-top:10px;"></div>
+  <!-- Lista de tarjetas -->
+  <div id="sec-cards" class="sec-list" role="list" aria-label="Tarjetas de seguridad"></div>
   <small class="kpi-text" id="sec-meta">—</small>
+
+  <!-- Recordatorio aleatorio (2 frases) por turno -->
+  <div class="ops-item" id="sec-random-tips" style="margin-top:10px;">
+    <div class="ops-head">
+      <div class="ops-title">Recordatorio de seguridad (2 puntos del día)</div>
+      <span class="ops-scope" id="sec-random-scope">Turno —</span>
+    </div>
+    <ul id="sec-random-list" style="margin:6px 0 0 18px; padding:0; list-style:disc;"></ul>
+  </div>
 </div>
+
 
 
   
@@ -2978,6 +2984,234 @@ console.error('No se pudieron cargar las tarjetas iniciales:', e);
 }
 
 
+/* ===== Seguridad & Protección: tarjetas dinámicas + 2 frases por turno ===== */
+(function initSeguridadModule(){
+  const LISTA_FRASES = [
+    "Temas de seguridad de actualidad (noticias, redes sociales, cambios de nivel de amenaza, etc.).",
+    "Incidentes o no conformidades en tu estación u otras.",
+    "Resultados de auditorías (aerolíneas, autoridades, autoauditorías).",
+    "Próximas auditorías o visitas.",
+    "Mantener puertas cerradas cuando no se usen.",
+    "Reportar comportamientos sospechosos.",
+    "Retar a personas sin acreditación o acompañamiento.",
+    "Acompañar a todos los visitantes en todo momento.",
+    "Llevar chaleco de alta visibilidad en almacén y zona aire.",
+    "Saber dónde están los contactos de emergencia.",
+    "Segregar carga segura e insegura.",
+    "Revisar signos de manipulación en paquetes.",
+    "Llevar la acreditación visible en todo momento.",
+    "No llevar mochilas ni bolsas a zonas seguras.",
+    "Guardar cintas, precintos y elementos de seguridad de forma segura.",
+    "No permitir el acceso de personas no autorizadas.",
+    "Preguntar si no se conoce un procedimiento.",
+    "No dar información de seguridad a externos.",
+    "No permitir personas no autorizadas cerca de carga segura.",
+    "No saltarse procedimientos.",
+    "Si una carga no es segura, no cargarla y revisarla.",
+    "Leer todos los avisos de seguridad y pedir aclaraciones.",
+    "Si ves algo, dilo.",
+    "Informar si las normas no son prácticas o seguras.",
+    "Escalar errores o riesgos de seguridad a la dirección.",
+    "Mantener la información sensible segura.",
+    "Cumplir siempre las normas y procedimientos de seguridad.",
+    "No seguir instrucciones que comprometan la seguridad.",
+    "No cargar mercancía con etiquetas de parada o retención.",
+    "Animar a los compañeros a cumplir las normas.",
+    "Revisar la validez de la acreditación y avisar si va a caducar.",
+    "Si no sabes, pregunta; si sabes, enseña.",
+    "Pensar en las consecuencias de no cumplir las normas.",
+    "Identificar a la persona con la que hablas.",
+    "Comparar la foto de la acreditación con la persona.",
+    "Registrar entrada y salida de visitantes.",
+    "Si ves conductores deambulando, indícale la zona designada.",
+    "Mantener puertas de zona aire cerradas.",
+    "No interferir con los controles de seguridad.",
+    "Al controlar, centrarse en la tarea.",
+    "Rechazar o revisar carga dañada.",
+    "No aceptar carga sin identificación o documentación.",
+    "Revisar que los camiones estén sellados.",
+    "Comprobar la identificación de quien recoge la carga.",
+    "Contar todas las piezas de un envío.",
+    "Comparar el nombre del visitante con el registro.",
+    "Comprobar la validez en bases de datos oficiales.",
+    "Verificar acuerdos de subcontratistas.",
+    "No prestar acreditaciones.",
+    "Avisar si se pierde la acreditación.",
+    "Comprobar identificación y estatus en cada ocasión.",
+    "No permitir acceso no autorizado a zonas restringidas.",
+    "Asistir y prestar atención a la reunión de turno.",
+    "Presentar la acreditación en lectores de proximidad.",
+    "Informar de errores a supervisores.",
+    "Todos pueden pulsar el botón de parada de emergencia por seguridad.",
+    "Mejor prevenir que curar.",
+    "Cooperar en los controles de seguridad.",
+    "Avisar si algo no parece correcto.",
+    "No manipular ni poner en riesgo sistemas de seguridad.",
+    "Sospechar de precintos diferentes en paquetes.",
+    "Las fechas límite no justifican saltarse la seguridad.",
+    "Dejar trabajar a los perros de seguridad.",
+    "Asegurarse de que la carga ha sido revisada.",
+    "La seguridad es responsabilidad de todos.",
+    "Informar de puertas, ventanas o vallas dañadas.",
+    "Retar a desconocidos en el almacén.",
+    "Ayudar a los controladores en el escaneo de envíos.",
+    "Usar cinta de seguridad para cerrar paquetes revisados.",
+    "Usar sellos correctos para indicar el estado de seguridad.",
+    "Llamar a la policía si es necesario.",
+    "Leer los boletines de seguridad y pedir aclaraciones.",
+    "Ayudar a nuevos empleados a cumplir las normas.",
+    "Informar de daños en carga, puertas, ventanas, señalización.",
+    "Transferir la carga segura inmediatamente a la zona segura.",
+    "Guardar carga valiosa en áreas designadas y bajo CCTV.",
+    "Asegurarse de que los visitantes devuelvan su acreditación.",
+    "Dejar pertenencias personales en la taquilla.",
+    "No entregar carga a conductores no autorizados.",
+    "Comprobar que los controles de seguridad estén registrados.",
+    "Asegurarse de que los archivos de vuelo estén completos.",
+    "Comprobar que cada envío tenga el CSD correcto.",
+    "La seguridad es para proteger a todos, incluidos tus seres queridos.",
+    "Todos deben estar formados según su función.",
+    "Adaptar los procedimientos a la seguridad, no al revés.",
+    "No tomar fotos en zonas seguras.",
+    "No publicar información de seguridad en redes sociales.",
+    "No permitir que los clientes decidan el método de control.",
+    "No permitir que clientes/conductores usen baños sin acompañamiento.",
+    "Mantener cerradas las puertas de zonas restringidas.",
+    "Informar siempre de carga dañada.",
+    "Informar de carga manipulada o posible robo.",
+    "Informar de comportamientos extraños de compañeros.",
+    "Conocer el cartel de “whistle blower”.",
+    "Concienciación sobre amenazas internas.",
+    "No asumir riesgos innecesarios con la seguridad.",
+    "No dejar carga segura desatendida fuera de la instalación.",
+    "Mantenerse siempre alerta.",
+    "No dejar puertas abiertas sin vigilancia.",
+    "No compartir procesos de seguridad del sector.",
+    "La seguridad es tu responsabilidad."
+  ];
+
+  const host = document.getElementById('seguridad-widget');
+  if (!host) return;
+
+  const listEl   = document.getElementById('sec-cards');
+  const formEl   = document.getElementById('sec-form');
+  const titleEl  = document.getElementById('sec-title');
+  const ownerEl  = document.getElementById('sec-owner');
+  const metaEl   = document.getElementById('sec-meta');
+  const scopeEl  = document.getElementById('sec-random-scope');
+  const ulTipsEl = document.getElementById('sec-random-list');
+
+  // Persistencia local
+  const SEC_KEY = 'sec_cards_v1';
+
+  function loadCards(){
+    try { return JSON.parse(localStorage.getItem(SEC_KEY) || '[]'); } catch { return []; }
+  }
+  function saveCards(arr){
+    try { localStorage.setItem(SEC_KEY, JSON.stringify(arr || [])); } catch {}
+  }
+
+  function esc(s){ return String(s ?? '').replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  function renderCards(){
+    const data = loadCards().filter(isForThisStation);
+    listEl.innerHTML = '';
+    data.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'ops-item';
+      div.id = `sec-${item.id}`;
+      div.innerHTML = `
+        <div class="ops-head">
+          <div class="ops-title">${esc(item.title)}</div>
+          <div class="ops-flags">
+            ${item.owner ? `<span class="ops-scope">@${esc(item.owner)}</span>` : ''}
+            <button type="button" class="ops-btn" data-del="${item.id}">Eliminar</button>
+          </div>
+        </div>
+        <div class="ops-meta">Creado: ${new Date(item.created_at).toLocaleString('es-ES')}</div>
+      `;
+      listEl.prepend(div);
+    });
+    metaEl.textContent = `${data.length} tarjetas`;
+  }
+
+  function uid(){ return Math.random().toString(36).slice(2,10); }
+
+  formEl?.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const title = (titleEl.value || '').trim();
+    if (!title) return;
+    const owner = (ownerEl.value || '').trim();
+
+    const arr = loadCards();
+    arr.push({
+      id: uid(),
+      station: (window.STATION_OVERRIDE || '').toUpperCase() || (typeof STATION_CODE!=='undefined'?STATION_CODE:''),
+      title, owner,
+      created_at: new Date().toISOString()
+    });
+    saveCards(arr);
+    titleEl.value = ''; ownerEl.value = '';
+    renderCards();
+  });
+
+  listEl?.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-del]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-del');
+    const arr = loadCards().filter(x => x.id !== id);
+    saveCards(arr);
+    document.getElementById(`sec-${id}`)?.remove();
+    metaEl.textContent = `${arr.length} tarjetas`;
+  });
+
+  // ——— 2 frases aleatorias por turno (persisten por día+turno) ———
+  function currentShiftLabel(){
+    // Usa el shift del roster si está cargado
+    const shift = (window.TEAM_STATE && TEAM_STATE.shift) ? TEAM_STATE.shift : null;
+    if (shift) return shift; // p.ej. "Mañana" / "Tarde" / "Noche" si lo pones así
+
+    // Si no hay TEAM_STATE.shift, aproximamos por hora:
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Mañana';
+    if (h >= 14 && h < 22) return 'Tarde';
+    return 'Noche';
+  }
+
+  function pickTwoStable(){
+    const shift = currentShiftLabel();
+    const day   = new Date().toISOString().slice(0,10);
+    const KEY   = `sec_random_${day}_${shift}`;
+
+    // ¿ya seleccionado hoy para este turno?
+    try {
+      const cached = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (cached && Array.isArray(cached) && cached.length === 2) return {shift, picks: cached};
+    } catch {}
+
+    // elige 2 distintos
+    const idx1 = Math.floor(Math.random() * LISTA_FRASES.length);
+    let idx2 = Math.floor(Math.random() * LISTA_FRASES.length);
+    if (idx2 === idx1) idx2 = (idx1 + 1) % LISTA_FRASES.length;
+
+    const picks = [LISTA_FRASES[idx1], LISTA_FRASES[idx2]];
+    try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch {}
+    return {shift, picks};
+  }
+
+  function renderRandomTips(){
+    const {shift, picks} = pickTwoStable();
+    scopeEl.textContent = `Turno ${shift}`;
+    ulTipsEl.innerHTML = picks.map(p => `<li>${esc(p)}</li>`).join('');
+  }
+
+  // init
+  renderCards();
+  renderRandomTips();
+
+  // si más tarde cargan TEAM_STATE.shift vía WebSocket/roster, volvemos a pintar las frases
+  document.addEventListener('TEAM_SHIFT_READY', ()=> renderRandomTips());
+})();
 
 
 function connectWebSocket(){
@@ -4356,6 +4590,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
