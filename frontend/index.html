@@ -1470,57 +1470,6 @@ color: var(--text-muted);
 </div>
 
 
-
-<!-- KANBAN -->
-<div class="widget" id="kanban-widget">
-<h2 class="widget-title">7) Feedback directo</h2>
-<div class="board-container kanban">
-<div class="kanban-column">
-<h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
-</div>
-
-  
-</div>
-
-<form class="new-item-form" id="new-kanban-form" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:grid; grid-template-columns: 1fr 1fr auto 1fr auto; gap:8px; align-items:center;">
-<select id="problem-category" name="category" required>
-<option value="" disabled selected>Selecciona categoría…</option>
-<option value="seguridad">Seguridad</option>
-<option value="incidencias">Incidencias</option>
-<option value="mantenimiento">Mantenimiento</option>
-<option value="calidad">Calidad</option>
-<option value="servicio">Servicio</option>
-</select>
-<input type="text" name="title" placeholder="Tipo de problema" required>
-<input type="date" name="due_date" required>
-<select name="assigned_to" required title="Equipo de soporte">
-  <option value="" disabled selected>Equipo de soporte…</option>
-  <option>Mantenimiento</option>
-  <option>IT</option>
-  <option>Calidad</option>
-  <option>Compras</option>
-  <option>CI</option>
-  <option>QHSSE</option>
-  <option>Ops</option>
-</select>
-
-<button type="submit" class="btn-primary">Añadir</button>
-</form>
-</div>
-
 <!-- ACTUALIZACIONES OPERATIVAS (mejorado) -->
 <!-- ACTUALIZACIONES OPERATIVAS (sin lista rápida) -->
 <div class="widget vivid" id="ops-updates-widget">
@@ -1609,6 +1558,8 @@ color: var(--text-muted);
     </form>
   </dialog>
 </div>
+ 
+
 
 
 
@@ -1739,6 +1690,57 @@ color: var(--text-muted);
 <small class="kpi-text" id="kpi-costes-meta"></small>
 </div>
   </div>
+</div>
+
+ 
+<!-- KANBAN -->
+<div class="widget" id="kanban-widget">
+<h2 class="widget-title">7) Feedback directo</h2>
+<div class="board-container kanban">
+<div class="kanban-column">
+<h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
+</div>
+
+  
+</div>
+
+<form class="new-item-form" id="new-kanban-form" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:grid; grid-template-columns: 1fr 1fr auto 1fr auto; gap:8px; align-items:center;">
+<select id="problem-category" name="category" required>
+<option value="" disabled selected>Selecciona categoría…</option>
+<option value="seguridad">Seguridad</option>
+<option value="incidencias">Incidencias</option>
+<option value="mantenimiento">Mantenimiento</option>
+<option value="calidad">Calidad</option>
+<option value="servicio">Servicio</option>
+</select>
+<input type="text" name="title" placeholder="Tipo de problema" required>
+<input type="date" name="due_date" required>
+<select name="assigned_to" required title="Equipo de soporte">
+  <option value="" disabled selected>Equipo de soporte…</option>
+  <option>Mantenimiento</option>
+  <option>IT</option>
+  <option>Calidad</option>
+  <option>Compras</option>
+  <option>CI</option>
+  <option>QHSSE</option>
+  <option>Ops</option>
+</select>
+
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
 </div>
 
 
@@ -4591,6 +4593,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
