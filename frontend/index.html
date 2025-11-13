@@ -1111,6 +1111,16 @@ color: var(--text-muted);
 
 .ops-stale{ opacity:.6; }
 .ops-expired{ opacity:.5; text-decoration:line-through; }
+#ops-updates-widget .ops-grid{
+  display:grid; gap:12px;
+  grid-template-columns: 1fr;   /* antes: 1fr 1fr */
+}
+@media (max-width:1100px){
+  #ops-updates-widget .ops-grid{ grid-template-columns: 1fr; }
+}
+.ops-impact.Alto  { color:#991b1b; background:#ffe3e3; border-color:#fecaca; }
+.ops-impact.Medio { color:#854d0e; background:#fff7ed; border-color:#fed7aa; }
+.ops-impact.Bajo  { color:#065f46; background:#ecfdf5; border-color:#a7f3d0; }
 
   
 </style>
@@ -1331,59 +1341,92 @@ color: var(--text-muted);
 </div>
 
 <!-- ACTUALIZACIONES OPERATIVAS (mejorado) -->
+<!-- ACTUALIZACIONES OPERATIVAS (sin lista rápida) -->
 <div class="widget" id="ops-updates-widget">
-  <h2 class="widget-title" style="display:flex;align-items:center;gap:8px;">
-    <span>Actualizaciones Operativas</span>
-    <span id="ops-badge-pend" class="status-tag status-alert" style="display:none;">Pendientes</span>
-  </h2>
+  <h2 class="widget-title">Actualizaciones operativas</h2>
 
-  <!-- Controles rápidos -->
-  <div class="ops-toolbar" style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-bottom:8px;">
-    <input id="ops-search" type="search" placeholder="Buscar por texto, alcance o responsable…" aria-label="Buscar">
-    <select id="ops-filter-impact" title="Impacto">
-      <option value="">Impacto…</option>
-      <option value="Alto">Alto</option>
-      <option value="Medio">Medio</option>
-      <option value="Bajo">Bajo</option>
+  <!-- Toolbar -->
+  <div class="ops-toolbar" aria-label="Filtros actualizaciones operativas" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+    <input id="ops-search" class="ops-search" type="search" placeholder="Buscar (#etiqueta, @persona, texto)…"
+           style="flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+    <select id="ops-filter-prio" class="ops-filter" title="Filtrar prioridad"
+            style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+      <option value="">Todas las prioridades</option>
+      <option value="Alto">Alta (!!)</option>
+      <option value="Medio">Media (!)</option>
+      <option value="Bajo">Baja</option>
     </select>
-    <select id="ops-filter-scope" title="Alcance">
-      <option value="">Alcance…</option>
-      <option>Almacén</option>
-      <option>Rampa</option>
-      <option>Documentación</option>
-      <option>Screening</option>
+    <select id="ops-filter-scope" class="ops-filter" title="Ámbito"
+            style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+      <option value="">Todos los ámbitos</option>
       <option>General</option>
+      <option>Isla</option>
+      <option>Dorada</option>
+      <option>Muelle Imp</option>
+      <option>Muelle Exp</option>
+      <option>Import</option>
+      <option>Export</option>
     </select>
+    <button type="button" class="btn-compact" id="ops-add">+ Nueva</button>
+    <button type="button" class="btn-compact" id="ops-export-txt">Copiar resumen</button>
+    <button type="button" class="btn-compact" id="ops-export-csv">Exportar CSV</button>
+    <span id="ops-badge-pend" class="badge" style="display:none;"></span>
   </div>
 
-  <!-- Alta rápida -->
-  <form id="ops-form" class="inline-form" autocomplete="off">
-    <input type="text" id="ops-title" placeholder="Cambio / Instrucción…" required>
-    <select id="ops-impact" required>
-      <option value="" disabled selected>Impacto…</option>
-      <option>Alto</option><option>Medio</option><option>Bajo</option>
-    </select>
-    <button class="btn-primary" type="submit">Añadir</button>
-  </form>
+  <!-- Lista visible -->
+  <div id="ops-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
 
-  <!-- Detalles adicionales opcionales -->
-  <div class="ops-advanced" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-top:8px;">
-    <select id="ops-scope" title="Alcance">
-      <option>General</option><option>Almacén</option><option>Rampa</option>
-      <option>Documentación</option><option>Screening</option>
-    </select>
-    <input type="date" id="ops-valid-from" title="Vigente desde">
-    <input type="date" id="ops-valid-to" title="Vigente hasta">
-    <label style="display:flex;align-items:center;gap:6px;">
-      <input type="checkbox" id="ops-require-ack"> Requiere acuse
-    </label>
-  </div>
-
-  <small class="kpi-text" id="ops-meta">—</small>
-
-  <!-- Lista -->
-  <div class="ops-list" id="ops-list"></div>
+  <!-- Diálogo de alta/edición -->
+  <dialog id="ops-dialog" style="border:1px solid var(--border);border-radius:12px;padding:12px;max-width:520px;width:clamp(280px,90vw,520px);">
+    <form method="dialog" id="ops-form" style="display:grid;gap:8px;">
+      <h3 style="margin:0;">Actualizar</h3>
+      <input type="hidden" id="ops-id">
+      <label>Título
+        <input id="ops-title" type="text" required
+               style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+      </label>
+      <label>Prioridad
+        <select id="ops-impact" required
+                style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          <option value="Alto">Alta (!!)</option>
+          <option value="Medio">Media (!)</option>
+          <option value="Bajo">Baja</option>
+        </select>
+      </label>
+      <label>Ámbito
+        <select id="ops-scope"
+                style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          <option>General</option><option>Isla</option><option>Dorada</option>
+          <option>Muelle Imp</option><option>Muelle Exp</option><option>Import</option><option>Export</option>
+        </select>
+      </label>
+      <label>Responsable (opcional)
+        <input id="ops-assignee" type="text"
+               placeholder="Ej.: @juan o nombre y apellidos"
+               style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <label>Vigente desde
+          <input id="ops-valid-from" type="date"
+                 style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+        </label>
+        <label>Hasta
+          <input id="ops-valid-to" type="date"
+                 style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+        </label>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;">
+        <input id="ops-require-ack" type="checkbox"> Requiere acuse de lectura
+      </label>
+      <menu style="display:flex;gap:8px;justify-content:flex-end;margin:0;padding-top:8px;">
+        <button class="btn-compact" value="cancel">Cancelar</button>
+        <button class="btn-primary" id="ops-save" value="default">Guardar</button>
+      </menu>
+    </form>
+  </dialog>
 </div>
+
+
 
 
 <!-- SEGURIDAD Y PROTECCIÓN -->
@@ -3221,224 +3264,256 @@ const msToNextMin = (60 - now.getSeconds())*1000 - now.getMilliseconds();
 setTimeout(()=>{ paintDateTimeAndShift(); setInterval(paintDateTimeAndShift, 60000); }, Math.max(0, msToNextMin));
 }
 
-/* ===== Actualizaciones Operativas (mejorado) ===== */
-const OPS_KEY = 'ops_updates_v2';   // nueva versión (no rompe la anterior)
-function ops_load(){ try{ return JSON.parse(localStorage.getItem(OPS_KEY)||'[]'); }catch{ return []; } }
-function ops_save(list){ try{ localStorage.setItem(OPS_KEY, JSON.stringify(list)); }catch{} }
-function ops_uid(){ return 'op_' + Math.random().toString(36).slice(2,9); }
+/* ===== Actualizaciones Operativas (v3, limpio y unificado) ===== */
+(function(){
+  const OPS_KEY = 'ops_updates_v3';
+  const STATION = (window.STATION_CODE || 'MAD');
 
-function ops_nowISO(){ return new Date().toISOString(); }
-function ops_isExpired(it){
-  if (!it.valid_to) return false;
-  const d = new Date(it.valid_to);
-  return !isNaN(d) && d < new Date();
-}
-function ops_isStale(it){
-  // “stale” si válido y empezó hace >7 días y no requiere ack o ya está 100% ack
-  if (!it.valid_from) return false;
-  const started = new Date(it.valid_from);
-  if (isNaN(started)) return false;
-  const days = Math.floor((Date.now() - started.getTime())/86400000);
-  const done = ops_ackProgress(it).pct === 100;
-  return days >= 7 && (!it.require_ack || done);
-}
+  const $ = (id)=>document.getElementById(id);
+  const wrap = $('ops-updates-widget');
+  if (!wrap) return;
 
-function ops_ackProgress(it){
-  const names = (TEAM_STATE?.people || []).map(p => p.nombre_completo).filter(Boolean);
-  const presentSet = new Set(
-    (TEAM_STATE?.people || []).filter(p => (TEAM_STATE?.attendance||{})[p.nombre_completo] === true)
-                               .map(p => p.nombre_completo)
-  );
-  // universo: presentes si hay, si no todo el roster del sheet
-  const universe = presentSet.size ? [...presentSet] : names;
-  const acks = Object.keys(it.acks||{});
-  const count = acks.filter(n => universe.includes(n)).length;
-  const total = universe.length || 0;
-  const pct = total ? Math.round(count*100/total) : 0;
-  return {count, total, pct};
-}
+  const els = {
+    list: $('ops-list'),
+    search: $('ops-search'),
+    fPrio: $('ops-filter-prio'),
+    fScope: $('ops-filter-scope'),
+    add: $('ops-add'),
+    exportTxt: $('ops-export-txt'),
+    exportCsv: $('ops-export-csv'),
+    badgePend: $('ops-badge-pend'),
+    dlg: $('ops-dialog'),
+    form: $('ops-form'),
+    id: $('ops-id'),
+    title: $('ops-title'),
+    impact: $('ops-impact'),
+    scope: $('ops-scope'),
+    assignee: $('ops-assignee'),
+    vFrom: $('ops-valid-from'),
+    vTo: $('ops-valid-to'),
+    reqAck: $('ops-require-ack'),
+    save: $('ops-save'),
+  };
 
-function ops_render(){
-  const wrap = document.getElementById('ops-list');
-  const meta = document.getElementById('ops-meta');
-  const pend = document.getElementById('ops-badge-pend');
-  if(!wrap) return;
-
-  const q   = (document.getElementById('ops-search')?.value || '').trim().toLowerCase();
-  const fIm = document.getElementById('ops-filter-impact')?.value || '';
-  const fSc = document.getElementById('ops-filter-scope')?.value || '';
-
-  const list = ops_load()
-    .filter(isForThisStation) // respeta estación
-    .filter(it => !q || [it.title,it.scope,it.assignee].some(x => String(x||'').toLowerCase().includes(q)))
-    .filter(it => !fIm || it.impact === fIm)
-    .filter(it => !fSc || it.scope === fSc);
-
-  // orden: fijados primero, luego impacto (Alto>Medio>Bajo), luego más recientes
   const rank = {Alto:0, Medio:1, Bajo:2};
-  list.sort((a,b)=>{
-    if ((b.pinned|0) - (a.pinned|0)) return 1*((b.pinned|0)-(a.pinned|0));
-    const r = (rank[a.impact]??9) - (rank[b.impact]??9);
-    if (r) return r;
-    return (b.ts||0) - (a.ts||0);
-  });
+  const defaultScopes = ['General','Isla','Dorada','Muelle Imp','Muelle Exp','Import','Export'];
 
-  wrap.innerHTML = '';
-  let pendingCount = 0;
+  function load(){ try{ return JSON.parse(localStorage.getItem(OPS_KEY)||'[]'); }catch{ return []; } }
+  function save(list){ try{ localStorage.setItem(OPS_KEY, JSON.stringify(list)); }catch{} }
 
-  list.forEach(it=>{
-    const expired = ops_isExpired(it);
-    const stale   = ops_isStale(it);
-    const ack = ops_ackProgress(it);
-    const needs = it.require_ack && ack.pct < 100 && !expired;
-    if (needs) pendingCount++;
+  // Migración simple desde claves antiguas si existieran
+  (function migrate(){
+    if (localStorage.getItem('OPS_SECTIONS_KEY')) localStorage.removeItem('OPS_SECTIONS_KEY');
+    const v2 = localStorage.getItem('ops_updates_v2');
+    if (v2 && !localStorage.getItem(OPS_KEY)) localStorage.setItem(OPS_KEY, v2);
+  })();
 
-    const el = document.createElement('div');
-    el.className = 'ops-item' + (expired ? ' ops-expired' : stale ? ' ops-stale' : '');
-    el.dataset.id = it.id;
+  function uid(){ return 'op_' + Math.random().toString(36).slice(2,9); }
+  function nowISO(){ return new Date().toISOString(); }
+  function sameDay(a,b){ return a && b && a.slice(0,10) === b.slice(0,10); }
 
-    el.innerHTML = `
-      <div class="ops-head">
-        <div class="ops-title">${esc(it.title||'')}</div>
-        <div class="ops-flags">
-          <span class="ops-impact ${esc(it.impact||'')}">${esc(it.impact||'—')}</span>
-          <span class="ops-scope">${esc(it.scope||'General')}</span>
-        </div>
-      </div>
-
-      <div class="ops-meta">
-        <span>Alta: ${it.ts ? new Date(it.ts).toLocaleString('es-ES') : '—'}</span>
-        ${it.valid_from ? `<span>Vigente desde: ${new Date(it.valid_from).toLocaleDateString('es-ES')}</span>`:''}
-        ${it.valid_to   ? `<span>Hasta: ${new Date(it.valid_to).toLocaleDateString('es-ES')}</span>`:''}
-        ${it.assignee   ? `<span>Resp.: ${esc(it.assignee)}</span>`:''}
-        ${it.require_ack? `<span>Requiere acuse</span>`:''}
-      </div>
-
-      ${it.require_ack ? `
-      <div class="ops-ack">
-        <div class="ops-ack-bar" title="${ack.count}/${ack.total}">
-          <span style="width:${ack.pct}%;"></span>
-        </div>
-        <strong>${ack.pct}%</strong>
-        <button class="ops-btn ops-ack-manage" type="button">Gestionar acuses</button>
-      </div>`: ''}
-
-      <div class="ops-actions">
-        <button class="ops-btn ops-edit" type="button">Editar</button>
-        <button class="ops-btn ops-pin ${it.pinned?'on':''}" type="button">${it.pinned?'Fijado':'Fijar'}</button>
-        <button class="ops-btn ops-delete" type="button" style="color:#991b1b;">Eliminar</button>
-      </div>
-    `;
-
-    wrap.appendChild(el);
-  });
-
-  if (meta){
-    const all = ops_load().filter(isForThisStation);
-    const last = all.map(x=>x.ts||0).reduce((a,b)=>Math.max(a,b),0);
-    meta.textContent = `${list.length} visibles • Total: ${all.length} • Última: ${last?new Date(last).toLocaleString('es-ES'):'—'}`;
-  }
-  if (pend){
-    pend.style.display = pendingCount ? '' : 'none';
-    pend.textContent = `${pendingCount} pendientes`;
+  function ackProgress(it){
+    const names = (window.TEAM_STATE?.people || []).map(p => p.nombre_completo).filter(Boolean);
+    const present = names.filter(n => (window.TEAM_STATE?.attendance||{})[n] === true);
+    const universe = present.length ? present : names;
+    const acks = Object.keys(it.acks||{});
+    const count = acks.filter(n => universe.includes(n)).length;
+    const total = universe.length || 0;
+    const pct = total ? Math.round(count*100/total) : 0;
+    return {count,total,pct, universe};
   }
 
-  updateSpotlightRouting?.(); // refresca el foco del checklist (c2)
-}
+  function isExpired(it){
+    if (!it.valid_to) return false;
+    const d = new Date(it.valid_to);
+    return !isNaN(d) && d < new Date();
+  }
+  function isStale(it){
+    if (!it.valid_from) return false;
+    const d = new Date(it.valid_from);
+    if (isNaN(d)) return false;
+    const days = Math.floor((Date.now() - d.getTime())/86400000);
+    const done = ackProgress(it).pct === 100;
+    return days >= 7 && (!it.require_ack || done);
+  }
 
-(function initOps(){
-  const form = document.getElementById('ops-form');
-  const sTitle = document.getElementById('ops-title');
-  const sImpact= document.getElementById('ops-impact');
-  const sScope = document.getElementById('ops-scope');
-  const sFrom  = document.getElementById('ops-valid-from');
-  const sTo    = document.getElementById('ops-valid-to');
-  const sReq   = document.getElementById('ops-require-ack');
+  function normalizeText(s){ return String(s||'').toLowerCase(); }
 
-  form?.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const title = (sTitle?.value||'').trim();
-    const impact= sImpact?.value||'';
-    if (!title || !impact) return;
+  function render(){
+    const list = load().filter(x => !x.station || x.station === STATION);
 
+    // Filtros
+    const q = normalizeText(els.search?.value||'');
+    const fImp = els.fPrio?.value || '';
+    const fScope = els.fScope?.value || '';
+    const filtered = list.filter(it => {
+      const txt = [it.title,it.scope,it.assignee].map(normalizeText).join(' ');
+      const okQ = !q || txt.includes(q);
+      const okI = !fImp || it.impact === fImp;
+      const okS = !fScope || it.scope === fScope;
+      return okQ && okI && okS;
+    });
+
+    // Orden: fijados > impacto > fecha
+    filtered.sort((a,b)=>{
+      if ((b.pinned|0) - (a.pinned|0)) return 1*((b.pinned|0)-(a.pinned|0));
+      const ri = (rank[a.impact]??9) - (rank[b.impact]??9);
+      if (ri) return ri;
+      return (new Date(b.ts||0)) - (new Date(a.ts||0));
+    });
+
+    els.list.innerHTML = '';
+    let pend = 0;
+
+    filtered.forEach(it=>{
+      const expired = isExpired(it);
+      const stale = isStale(it);
+      const ack = ackProgress(it);
+      const needs = it.require_ack && ack.pct < 100 && !expired;
+      if (needs) pend++;
+
+      const item = document.createElement('div');
+      item.className = 'ops-item' + (expired?' ops-expired': stale?' ops-stale':'');
+      item.dataset.id = it.id;
+      item.innerHTML = `
+        <div class="ops-head">
+          <div class="ops-title">${esc(it.title||'')}</div>
+          <div class="ops-flags">
+            <span class="ops-impact ${esc(it.impact||'')}">${esc(it.impact||'—')}</span>
+            <span class="ops-scope">${esc(it.scope||'General')}</span>
+          </div>
+        </div>
+        <div class="ops-meta">
+          <span>Alta: ${it.ts ? new Date(it.ts).toLocaleString('es-ES') : '—'}</span>
+          ${it.valid_from ? `<span>Vigente desde: ${new Date(it.valid_from).toLocaleDateString('es-ES')}</span>`:''}
+          ${it.valid_to   ? `<span>Hasta: ${new Date(it.valid_to).toLocaleDateString('es-ES')}</span>`:''}
+          ${it.assignee   ? `<span>Resp.: ${esc(it.assignee)}</span>`:''}
+          ${it.require_ack? `<span>Requiere acuse</span>`:''}
+        </div>
+        ${it.require_ack ? `
+        <div class="ops-ack">
+          <div class="ops-ack-bar" title="${ack.count}/${ack.total}">
+            <span style="width:${ack.pct}%;"></span>
+          </div>
+          <strong>${ack.pct}%</strong>
+          <button class="ops-btn ops-ack-manage" type="button">Gestionar acuses</button>
+        </div>`:''}
+        <div class="ops-actions">
+          <button class="ops-btn ops-edit" type="button">Editar</button>
+          <button class="ops-btn ops-pin ${it.pinned?'on':''}" type="button">${it.pinned?'Fijado':'Fijar'}</button>
+          <button class="ops-btn ops-delete" type="button" style="color:#991b1b;">Eliminar</button>
+        </div>
+      `;
+      els.list.appendChild(item);
+    });
+
+    // meta badge
+    if (els.badgePend){
+      els.badgePend.style.display = pend ? '' : 'none';
+      els.badgePend.textContent = `${pend} pendientes`;
+    }
+  }
+
+  // —— CRUD helpers —— //
+  function openDialog(edit=null){
+    if (edit){
+      els.id.value = edit.id;
+      els.title.value = edit.title || '';
+      els.impact.value = edit.impact || 'Medio';
+      els.scope.value = defaultScopes.includes(edit.scope) ? edit.scope : 'General';
+      els.assignee.value = edit.assignee || '';
+      els.vFrom.value = edit.valid_from || '';
+      els.vTo.value = edit.valid_to || '';
+      els.reqAck.checked = !!edit.require_ack;
+    } else {
+      els.id.value = '';
+      els.title.value = '';
+      els.impact.value = 'Medio';
+      els.scope.value = 'General';
+      els.assignee.value = '';
+      els.vFrom.value = '';
+      els.vTo.value = '';
+      els.reqAck.checked = false;
+    }
+    els.dlg.showModal();
+  }
+
+  function upsertFromDialog(){
+    const id = els.id.value || uid();
     const it = {
-      id: ops_uid(),
-      title, impact,
-      scope: sScope?.value || 'General',
-      valid_from: sFrom?.value || null,
-      valid_to: sTo?.value || null,
-      require_ack: !!sReq?.checked,
-      acks: {},                         // nombre -> true
-      station: STATION_CODE,
-      ts: Date.now(),
+      id,
+      title: (els.title.value||'').trim(),
+      impact: els.impact.value,
+      scope: els.scope.value || 'General',
+      assignee: (els.assignee.value||'').trim() || null,
+      valid_from: els.vFrom.value || null,
+      valid_to: els.vTo.value || null,
+      require_ack: !!els.reqAck.checked,
+      acks: {},                     // se respeta al editar si existe
+      station: STATION,
+      ts: nowISO(),
       pinned: false,
     };
+    if (!it.title) return false;
 
-    const list = ops_load(); list.push(it); ops_save(list);
+    const list = load();
+    const i = list.findIndex(x => x.id === id);
+    if (i >= 0){
+      // conservar acks y pin
+      it.acks = list[i].acks || {};
+      it.pinned = !!list[i].pinned;
+      list[i] = it;
+    } else {
+      list.push(it);
+    }
+    save(list);
+    return true;
+  }
 
-    // opcional backend (no rompe si no existe)
-    try{
-      await fetch('/api/ops-updates', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({...it, timestamp: ops_nowISO()})
-      }).catch(()=>{});
-    }catch{}
-
-    form.reset();
-    ops_render();
+  // —— Eventos globales —— //
+  els.add?.addEventListener('click', ()=> openDialog());
+  els.form?.addEventListener('close', ()=> render());
+  els.save?.addEventListener('click', (e)=>{
+    e.preventDefault();
+    if (upsertFromDialog()) els.dlg.close();
   });
 
   // Filtros
-  ['ops-search','ops-filter-impact','ops-filter-scope'].forEach(id=>{
-    const el = document.getElementById(id);
-    el?.addEventListener('input', ops_render);
-    el?.addEventListener('change', ops_render);
+  [els.search, els.fPrio, els.fScope].forEach(el=>{
+    el?.addEventListener('input', render);
+    el?.addEventListener('change', render);
   });
 
   // Delegación de acciones en la lista
-  document.getElementById('ops-list')?.addEventListener('click', (e)=>{
-    const itemEl = e.target.closest('.ops-item'); if (!itemEl) return;
-    const id = itemEl.dataset.id;
-    const list = ops_load();
-    const idx = list.findIndex(x=>x.id===id);
-    if (idx<0) return;
+  els.list?.addEventListener('click', (e)=>{
+    const row = e.target.closest('.ops-item'); if (!row) return;
+    const id = row.dataset.id;
+    const list = load();
+    const idx = list.findIndex(x => x.id === id);
+    if (idx < 0) return;
 
-    // Editar
     if (e.target.closest('.ops-edit')){
-      const cur = list[idx];
-      const nextTitle  = prompt('Título', cur.title||'') ?? cur.title;
-      if (nextTitle.trim() && nextTitle !== cur.title) cur.title = nextTitle.trim();
-      const nextResp   = prompt('Responsable (opcional)', cur.assignee||'') ?? cur.assignee;
-      cur.assignee = (nextResp||'').trim() || null;
-      ops_save(list); ops_render(); return;
+      openDialog(list[idx]);
+      return;
     }
-
-    // Fijar
     if (e.target.closest('.ops-pin')){
       list[idx].pinned = !list[idx].pinned;
-      ops_save(list); ops_render(); return;
+      save(list); render(); return;
     }
-
-    // Eliminar
     if (e.target.closest('.ops-delete')){
       if (!confirm('¿Eliminar la actualización?')) return;
-      list.splice(idx,1); ops_save(list); ops_render(); return;
+      list.splice(idx,1); save(list); render(); return;
     }
-
-    // Gestionar ACKs
     if (e.target.closest('.ops-ack-manage')){
+      // panel inline de acuses
       const it = list[idx];
-      const names = (TEAM_STATE?.people || []).map(p => p.nombre_completo).filter(Boolean);
-      const present = names.filter(n => (TEAM_STATE?.attendance||{})[n]===true);
-      const universe = present.length ? present : names;
-
-      // mini-panel inline
-      const panelId = 'ack-panel-' + id;
-      let panel = itemEl.querySelector('#'+panelId);
+      const ackId = 'ack-panel-' + id;
+      let panel = row.querySelector('#'+ackId);
       if (panel){ panel.remove(); return; }
 
+      const {universe} = ackProgress(it);
       panel = document.createElement('div');
-      panel.id = panelId;
+      panel.id = ackId;
       panel.style.cssText = 'margin-top:6px;border:1px solid var(--border);border-radius:10px;padding:8px;';
       panel.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -3450,39 +3525,81 @@ function ops_render(){
         </div>
         <div class="ack-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;max-height:220px;overflow:auto;"></div>
       `;
-      itemEl.appendChild(panel);
+      row.appendChild(panel);
 
       const grid = panel.querySelector('.ack-grid');
       universe.forEach(n=>{
+        const chk = document.createElement('label');
+        chk.style.cssText = 'display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:#fff;';
         const checked = !!(it.acks||{})[n];
-        const row = document.createElement('label');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:#fff;';
-        row.innerHTML = `<input type="checkbox" ${checked?'checked':''} data-name="${esc(n)}"> <span>${esc(n)}</span>`;
-        grid.appendChild(row);
+        chk.innerHTML = `<input type="checkbox" ${checked?'checked':''} data-name="${esc(n)}"> <span>${esc(n)}</span>`;
+        grid.appendChild(chk);
       });
 
       panel.querySelector('.ack-all')?.addEventListener('click', ()=>{
-        grid.querySelectorAll('input[type="checkbox"]').forEach(c=>c.checked=true);
-        universe.forEach(n => { it.acks = it.acks||{}; it.acks[n]=true; });
-        ops_save(list); ops_render();
+        it.acks = {}; universe.forEach(n => it.acks[n] = true);
+        save(list); render();
       });
       panel.querySelector('.ack-none')?.addEventListener('click', ()=>{
-        grid.querySelectorAll('input[type="checkbox"]').forEach(c=>c.checked=false);
-        it.acks = {}; ops_save(list); ops_render();
+        it.acks = {}; save(list); render();
       });
       grid.addEventListener('change', (ev)=>{
-        const inp = ev.target.closest('input[type="checkbox"]'); if(!inp) return;
+        const inp = ev.target.closest('input[type="checkbox"]'); if (!inp) return;
         const name = inp.getAttribute('data-name');
         it.acks = it.acks || {};
-        if (inp.checked) it.acks[name]=true; else delete it.acks[name];
-        ops_save(list); ops_render();
+        if (inp.checked) it.acks[name] = true; else delete it.acks[name];
+        save(list); render();
       });
+
       return;
     }
   });
 
-  // Primer render
-  ops_render();
+  // —— Exportaciones —— //
+  els.exportTxt?.addEventListener('click', async ()=>{
+    const list = load().filter(x => !x.station || x.station === STATION);
+    const lines = list.map(it=>{
+      const f = it.valid_from ? new Date(it.valid_from).toLocaleDateString('es-ES') : '';
+      const t = it.valid_to   ? new Date(it.valid_to).toLocaleDateString('es-ES')   : '';
+      const sign = it.impact==='Alto'?'‼️': it.impact==='Medio'?'❗':'•';
+      return `${sign} ${it.title} [${it.scope}] ${f&&t?`(${f}→${t})`:''} ${it.assignee?`• Resp: ${it.assignee}`:''}`;
+    });
+    const txt = lines.join('\n') || '—';
+    try{
+      await navigator.clipboard.writeText(txt);
+      alert('Resumen copiado al portapapeles');
+    }catch{
+      const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      alert('Resumen copiado');
+    }
+  });
+
+  els.exportCsv?.addEventListener('click', ()=>{
+    const list = load().filter(x => !x.station || x.station === STATION);
+    const header = ['id','title','impact','scope','assignee','valid_from','valid_to','require_ack','pinned','created_at','station'];
+    const rows = list.map(it => [
+      it.id, it.title, it.impact, it.scope, it.assignee||'',
+      it.valid_from||'', it.valid_to||'',
+      it.require_ack?1:0, it.pinned?1:0, it.ts||'', it.station||''
+    ]);
+    const csv = [header, ...rows].map(r=>r.map(v=>{
+      const s = String(v??'');
+      return /[",;\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+    }).join(';')).join('\n');
+
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ops_updates_${STATION}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // Primer render y reactivo a cambios de roster (para % acuses)
+  render();
+  // Si usas WebSocket y haces update del roster, re-rendera:
+  window.addEventListener('team_roster_updated', render);
 })();
 
 
@@ -3964,4 +4081,5 @@ console.log('Dashboard inicializado correctamente');
 </script>
 </body>
 </html>
+
 
