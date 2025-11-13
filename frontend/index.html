@@ -4294,139 +4294,69 @@ console.log('Dashboard inicializado correctamente');
 })();
 
 
-// === Turnos (completa) + reloj cabecera ===
-function computeShift(d=new Date()){
+// ===== Fecha/Hora y Turno automático =====
+function computeShift(d = new Date()){
   const m = d.getHours()*60 + d.getMinutes();
+  // Mañana 06:00–14:00, Tarde 14:00–22:00, Noche 22:00–06:00
   if (m >= 360 && m < 840)   return { name:'Mañana', from:'06:00', to:'14:00' };
   if (m >= 840 && m < 1320)  return { name:'Tarde',  from:'14:00', to:'22:00' };
+  // Noche cubre dos tramos: [22:00, 24:00) ∪ [00:00, 06:00)
   return { name:'Noche', from:'22:00', to:'06:00' };
 }
-(function initNowClock(){
-  const hdr = document.getElementById('now-header');
-  const chipHdr = document.getElementById('shift-badge-header');
-  const chip = document.getElementById('shift-badge');
-  function paint(){
-    const now = new Date();
-    const sh = computeShift(now);
-    const fmt = now.toLocaleString('es-ES', { weekday:'long', day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    if (hdr) hdr.textContent = fmt.replace(/^./, c=>c.toUpperCase());
-    const setChip = (el)=>{
-      if (!el) return;
-      el.textContent = `${sh.name} (${sh.from}–${sh.to})`;
-      el.dataset.shift = sh.name;
-    };
-    setChip(chipHdr); setChip(chip);
-  }
-  paint();
-  setInterval(paint, 30_000);
-})();
 
-// === Spotlight del checklist → guía y apertura del widget destino
-function updateSpotlightRouting(){
-  const host = document.getElementById('brief-check');
-  if (!host) return;
-  // quita anteriores
-  document.querySelectorAll('.spotlight-blink').forEach(el => el.classList.remove('spotlight-blink'));
-  // primer bloque marcado NO
-  const firstNo = Array.from(host.querySelectorAll('.check-card')).find(card=>{
-    const name = card.querySelector('.check-actions input')?.name;
-    const sel = name && host.querySelector(`input[name="${name}"]:checked`);
-    return sel && sel.value === 'NO';
-  });
-  const targetId = firstNo?.getAttribute('data-target');
-  if (targetId){
-    const tgt = document.getElementById(targetId);
-    if (tgt){
-      tgt.classList.add('spotlight-blink');
-      tgt.scrollIntoView({ behavior:'smooth', block:'center' });
-    }
+function paintNowAndShift(){
+  const nowEl   = document.getElementById('now-header');
+  const badgeEl = document.getElementById('shift-badge') || document.getElementById('shift-badge-header');
+  const now = new Date();
+  const sh  = computeShift(now);
+
+  if (nowEl)   nowEl.textContent = now.toLocaleString('es-ES', { dateStyle:'full', timeStyle:'short' });
+  if (badgeEl){
+    badgeEl.textContent = sh.name;
+    badgeEl.setAttribute('data-shift', sh.name);
   }
 }
-(function bindChecklistOpeners(){
-  const host = document.getElementById('brief-check');
-  if (!host) return;
-  host.addEventListener('click', (e)=>{
-    const card = e.target.closest('.check-card'); if (!card) return;
-    const targetId = card.getAttribute('data-target');
-    openWidgetFromChecklist(targetId);
-  });
-})();
 
-// === Equipo/Turno: alta rápida de persona (best-effort a backend)
-(function initTeamManualAdd(){
-  const form = document.getElementById('team-form');
-  const input = document.getElementById('team-name');
-  const list = document.getElementById('team-list');
-  if (!form || !input || !list) return;
-  form.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const name = (input.value||'').trim();
-    if (!name) return;
-    // Actualiza estado local inmediato
-    const ppl = (TEAM_STATE?.people || []).slice();
-    ppl.push({ nombre_completo: name });
-    TEAM_STATE = TEAM_STATE || {};
-    TEAM_STATE.people = ppl;
-    TEAM_STATE.attendance = TEAM_STATE.attendance || {};
-    TEAM_STATE.attendance[name] = true;
-    renderRoster(list, ppl, TEAM_STATE);
-    input.value = '';
-    // Persiste si el backend lo soporta
-    try{
-      await fetch('/api/roster/add', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ person: name, present: true, date: TEAM_STATE?.sheet_date || null, shift: TEAM_STATE?.shift || null })
-      });
-    }catch(err){ console.warn('No se pudo añadir en servidor (se mantiene local):', err); }
-  });
-})();
+function initNowTicker(){
+  paintNowAndShift();
+  // refresca cada minuto
+  setInterval(paintNowAndShift, 60_000);
+}
 
-// === Reforzar color de categoría en runtime por si llegan tareas sin clase
-(function reinforceKanbanCategoryStyles(){
-  const host = document.getElementById('kanban-widget');
-  if (!host) return;
-  const apply = (card)=>{
-    const catBtn = card.querySelector('[data-edit="category"]');
-    const txt = catBtn ? catBtn.textContent.trim().toLowerCase() : '';
-    const map = { seguridad:'cat-seguridad', incidencias:'cat-incidencias', mantenimiento:'cat-mantenimiento', calidad:'cat-calidad', servicio:'cat-servicio' };
-    Object.values(map).forEach(c => card.classList.remove(c));
-    if (map[txt]) card.classList.add(map[txt]);
-  };
-  const mo = new MutationObserver(muts=>{
-    muts.forEach(m=>{
-      m.addedNodes.forEach(n=>{
-        if (n.nodeType===1 && n.classList?.contains('card')) apply(n);
-      });
-    });
-    updateAllColumnCounts?.();
-  });
-  mo.observe(host, { childList:true, subtree:true });
-})();
+// ===== Inicio global seguro =====
+document.addEventListener('DOMContentLoaded', () => {
+  // UI / accesibilidad
+  try { initHeaderTimer?.(); } catch(e){ console.warn('initHeaderTimer', e); }
+  try { initFullscreenToggles?.(); } catch(e){ console.warn('initFullscreenToggles', e); }
+  initNowTicker();
 
-// === Carga inicial ordenada + arranques
-window.addEventListener('DOMContentLoaded', async ()=>{
-  try{ initHeaderTimer?.(); }catch{}
-  try{ initFullscreenToggles?.(); }catch{}
-  try{ makeColumnsSortable?.(); }catch{}
-  try{ setupEventListeners?.(); }catch{}
-  try{ hydrateKpiTotalCost?.(); }catch{}
-  try{ initEhsSimple?.(); }catch{}
-  try{ init5S?.(); }catch{}
-  // Roster y tableros
-  try{ await initTeamRoster?.(); }catch(e){ console.warn(e); }
-  try{ await loadBoardsInitial?.(); }catch(e){ console.warn(e); }
-  try{ await loadIncidentes?.(); }catch(e){ console.warn(e); }
-  try{ renderGwTop3?.(); }catch{}
-  try{ connectWebSocket?.(); }catch{}
-  // Primer ruteo spotlight
-  try{ updateSpotlightRouting?.(); }catch{}
+  // Widgets funcionales
+  try { initTeamRoster?.(); } catch(e){ console.warn('initTeamRoster', e); }
+  try { makeColumnsSortable?.(); } catch(e){ console.warn('makeColumnsSortable', e); }
+  try { setupEventListeners?.(); } catch(e){ console.warn('setupEventListeners', e); }
+  try { loadBoardsInitial?.(); } catch(e){ console.warn('loadBoardsInitial', e); }
+  try { connectWebSocket?.(); } catch(e){ console.warn('connectWebSocket', e); }
+  try { hydrateKpiTotalCost?.(); } catch(e){ console.warn('hydrateKpiTotalCost', e); }
+  try { initEhsSimple?.(); } catch(e){ console.warn('initEhsSimple', e); }
+  try { init5S?.(); } catch(e){ console.warn('init5S', e); }
+  try { loadIncidentes?.(); } catch(e){ console.warn('loadIncidentes', e); }
+});
+
+// ===== Limpieza opcional =====
+// Normaliza los nombres de zona en selects existentes (corrige "Muele" -> "Muelle")
+document.addEventListener('change', (e) => {
+  if (e.target?.classList?.contains('zone-select')) {
+    const val = e.target.value;
+    if (val === 'Muele Imp') e.target.value = 'Muelle Imp';
+    if (val === 'Muele Exp') e.target.value = 'Muelle Exp';
+  }
 });
 
 
 </script>
 </body>
 </html>
+
 
 
 
