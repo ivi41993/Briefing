@@ -2525,6 +2525,108 @@ updateAllColumnCounts();
 }
 }
 
+/* ===== Equipo: alta manual segura ===== */
+(function initTeamManualAdd(){
+  const form = document.getElementById('team-form');
+  const input = document.getElementById('team-name');
+  const listEl = document.getElementById('team-list');
+  if (!form || !input || !listEl) return;
+
+  // PEQUEÑO FIX de tipografía en las zonas (había "Muele")
+  const ZONES_CANON = ['Isla','Dorada','Muelle Imp','Muelle Exp','Import','Export'];
+
+  function guessShift(){
+    // si el backend ya puso turno en TEAM_STATE, úsalo
+    if (window.TEAM_STATE && TEAM_STATE.shift) return TEAM_STATE.shift;
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Mañana';
+    if (h >= 14 && h < 22) return 'Tarde';
+    return 'Noche';
+  }
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const name = (input.value || '').trim();
+    if (!name) return;
+
+    // Inicializa TEAM_STATE si aún no existe (arranque “en frío”)
+    window.TEAM_STATE = window.TEAM_STATE || {
+      shift: guessShift(),
+      sheet_date: new Date().toISOString().slice(0,10),
+      window: null,
+      people: [],
+      attendance: {},
+      zones: {}
+    };
+
+    // Evita duplicados por nombre completo
+    const exists = (TEAM_STATE.people || []).some(p => (p.nombre_completo || '').toLowerCase() === name.toLowerCase());
+    if (exists){
+      alert('Esa persona ya está en la lista.');
+      input.value = '';
+      return;
+    }
+
+    // Alta optimista en UI
+    const newPerson = { nombre_completo: name, horario: '', observaciones: '' };
+    TEAM_STATE.people = Array.isArray(TEAM_STATE.people) ? TEAM_STATE.people.slice() : [];
+    TEAM_STATE.people.push(newPerson);
+
+    // Por defecto, al dar de alta la marcamos como ausente (puedes poner true si prefieres)
+    TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+    TEAM_STATE.attendance[name] = false;
+
+    // Render inmediato
+    try {
+      renderRoster(listEl, TEAM_STATE.people, TEAM_STATE);
+    } catch(err){
+      console.error('renderRoster falló tras alta manual:', err);
+    }
+    input.value = '';
+
+    // Intento de persistencia en servidor (si lo tienes)
+    try{
+      const res = await fetch('/api/roster/add', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          person: name,
+          date: TEAM_STATE.sheet_date || null,
+          shift: TEAM_STATE.shift || guessShift(),
+          station: (window.STATION_OVERRIDE || '').toUpperCase() || (typeof STATION_CODE!=='undefined'?STATION_CODE:'MAD')
+        })
+      });
+
+      if (!res.ok){
+        // Si tu backend aún no tiene /api/roster/add, no rompemos la UI
+        const err = await res.json().catch(()=>({detail: res.statusText}));
+        console.warn('POST /api/roster/add no disponible:', err.detail || res.statusText);
+      }else{
+        // Si el backend devuelve el roster normalizado, úsalo para refrescar
+        const serverState = await res.json().catch(()=>null);
+        if (serverState && serverState.people){
+          renderRoster(listEl, serverState.people, serverState);
+        }
+      }
+    }catch(err){
+      console.warn('No se pudo persistir el alta manual (se mantiene local):', err);
+    }
+  });
+
+  // (Opcional) corrige las etiquetas de zona en el render si venían con la errata
+  const _oldRender = window.renderRoster;
+  window.renderRoster = function(listEl, people, state){
+    // normaliza posibles "Muele" -> "Muelle"
+    if (state && state.zones){
+      const z = state.zones;
+      Object.keys(z).forEach(k=>{
+        if (z[k] === 'Muele Imp') z[k] = 'Muelle Imp';
+        if (z[k] === 'Muele Exp') z[k] = 'Muelle Exp';
+      });
+    }
+    return _oldRender(listEl, people, state);
+  };
+})();
 
 function setupEventListeners(){
 document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
@@ -4639,6 +4741,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
