@@ -1344,7 +1344,7 @@ color: var(--text-muted);
 <!-- IZQUIERDA: EQUIPO -->
 <section class="col-left">
 <div class="widget" id="team-widget">
-<h2 class="widget-title">Equipo / Turno</h2>
+<h2 class="widget-title">1) Equipo / Turno</h2>
 <small class="kpi-text" id="team-meta">—</small>
 
 <form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
@@ -1394,76 +1394,77 @@ color: var(--text-muted);
 <span id="shift-badge" class="shift-chip">—</span>
   
 <div class="check-grid">
-<div class="check-card" tabindex="0"
-     data-help="Repasa incidencias, bloqueos y aprendizajes clave del turno anterior del bloque de Información del turno anterior."
-     data-target="prev-shift-widget">
-  <span class="check-title">1) Highlights del turno anterior</span>
-<div class="check-actions" role="group" aria-label="Bloque 1">
-<input id="c1ok"  type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
-<input id="c1no"  type="radio" name="c1" value="NO"><label for="c1no">NO</label>
-</div>
+  <!-- 1) Dotación y recursos (antes era el 3) -->
+  <div class="check-card" tabindex="0"
+       data-help="Dotación: presentes/ausentes, zonas asignadas y coberturas; pedir refuerzos si falta."
+       data-target="team-widget">
+    <span class="check-title">1) Dotación y recursos</span>
+    <div class="check-actions" role="group" aria-label="Bloque 1">
+      <input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 2) Actualizaciones operativas -->
+  <div class="check-card" tabindex="0"
+       data-help="Cambios operativos: revisar CQC o WWM"
+       data-target="ops-updates-widget">
+    <span class="check-title">2) Actualizaciones operativas</span>
+    <div class="check-actions" role="group" aria-label="Bloque 2">
+      <input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 3) Highlights del turno anterior (antes era el 1) -->
+  <div class="check-card" tabindex="0"
+       data-help="Repasa incidencias, bloqueos y aprendizajes clave del turno anterior del bloque de Información del turno anterior."
+       data-target="prev-shift-widget">
+    <span class="check-title">3) Highlights del turno anterior</span>
+    <div class="check-actions" role="group" aria-label="Bloque 3">
+      <input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 4) Seguridad y protección -->
+  <div class="check-card" tabindex="0"
+       data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad."
+       data-target="seguridad-widget">
+    <span class="check-title">4) Seguridad y protección</span>
+    <div class="check-actions" role="group" aria-label="Bloque 4">
+      <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 5) Preparación/reportes incidentes -->
+  <div class="check-card" tabindex="0"
+       data-help="Cómo reportar incidentes: canales, tiempos, responsables y material de emergencia."
+       data-target="incidentes-widget">
+    <span class="check-title">5) Preparación/reportes incidentes</span>
+    <div class="check-actions" role="group" aria-label="Bloque 5">
+      <input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 6) Revisión KPIs -->
+  <div class="check-card" tabindex="0"
+       data-help="KPIs del día: Ocupaciones de Uniwing, DG Autocheck, CargoMobile; revisar tendencia vs objetivo."
+       data-target="kpi-center">
+    <span class="check-title">6) Revisión Kpis</span>
+    <div class="check-actions" role="group" aria-label="Bloque 6">
+      <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 7) Feedback → Acciones -->
+  <div class="check-card" tabindex="0"
+       data-help="Recoge feedback del equipo y tradúcelo en acciones claras en el Kanban."
+       data-target="kanban-widget">
+    <span class="check-title">7) Feedback → Acciones</span>
+    <div class="check-actions" role="group" aria-label="Bloque 7">
+      <input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
+    </div>
+  </div>
 </div>
 
-<div class="check-card" tabindex="0"
-     data-help="Cambios operativos: revisar CQC o WWM"
-     data-target="ops-updates-widget">
-  <span class="check-title">2) Actualizaciones operativas</span>
-<div class="check-actions" role="group" aria-label="Bloque 2">
-<input id="c2ok"  type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
-<input id="c2no"  type="radio" name="c2" value="NO"><label for="c2no">NO</label>
-</div>
-</div>
-
-<div class="check-card" tabindex="0"
-     data-help="Dotación: presentes/ausentes, zonas asignadas y coberturas; pedir refuerzos si falta."
-     data-target="team-widget">
-  <span class="check-title">3) Dotación y recursos</span>
-<div class="check-actions" role="group" aria-label="Bloque 3">
-<input id="c3ok"  type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
-<input id="c3no"  type="radio" name="c3" value="NO"><label for="c3no">NO</label>
-</div>
-</div>
-
-<div class="check-card" tabindex="0"
-     data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad."
-     data-target="seguridad-widget">
-  <span class="check-title">4) Seguridad y protección</span>
-<div class="check-actions" role="group" aria-label="Bloque 4">
-<input id="c4ok"  type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
-<input id="c4no"  type="radio" name="c4" value="NO"><label for="c4no">NO</label>
-</div>
-</div>
-
-<div class="check-card" tabindex="0"
-     data-help="Cómo reportar incidentes: canales, tiempos, responsables y material de emergencia."
-     data-target="incidentes-widget">
-  <span class="check-title">5) Preparación/reportes incidentes</span>
-<div class="check-actions" role="group" aria-label="Bloque 5">
-<input id="c5ok"  type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
-<input id="c5no"  type="radio" name="c5" value="NO"><label for="c5no">NO</label>
-</div>
-</div>
-
-<div class="check-card" tabindex="0"
-     data-help="KPIs del día: Ocupaciones de Uniwing, DG Autocheck, CargoMobile; revisar tendencia vs objetivo."
-     data-target="kpi-center">
-  <span class="check-title">6) Revisión Kpis</span>
-<div class="check-actions" role="group" aria-label="Bloque 6">
-<input id="c6ok"  type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
-<input id="c6no"  type="radio" name="c6" value="NO"><label for="c6no">NO</label>
-</div>
-</div>
-  
-<div class="check-card" tabindex="0"
-     data-help="Recoge feedback del equipo y tradúcelo en acciones claras en el Kanban."
-     data-target="kanban-widget">
-  <span class="check-title">7) Feedback → Acciones</span>
-<div class="check-actions" role="group" aria-label="Bloque 7">
-<input id="c7ok"  type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
-<input id="c7no"  type="radio" name="c7" value="NO"><label for="c7no">NO</label>
-</div>
-</div>
-</div>
 
 <small class="kpi-text" id="brief-check-meta">—</small>
 </div>
@@ -1472,7 +1473,7 @@ color: var(--text-muted);
 
 <!-- KANBAN -->
 <div class="widget" id="kanban-widget">
-<h2 class="widget-title">Feedback directo</h2>
+<h2 class="widget-title">7) Feedback directo</h2>
 <div class="board-container kanban">
 <div class="kanban-column">
 <h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
@@ -1524,7 +1525,7 @@ color: var(--text-muted);
 <!-- ACTUALIZACIONES OPERATIVAS (sin lista rápida) -->
 <div class="widget vivid" id="ops-updates-widget">
   <h2 class="widget-title hero">
-    <span class="hero-ico">🚧</span><span>Actualizaciones operativas</span>
+    <span class="hero-ico">🚧</span><span>2) Actualizaciones operativas</span>
     <span class="hero-badge">EN VIVO</span>
   </h2>
 
@@ -1615,7 +1616,7 @@ color: var(--text-muted);
 <!-- SEGURIDAD Y PROTECCIÓN (solo dinámicas + 2 frases aleatorias por turno) -->
 <div class="widget vivid" id="seguridad-widget">
   <h2 class="widget-title hero">
-    <span class="hero-ico">🛡️</span><span>Seguridad y Protección</span>
+    <span class="hero-ico">🛡️</span><span>4) Seguridad y Protección</span>
     <span class="hero-badge warn">PRIORIDAD</span>
   </h2>
 
@@ -1646,7 +1647,7 @@ color: var(--text-muted);
 <!-- INCIDENTES (ENABLON) -->
 <div class="widget vivid" id="incidentes-widget">
   <h2 class="widget-title hero">
-    <span class="hero-ico">⚠️</span><span>Incidentes</span>
+    <span class="hero-ico">⚠️</span><span>5) Incidentes</span>
     <span class="hero-badge danger">ENABLON</span>
   </h2>
 
@@ -1708,7 +1709,7 @@ color: var(--text-muted);
 
 
 <div class="widget kpi-widget" id="kpi-center">
-  <h2 class="widget-title">KPIs Operativos</h2>
+  <h2 class="widget-title">6) KPIs Operativos</h2>
 
   <div class="kpi-grid">
     <div class="kpi-tile">
@@ -1808,7 +1809,7 @@ color: var(--text-muted);
 
 
   <div class="widget" id="prev-shift-widget">
-  <h2 class="widget-title">Información Turno Anterior</h2>
+  <h2 class="widget-title">3) Información Turno Anterior</h2>
 <div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior" spellcheck="true"
 style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
@@ -4590,6 +4591,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
