@@ -3088,11 +3088,11 @@ if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)
 
 const elementId = `task-${data.id}`;
 if (data.action === 'delete') {
-  // Kanban/Kaizen (formato habitual)
+  // Kanban/Kaizen
   const el1 = document.getElementById(`task-${data.id}`);
   if (el1) el1.remove();
 
-  // OPS: intenta localizar por id alternativo o por data-attrs
+  // OPS
   const el2 =
     document.getElementById(`ops-${data.id}`) ||
     document.querySelector(`.ops-item[data-id="${CSS.escape(String(data.id))}"]`) ||
@@ -3110,10 +3110,14 @@ if (data.action === 'delete') {
 }
 
 
+
 switch(data.task_type){
 case 'kanban_rapida': renderBoardCard(data, elementId); updateAllColumnCounts(); break;
 case 'kaizen':        renderKaizenCard(data, elementId); updateAllColumnCounts(); break;
 case 'gw_task':       GW_MAP.set(data.id, data); renderGwTop3(); break;
+case 'ops_update':    renderOpsCard(data);
+  break;
+
 default: console.warn('task_type desconocido:', data.task_type);
 }
 }
@@ -5565,6 +5569,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
