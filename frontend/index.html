@@ -2608,6 +2608,114 @@ const list=document.getElementById('team-list');
 if(list) list.innerHTML='<div style="color:var(--text-muted)">Sin datos del informe. Añade manualmente o sube el Excel.</div>';
 }
 }
+
+/* === FIX 1: Eliminar el date-picker estático de cabecera === */
+(function removeHeaderStaticDate(){
+  document.querySelectorAll('.header-controls .date-picker').forEach(el => el.remove());
+})();
+
+/* === FIX 2: Checklist por turno (auto-reset al cambiar) === */
+(function checklistPerShift(){
+  const PREFIX = 'brief_check_v1';
+  const LASTKEY = 'brief_check_lastkey_v1';
+
+  // Descubre turno “actual” si el backend aún no lo envió
+  function guessShift(){
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Mañana';
+    if (h >= 14 && h < 22) return 'Tarde';
+    return 'Noche';
+  }
+
+  // Clave de versión: estación + fecha (YYYY-MM-DD) + turno
+  function currentKey(){
+    const station = (typeof STATION_CODE !== 'undefined' ? STATION_CODE : (window.STATION_OVERRIDE||'MAD')).toUpperCase();
+    const date = (window.TEAM_STATE?.sheet_date) || new Date().toISOString().slice(0,10);
+    const shift = (window.TEAM_STATE?.shift) || guessShift();
+    return `${PREFIX}:${station}:${date}:${shift}`;
+  }
+
+  const host = document.getElementById('brief-check');
+  if (!host) return;
+
+  const radios = Array.from(host.querySelectorAll('.check-actions input[type="radio"]'));
+  if (!radios.length) return;
+
+  function saveState(){
+    const key = currentKey();
+    const state = {};
+    // guardamos por “name” (c1, c2, …)
+    radios.forEach(r => { if (r.checked) state[r.name] = r.value; });
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(LASTKEY, key); } catch {}
+  }
+
+  function loadState(){
+    const key = currentKey();
+    let state = null;
+    try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
+    radios.forEach(r => r.checked = false);
+    if (state && typeof state === 'object'){
+      radios.forEach(r => {
+        if (state[r.name] && state[r.name] === r.value) r.checked = true;
+      });
+    }
+  }
+
+  function clearForNewKey(){
+    // limpiar checks visuales
+    radios.forEach(r => { r.checked = false; });
+    // no copiamos el estado del turno anterior; simplemente guardamos vacío para el nuevo
+    saveState();
+  }
+
+  // Enganche: cuando cambie el turno en TEAM_STATE, comparamos claves
+  function ensureFreshness(){
+    const key = currentKey();
+    const last = localStorage.getItem(LASTKEY);
+    if (last && last !== key){
+      clearForNewKey();
+    } else {
+      loadState();
+    }
+    try { localStorage.setItem(LASTKEY, key); } catch {}
+  }
+
+  // Guardar en cada cambio
+  radios.forEach(r => r.addEventListener('change', saveState));
+
+  // 1) Al cargar
+  ensureFreshness();
+
+  // 2) Tras cargar/actualizar roster (cuando llega shift/fecha del backend)
+  const _renderRoster = window.renderRoster;
+  window.renderRoster = function(listEl, people, state){
+    const res = _renderRoster ? _renderRoster(listEl, people, state) : undefined;
+    // TEAM_STATE ya actualizado en tu renderRoster → clave puede cambiar
+    ensureFreshness();
+    return res;
+  };
+
+  // 3) Por si llega un “roster_update” vía WS que cambie turno/fecha
+  const _processTaskUpdate = window.processTaskUpdate;
+  window.processTaskUpdate = function(data){
+    const out = _processTaskUpdate ? _processTaskUpdate(data) : undefined;
+    if (data && data.type === 'roster_update'){
+      ensureFreshness();
+    }
+    return out;
+  };
+
+  // 4) Seguridad extra: si cambia el día con la página abierta
+  //    (ej.: pasa medianoche), forzamos refresco de clave
+  setInterval(() => {
+    const key = currentKey();
+    const last = localStorage.getItem(LASTKEY);
+    if (last !== key) ensureFreshness();
+  }, 30 * 1000); // cada 30s es suficiente (barato)
+})();
+
+
 /* Kanban / Kaizen / GW */
 function makeColumnsSortable(){
 const common = {
@@ -4860,6 +4968,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
