@@ -1178,12 +1178,12 @@ color: var(--text-muted);
   overflow:hidden;
 }
 #ops-updates-widget.vivid .ops-item::before{
-  /* ribete lateral de impacto */
   content:"";
   position:absolute; inset:0 0 0 auto; width:8px;
-  background: linear-gradient(180deg, var(--vivid-blue), var(--vivid-violet));
+  background: var(--ops-ribbon, linear-gradient(180deg, var(--vivid-blue), var(--vivid-violet)));
   opacity:.85;
 }
+
 #ops-updates-widget.vivid .ops-item .ops-impact{
   border:0; font-weight:900;
   box-shadow:0 4px 10px rgba(0,0,0,.06);
@@ -5014,7 +5014,7 @@ console.log('Inicializando dashboard...');
 
 try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/Hora:', e); }
 try{ initHeaderTimer(); }catch(e){ console.error('Timer:', e); }  // AÑADIR ESTA LÍNEA
-
+try{
 setupEventListeners();
 makeColumnsSortable();
 hydrateKpiTotalCost();
@@ -5025,7 +5025,7 @@ initTeamRoster();
 initEhsSimple();
 initFullscreenToggles();
 init5S();
-
+}catch(e){ console.warn('Bootstrap parcial', e); }
 try{ initBriefing(); }catch(e){ console.error('initBriefing:', e); }
 updateSpotlightRouting?.();
 
@@ -5656,9 +5656,127 @@ document.addEventListener('change', (e) => {
     // Si tienes un loader de tareas, lánzalo aquí también:
     // try { loadAllTasks?.(); } catch(e){}
   });
+
+  // ====== UTILIDADES FALTANTES ======
+function formatPercent(v){
+  if (v == null || isNaN(v)) return '—';
+  return new Intl.NumberFormat('es-ES',{ maximumFractionDigits:1 }).format(Number(v));
+}
+function setKpiValue(idValue, idMeta, text){
+  const v = document.getElementById(idValue);
+  const m = document.getElementById(idMeta);
+  if (v) v.textContent = text ?? '—';
+  if (m) m.textContent = `Actualizado: ${new Date().toLocaleString('es-ES')}`;
+}
+function updateAllColumnCounts(){
+  // Kanban rápida
+  document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
+    const cnt = col.querySelectorAll('.cards-container > .card').length;
+    const badge = col.querySelector('.column-title .count');
+    if (badge) badge.textContent = `(${cnt})`;
+  });
+  // Kaizen
+  document.querySelectorAll('#kaizen-widget .kanban-column').forEach(col=>{
+    const cnt = col.querySelectorAll('.cards-container > .card').length;
+    const badge = col.querySelector('.column-title .count');
+    if (badge) badge.textContent = `(${cnt})`;
+  });
+}
+function renderGwTask(t, domId){
+  // Render mínimo de GW para que no reviente al cargar top-3
+  const host = document.getElementById('gw-tasks-dynamic-container');
+  if (!host) return;
+  let el = document.getElementById(domId);
+  if (!el){
+    el = document.createElement('div');
+    el.id = domId;
+    el.className = 'gw-task-item';
+    host.appendChild(el);
+  }
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <label style="font-weight:700">${(t.title || t.task || 'Tarea GW')}</label>
+      <input type="checkbox" ${t.is_completed ? 'checked':''} />
+    </div>
+    <textarea id="gw-note-${t.id}" class="gw-note" ${t.is_completed ? '' : 'disabled'}
+      placeholder="Nota...">${t.note || ''}</textarea>
+  `;
+}
+async function loadAllTasks(){
+  try{
+    const items = await fetchTasksBootstrap();
+    (items||[]).forEach(processTaskUpdate);
+    makeColumnsSortable();
+    updateAllColumnCounts();
+  }catch(e){ console.warn('loadAllTasks falló', e); }
+}
+// Incidentes: render mínimo para tabla JSON {columns, rows}
+function renderIncidentes(data){
+  const tbl = document.getElementById('incidentes-pdf-table') || document.getElementById('incidentes-table');
+  if (!tbl || !data) return;
+  const cols = data.columns || (data.rows && data.rows.length ? Object.keys(data.rows[0]) : []);
+  const rows = data.rows || [];
+  tbl.innerHTML = `
+    <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')}</tbody>
+  `;
+}
+async function loadIncidentes(){
+  try{
+    const r = await fetch('/api/incidents-table', { cache:'no-store' });
+    const data = await r.json();
+    renderIncidentes(data);
+  }catch(e){ console.warn('loadIncidentes falló', e); }
+}
+// Spotlight routing (placeholder para evitar errores)
+function updateSpotlightRouting(){ /* no-op por ahora */ }
+
+// ====== COMPLETAR renderKaizenCard (estaba truncada) ======
+function renderKaizenCard(task, elementId){
+  const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
+  const columnId=`kaizen-${safeStatus}`;
+  const column=document.getElementById(columnId); if(!column) return;
+
+  let card=document.getElementById(elementId);
+  if(!card){ card=document.createElement('div'); card.id=elementId; }
+  card.className='card'; card.dataset.status=safeStatus;
+  card.dataset.taskType='kaizen';  
+  if(card.parentElement!==column) column.prepend(card);
+
+  let dueHuman=''; 
+  if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
+
+  card.innerHTML=`
+    ${GRIP}
+    <div class="card-content">
+      <div class="card-title" data-edit="title">${esc(task.title || '')}</div>
+      <div class="card-details">
+        ${task.assigned_to ? `Responsable: ${esc(task.assigned_to)}` : 'Responsable: —'}
+        ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Eliminar"></button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+
+  // Edición rápida
+  const id = task.id;
+  const titleEl = card.querySelector('[data-edit="title"]');
+  titleEl?.addEventListener('click', async ()=>{
+    const prev = titleEl.textContent.trim();
+    const next = (prompt('Nuevo título', prev) || '').trim();
+    if (next && next !== prev){
+      try { await updateTaskOnServer(id, { title: next }); } 
+      catch { alert('No se pudo actualizar el título'); }
+    }
+  });
+}
 </script>
 </body>
 </html>
+
 
 
 
