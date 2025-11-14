@@ -682,6 +682,15 @@ class Task(BaseModel):
 
 class TaskUpdate(BaseModel):
     status: str
+class TaskPatch(BaseModel):
+    task_type: Optional[str] = None
+    status: Optional[str] = None
+    title: Optional[str] = None
+    assigned_to: Optional[str] = None
+    due_date: Optional[str] = None   # acepta dd/mm/yyyy, d-m-yy o ISO
+    category: Optional[str] = None
+    is_completed: Optional[bool] = None
+    note: Optional[str] = None
 
 class TaskCompletionUpdate(BaseModel):
     is_completed: bool
@@ -3328,11 +3337,18 @@ async def list_tasks(
 async def create_task(task: Task):
     task_dict = task.dict()
     task_dict.pop("action", None)
+
+    # Normaliza due_date si llega en formato ES (dd/mm/yyyy, d-m-yy, etc.)
+    if task_dict.get("due_date"):
+        norm = _parse_date_es(task_dict["due_date"]) or task_dict["due_date"]
+        task_dict["due_date"] = norm
+
     sanitized = sanitize_task(task_dict)
     tasks_in_memory_store[sanitized["id"]] = sanitized
     save_tasks_to_disk()
     await manager.broadcast(sanitized)
     return Task(**sanitized)
+
 
 @app.put("/api/tasks/{task_id}", response_model=Task)
 async def update_task_status(task_id: str, task_update: TaskUpdate):
@@ -3367,6 +3383,29 @@ async def update_task_note(task_id: str, upd: TaskNoteUpdate):
     await manager.broadcast(sanitized)
     return sanitized
 
+@app.patch("/api/tasks/{task_id}", response_model=Task)
+async def patch_task(task_id: str, patch: TaskPatch):
+    if task_id not in tasks_in_memory_store:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+
+    existing = tasks_in_memory_store[task_id]
+    incoming = {k: v for k, v in patch.dict().items() if v is not None}
+
+    # Normaliza due_date si viene
+    if "due_date" in incoming and incoming["due_date"]:
+        incoming["due_date"] = _parse_date_es(incoming["due_date"]) or incoming["due_date"]
+
+    # Aplica merge preservando campos del servidor (ticks y nota si no vienen en el PATCH)
+    merged = merge_preserve_server(existing, incoming)
+
+    # Saneamos por si acaso
+    merged = sanitize_task(merged)
+    tasks_in_memory_store[task_id] = merged
+    save_tasks_to_disk()
+
+    # WS para sincronizar front
+    await manager.broadcast(merged)
+    return Task(**merged)
 
 
 
@@ -3652,6 +3691,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
