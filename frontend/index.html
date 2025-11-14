@@ -1605,38 +1605,25 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
     <span class="hero-badge">EN VIVO</span>
   </h2>
 
-  <!-- Toolbar -->
-  <div class="ops-toolbar" aria-label="Filtros actualizaciones operativas" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
-    <input id="ops-search" class="ops-search" type="search" placeholder="Buscar (#etiqueta, @persona, texto)…"
+  <!-- Toolbar mínima -->
+  <div class="ops-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+    <input id="ops-q" type="search" placeholder="Buscar…" 
            style="flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
-    <select id="ops-filter-prio" class="ops-filter" title="Filtrar prioridad"
-            style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
-      <option value="">Todas las prioridades</option>
-      <option value="Alto">Alta (!!)</option>
-      <option value="Medio">Media (!)</option>
-      <option value="Bajo">Baja</option>
+    <select id="ops-prio" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+      <option value="">Todas</option><option>Alto</option><option>Medio</option><option>Bajo</option>
     </select>
-    <select id="ops-filter-scope" class="ops-filter" title="Ámbito"
-            style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
-      <option value="">Todos los ámbitos</option>
-      <option>General</option>
-      <option>Isla</option>
-      <option>Dorada</option>
-      <option>Muelle Imp</option>
-      <option>Muelle Exp</option>
-      <option>Import</option>
-      <option>Export</option>
+    <select id="ops-scope" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+      <option value="">Ámbito</option>
+      <option>General</option><option>Isla</option><option>Dorada</option>
+      <option>Muelle Imp</option><option>Muelle Exp</option><option>Import</option><option>Export</option>
     </select>
     <button type="button" class="btn-compact" id="ops-add">+ Nueva</button>
-    <button type="button" class="btn-compact" id="ops-export-txt">Copiar resumen</button>
-    <button type="button" class="btn-compact" id="ops-export-csv">Exportar CSV</button>
-    <span id="ops-badge-pend" class="badge" style="display:none;"></span>
   </div>
 
-  <!-- Lista visible -->
-  <div id="ops-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
+  <!-- Lista de tarjetas -->
+  <div id="ops-list" class="ops-list" role="list" aria-label="Actualizaciones"></div>
 
-  <!-- Diálogo de alta/edición -->
+  <!-- Diálogo alta/edición (simple) -->
   <dialog id="ops-dialog" style="border:1px solid var(--border);border-radius:12px;padding:12px;max-width:520px;width:clamp(280px,90vw,520px);">
     <form method="dialog" id="ops-form" style="display:grid;gap:8px;">
       <h3 style="margin:0;">Actualizar</h3>
@@ -1648,36 +1635,23 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
       <label>Prioridad
         <select id="ops-impact" required
                 style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-          <option value="Alto">Alta (!!)</option>
-          <option value="Medio">Media (!)</option>
-          <option value="Bajo">Baja</option>
+          <option>Alto</option><option>Medio</option><option>Bajo</option>
         </select>
       </label>
       <label>Ámbito
-        <select id="ops-scope"
+        <select id="ops-scope-field"
                 style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
           <option>General</option><option>Isla</option><option>Dorada</option>
           <option>Muelle Imp</option><option>Muelle Exp</option><option>Import</option><option>Export</option>
         </select>
       </label>
       <label>Responsable (opcional)
-        <input id="ops-assignee" type="text"
-               placeholder="Ej.: @juan o nombre y apellidos"
-               style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+        <input id="ops-owner" type="text" placeholder="Ej.: @juan">
       </label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <label>Vigente desde
-          <input id="ops-valid-from" type="date"
-                 style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-        </label>
-        <label>Hasta
-          <input id="ops-valid-to" type="date"
-                 style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-        </label>
+        <label>Desde <input id="ops-from" type="date"></label>
+        <label>Hasta  <input id="ops-to"   type="date"></label>
       </div>
-      <label style="display:flex;gap:8px;align-items:center;">
-        <input id="ops-require-ack" type="checkbox"> Requiere acuse de lectura
-      </label>
       <menu style="display:flex;gap:8px;justify-content:flex-end;margin:0;padding-top:8px;">
         <button class="btn-compact" value="cancel">Cancelar</button>
         <button class="btn-primary" id="ops-save" value="default">Guardar</button>
@@ -1685,6 +1659,7 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
     </form>
   </dialog>
 </div>
+
  
 
 
@@ -4964,10 +4939,222 @@ document.addEventListener('change', (e) => {
   }
 });
 
+/* ========= OPS ultra-simple: CRUD local + render inmediato ========= */
+(function(){
+  const KEY = 'ops_updates_v1';        // localStorage
+  const listEl   = document.getElementById('ops-list');
+  const btnAdd   = document.getElementById('ops-add');
+  const dlg      = document.getElementById('ops-dialog');
+  const form     = document.getElementById('ops-form');
+
+  const fId      = document.getElementById('ops-id');
+  const fTitle   = document.getElementById('ops-title');
+  const fImpact  = document.getElementById('ops-impact');
+  const fScope   = document.getElementById('ops-scope-field');
+  const fOwner   = document.getElementById('ops-owner');
+  const fFrom    = document.getElementById('ops-from');
+  const fTo      = document.getElementById('ops-to');
+
+  const qInput   = document.getElementById('ops-q');
+  const prioSel  = document.getElementById('ops-prio');
+  const scopeSel = document.getElementById('ops-scope');
+
+  // Estado en memoria
+  let items = load();
+
+  // ---- Persistencia local ----
+  function load(){
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+    catch { return []; }
+  }
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch {}
+  }
+
+  // ---- Utilidades ----
+  function uid(){ return Math.random().toString(36).slice(2,10); }
+  function esc(s){ return String(s??'').replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function humanDate(iso){ if(!iso) return '—'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('es-ES'); }
+
+  // ---- CRUD ----
+  function create(data){
+    const it = {
+      id: uid(),
+      title: data.title.trim(),
+      impact: data.impact || 'Medio',
+      scope: data.scope || 'General',
+      owner: data.owner || '',
+      valid_from: data.valid_from || '',
+      valid_to: data.valid_to || '',
+      created_at: new Date().toISOString(),
+      station: (window.STATION_OVERRIDE || window.STATION_CODE || 'MAD')
+    };
+    items.unshift(it);
+    save();
+    render();
+  }
+
+  function update(id, patch){
+    const i = items.findIndex(x => x.id === id);
+    if (i < 0) return;
+    items[i] = { ...items[i], ...patch };
+    save();
+    render();
+  }
+
+  function remove(id){
+    items = items.filter(x => x.id !== id);
+    save();
+    render();
+  }
+
+  // ---- Filtro ----
+  function getFiltered(){
+    const q = (qInput?.value || '').toLowerCase().trim();
+    const pr = prioSel?.value || '';
+    const sc = scopeSel?.value || '';
+    return items.filter(it => {
+      const okQ  = !q || (it.title.toLowerCase().includes(q) || it.owner.toLowerCase().includes(q));
+      const okP  = !pr || it.impact === pr;
+      const okSc = !sc || it.scope === sc;
+      return okQ && okP && okSc;
+    });
+  }
+
+  // ---- Render ----
+  function render(){
+    if (!listEl) return;
+    const data = getFiltered();
+    listEl.innerHTML = '';
+    if (!data.length){
+      listEl.innerHTML = '<div style="color:var(--text-muted)">Sin actualizaciones.</div>';
+      return;
+    }
+
+    data.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'ops-item';
+      card.dataset.id = it.id;
+
+      // etiqueta de impacto con clases existentes
+      const impactClass = `ops-impact ${it.impact}`;
+      const owner = it.owner ? esc(it.owner) : '—';
+
+      card.innerHTML = `
+        <div class="ops-head">
+          <div class="ops-title" style="cursor:pointer;" data-action="edit-title" title="Editar título">
+            ${esc(it.title)}
+          </div>
+          <div class="ops-flags">
+            <span class="${impactClass}">${esc(it.impact)}</span>
+            <span class="ops-scope">${esc(it.scope)}</span>
+          </div>
+        </div>
+
+        <div class="ops-meta">
+          <span>Responsable: <strong data-action="edit-owner" style="cursor:pointer" title="Editar responsable">${owner}</strong></span>
+          <span>Vigencia: ${humanDate(it.valid_from)} → ${humanDate(it.valid_to)}</span>
+          <span>Alta: ${humanDate(it.created_at)}</span>
+        </div>
+
+        <div class="ops-actions">
+          <button class="ops-btn" data-action="edit">Editar</button>
+          <button class="ops-btn" data-action="dates">Fechas</button>
+          <button class="ops-btn" data-action="delete">Eliminar</button>
+        </div>
+      `;
+
+      listEl.appendChild(card);
+    });
+  }
+
+  // ---- Dialog helpers ----
+  function openDialog(data){
+    fId.value     = data?.id || '';
+    fTitle.value  = data?.title || '';
+    fImpact.value = data?.impact || 'Medio';
+    fScope.value  = data?.scope || 'General';
+    fOwner.value  = data?.owner || '';
+    fFrom.value   = data?.valid_from || '';
+    fTo.value     = data?.valid_to || '';
+    dlg.showModal();
+  }
+
+  // ---- Eventos UI ----
+  btnAdd?.addEventListener('click', () => openDialog(null));
+
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const payload = {
+      title: fTitle.value,
+      impact: fImpact.value,
+      scope: fScope.value,
+      owner: fOwner.value,
+      valid_from: fFrom.value,
+      valid_to: fTo.value
+    };
+    const id = fId.value.trim();
+    if (!payload.title) return;
+
+    if (id) update(id, payload);
+    else    create(payload);
+
+    dlg.close();
+  });
+
+  listEl?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    const card = e.target.closest('.ops-item');
+    if (!btn || !card) return;
+    const id = card.dataset.id;
+    const action = btn.dataset.action;
+
+    const cur = items.find(x => x.id === id);
+
+    // Acciones rápidas
+    if (action === 'delete'){
+      if (confirm('¿Eliminar esta actualización?')) remove(id);
+      return;
+    }
+    if (action === 'edit'){
+      openDialog(cur);
+      return;
+    }
+    if (action === 'dates'){
+      // Solo abre fechas sin tocar otros campos
+      openDialog({ ...cur, title: cur.title, owner: cur.owner });
+      return;
+    }
+    if (action === 'edit-title'){
+      const next = prompt('Nuevo título', cur.title || '') || '';
+      if (next && next !== cur.title) update(id, { title: next });
+      return;
+    }
+    if (action === 'edit-owner'){
+      const prev = cur.owner || '';
+      const next = prompt('Responsable (@usuario o nombre)', prev) ?? prev;
+      if (next !== prev) update(id, { owner: next });
+      return;
+    }
+  });
+
+  [qInput, prioSel, scopeSel].forEach(el => el?.addEventListener('input', render));
+  [prioSel, scopeSel].forEach(el => el?.addEventListener('change', render));
+
+  // Primer pintado
+  render();
+
+  // Exponer por si lo quieres usar desde fuera (p. ej., checklist)
+  window.OPS = {
+    create, update, remove, list: () => [...items],
+    import: arr => { if (Array.isArray(arr)) { items = arr; save(); render(); } }
+  };
+})();
 
 </script>
 </body>
 </html>
+
 
 
 
