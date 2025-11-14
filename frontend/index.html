@@ -1428,14 +1428,7 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
   .widget,.card{ box-shadow:none; }
   .btn-primary{ box-shadow:0 8px 18px rgba(239,68,68,.18); }
 }
-opsEl.classList.add('ops-item');
-opsEl.id = `ops-${task.id}`;           // para el plan A
-opsEl.dataset.id = task.id;            // plan B
-opsEl.dataset.taskType = 'ops_update'; // tipado claro
-// … y en el botón:
-deleteBtn.classList.add('ops-delete-btn');
-deleteBtn.dataset.id = task.id;
-deleteBtn.dataset.taskType = 'ops_update';
+
 
   
 </style>
@@ -1952,7 +1945,14 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
-
+opsEl.classList.add('ops-item');
+opsEl.id = `ops-${task.id}`;           // para el plan A
+opsEl.dataset.id = task.id;            // plan B
+opsEl.dataset.taskType = 'ops_update'; // tipado claro
+// … y en el botón:
+deleteBtn.classList.add('ops-delete-btn');
+deleteBtn.dataset.id = task.id;
+deleteBtn.dataset.taskType = 'ops_update';
 (function colorizeOpsRibbons(){
   const host = document.getElementById('ops-updates-widget');
   if(!host) return;
@@ -2896,41 +2896,33 @@ async function handleKanbanSubmit(e){
 
 
 function handleDeleteClick(e){
-  const btn = e.target.closest('.delete-card-btn, .ops-delete-btn');
+  const btn = e.target.closest('.ops-delete-btn, .delete-card-btn');
   if (!btn) return;
 
-  // Acepta tarjetas estándar (.card) y OPS (.ops-item)
-  const host = btn.closest('.card, .ops-item');
+  const host = btn.closest('.ops-item, .card'); // OPS primero
   if (!host) return;
 
-  // Intenta obtener el id desde dataset o desde el id del elemento
   let id = btn.dataset.id || host.dataset.id || '';
-  if (!id) {
-    // extrae números del id del nodo (task-123, ops-123, lo que sea)
+  if (!id){
     const m = String(host.id || '').match(/(\d+)(?!.*\d)/);
     if (m) id = m[1];
   }
-  if (!id) {
-    console.warn('No puedo determinar el ID de la tarjeta a eliminar', host);
-    return;
-  }
+  if (!id) return;
 
-  // Determina tipo de tarea (kanban_rapida / kaizen / ops_update / gw_task…)
-  const ttype =
-    host.dataset.taskType ||
-    btn.dataset.taskType ||
-    (host.classList.contains('ops-item') ? 'ops_update' : 'kanban_rapida');
+  const ttype = host.dataset.taskType || btn.dataset.taskType ||
+                (host.classList.contains('ops-item') ? 'ops_update' :
+                 host.classList.contains('card') ? 'kanban_rapida' : 'ops_update');
 
   if (!confirm('¿Seguro que quieres eliminar esta tarjeta?')) return;
 
   deleteTaskOnServer(id, ttype)
-    .then(() => {
-      // Eliminación optimista por si el WS tarda
+    .then(()=>{
       host.remove();
-      updateAllColumnCounts && updateAllColumnCounts();
+      updateAllColumnCounts?.();
     })
-    .catch(() => alert('Error: No se pudo eliminar la tarjeta.'));
+    .catch(()=> alert('Error: No se pudo eliminar la tarjeta.'));
 }
+
 
 
 function handleGwTick(e){
@@ -3134,6 +3126,152 @@ default: console.warn('task_type desconocido:', data.task_type);
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
+/* ===== OPS: renderer + wiring diálogo ===== */
+function renderOpsCard(task){
+  const list = document.getElementById('ops-list');
+  if (!list) return;
+
+  const idStr = String(task.id);
+  let el = document.getElementById(`ops-${idStr}`);
+  if (!el){
+    el = document.createElement('div');
+    el.id = `ops-${idStr}`;
+    el.className = 'ops-item';
+    list.prepend(el);
+  }
+  // dataset para borrado/edición delegada
+  el.dataset.id = idStr;
+  el.dataset.taskType = 'ops_update';
+
+  const title   = task.title || '';
+  const impact  = task.impact || task.priority || 'Medio'; // server puede llamarlo impact/priority
+  const scope   = task.scope  || task.area || 'General';
+  const owner   = task.owner  || task.assigned_to || '';
+  const fromISO = task.from || task.valid_from || task.start_date || '';
+  const toISO   = task.to   || task.valid_to   || task.end_date   || '';
+  const meta    = [
+    fromISO ? `Desde: ${new Date(fromISO).toLocaleDateString('es-ES')}` : null,
+    toISO   ? `Hasta: ${new Date(toISO).toLocaleDateString('es-ES')}`   : null,
+    task.station ? `Estación: ${task.station}` : null,
+  ].filter(Boolean).join(' • ');
+
+  el.innerHTML = `
+    <div class="ops-head">
+      <div class="ops-title">${esc(title)}</div>
+      <div class="ops-flags">
+        <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
+        <span class="ops-scope">${esc(scope)}</span>
+      </div>
+    </div>
+    <div class="ops-meta">${meta || '—'}</div>
+    <div class="ops-actions">
+      <button class="ops-btn ops-edit-btn" data-id="${idStr}" data-task-type="ops_update">Editar</button>
+      <button class="ops-btn ops-pin ${task.pinned ? 'on':''}" data-id="${idStr}" data-task-type="ops_update">Pin</button>
+      <button class="ops-btn ops-delete-btn" title="Eliminar" data-id="${idStr}" data-task-type="ops_update">Eliminar</button>
+    </div>
+    <div class="ops-ack">
+      <div class="ops-ack-bar"><span style="width:${Math.max(0, Math.min(100, Number(task.ack_pct||0)))}%"></span></div>
+      <small>Ack: ${Number(task.ack_pct||0)}%</small>
+    </div>
+  `;
+}
+
+/* Apertura del diálogo + alta/edición */
+(function wireOpsDialog(){
+  const btnAdd   = document.getElementById('ops-add');
+  const dlg      = document.getElementById('ops-dialog');
+  const form     = document.getElementById('ops-form');
+
+  if (!dlg || !form) return;
+
+  function openEmpty(){
+    form.reset();
+    document.getElementById('ops-id').value = '';
+    dlg.showModal();
+  }
+  function openWith(task){
+    document.getElementById('ops-id').value        = task.id || '';
+    document.getElementById('ops-title').value     = task.title || '';
+    document.getElementById('ops-impact').value    = (task.impact || task.priority || 'Medio');
+    document.getElementById('ops-scope-field').value = (task.scope || task.area || 'General');
+    document.getElementById('ops-owner').value     = task.owner || task.assigned_to || '';
+    document.getElementById('ops-from').value      = (task.from || task.valid_from || task.start_date || '').split('T')[0] || '';
+    document.getElementById('ops-to').value        = (task.to   || task.valid_to   || task.end_date   || '').split('T')[0] || '';
+    dlg.showModal();
+  }
+
+  btnAdd?.addEventListener('click', openEmpty);
+
+  // Editar desde la lista (delegado)
+  document.getElementById('ops-list')?.addEventListener('click', async (e)=>{
+    const b = e.target.closest('.ops-edit-btn');
+    if (!b) return;
+    const id = b.dataset.id;
+    try{
+      const r = await fetch(`/api/tasks/${id}`, { cache:'no-store' });
+      const t = await r.json();
+      openWith(t || { id });
+    }catch{ openWith({ id }); }
+  });
+
+  // Guardar
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const payload = {
+      task_type: 'ops_update',
+      title:  document.getElementById('ops-title').value.trim(),
+      impact: document.getElementById('ops-impact').value,
+      scope:  document.getElementById('ops-scope-field').value,
+      owner:  document.getElementById('ops-owner').value.trim() || null,
+      from:   document.getElementById('ops-from').value || null,
+      to:     document.getElementById('ops-to').value   || null,
+      station: STATION_CODE
+    };
+    const id = document.getElementById('ops-id').value;
+
+    try{
+      if (id){
+        await updateTaskOnServer(id, payload);
+      }else{
+        await createTaskOnServer(payload);
+      }
+      dlg.close();
+    }catch(err){
+      alert('No se pudo guardar la actualización operativa.');
+      console.error(err);
+    }
+  });
+})();
+
+  (function wireOpsFilters(){
+  const q     = document.getElementById('ops-q');
+  const prio  = document.getElementById('ops-prio');
+  const scope = document.getElementById('ops-scope');
+  const list  = document.getElementById('ops-list');
+  if (!list) return;
+
+  function apply(){
+    const qt = (q?.value || '').toLowerCase();
+    const pv = (prio?.value || '');
+    const sv = (scope?.value || '');
+
+    list.querySelectorAll('.ops-item').forEach(card=>{
+      const t  = card.querySelector('.ops-title')?.textContent?.toLowerCase() || '';
+      const ip = card.querySelector('.ops-impact')?.textContent?.trim() || '';
+      const sc = card.querySelector('.ops-scope')?.textContent?.trim() || '';
+      const okText  = !qt || t.includes(qt);
+      const okPrio  = !pv || ip === pv;
+      const okScope = !sv || sc === sv;
+      card.style.display = (okText && okPrio && okScope) ? '' : 'none';
+    });
+  }
+
+  q?.addEventListener('input', apply);
+  prio?.addEventListener('change', apply);
+  scope?.addEventListener('change', apply);
+})();
+
+  
 function renderBoardCard(task, elementId){
   const safeStatus = (task.status || 'Abiertas').replace(/\s+/g,'-');
   const columnId   = `${task.task_type}-${safeStatus}`;
@@ -3366,29 +3504,34 @@ console.error('No se pudieron cargar las GW iniciales:', e);
 
 // CARGA INICIAL DE KANBAN + KAIZEN (y mantiene GW como ya tienes)
 async function loadBoardsInitial(){
-try{
-const qsStation = 'station=' + encodeURIComponent(STATION_CODE);
+  try{
+    const qsStation = 'station=' + encodeURIComponent(STATION_CODE);
 
-const [kanRes, kaiRes, gwRes] = await Promise.all([
-fetch('/api/tasks?task_type=kanban_rapida&'+qsStation, {cache:'no-store'}),
-fetch('/api/tasks?task_type=kaizen&'+qsStation, {cache:'no-store'}),
-fetch('/api/tasks?task_type=gw_task&'+qsStation, {cache:'no-store'}),
-]);
+    const [kanRes, kaiRes, gwRes, opsRes] = await Promise.all([
+      fetch('/api/tasks?task_type=kanban_rapida&'+qsStation, {cache:'no-store'}),
+      fetch('/api/tasks?task_type=kaizen&'+qsStation, {cache:'no-store'}),
+      fetch('/api/tasks?task_type=gw_task&'+qsStation,   {cache:'no-store'}),
+      fetch('/api/tasks?task_type=ops_update&'+qsStation,{cache:'no-store'}),
+    ]);
 
-const [kan, kai, gw] = await Promise.all([kanRes.json(), kaiRes.json(), gwRes.json()]);
+    const [kan, kai, gw, ops] = await Promise.all([
+      kanRes.json(), kaiRes.json(), gwRes.json(), opsRes.json()
+    ]);
 
-// pinta todas
-(Array.isArray(kan)?kan:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
-(Array.isArray(kai)?kai:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
-(Array.isArray(gw)?gw:[]).filter(isForThisStation).forEach(t=>{
-if (t.task_type==='gw_task') { GW_MAP.set(t.id, t); }
-});
-renderGwTop3();
-updateAllColumnCounts();
-}catch(e){
-console.error('No se pudieron cargar las tarjetas iniciales:', e);
+    (Array.isArray(kan)?kan:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
+    (Array.isArray(kai)?kai:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
+    (Array.isArray(ops)?ops:[]).filter(isForThisStation).forEach(t=>processTaskUpdate({...t, task_type:'ops_update'}));
+
+    (Array.isArray(gw)?gw:[]).filter(isForThisStation).forEach(t=>{
+      if (t.task_type==='gw_task') GW_MAP.set(t.id, t);
+    });
+    renderGwTop3();
+    updateAllColumnCounts();
+  }catch(e){
+    console.error('No se pudieron cargar las tarjetas iniciales:', e);
+  }
 }
-}
+
 
 
 /* ===== Seguridad & Protección: tarjetas dinámicas + 2 frases por turno ===== */
@@ -5425,6 +5568,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
