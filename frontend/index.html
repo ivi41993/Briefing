@@ -1945,14 +1945,7 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
-opsEl.classList.add('ops-item');
-opsEl.id = `ops-${task.id}`;           // para el plan A
-opsEl.dataset.id = task.id;            // plan B
-opsEl.dataset.taskType = 'ops_update'; // tipado claro
-// … y en el botón:
-deleteBtn.classList.add('ops-delete-btn');
-deleteBtn.dataset.id = task.id;
-deleteBtn.dataset.taskType = 'ops_update';
+
 (function colorizeOpsRibbons(){
   const host = document.getElementById('ops-updates-widget');
   if(!host) return;
@@ -3463,16 +3456,20 @@ function renderGwTask(task, elementId){
 
   const note = task.note || '';
 
-  el.className = 'gw-task-item';
-  el.innerHTML = `
-    <div class="card-content">
-      <div class="card-title" style="font-size:.9rem;">${esc(task.title || '')}</div>
-      <div class="card-details" style="font-size:.8rem; color:var(--text-muted);">
-        ${labelDays} • Due: ${dueTxt}
-        ${note ? ' • ' + esc(note) : ''}
-      </div>
-    </div>
-  `;
+ el.className = 'gw-task-item';
+el.innerHTML = `
+  <div class="ops-head">
+    <div class="ops-title">${esc(task.title || 'Gemba Walk')}</div>
+    <span class="badge">${esc(labelDays)}</span>
+  </div>
+  <div class="meta-row">Fecha: ${esc(dueTxt)}</div>
+  <label class="checkbox-item">
+    <input type="checkbox" class="gw-done" ${task.is_completed ? 'checked' : ''}>
+    Completado
+  </label>
+  <textarea id="gw-note-${task.id}" class="gw-note" ${task.is_completed ? '' : 'disabled'}>${esc(note)}</textarea>
+`;
+
 }
 
 
@@ -5568,6 +5565,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
