@@ -1428,6 +1428,14 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
   .widget,.card{ box-shadow:none; }
   .btn-primary{ box-shadow:0 8px 18px rgba(239,68,68,.18); }
 }
+opsEl.classList.add('ops-item');
+opsEl.id = `ops-${task.id}`;           // para el plan A
+opsEl.dataset.id = task.id;            // plan B
+opsEl.dataset.taskType = 'ops_update'; // tipado claro
+// … y en el botón:
+deleteBtn.classList.add('ops-delete-btn');
+deleteBtn.dataset.id = task.id;
+deleteBtn.dataset.taskType = 'ops_update';
 
   
 </style>
@@ -2888,14 +2896,42 @@ async function handleKanbanSubmit(e){
 
 
 function handleDeleteClick(e){
-const btn=e.target.closest('.delete-card-btn'); if(!btn) return;
-const card=btn.closest('.card'); if(!card) return;
-const id=card.id.replace('task-','');
-const ttype = card.dataset.taskType || 'kanban_rapida';
-if(confirm('¿Seguro que quieres eliminar esta tarjeta?')){
-deleteTaskOnServer(id, ttype).catch(()=>alert('Error: No se pudo eliminar la tarjeta.'));
+  const btn = e.target.closest('.delete-card-btn, .ops-delete-btn');
+  if (!btn) return;
+
+  // Acepta tarjetas estándar (.card) y OPS (.ops-item)
+  const host = btn.closest('.card, .ops-item');
+  if (!host) return;
+
+  // Intenta obtener el id desde dataset o desde el id del elemento
+  let id = btn.dataset.id || host.dataset.id || '';
+  if (!id) {
+    // extrae números del id del nodo (task-123, ops-123, lo que sea)
+    const m = String(host.id || '').match(/(\d+)(?!.*\d)/);
+    if (m) id = m[1];
+  }
+  if (!id) {
+    console.warn('No puedo determinar el ID de la tarjeta a eliminar', host);
+    return;
+  }
+
+  // Determina tipo de tarea (kanban_rapida / kaizen / ops_update / gw_task…)
+  const ttype =
+    host.dataset.taskType ||
+    btn.dataset.taskType ||
+    (host.classList.contains('ops-item') ? 'ops_update' : 'kanban_rapida');
+
+  if (!confirm('¿Seguro que quieres eliminar esta tarjeta?')) return;
+
+  deleteTaskOnServer(id, ttype)
+    .then(() => {
+      // Eliminación optimista por si el WS tarda
+      host.remove();
+      updateAllColumnCounts && updateAllColumnCounts();
+    })
+    .catch(() => alert('Error: No se pudo eliminar la tarjeta.'));
 }
-}
+
 
 function handleGwTick(e){
 if(e.target.type==='checkbox' && e.target.closest('.gw-task-item')){
@@ -3067,11 +3103,27 @@ if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)
 
 const elementId = `task-${data.id}`;
 if (data.action === 'delete') {
-document.getElementById(elementId)?.remove();
-updateAllColumnCounts && updateAllColumnCounts();
-if (data.task_type === 'gw_task') { GW_MAP.delete(data.id); renderGwTop3(); }
-return;
+  // Kanban/Kaizen (formato habitual)
+  const el1 = document.getElementById(`task-${data.id}`);
+  if (el1) el1.remove();
+
+  // OPS: intenta localizar por id alternativo o por data-attrs
+  const el2 =
+    document.getElementById(`ops-${data.id}`) ||
+    document.querySelector(`.ops-item[data-id="${CSS.escape(String(data.id))}"]`) ||
+    document.querySelector(`.ops-item [data-id="${CSS.escape(String(data.id))}"]`)?.closest('.ops-item');
+
+  if (el2) el2.remove();
+
+  updateAllColumnCounts && updateAllColumnCounts();
+
+  if (data.task_type === 'gw_task') {
+    GW_MAP.delete(data.id);
+    renderGwTop3();
+  }
+  return;
 }
+
 
 switch(data.task_type){
 case 'kanban_rapida': renderBoardCard(data, elementId); updateAllColumnCounts(); break;
@@ -5373,6 +5425,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
