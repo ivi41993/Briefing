@@ -2442,6 +2442,40 @@ async function fetchTasksBootstrap(){
   }
   return items;
 }
+async function createCard(card) {
+  const res = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      // mínimos recomendados
+      task_type: card.task_type || 'kanban_rapida',
+      title: card.title,
+      status: card.status || 'todo',     // o columna inicial
+      assigned_to: card.assigned_to || null,
+      due_date: card.due_date || null,   // “14/11/2025” o ISO; se normaliza en backend
+      category: card.category || null
+    })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+async function editCard(id, partial) {
+  const res = await fetch(`/api/tasks/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(partial)   // p.ej. { title: 'Nuevo título', status: 'doing' }
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+async function moveCard(id, newStatus) {
+  return await editCard(id, { status: newStatus });
+}
+async function deleteCard(id) {
+  const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204) throw new Error(await res.text());
+  // el WS emitirá { id, action: 'delete', task_type }
+}
 
 function updateTeamMeta(state){
 const meta = document.getElementById('team-meta');
@@ -5625,6 +5659,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
