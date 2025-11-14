@@ -1310,6 +1310,125 @@ color: var(--text-muted);
   text-shadow: 0 0 0 rgba(0,0,0,0); /* suave, opcional */
 }
 
+/* —— TOKENS VISUALES (sobrios, consistentes) —— */
+:root{
+  /* Neutros más calmados */
+  --bg-page:#F5F6F8;
+  --bg-card:#FFFFFF;
+  --border:#E5E7EB;
+  --text:#111827;
+  --text-muted:#6B7280;
+
+  /* Marca (un solo rojo protagonista) */
+  --brand:#EF4444;
+  --brand-600:#EF4444;
+  --brand-700:#DC2626;
+
+  /* Estados semánticos (suaves) */
+  --ok:#10B981; --warn:#F59E0B; --danger:#EF4444; --info:#3B82F6;
+
+  /* Elevaciones (3 niveles) */
+  --elev-1: 0 4px 12px rgba(17,24,39,.06);
+  --elev-2: 0 8px 20px rgba(17,24,39,.08);
+  --elev-3: 0 12px 28px rgba(17,24,39,.10);
+
+  /* Radios */
+  --radius:12px;
+  --radius-lg:16px;
+}
+.widget,.card{ border-radius: var(--radius); box-shadow: var(--elev-1); }
+.widget:hover{ box-shadow: var(--elev-2); }
+.btn-primary{
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-700));
+  border-radius: 10px; box-shadow: 0 6px 16px rgba(239,68,68,.22);
+}
+/* Header más limpio */
+header{
+  background:#fff; border:1px solid var(--border);
+  padding:14px 16px; border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+}
+header .header-left{ gap:6px; }
+header h1{ color:#0F172A; letter-spacing:.1px; }
+#now-header, #shift-badge-header{
+  font-size:.85rem; color:var(--text-muted);
+}
+.header-controls input, .header-controls .btn-primary{ height:40px; }
+/* Tarjeta con ribbon lateral (categoria) */
+#kanban-widget .card{
+  background:#fff; border:1px solid var(--border); position:relative;
+  padding-left:14px; /* deja sitio visual al ribbon */
+}
+#kanban-widget .card::before{
+  content:""; position:absolute; left:0; top:8px; bottom:8px; width:4px; border-radius:8px;
+  background:#E5E7EB; /* default */
+}
+/* Mapea categorías a ribbon */
+#kanban-widget .card.cat-seguridad::before   { background:#FCA5A5; }  /* rojo suave */
+#kanban-widget .card.cat-incidencias::before { background:#FCD34D; }  /* ámbar */
+#kanban-widget .card.cat-mantenimiento::before{background:#86EFAC;}  /* verde */
+#kanban-widget .card.cat-calidad::before     { background:#C4B5FD; }  /* violeta suave */
+#kanban-widget .card.cat-servicio::before    { background:#FDE68A; }  /* amarillo */
+#kanban-widget .cat-chip{ background:#F9FAFB; font-weight:700; }
+/* Títulos pegados y consistentes */
+#kanban-widget .kanban-column{ gap:8px; }
+#kanban-widget .column-title{
+  position: sticky; top: 0; z-index: 2;
+  background: #fff; border:1px solid var(--border);
+  padding:10px 12px; border-radius: 10px; box-shadow: var(--elev-1);
+}
+/* Contenido con padding uniforme */
+.cards-container{ padding: 6px 2px 8px 2px; }
+.card{ gap:10px; min-height:58px; }
+.card-title{ font-weight:700; font-size:.95rem; }
+.card-details, .card-assignee{ font-size:.8rem; color:var(--text-muted); }
+.kpi-grid{ gap:14px; }
+.kpi-tile{
+  border:1px solid var(--border); border-radius: var(--radius);
+  background:#fff; box-shadow: var(--elev-1); padding:16px;
+}
+.kpi-label{ color:#6B7280; font-weight:700; margin-bottom:4px; }
+.kpi-value{ color:#0F172A; font-weight:800; }
+.kpi-value .neg{ color:var(--danger); } .kpi-value .pos{ color:var(--ok); }
+.kpi-text{ color:#6B7280; }
+/* Solo una versión sobria */
+#incidentes-widget .incident-remember{
+  background:#fff; color: var(--brand-700);
+  border: 2px solid var(--brand-600); border-radius: 12px; box-shadow:none;
+  font-weight:800; letter-spacing:.2px; padding:10px 12px; margin:6px 0 8px;
+}
+#incidentes-widget .title-bullets{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
+#incidentes-widget .title-chip{
+  background:#fff; color: var(--brand-700);
+  border: 2px solid var(--brand-600); border-radius:999px; font-weight:800;
+  padding:6px 12px; box-shadow:none;
+}
+#incidentes-widget .table-scroll table{
+  border:1px solid #FEE2E2; border-radius:12px; overflow:hidden;
+}
+#incidentes-widget table thead th{
+  background:#FFF1F2; border-bottom:1px solid #FECACA; font-weight:800;
+}
+#incidentes-widget table tbody tr:nth-child(odd){ background:#FFF7F7; }
+#incidentes-widget table tbody tr:hover{ background:#FFEFEF; }
+:root{ --density: 1; } /* 1=por defecto, .9=compacto, 1.1=cómodo */
+:root{
+  --pad-1: calc(6px * var(--density));
+  --pad-2: calc(10px * var(--density));
+  --gap-1: calc(8px * var(--density));
+  --gap-2: calc(12px * var(--density));
+}
+.widget{ padding: var(--pad-2); }
+.cards-container{ padding-top: calc(4px * var(--density)); }
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg-page:#0B1220; --bg-card:#0F172A; --border:#1F2937;
+    --text:#E5E7EB; --text-muted:#9CA3AF;
+  }
+  .widget,.card{ box-shadow:none; }
+  .btn-primary{ box-shadow:0 8px 18px rgba(239,68,68,.18); }
+}
+
   
 </style>
 </head>
@@ -4741,6 +4860,7 @@ document.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
+
 
 
 
