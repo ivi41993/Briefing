@@ -3200,7 +3200,6 @@ function renderOpsCard(task){
   const btnAdd = document.getElementById('ops-add');
   const dlg    = document.getElementById('ops-dialog');
   const form   = document.getElementById('ops-form');
-
   if (!dlg || !form) return;
 
   function openEmpty(){
@@ -3222,7 +3221,7 @@ function renderOpsCard(task){
 
   btnAdd?.addEventListener('click', openEmpty);
 
-  // Editar (delegado en la lista)
+  // Editar (delegación en lista)
   document.getElementById('ops-list')?.addEventListener('click', async (e)=>{
     const b = e.target.closest('.ops-edit-btn');
     if (!b) return;
@@ -3236,11 +3235,11 @@ function renderOpsCard(task){
     }
   });
 
-  // Guardar (crear/actualizar)
+  // Guardar
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const payload = {
-      task_type: 'ops_update',       // fuerza manual: este widget NO mezcla otras cosas
+      task_type: 'ops_update',
       title:  document.getElementById('ops-title').value.trim(),
       impact: document.getElementById('ops-impact').value,
       scope:  document.getElementById('ops-scope-field').value,
@@ -3249,12 +3248,13 @@ function renderOpsCard(task){
       to:     document.getElementById('ops-to').value   || null,
       station: (typeof STATION_CODE!=='undefined' ? STATION_CODE : (window.STATION_OVERRIDE||'MAD'))
     };
-    const id = document.getElementById('ops-id').value;
+    if (!payload.title){ alert('Falta el título'); return; }
 
+    const id = document.getElementById('ops-id').value;
     try{
       if (id){
         const up = await updateTaskOnServer(id, payload);
-        renderOpsCard(up);                     // re-pintar con datos del server
+        renderOpsCard(up);
       }else{
         const created = await createTaskOnServer(payload);
         renderOpsCard(created);
@@ -3265,7 +3265,25 @@ function renderOpsCard(task){
       console.error(err);
     }
   });
+
+  // === FIX: Cerrar correctamente el diálogo ===
+  const cancelBtn = form.querySelector('button[value="cancel"]');
+  cancelBtn?.addEventListener('click', (e)=>{ e.preventDefault(); dlg.close(); });
+
+  // Cerrar con ESC
+  dlg.addEventListener('cancel', (e)=>{ e.preventDefault(); dlg.close(); });
+
+  // Cerrar clicando fuera del cuadro
+  dlg.addEventListener('click', (e)=>{
+    const box = form.getBoundingClientRect();
+    const inside = (
+      e.clientX >= box.left && e.clientX <= box.right &&
+      e.clientY >= box.top  && e.clientY <= box.bottom
+    );
+    if (!inside) dlg.close();
+  });
 })();
+
 
   (function wireOpsFilters(){
   const q     = document.getElementById('ops-q');
@@ -5593,9 +5611,21 @@ document.addEventListener('change', (e) => {
   // Iniciar
   loadOpsInitial();
 })();
+
+// === INIT GLOBAL (corre una vez cuando el DOM está listo) ===
+  document.addEventListener('DOMContentLoaded', () => {
+    try { initHeaderTimer?.(); } catch(e){}
+    try { initTeamRoster?.(); } catch(e){}
+    try { initFullscreenToggles?.(); } catch(e){}
+    try { setupEventListeners?.(); } catch(e){}
+    try { makeColumnsSortable?.(); } catch(e){}
+    // Si tienes un loader de tareas, lánzalo aquí también:
+    // try { loadAllTasks?.(); } catch(e){}
+  });
 </script>
 </body>
 </html>
+
 
 
 
