@@ -2836,7 +2836,7 @@ async def api_summary_generate(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"summary_save_failed: {e}")
 
-        try:
+    try:
         _write_summary_markdown_file(payload)
     except Exception as e:
         print("⚠️ No se pudo escribir copia .md:", e)
@@ -3950,6 +3950,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
