@@ -5771,52 +5771,9 @@ function renderKaizenCard(task, elementId){
     }
   });
 }
-// Inicialización única del tablero
-  import { bootDashboard } from "/static/main.js";
 
-  bootDashboard({
-    stationOverride: window.STATION_OVERRIDE ?? "MAD",
-    selectors: {
-      // IDs que ya existen en este index
-      kanban:        "#kanban-widget",
-      kaizen:        "#kaizen-widget",
-      gwContainer:   "#gw-tasks-dynamic-container",
-      teamList:      "#team-list",
-      kpiCost:       "#kpi-costes",
-      incidentsTbl:  "#incidentes-table",
-      incidentsPDF:  "#incidentes-pdf-table",
-      opsList:       "#ops-list",
-      briefCheck:    "#brief-check",
-    },
-    ui: {
-      scaleSelectId: "scale-select",
-      timer: { init: true, widgetId: "timer-widget" },
-      fullscreen: true,
-      hydrateKpiCostFromCache: true
-    },
-    features: {
-      rosterUpload: true,
-      gwUpload: true,
-      incidentsPdfUpload: true,
-      sortableBoards: true,
-      websocket: true,             // suscribe processTaskUpdate a /ws
-      checklistPerShift: true,     // persiste checklist por día/turno/estación
-      spotlightFromChecklist: true // click en tarjeta abre el widget destino
-    }
-  });
 
-   import {
-    // si alguno no existe en main, simplemente bórralo de aquí
-    initHeaderTimer,
-    initFullscreenToggles,
-    fetchTasksBootstrap,
-    processTaskUpdate,
-    makeColumnsSortable,
-    setupEventListeners,
-    hydrateKpiTotalCost,
-    loadIncidentes
-  } from "/static/main.js";
-
+ 
   // Reloj/turno en cabecera
   function guessShift(){
     const h = new Date().getHours();
@@ -5900,6 +5857,7 @@ function renderKaizenCard(task, elementId){
 </script>
 </body>
 </html>
+
 
 
 
