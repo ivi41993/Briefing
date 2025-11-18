@@ -5773,10 +5773,136 @@ function renderKaizenCard(task, elementId){
     }
   });
 }
+// Inicialización única del tablero
+  import { bootDashboard } from "/static/main.js";
 
+  bootDashboard({
+    stationOverride: window.STATION_OVERRIDE ?? "MAD",
+    selectors: {
+      // IDs que ya existen en este index
+      kanban:        "#kanban-widget",
+      kaizen:        "#kaizen-widget",
+      gwContainer:   "#gw-tasks-dynamic-container",
+      teamList:      "#team-list",
+      kpiCost:       "#kpi-costes",
+      incidentsTbl:  "#incidentes-table",
+      incidentsPDF:  "#incidentes-pdf-table",
+      opsList:       "#ops-list",
+      briefCheck:    "#brief-check",
+    },
+    ui: {
+      scaleSelectId: "scale-select",
+      timer: { init: true, widgetId: "timer-widget" },
+      fullscreen: true,
+      hydrateKpiCostFromCache: true
+    },
+    features: {
+      rosterUpload: true,
+      gwUpload: true,
+      incidentsPdfUpload: true,
+      sortableBoards: true,
+      websocket: true,             // suscribe processTaskUpdate a /ws
+      checklistPerShift: true,     // persiste checklist por día/turno/estación
+      spotlightFromChecklist: true // click en tarjeta abre el widget destino
+    }
+  });
+
+   import {
+    // si alguno no existe en main, simplemente bórralo de aquí
+    initHeaderTimer,
+    initFullscreenToggles,
+    fetchTasksBootstrap,
+    processTaskUpdate,
+    makeColumnsSortable,
+    setupEventListeners,
+    hydrateKpiTotalCost,
+    loadIncidentes
+  } from "/static/main.js";
+
+  // Reloj/turno en cabecera
+  function guessShift(){
+    const h = new Date().getHours();
+    return (h>=6 && h<14) ? "Mañana" : (h>=14 && h<22) ? "Tarde" : "Noche";
+  }
+  function paintNowAndShift(){
+    const nowEl = document.getElementById("now-header");
+    const badge = document.getElementById("shift-badge-header");
+    if (nowEl)  nowEl.textContent = new Date().toLocaleString("es-ES",{dateStyle:"full", timeStyle:"short"});
+    const shift = (window.TEAM_STATE?.shift) || guessShift();
+    if (badge){ badge.textContent = shift; badge.dataset.shift = shift; }
+  }
+
+  // Ayuda contextual + salto a widget desde Checklist
+  function wireBriefExplain(){
+    const host = document.getElementById("brief-check");
+    const box  = document.getElementById("brief-check-explain");
+    if (!host || !box) return;
+    const txt = box.querySelector(".br-explain-text");
+    host.querySelectorAll(".check-card").forEach(card=>{
+      const help = card.dataset.help || "";
+      card.addEventListener("mouseenter", ()=> { if (txt) txt.textContent = help || "—"; });
+      card.addEventListener("focus",      ()=> { if (txt) txt.textContent = help || "—"; });
+      card.addEventListener("click",      ()=> {
+        const id = card.dataset.target;
+        if (!id) return;
+        const el = document.getElementById(id);
+        if (el){
+          el.scrollIntoView({behavior:"smooth", block:"center"});
+          el.requestFullscreen?.({navigationUI:"hide"}).catch(()=>{});
+        }
+      });
+    });
+  }
+
+  // WebSocket -> delega en processTaskUpdate de main
+  function startWS(){
+    const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+    const ws = new WebSocket(url);
+    ws.onmessage = (ev)=>{
+      try{ const msg = JSON.parse(ev.data); processTaskUpdate?.(msg); }catch{}
+    };
+    ws.onclose = ()=> setTimeout(startWS, 2000);
+  }
+
+  // Escalado UI persistente
+  (function initUIScale(){
+    const KEY = "ui_scale_v1";
+    const sel = document.getElementById("scale-select");
+    if (!sel) return;
+    const apply = v => document.documentElement.style.setProperty("--ui-scale", v);
+    const saved = localStorage.getItem(KEY) || sel.value || "1.15";
+    apply(saved); sel.value = saved;
+    sel.addEventListener("change", e=>{ localStorage.setItem(KEY, e.target.value); apply(e.target.value); });
+  })();
+
+  // Bootstrap
+  document.addEventListener("DOMContentLoaded", async ()=>{
+    window.STATION_OVERRIDE = (window.STATION_OVERRIDE || "MAD").toUpperCase();
+
+    initFullscreenToggles?.();
+    initHeaderTimer?.();
+    hydrateKpiTotalCost?.();
+    makeColumnsSortable?.();
+    setupEventListeners?.();
+    wireBriefExplain();
+    paintNowAndShift();
+    setInterval(paintNowAndShift, 30_000);
+
+    // primer volcado (tareas/KPIs/incidentes)
+    try{
+      const items = await fetchTasksBootstrap?.();
+      (items||[]).forEach(processTaskUpdate);
+    }catch(e){ console.warn("Bootstrap tasks failed", e); }
+
+    try{ await loadIncidentes?.(); }catch{}
+
+    // WS vivo
+    startWS();
+  });
 </script>
 </body>
 </html>
+
 
 
 
