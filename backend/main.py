@@ -585,6 +585,19 @@ def store_append_json(path: str, item: dict, message: str | None = None):
     store_write_json(path, arr, message=message or f"Append {Path(path).name}")
 
 
+def _load_last_briefing() -> dict:
+    """
+    Devuelve el último briefing persistido (si existe) o el cache en memoria.
+    """
+    p = Path(BRIEFING_DB)
+    if p.exists():
+        try:
+            arr = json.load(p.open("r", encoding="utf-8")) or []
+            if isinstance(arr, list) and arr:
+                return arr[-1]
+        except Exception:
+            pass
+    return _last_briefing_cache or {}
 
 from datetime import date  # si no lo tienes ya
 
@@ -726,6 +739,8 @@ class TaskNoteUpdate(BaseModel):
 # Estado & WS
 # -----------------------------------
 tasks_in_memory_store: Dict[str, Any] = {}
+# === Cache del último briefing (faltaba una definición por defecto) ===
+_last_briefing_cache: dict[str, Any] = {}
 
 
 
@@ -1133,6 +1148,67 @@ def _fmt_pct(x):
         return f"{float(x):.1f}%"
     except:
         return "-"
+def _summarize_briefing_last() -> tuple[str, dict]:
+    """
+    Convierte el último briefing (checklist) en Markdown compacto.
+    """
+    br = _load_last_briefing()
+    if not br:
+        return "### Checklist / Briefing\n- No hay briefing guardado aún.\n", {"has_briefing": False}
+
+    date_iso = br.get("date_iso") or "-"
+    shift    = br.get("shift") or "-"
+    supervisor = br.get("supervisor") or ""
+    duration = int(br.get("duration_sec") or 0)
+    attendance_pct = br.get("attendance_pct")
+    ok_blocks = br.get("ok_blocks")
+    coverage  = br.get("coverage_pct")
+    standard  = br.get("standard_met")
+
+    head = "### Checklist / Briefing\n"
+    lines = []
+    meta  = {"has_briefing": True, "date": date_iso, "shift": shift}
+
+    hdr = f"- Fecha: **{date_iso}** — Turno: **{shift}**"
+    if supervisor: hdr += f" — Supervisor: **{supervisor}**"
+    lines.append(hdr)
+
+    if duration:        lines.append(f"- Duración: {duration}s")
+    if attendance_pct is not None: lines.append(f"- Asistencia: {attendance_pct:.0f}%")
+    if coverage  is not None:      lines.append(f"- Cobertura: {coverage:.0f}%")
+    if ok_blocks is not None:      lines.append(f"- Bloques OK: {ok_blocks}")
+    if standard is not None:       lines.append(f"- Estándar cumplido: {'Sí' if standard else 'No'}")
+
+    sections = br.get("sections") or {}
+    if sections:
+        lines.append("\n- **Secciones**:")
+        for sec_name, sec in sections.items():
+            status  = (sec or {}).get("status") or ""
+            criteria = (sec or {}).get("criteria") or {}
+            notes   = (sec or {}).get("notes") or ""
+
+            # Ticks marcados
+            ticks = [k for k, v in criteria.items() if v]
+            ticks_s = ", ".join(ticks) if ticks else "—"
+
+            label = f"  - {sec_name}:"
+            if status: label += f" _{status}_"
+            lines.append(label)
+            lines.append(f"    - ✓ Criterios: {ticks_s}")
+            if notes:
+                lines.append(f"    - Notas: {notes}")
+
+    text = head + "\n".join(lines) + "\n"
+    # Metadatos útiles para el front o export
+    meta.update({
+        "duration_sec": duration,
+        "attendance_pct": attendance_pct,
+        "coverage_pct": coverage,
+        "ok_blocks": ok_blocks,
+        "standard_met": standard,
+        "sections_count": len(sections)
+    })
+    return text, meta
 
 def _summarize_incidents(limit=10) -> tuple[str, dict]:
     tbl = latest_incidents_table or {}
@@ -1213,19 +1289,38 @@ def _summarize_tasks() -> tuple[str, dict]:
 def _build_operational_summary(scope: dict | None = None) -> dict:
     """
     Construye un resumen operativo en Markdown con metadatos.
-    scope permite activar/desactivar secciones: {"incidents": True, "roster": True, "tasks": True}
+    scope: {"incidents":bool, "roster":bool, "tasks":bool, "briefing":bool}
     """
     scope = scope or {}
     use_inc = scope.get("incidents", True)
     use_ros = scope.get("roster", True)
     use_tsk = scope.get("tasks", True)
+    use_brf = scope.get("briefing", True)
 
     parts = []
     meta: dict[str, Any] = {"sections": {}}
 
+    # Fecha/hora cabecera (zona local)
     nowz = datetime.now(ZoneInfo(ROSTER_TZ))
-    hdr = f"# Resumen operativo — {nowz.strftime('%Y-%m-%d %H:%M')} ({ROSTER_TZ})\n\n"
+    # Además, intenta capturar la “fecha activa de dashboard” (roster)
+    try:
+        state = asyncio.get_event_loop().run_until_complete(_build_roster_state(force=False))
+    except RuntimeError:
+        state = roster_cache
+    active_date = state.get("sheet_date")
+    active_shift = state.get("shift")
+    active_date_iso = active_date.isoformat() if active_date else "-"
+
+    hdr = (
+        f"# Resumen operativo — {nowz.strftime('%Y-%m-%d %H:%M')} ({ROSTER_TZ})\n\n"
+        f"- **Fecha activa de dashboard**: {active_date_iso} — **Turno**: {active_shift or '-'}\n"
+    )
     parts.append(hdr)
+
+    if use_brf:
+        s, m = _summarize_briefing_last()
+        parts.append(s + "\n")
+        meta["sections"]["briefing"] = m
 
     if use_inc:
         s, m = _summarize_incidents()
@@ -2822,15 +2917,15 @@ def api_enablon_env_check():
 
 from fastapi import Body
 
+)
 @app.post("/api/summary/generate")
 async def api_summary_generate(
-    scope: Dict[str, bool] = Body(default=None, description="{'incidents':bool,'roster':bool,'tasks':bool}")
+    scope: Dict[str, bool] = Body(default=None, description="{'incidents':bool,'roster':bool,'tasks':bool,'briefing':bool}")
 ):
-    """
-    Genera un resumen operativo en Markdown y lo persiste (file o GitHub).
-    Devuelve el objeto completo y emite un WS 'summary_generated'.
-    """
+    scope = scope or {}
+    scope.setdefault("briefing", True)  # fuerza checklist ON por defecto
     payload = _build_operational_summary(scope)
+
     try:
         _append_summary(payload)
     except Exception as e:
@@ -3950,6 +4045,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
