@@ -2917,7 +2917,7 @@ def api_enablon_env_check():
 
 from fastapi import Body
 
-)
+
 @app.post("/api/summary/generate")
 async def api_summary_generate(
     scope: Dict[str, bool] = Body(default=None, description="{'incidents':bool,'roster':bool,'tasks':bool,'briefing':bool}")
@@ -4045,6 +4045,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
