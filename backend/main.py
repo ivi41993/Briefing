@@ -229,6 +229,24 @@ INCIDENTS_DB = os.getenv("INCIDENTS_DB", "./data/incidents_table.json")
 ATTENDANCE_DB = os.getenv("ATTENDANCE_DB", "./data/attendance.json")
 ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster_store.json")
 BRIEFING_DB = os.getenv("BRIEFING_DB", "./data/briefings.json")
+SUMMARIES_DIR   = os.getenv("SUMMARIES_DIR", "./data/summaries")
+SUMMARIES_INDEX = os.getenv("SUMMARIES_INDEX", "./data/summaries_index.json")
+# === Resúmenes operativos ===
+SUMMARIES_DB = os.getenv("SUMMARIES_DB", "./data/summaries.json")
+
+def _append_summary(item: dict):
+    """Append seguro de un resumen al archivo/repo configurado."""
+    store_append_json(SUMMARIES_DB, item, message="Append summaries.json")
+
+def _list_summaries() -> list[dict]:
+    arr = store_read_json(SUMMARIES_DB, []) or []
+    return arr if isinstance(arr, list) else []
+
+def _get_summary(summary_id: str) -> dict | None:
+    for it in reversed(_list_summaries()):
+        if it.get("id") == summary_id:
+            return it
+    return None
 
 def save_tasks_to_disk():
     try:
@@ -1110,6 +1128,130 @@ def _pick_idx(cols: list[str], *cands: str) -> int | None:
         if i is not None:
             return i
     return None
+def _fmt_pct(x):
+    try:
+        return f"{float(x):.1f}%"
+    except:
+        return "-"
+
+def _summarize_incidents(limit=10) -> tuple[str, dict]:
+    tbl = latest_incidents_table or {}
+    cols = [c.lower() for c in (tbl.get("columns") or [])]
+    rows = tbl.get("rows") or []
+    # índices tolerantes
+    def _idx(name, *alts):
+        norm = {_norm_key(c): i for i, c in enumerate(cols)}
+        for cand in (name,) + alts:
+            k = _norm_key(cand)
+            if k in norm:
+                return norm[k]
+        return None
+    i_title = _idx("Título del accidente", "titulo_accidente", "title", "asunto", "resumen", "event_type")
+    i_date  = _idx("Fecha del accidente", "fecha_accidente", "fecha", "date")
+    i_page  = _idx("Página", "page", "source_page")
+
+    head = f"### Incidentes ({len(rows)} total)\n"
+    if not rows:
+        return head + "- No hay registros.\n", {"count": 0}
+
+    lines = []
+    for r in rows[:limit]:
+        title = (r[i_title] if (i_title is not None and i_title < len(r)) else "") or "Sin título"
+        fdate = (r[i_date]  if (i_date  is not None and i_date  < len(r)) else "") or ""
+        page  = (r[i_page]  if (i_page  is not None and i_page  < len(r)) else "")
+        suffix = f" (pág. {page})" if str(page).strip() else ""
+        lines.append(f"- {fdate} — {title}{suffix}")
+    more = "" if len(rows) <= limit else f"\n> …y {len(rows)-limit} más."
+    return head + "\n".join(lines) + more + "\n", {"count": len(rows)}
+
+def _summarize_roster_current() -> tuple[str, dict]:
+    # Intento directo (reutiliza tu lógica actual)
+    try:
+        # Construye el estado sin forzar para no leer Excel si ya está en cache
+        # (reutilizando tu helper)
+        import asyncio as _asyncio
+        state = _asyncio.get_event_loop().run_until_complete(_build_roster_state(force=False))
+    except RuntimeError:
+        # si ya estamos en loop, usa el cache directo
+        state = roster_cache
+
+    shift = state.get("shift") or "-"
+    sheet_date = state.get("sheet_date")
+    sheet_iso = sheet_date.isoformat() if sheet_date else "-"
+    people = state.get("people") or []
+    head = f"### Roster actual — {shift} ({sheet_iso})\n"
+    if not people:
+        return head + "- Sin personal cargado o no disponible para este turno.\n", {"shift": shift, "date": sheet_iso, "count": 0}
+
+    # Muestra hasta 12 nombres
+    lines = []
+    for p in people[:12]:
+        nm = p.get("nombre_completo") or f"{p.get('apellidos','')}, {p.get('nombre','')}".strip(", ")
+        fn = p.get("funcion_diaria") or p.get("observaciones") or ""
+        fn = f" — {fn}" if fn else ""
+        lines.append(f"- {nm}{fn}")
+    more = "" if len(people) <= 12 else f"\n> …y {len(people)-12} más."
+    return head + "\n".join(lines) + more + "\n", {"shift": shift, "date": sheet_iso, "count": len(people)}
+
+def _summarize_tasks() -> tuple[str, dict]:
+    items = list(tasks_in_memory_store.values())
+    total = len(items)
+    done = sum(1 for t in items if t.get("is_completed"))
+    pending = total - done
+    by_type = {}
+    for t in items:
+        by_type[t.get("task_type","?")] = by_type.get(t.get("task_type","?"), 0) + 1
+    lines = [f"### Tareas ({total} total)"]
+    lines.append(f"- Completadas: {done}")
+    lines.append(f"- Pendientes: {pending}")
+    if by_type:
+        lines.append("- Por tipo:")
+        for k, v in sorted(by_type.items(), key=lambda x: (-x[1], x[0])):
+            lines.append(f"  - {k}: {v}")
+    return "\n".join(lines) + "\n", {"total": total, "done": done, "by_type": by_type}
+
+def _build_operational_summary(scope: dict | None = None) -> dict:
+    """
+    Construye un resumen operativo en Markdown con metadatos.
+    scope permite activar/desactivar secciones: {"incidents": True, "roster": True, "tasks": True}
+    """
+    scope = scope or {}
+    use_inc = scope.get("incidents", True)
+    use_ros = scope.get("roster", True)
+    use_tsk = scope.get("tasks", True)
+
+    parts = []
+    meta: dict[str, Any] = {"sections": {}}
+
+    nowz = datetime.now(ZoneInfo(ROSTER_TZ))
+    hdr = f"# Resumen operativo — {nowz.strftime('%Y-%m-%d %H:%M')} ({ROSTER_TZ})\n\n"
+    parts.append(hdr)
+
+    if use_inc:
+        s, m = _summarize_incidents()
+        parts.append(s + "\n")
+        meta["sections"]["incidents"] = m
+
+    if use_ros:
+        s, m = _summarize_roster_current()
+        parts.append(s + "\n")
+        meta["sections"]["roster"] = m
+
+    if use_tsk:
+        s, m = _summarize_tasks()
+        parts.append(s + "\n")
+        meta["sections"]["tasks"] = m
+
+    text = "\n".join(parts).strip() + "\n"
+    payload = {
+        "id": str(uuid.uuid4()),
+        "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "tz": ROSTER_TZ,
+        "markdown": text,
+        **meta
+    }
+    return payload
+
 
 def _harmonize_incidents_columns(cols: list[str], rows: list[list[Any]]) -> tuple[list[str], list[list[Any]]]:
     """
@@ -2164,6 +2306,31 @@ def _merge_set_cookie_into_header(existing_cookie: str, set_cookie_headers: list
 import base64
 
 class GitHubStore:
+    # ==== Helpers de escritura de texto/bytes (DISK o GITHUB) ====
+
+    def store_write_text(path: str, text: str, message: str | None = None):
+        if USE_GITHUB and gh_store:
+            gh_store.write_text(path, text, message=message or f"Update {Path(path).name}")
+            return
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkdtemp(), None
+        try:
+            tmp_path = p.parent / f".tmp_{uuid.uuid4().hex}.md"
+            tmp_path.write_text(text, encoding="utf-8")
+            os.replace(tmp_path, p)
+        finally:
+            pass
+    
+    def store_exists(path: str) -> bool:
+        if USE_GITHUB and gh_store:
+            try:
+                return gh_store.exists(path)
+            except Exception:
+                return False
+        return Path(path).exists()
+
+    
     def __init__(self):
         self.api    = os.getenv("GH_API_URL", "https://api.github.com").rstrip("/")
         owner       = os.getenv("GH_OWNER", "").strip()
@@ -2232,6 +2399,34 @@ class GitHubStore:
                     return None
             return None
 
+    def exists(self, local_path: str) -> bool:
+        gh_path = self._gh_path(local_path)
+        url = self._url(gh_path)
+        with httpx.Client(timeout=30.0) as c:
+            r = c.get(url, headers=self._headers(), params={"ref": self.branch})
+            return r.status_code == 200
+
+    def write_text(self, local_path: str, text: str, message: str | None = None):
+        gh_path = self._gh_path(local_path)
+        url = self._url(gh_path)
+        payload = text.encode("utf-8")
+        body = {
+            "message": message or f"Update {gh_path}",
+            "content": base64.b64encode(payload).decode("ascii"),
+            "branch": self.branch,
+            "committer": {"name": self.commit_name, "email": self.commit_email},
+        }
+        sha = self._sha_cache.get(gh_path)
+        if sha:
+            body["sha"] = sha
+        with httpx.Client(timeout=30.0) as c:
+            r = c.put(url, headers=self._headers(), json=body)
+            r.raise_for_status()
+            res = r.json()
+            new_sha = (res.get("content") or {}).get("sha")
+            if new_sha:
+                self._sha_cache[gh_path] = new_sha
+    
     def write_json(self, local_path: str, data: Any, message: str | None = None):
         gh_path = self._gh_path(local_path)
         url = self._url(gh_path)
@@ -2625,6 +2820,55 @@ def api_enablon_env_check():
         "ENA_CAFILE": bool(ENA_CAFILE),
     }
 
+from fastapi import Body
+
+@app.post("/api/summary/generate")
+async def api_summary_generate(
+    scope: Dict[str, bool] = Body(default=None, description="{'incidents':bool,'roster':bool,'tasks':bool}")
+):
+    """
+    Genera un resumen operativo en Markdown y lo persiste (file o GitHub).
+    Devuelve el objeto completo y emite un WS 'summary_generated'.
+    """
+    payload = _build_operational_summary(scope)
+    try:
+        _append_summary(payload)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"summary_save_failed: {e}")
+
+        try:
+        _write_summary_markdown_file(payload)
+    except Exception as e:
+        print("⚠️ No se pudo escribir copia .md:", e)
+
+    try:
+        await manager.broadcast({
+            "type": "summary_generated",
+            "id": payload["id"],
+            "generated_at": payload["generated_at"],
+            "sections": list((payload.get("sections") or {}).keys()),
+        })
+    except Exception:
+        pass
+
+    return {"ok": True, **payload}
+
+@app.get("/api/summary/latest")
+def api_summary_latest():
+    arr = _list_summaries()
+    return arr[-1] if arr else {}
+
+@app.get("/api/summary/{summary_id}")
+def api_summary_get(summary_id: str):
+    it = _get_summary(summary_id)
+    if not it:
+        raise HTTPException(status_code=404, detail="Resumen no encontrado")
+    return it
+
+@app.get("/api/summaries")
+def api_summaries_list(limit: int = Query(20, ge=1, le=200)):
+    arr = _list_summaries()
+    return list(reversed(arr))[:limit]
 
 # FastAPI (ejemplo)
 from fastapi import APIRouter
@@ -2632,6 +2876,21 @@ from typing import List, Dict, Any
 from datetime import datetime
 
 router = APIRouter()
+def _write_summary_markdown_file(item: dict):
+    """
+    Escribe un .md legible junto al JSON. Si usas GitHub, sube al repo.
+    Nombre: summaries/YYYYMMDD_HHMM_<id>.md
+    """
+    name = f"summaries/{datetime.utcnow().strftime('%Y%m%d_%H%M')}_{item.get('id','')[:8]}.md"
+    content = item.get("markdown", "")
+    # Reutiliza store_write_json con un truco simple: el contenido MD lo empaquetamos en JSON {"markdown": "..."}
+    # o, si prefieres, añade una variante store_write_text.
+    if USE_GITHUB and gh_store:
+        gh_store.write_json(name, {"markdown": content}, message=f"Add {name}")
+    elif USE_DISK:
+        p = Path("./data") / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
 
 def to_table_payload(data: List[Dict[str, Any]] | List[List[Any]]):
     # Si ya viene como arrays + columns, respeta.
@@ -3691,6 +3950,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
