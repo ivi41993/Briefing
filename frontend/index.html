@@ -5854,9 +5854,176 @@ function renderKaizenCard(task, elementId){
     // WS vivo
     startWS();
   });
+
+  // ============ UTILIDADES FALTANTES ============
+// % sin multiplicar (ya llega 0–100 del backend)
+function formatPercent(v){
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(n);
+}
+function setKpiValue(valId, metaId, txt){
+  const v = document.getElementById(valId);
+  const m = document.getElementById(metaId);
+  if (!v) return;
+  v.textContent = txt ?? '—';
+  if (m) m.textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES');
+  const host = v.closest('.kpi-tile,.kpi-widget') || v;
+  host.classList.remove('flash'); void host.offsetWidth; host.classList.add('flash');
+}
+function updateAllColumnCounts(){
+  document.querySelectorAll('#kanban-widget .kanban-column, #kaizen-widget .kanban-column')
+    .forEach(col=>{
+      const count = col.querySelectorAll('.cards-container > .card').length;
+      const badge = col.querySelector('.column-title .count');
+      if (badge) badge.textContent = `(${count})`;
+    });
+}
+// Incidentes (tabla genérica)
+function renderIncidentes(data){
+  const table = document.getElementById('incidentes-table');
+  if (!table) return;
+  table.innerHTML = '';
+  const cols = (data.columns && data.columns.length) ? data.columns
+                : (Array.isArray(data.rows) && data.rows[0] ? Object.keys(data.rows[0]) : []);
+  if (!cols.length) { table.innerHTML = '<thead><tr><th>—</th></tr></thead><tbody><tr><td>Sin datos</td></tr></tbody>'; return; }
+  const thead = `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${
+    (data.rows||[]).map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')
+  }</tbody>`;
+  table.innerHTML = thead + tbody;
+}
+// GW: tarjeta simple (tick + nota)
+function renderGwTask(t, domId){
+  const host = document.getElementById('gw-tasks-dynamic-container');
+  if (!host) return;
+  let el = document.getElementById(domId);
+  if (!el){ el = document.createElement('div'); el.id = domId; host.appendChild(el); }
+  el.className = 'gw-task-item' + (t.is_completed ? ' completed' : '');
+  const safeTitle = esc(t.title || t.name || 'Tarea');
+  const note = esc(t.note || '');
+  el.innerHTML = `
+    <input type="checkbox" ${t.is_completed?'checked':''} aria-label="Completar">
+    <label style="font-weight:600">${safeTitle}</label>
+    <textarea class="gw-note" id="gw-note-${t.id}" ${t.is_completed?'':'disabled'}
+      placeholder="Nota…">${note}</textarea>
+  `;
+}
+// Spotlight guía desde checklist → widget
+function updateSpotlightRouting(){
+  // Señal visual suave: nada intrusivo
+  document.querySelectorAll('.spotlight-blink').forEach(n=>n.classList.remove('spotlight-blink'));
+}
+// Ayudas del checklist (tooltip + click abre el widget)
+(function wireChecklistHints(){
+  const explain = document.getElementById('brief-check-explain');
+  document.querySelectorAll('#brief-check .check-card').forEach(card=>{
+    card.addEventListener('mouseenter', ()=>{
+      const txt = card.dataset.help || '';
+      if (explain){ explain.querySelector('.br-explain-text').textContent = txt || '—'; }
+    });
+    card.addEventListener('click', ()=>{
+      const target = card.dataset.target;
+      if (target) openWidgetFromChecklist(target);
+    });
+  });
+})();
+// Hora/turno header
+(function paintHeaderTick(){
+  const elNow = document.getElementById('now-header');
+  const elShiftTop = document.getElementById('shift-badge-header');
+  const elShiftChip = document.getElementById('shift-badge');
+  function guessShift(){
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Mañana';
+    if (h >= 14 && h < 22) return 'Tarde';
+    return 'Noche';
+  }
+  function paint(){
+    const now = new Date();
+    if (elNow) elNow.textContent = now.toLocaleString('es-ES', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const shift = window.TEAM_STATE?.shift || guessShift();
+    [elShiftTop, elShiftChip].forEach(chip=>{
+      if (!chip) return;
+      chip.textContent = shift;
+      chip.dataset.shift = shift;
+    });
+  }
+  paint(); setInterval(paint, 15_000);
+})();
+
+// ============ CARGA DE DATOS / API ============
+// Incidentes (tabla de backend en vivo)
+async function loadIncidentes(){
+  const meta = document.getElementById('incidentes-meta');
+  try{
+    // intenta endpoint estándar
+    let res = await fetch('/api/incidents', { cache:'no-store' });
+    if (res.status === 404) res = await fetch('/api/incidents-table?limit=200', { cache:'no-store' });
+    const data = await res.json();
+    renderIncidentes(data);
+    if (meta) meta.textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES');
+  }catch(err){
+    console.warn('Incidentes no disponibles:', err);
+    if (meta) meta.textContent = 'No disponible';
+  }
+}
+
+// Bootstrap de tareas (Kanban/Kaizen/OPS/GW)
+async function loadAllTasks(){
+  try{
+    const items = await fetchTasksBootstrap();
+    if (Array.isArray(items)){
+      items.forEach(it=>{
+        // Normaliza estación si procede
+        if (isForThisStation(it)) processTaskUpdate(it);
+        if (it.task_type === 'gw_task') GW_MAP.set(it.id, it);
+      });
+      renderGwTop3();
+      updateAllColumnCounts();
+    }
+  }catch(e){
+    console.warn('No se pudieron cargar tareas:', e);
+  }
+}
+
+// ============ WEBSOCKET EN TIEMPO REAL ============
+(function initWS(){
+  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  try{
+    const ws = new WebSocket(url);
+    ws.addEventListener('open', ()=>console.log('[WS] Conectado'));
+    ws.addEventListener('message', (ev)=>{
+      try{
+        const msg = JSON.parse(ev.data);
+        // admite lotes
+        const arr = Array.isArray(msg) ? msg : [msg];
+        arr.forEach(m => processTaskUpdate(m));
+      }catch(err){ console.warn('WS parse', err); }
+    });
+    ws.addEventListener('close', ()=>console.log('[WS] Cerrado'));
+    ws.addEventListener('error', ()=>console.log('[WS] Error'));
+    // reconexión simple
+    window.addEventListener('offline', ()=> ws.close());
+  }catch(e){ console.warn('WS no disponible', e); }
+})();
+
+// ============ INICIALIZACIÓN ============
+(async function init(){
+  try { initHeaderTimer?.(); } catch{};
+  try { initTeamRoster?.(); } catch{};
+  try { hydrateKpiTotalCost?.(); } catch{};
+  try { initFullscreenToggles?.(); } catch{};
+  try { makeColumnsSortable?.(); } catch{};
+  try { setupEventListeners?.(); } catch{};
+  await loadAllTasks();
+  await loadIncidentes();
+  updateAllColumnCounts();
+})();
 </script>
 </body>
 </html>
+
 
 
 
