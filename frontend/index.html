@@ -6020,38 +6020,215 @@ async function loadAllTasks(){
   await loadIncidentes();
   updateAllColumnCounts();
 })();
+
+// ===== Briefing: generar resumen desde el botón de cabecera =====
+(function wireBriefingGenerate(){
+  // Local cache key para último resumen
+  const LAST_KEY = '_last_briefing_cache_v1';
+
+  // 1) Localiza el botón (no requiere id)
+  const btn = document.querySelector('header .header-controls .btn-primary');
+  if (!btn) return;
+
+  // Pequeño status visual junto al botón
+  const status = document.createElement('small');
+  status.style.marginLeft = '8px';
+  status.style.color = 'var(--text-muted)';
+  btn.parentElement.appendChild(status);
+
+  // 2) Construye el payload con todo lo que ya está en el DOM/estado
+  function buildPayload(){
+    const station = (typeof STATION_CODE !== 'undefined' ? STATION_CODE :
+                    (window.STATION_OVERRIDE || 'MAD')).toUpperCase();
+
+    const team = (window.TEAM_STATE || {});
+    const date = team.sheet_date || new Date().toISOString().slice(0,10);
+    const shift = team.shift || (()=>{
+      const h=new Date().getHours();
+      if (h>=6 && h<14) return 'Mañana';
+      if (h>=14 && h<22) return 'Tarde';
+      return 'Noche';
+    })();
+
+    // Checklist (OK/NO por bloque)
+    const checklist = {};
+    document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
+      .forEach(r => { checklist[r.name] = r.value; });
+
+    // Roster: personas, presencia, zonas
+    const people = (team.people || []).map(p => ({
+      nombre: p.nombre_completo || '',
+      horario: p.horario || '',
+      observaciones: p.observaciones || ''
+    }));
+    const attendance = team.attendance || {};
+    const zones = team.zones || {};
+
+    // Nota turno anterior
+    const prevShiftNote = (document.getElementById('prev-shift-note')?.innerText || '').trim();
+
+    // OPS updates
+    const ops = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(card => ({
+      id: card.dataset.id || card.id?.replace('ops-',''),
+      title: card.querySelector('.ops-title')?.textContent?.trim() || '',
+      impact: card.querySelector('.ops-impact')?.textContent?.trim() || '',
+      scope: card.querySelector('.ops-scope')?.textContent?.trim() || '',
+      meta: card.querySelector('.ops-meta')?.textContent?.trim() || '',
+    }));
+
+    // Protocolo de incidentes (form editable)
+    const ip = {
+      understanding_note: document.getElementById('ip-understanding-note')?.value?.trim() || '',
+      what_to_do:         document.getElementById('ip-what-to-do')?.value?.trim() || '',
+      contacts:           document.getElementById('ip-contacts')?.value?.trim() || '',
+      tools_location:     document.getElementById('ip-tools-location')?.value?.trim() || ''
+    };
+
+    // KPIs
+    const kpis = {
+      uph:       document.getElementById('kpi-uph')?.textContent?.trim() || '—',
+      otif:      document.getElementById('kpi-otif')?.textContent?.trim() || '—',
+      backlog:   document.getElementById('kpi-backlog')?.textContent?.trim() || '—',
+      totalCost: document.getElementById('kpi-total-cost')?.textContent?.trim() || '—'
+    };
+
+    // EHS
+    const ehs = {
+      monthLabel: document.getElementById('ehs-month')?.textContent?.trim() || '',
+      days: Number(document.getElementById('ehs-days')?.textContent?.trim() || '0')
+    };
+
+    // Resumen rápido Kanban (cuentas por columna/categoría)
+    function countCards(sel){ return document.querySelectorAll(sel).length; }
+    const kanban = {
+      abiertas:   countCards('#kanban_rapida-Abiertas .card'),
+      enCurso:    countCards('#kanban_rapida-En-Curso .card'),
+      cerradas:   countCards('#kanban_rapida-Cerradas .card'),
+      vencidas:   countCards('#kanban_rapida-Vencidas .card'),
+    };
+
+    return {
+      station, date, shift,
+      checklist,
+      roster: { people, attendance, zones, window: team.window || null },
+      prev_shift_note: prevShiftNote,
+      ops_updates: ops,
+      incidents_protocol: ip,
+      kpis, ehs, kanban
+    };
+  }
+
+  // 3) Muestra el resumen en un diálogo elegante con “Copiar”
+  function showSummary(text, payload){
+    let dlg = document.getElementById('briefing-summary-dialog');
+    if (!dlg){
+      dlg = document.createElement('dialog');
+      dlg.id = 'briefing-summary-dialog';
+      dlg.style.border = '1px solid var(--border)';
+      dlg.style.borderRadius = '12px';
+      dlg.style.padding = '12px';
+      dlg.style.maxWidth = '720px';
+      dlg.style.width = 'clamp(300px, 90vw, 720px)';
+      dlg.innerHTML = `
+        <form method="dialog" style="display:grid;gap:10px;">
+          <h3 style="margin:0;">Resumen de Briefing</h3>
+          <div id="briefing-summary-content" style="white-space:pre-wrap; line-height:1.35; font-size:.95rem; border:1px solid var(--border); border-radius:8px; padding:10px; background:#fff; max-height:60vh; overflow:auto;"></div>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button class="btn-compact" value="cancel">Cerrar</button>
+            <button type="button" id="briefing-summary-copy" class="btn-primary" style="padding:8px 12px;">Copiar</button>
+          </div>
+        </form>`;
+      document.body.appendChild(dlg);
+      dlg.querySelector('#briefing-summary-copy').addEventListener('click', async ()=>{
+        try{
+          const txt = dlg.querySelector('#briefing-summary-content')?.innerText || '';
+          await navigator.clipboard.writeText(txt);
+          alert('Resumen copiado al portapapeles');
+        }catch(e){ alert('No se pudo copiar'); }
+      });
+    }
+    dlg.querySelector('#briefing-summary-content').textContent = text || '(vacío)';
+
+    // Cache local para reutilizar rápido si hace falta
+    try{
+      localStorage.setItem(LAST_KEY, JSON.stringify({
+        at: new Date().toISOString(),
+        station: payload.station,
+        date: payload.date,
+        shift: payload.shift,
+        summary: text
+      }));
+    }catch{}
+
+    dlg.showModal();
+  }
+
+  // 4) Intenta varias rutas de backend (robusto a cambios en main.py)
+  async function postSummary(payload){
+    const candidates = [
+      '/api/briefing/summary',     // preferente
+      '/api/briefing',             // alternativo
+      '/api/summary/generate'      // legacy
+    ];
+    let lastErr = null, text = null;
+
+    for (const url of candidates){
+      try{
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+        // Puede venir {summary:"..."} o texto plano
+        const ct = res.headers.get('content-type') || '';
+        let data = null;
+        if (ct.includes('application/json')){
+          data = await res.json().catch(()=>null);
+          text = data?.summary || data?.text || '';
+        } else {
+          text = await res.text();
+        }
+        if (!res.ok) throw new Error((data && (data.detail || data.error)) || res.statusText);
+        if (text && text.trim()) return text.trim();
+        // si ok pero sin texto, seguimos intentando otra ruta
+      }catch(err){ lastErr = err; }
+    }
+    throw lastErr || new Error('No se pudo generar el resumen');
+  }
+
+  // 5) Click handler
+  btn.addEventListener('click', async ()=>{
+    const payload = buildPayload();
+    btn.disabled = true;
+    const oldLabel = btn.textContent;
+    btn.textContent = 'Generando…';
+    status.textContent = ' Preparando datos…';
+
+    try{
+      const text = await postSummary(payload);
+      status.textContent = ' Listo';
+      showSummary(text, payload);
+    }catch(err){
+      console.error(err);
+      status.textContent = '';
+      alert('No se pudo generar el resumen: ' + (err?.message || err));
+      // Fallback: ofrece el último cache si existe
+      try{
+        const cached = JSON.parse(localStorage.getItem(LAST_KEY) || 'null');
+        if (cached?.summary){
+          if (confirm('¿Mostrar el último resumen guardado en caché?')){
+            showSummary(cached.summary, {station:cached.station, date:cached.date, shift:cached.shift});
+          }
+        }
+      }catch{}
+    }finally{
+      btn.disabled = false;
+      btn.textContent = oldLabel;
+      setTimeout(()=>{ status.textContent = ''; }, 2000);
+    }
+  });
+})();
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
