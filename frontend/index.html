@@ -1945,6 +1945,11 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script type="module">
+
+// Función de escape HTML (faltaba definición)
+function esc(s){ 
+return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); 
+}
 // Normaliza IDs que vengan como id | task_id | _id (string/number)
 // Si no hay ID (respuestas antiguas), genera uno prefijado "client-"
 function getTaskId(obj){
@@ -2035,9 +2040,7 @@ function getTaskId(obj){
 
   if (!form) return;
 
-  function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-                                   .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-                                   .replace(/'/g,"&#39;"); }
+
 
   // ⬇️ ESTE SUBMIT ES LO QUE FALTABA
   form.addEventListener('submit', async (e) => {
@@ -2140,10 +2143,7 @@ h1.textContent = h1.textContent.replace(/(MAD|BCN|VLC|SVQ)/i, STATION_CODE);
 }
 } catch {}
 
-// Función de escape HTML (faltaba definición)
-function esc(s){ 
-return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); 
-}
+
 
 // Función $$ ya existe, mantenerla
 function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
@@ -5902,6 +5902,7 @@ function renderKaizenCard(task, elementId){
 </script>
 </body>
 </html>
+
 
 
 
