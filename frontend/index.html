@@ -3741,7 +3741,7 @@ async function loadBoardsInitial(){
     try { localStorage.setItem(SEC_KEY, JSON.stringify(arr || [])); } catch {}
   }
 
-  function esc(s){ return String(s ?? '').replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+ 
 
   function renderCards(){
     const data = loadCards().filter(isForThisStation);
@@ -3858,7 +3858,6 @@ const INC_CACHE_KEY = 'incidents_cache_v1';
 function cacheIncidentes(state){ try { localStorage.setItem(INC_CACHE_KEY, JSON.stringify(state)); } catch {} }
 function getCachedIncidentes(){ try { return JSON.parse(localStorage.getItem(INC_CACHE_KEY) || 'null'); } catch { return null; } }
 
-function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); }
 // normaliza (espacios, acentos, may/min) para buscar columnas por alias
 const norm = (s)=> String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' ').trim().toLowerCase();
 
@@ -5250,7 +5249,7 @@ document.addEventListener('change', (e) => {
 
   // ---- Utilidades ----
   function uid(){ return Math.random().toString(36).slice(2,10); }
-  function esc(s){ return String(s??'').replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+ 
   function humanDate(iso){ if(!iso) return '—'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('es-ES'); }
 
   // ---- CRUD ----
@@ -5610,8 +5609,7 @@ document.addEventListener('change', (e) => {
     `;
   }
 
-  function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+ 
 
   function applyFilters(){
     const q = (Q?.value || '').toLowerCase().trim();
@@ -5902,6 +5900,7 @@ function renderKaizenCard(task, elementId){
 </script>
 </body>
 </html>
+
 
 
 
