@@ -4039,12 +4039,104 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if not FRONTEND_DIR.exists():
     # Log visible en Render si algo va mal con la ruta
     print(f"⚠️ FRONTEND_DIR no existe: {FRONTEND_DIR}")
+# ==========================================
+# NUEVO: Generación y Guardado de Resumen
+# ==========================================
+
+class BriefingSnapshot(BaseModel):
+    station: Optional[str] = "MAD"
+    date: str
+    shift: str
+    timer: str  # El valor del cronómetro (ej: 00:15:30)
+    checklist: Dict[str, str] = {}
+    kpis: Dict[str, Any] = {}
+    roster_stats: str = "" # Resumen de asistencia (ej: "10/12 presentes")
+    ops_updates: List[Dict[str, Any]] = []
+    kanban_counts: Dict[str, int] = {}
+    prev_shift_note: Optional[str] = ""
+    
+    class Config:
+        extra = "allow" # Permite campos extra sin romper
+
+@app.post("/api/briefing/summary")
+async def save_briefing_summary(data: BriefingSnapshot):
+    """
+    Recibe el estado completo del frontend, genera un Markdown y lo guarda.
+    """
+    # 1. Generar contenido Markdown legible
+    lines = []
+    lines.append(f"# 📝 Resumen de Turno - {data.station}")
+    lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift}")
+    lines.append(f"**⏱️ Cronómetro:** {data.timer}")
+    lines.append(f"**👥 Equipo:** {data.roster_stats}")
+    
+    lines.append("\n### 📊 KPIs del Turno")
+    for k, v in data.kpis.items():
+        lines.append(f"- **{k.upper()}:** {v}")
+
+    lines.append("\n### ✅ Checklist de Inicio")
+    labels = {
+        "c1": "Dotación", "c2": "Ops Updates", "c3": "Info Turno Ant.",
+        "c4": "Seguridad", "c5": "Incidentes", "c6": "KPIs", "c7": "Feedback"
+    }
+    for key, val in data.checklist.items():
+        icon = "🟢" if val == "OK" else "🔴"
+        lines.append(f"- {icon} {labels.get(key, key)}")
+
+    if data.ops_updates:
+        lines.append(f"\n### 🚧 Actualizaciones Operativas ({len(data.ops_updates)})")
+        for op in data.ops_updates:
+            impact = op.get('impact', 'Medio')
+            title = op.get('title', 'Sin título')
+            lines.append(f"- [{impact}] {title}")
+
+    if data.prev_shift_note:
+        lines.append("\n### ↩️ Info Turno Anterior")
+        lines.append(f"> {data.prev_shift_note}")
+        
+    lines.append("\n### 📋 Estado Kanban")
+    for k, v in data.kanban_counts.items():
+        lines.append(f"- {k}: {v}")
+
+    final_markdown = "\n".join(lines)
+
+    # 2. Definir nombre de archivo
+    # Ejemplo: summaries/2025-10-25_Tarde_Briefing.md
+    safe_date = data.date.replace("/", "-")
+    filename = f"summaries/{safe_date}_{data.shift}_Briefing.md"
+
+    # 3. Guardar (GitHub o Disco usando tu lógica existente)
+    try:
+        # Si usas GitHubStore (ya definido en tu código)
+        if USE_GITHUB and gh_store:
+            # Guardamos un JSON envoltorio que contiene el markdown
+            payload = data.dict()
+            payload["generated_markdown"] = final_markdown
+            gh_store.write_json(filename.replace(".md", ".json"), payload, message=f"Add summary {filename}")
+        else:
+            # Guardado en disco local
+            p = Path("./data") / filename
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(final_markdown)
+            
+            # También guardamos el JSON crudo para recuperar datos puros
+            with open(p.with_suffix(".json"), "w", encoding="utf-8") as f:
+                json.dump(data.dict(), f, ensure_ascii=False, indent=2)
+                
+    except Exception as e:
+        print(f"⚠️ Error guardando resumen: {e}")
+        # No lanzamos error fatal para que el usuario al menos reciba el texto copiable
+
+    # 4. Devolver el texto para que el frontend lo muestre en el diálogo
+    return {"summary": final_markdown, "saved": True, "path": filename}
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
