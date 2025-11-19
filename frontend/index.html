@@ -6024,6 +6024,7 @@ async function loadAllTasks(){
 // ===== Briefing: generar resumen desde el botón de cabecera =====
 /* ===== Briefing: Generar Resumen y Guardar ===== */
 /* ===== Briefing: Generar Resumen y Guardar ===== */
+/* ===== Briefing: Generar Resumen Completo ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
@@ -6033,46 +6034,40 @@ async function loadAllTasks(){
   status.style.color = 'var(--text-muted)';
   btn.parentElement.appendChild(status);
 
-  // --- 1. Recolectar TODOS los datos ---
+  // Recolectar datos
   function buildPayload(){
     const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
     const team = (window.TEAM_STATE || {});
-    
-    // Fecha y Turno
-    const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); // formato dd-mm-yyyy
+    const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
     const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
 
-    // CRONÓMETRO
+    // 1. CRONÓMETRO
     const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
 
-    // INFO TURNO ANTERIOR (Texto)
-    // Capturamos el texto visible del div editable
-    const prevShiftNote = (document.getElementById('prev-shift-note')?.innerText || '').trim();
+    // 2. INFO TURNO ANTERIOR (Tarjeta Derecha)
+    const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
 
-    // Checklist
+    // 3. CHECKLIST
     const checklist = {};
     document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
       .forEach(r => { checklist[r.name] = r.value; });
 
-    // EQUIPO: Estadísticas y NOMBRES
+    // 4. EQUIPO CON NOMBRES
     const peopleList = team.people || [];
     const attMap = team.attendance || {};
-    
-    // Filtramos las personas marcadas como 'true' (Presente)
+    // Filtramos nombres con asistencia = true
     const presentNames = peopleList
         .filter(p => attMap[p.nombre_completo] === true)
         .map(p => p.nombre_completo);
-
+    
     const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
 
-    // Actualizaciones Operativas
+    // 5. KPIs y OPS
     const ops = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(card => ({
       title: card.querySelector('.ops-title')?.textContent?.trim() || '',
-      impact: card.querySelector('.ops-impact')?.textContent?.trim() || '',
-      scope: card.querySelector('.ops-scope')?.textContent?.trim() || ''
+      impact: card.querySelector('.ops-impact')?.textContent?.trim() || ''
     }));
 
-    // KPIs
     const kpis = {
       "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '—',
       "OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '—',
@@ -6080,7 +6075,6 @@ async function loadAllTasks(){
       "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() + '€'
     };
 
-    // Kanban
     const kanbanCounts = {
       "Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
       "En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
@@ -6088,19 +6082,20 @@ async function loadAllTasks(){
     };
 
     return {
-      station, date, shift, timer: timerVal,
+      station, date, shift, 
+      timer: timerVal,               // <--- Envía Cronómetro
+      prev_shift_note: prevShiftNote,// <--- Envía Info Turno Anterior
       checklist,
       roster_stats: rosterStats,
-      present_names: presentNames, // <--- Enviamos array de nombres
-      prev_shift_note: prevShiftNote, // <--- Enviamos la nota del turno anterior
+      present_names: presentNames,   // <--- Envía lista de nombres
       ops_updates: ops,
       kpis,
       kanban_counts: kanbanCounts
     };
   }
 
-  // --- 2. Mostrar Diálogo ---
-  function showSummaryDialog(text){
+  // Mostrar Diálogo
+  function showSummaryDialog(text, logMsg){
     let dlg = document.getElementById('briefing-summary-dialog');
     if (!dlg){
       dlg = document.createElement('dialog');
@@ -6108,8 +6103,9 @@ async function loadAllTasks(){
       dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
       dlg.innerHTML = `
         <form method="dialog" style="display:grid;gap:12px;">
-          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Guardado</h3>
+          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado</h3>
           <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
+          <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
           <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
             <button class="btn-compact" value="cancel">Cerrar</button>
             <button type="button" id="btn-copy-summary" class="btn-primary">Copiar</button>
@@ -6120,18 +6116,19 @@ async function loadAllTasks(){
       dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
         const txt = dlg.querySelector('#briefing-content').innerText;
         try { await navigator.clipboard.writeText(txt); alert('Copiado!'); } 
-        catch(e) { alert('Error copiando'); }
+        catch(e) { alert('Error copiando, hazlo manual.'); }
       });
     }
     
     dlg.querySelector('#briefing-content').textContent = text;
+    dlg.querySelector('#briefing-log').textContent = logMsg || "";
     dlg.showModal();
   }
 
-  // --- 3. Envío ---
+  // Click Handler
   btn.addEventListener('click', async ()=>{
     const oldText = btn.textContent;
-    btn.textContent = 'Guardando...';
+    btn.textContent = 'Guardando en GitHub...';
     btn.disabled = true;
     
     try {
@@ -6142,13 +6139,13 @@ async function loadAllTasks(){
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Error servidor');
+      if (!res.ok) throw new Error('Error en servidor');
       const respData = await res.json();
-      showSummaryDialog(respData.summary);
+      showSummaryDialog(respData.summary, respData.log);
       
     } catch (err) {
       console.error(err);
-      alert('Error al guardar resumen.');
+      alert('Error al guardar resumen. Verifica logs.');
     } finally {
       btn.textContent = oldText;
       btn.disabled = false;
@@ -6158,6 +6155,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
