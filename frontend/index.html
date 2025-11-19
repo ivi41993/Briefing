@@ -6023,43 +6023,49 @@ async function loadAllTasks(){
 
 // ===== Briefing: generar resumen desde el botón de cabecera =====
 /* ===== Briefing: Generar Resumen y Guardar ===== */
+/* ===== Briefing: Generar Resumen y Guardar ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
 
-  // Crear elemento de estado visual
   const status = document.createElement('small');
   status.style.marginLeft = '8px';
   status.style.color = 'var(--text-muted)';
   btn.parentElement.appendChild(status);
 
-  // --- 1. Recolectar TODOS los datos del Dashboard ---
+  // --- 1. Recolectar TODOS los datos ---
   function buildPayload(){
-    // Datos básicos
     const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
     const team = (window.TEAM_STATE || {});
-    const date = new Date().toLocaleDateString('es-ES'); // Fecha de hoy formateada
     
-    // Calcular turno si no está definido
+    // Fecha y Turno
+    const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); // formato dd-mm-yyyy
     const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
 
-    // CAPTURA DEL CRONÓMETRO
+    // CRONÓMETRO
     const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
+
+    // INFO TURNO ANTERIOR (Texto)
+    // Capturamos el texto visible del div editable
+    const prevShiftNote = (document.getElementById('prev-shift-note')?.innerText || '').trim();
 
     // Checklist
     const checklist = {};
     document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
       .forEach(r => { checklist[r.name] = r.value; });
 
-    // Estadísticas de Equipo (Roster)
-    const presentCount = Object.values(team.attendance || {}).filter(v => v === true).length;
-    const totalPeople = (team.people || []).length;
-    const rosterStats = `${presentCount} presentes / ${totalPeople} totales`;
+    // EQUIPO: Estadísticas y NOMBRES
+    const peopleList = team.people || [];
+    const attMap = team.attendance || {};
+    
+    // Filtramos las personas marcadas como 'true' (Presente)
+    const presentNames = peopleList
+        .filter(p => attMap[p.nombre_completo] === true)
+        .map(p => p.nombre_completo);
 
-    // Nota turno anterior
-    const prevShiftNote = (document.getElementById('prev-shift-note')?.innerText || '').trim();
+    const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
 
-    // Actualizaciones Operativas (tarjetas visibles)
+    // Actualizaciones Operativas
     const ops = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(card => ({
       title: card.querySelector('.ops-title')?.textContent?.trim() || '',
       impact: card.querySelector('.ops-impact')?.textContent?.trim() || '',
@@ -6074,7 +6080,7 @@ async function loadAllTasks(){
       "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() + '€'
     };
 
-    // Kanban Counts
+    // Kanban
     const kanbanCounts = {
       "Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
       "En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
@@ -6082,11 +6088,11 @@ async function loadAllTasks(){
     };
 
     return {
-      station, date, shift, 
-      timer: timerVal, // <--- AQUÍ VA EL TIEMPO
+      station, date, shift, timer: timerVal,
       checklist,
       roster_stats: rosterStats,
-      prev_shift_note: prevShiftNote,
+      present_names: presentNames, // <--- Enviamos array de nombres
+      prev_shift_note: prevShiftNote, // <--- Enviamos la nota del turno anterior
       ops_updates: ops,
       kpis,
       kanban_counts: kanbanCounts
@@ -6102,23 +6108,19 @@ async function loadAllTasks(){
       dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
       dlg.innerHTML = `
         <form method="dialog" style="display:grid;gap:12px;">
-          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado</h3>
-          <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.9rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
-          <p style="font-size:0.85rem; color:green; margin:0;">✅ Guardado correctamente en el sistema.</p>
+          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Guardado</h3>
+          <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
           <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
             <button class="btn-compact" value="cancel">Cerrar</button>
-            <button type="button" id="btn-copy-summary" class="btn-primary">Copiar Texto</button>
+            <button type="button" id="btn-copy-summary" class="btn-primary">Copiar</button>
           </div>
         </form>`;
       document.body.appendChild(dlg);
       
-      // Acción Copiar
       dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
         const txt = dlg.querySelector('#briefing-content').innerText;
-        try {
-          await navigator.clipboard.writeText(txt);
-          alert('Copiado al portapapeles');
-        } catch(e) { alert('No se pudo copiar auto, selecciona y copia.'); }
+        try { await navigator.clipboard.writeText(txt); alert('Copiado!'); } 
+        catch(e) { alert('Error copiando'); }
       });
     }
     
@@ -6126,30 +6128,27 @@ async function loadAllTasks(){
     dlg.showModal();
   }
 
-  // --- 3. Enviar al Backend ---
+  // --- 3. Envío ---
   btn.addEventListener('click', async ()=>{
     const oldText = btn.textContent;
     btn.textContent = 'Guardando...';
     btn.disabled = true;
-    status.textContent = '';
-
+    
     try {
       const payload = buildPayload();
-      
       const res = await fetch('/api/briefing/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Error en servidor');
-      
+      if (!res.ok) throw new Error('Error servidor');
       const respData = await res.json();
-      showSummaryDialog(respData.summary); // Muestra el markdown que devolvió el server
+      showSummaryDialog(respData.summary);
       
     } catch (err) {
       console.error(err);
-      alert('Error al guardar el resumen. Verifica la conexión.');
+      alert('Error al guardar resumen.');
     } finally {
       btn.textContent = oldText;
       btn.disabled = false;
@@ -6159,5 +6158,6 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
