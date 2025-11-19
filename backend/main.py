@@ -4043,36 +4043,55 @@ if not FRONTEND_DIR.exists():
 # NUEVO: Generación y Guardado de Resumen
 # ==========================================
 
+# ==========================================
+# NUEVO: Generación y Guardado de Resumen (MEJORADO)
+# ==========================================
+
 class BriefingSnapshot(BaseModel):
     station: Optional[str] = "MAD"
     date: str
     shift: str
-    timer: str  # El valor del cronómetro (ej: 00:15:30)
+    timer: str
     checklist: Dict[str, str] = {}
     kpis: Dict[str, Any] = {}
-    roster_stats: str = "" # Resumen de asistencia (ej: "10/12 presentes")
+    roster_stats: str = ""
+    present_names: List[str] = []         # <--- NUEVO: Lista de nombres presentes
     ops_updates: List[Dict[str, Any]] = []
     kanban_counts: Dict[str, int] = {}
-    prev_shift_note: Optional[str] = ""
+    prev_shift_note: Optional[str] = ""   # <--- Aquí va la info del turno anterior
     
     class Config:
-        extra = "allow" # Permite campos extra sin romper
+        extra = "allow"
 
 @app.post("/api/briefing/summary")
 async def save_briefing_summary(data: BriefingSnapshot):
     """
-    Recibe el estado completo del frontend, genera un Markdown y lo guarda.
+    Genera el resumen Markdown con Nombres, Turno Anterior, Cronómetro y lo guarda en ./data/summaries
     """
-    # 1. Generar contenido Markdown legible
+    # 1. Generar contenido Markdown
     lines = []
     lines.append(f"# 📝 Resumen de Turno - {data.station}")
     lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift}")
     lines.append(f"**⏱️ Cronómetro:** {data.timer}")
+    
+    # Sección Equipo con Nombres
     lines.append(f"**👥 Equipo:** {data.roster_stats}")
+    if data.present_names:
+        # Lista los nombres separados por comas o en bullet points
+        names_formatted = ", ".join(data.present_names)
+        lines.append(f"> *Presentes:* {names_formatted}")
     
     lines.append("\n### 📊 KPIs del Turno")
     for k, v in data.kpis.items():
         lines.append(f"- **{k.upper()}:** {v}")
+
+    # Sección Info Turno Anterior
+    if data.prev_shift_note and data.prev_shift_note.strip():
+        lines.append("\n### ↩️ Información Turno Anterior")
+        lines.append(f"{data.prev_shift_note}")
+    else:
+         lines.append("\n### ↩️ Información Turno Anterior")
+         lines.append("_Sin novedades reportadas._")
 
     lines.append("\n### ✅ Checklist de Inicio")
     labels = {
@@ -4088,11 +4107,8 @@ async def save_briefing_summary(data: BriefingSnapshot):
         for op in data.ops_updates:
             impact = op.get('impact', 'Medio')
             title = op.get('title', 'Sin título')
-            lines.append(f"- [{impact}] {title}")
-
-    if data.prev_shift_note:
-        lines.append("\n### ↩️ Info Turno Anterior")
-        lines.append(f"> {data.prev_shift_note}")
+            scope = op.get('scope', 'General')
+            lines.append(f"- [{impact}] **{title}** ({scope})")
         
     lines.append("\n### 📋 Estado Kanban")
     for k, v in data.kanban_counts.items():
@@ -4100,42 +4116,39 @@ async def save_briefing_summary(data: BriefingSnapshot):
 
     final_markdown = "\n".join(lines)
 
-    # 2. Definir nombre de archivo
-    # Ejemplo: summaries/2025-10-25_Tarde_Briefing.md
-    safe_date = data.date.replace("/", "-")
-    filename = f"summaries/{safe_date}_{data.shift}_Briefing.md"
+    # 2. Guardado en ./data/summaries
+    # Aseguramos que el directorio existe dentro de la carpeta actual (backend)
+    base_dir = Path("./data/summaries")
+    base_dir.mkdir(parents=True, exist_ok=True)
 
-    # 3. Guardar (GitHub o Disco usando tu lógica existente)
+    safe_date = data.date.replace("/", "-")
+    filename = f"{safe_date}_{data.shift}_Resumen.md"
+    file_path = base_dir / filename
+
     try:
-        # Si usas GitHubStore (ya definido en tu código)
+        # Guardado en GitHub (si está activo)
         if USE_GITHUB and gh_store:
-            # Guardamos un JSON envoltorio que contiene el markdown
             payload = data.dict()
             payload["generated_markdown"] = final_markdown
-            gh_store.write_json(filename.replace(".md", ".json"), payload, message=f"Add summary {filename}")
-        else:
-            # Guardado en disco local
-            p = Path("./data") / filename
-            p.parent.mkdir(parents=True, exist_ok=True)
-            with open(p, "w", encoding="utf-8") as f:
-                f.write(final_markdown)
+            gh_store.write_json(f"data/summaries/{filename.replace('.md', '.json')}", payload, message=f"Add summary {filename}")
+        
+        # Guardado SIEMPRE en local (backend/data/summaries)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(final_markdown)
             
-            # También guardamos el JSON crudo para recuperar datos puros
-            with open(p.with_suffix(".json"), "w", encoding="utf-8") as f:
-                json.dump(data.dict(), f, ensure_ascii=False, indent=2)
+        print(f"✅ Resumen guardado en: {file_path.resolve()}")
                 
     except Exception as e:
         print(f"⚠️ Error guardando resumen: {e}")
-        # No lanzamos error fatal para que el usuario al menos reciba el texto copiable
 
-    # 4. Devolver el texto para que el frontend lo muestre en el diálogo
-    return {"summary": final_markdown, "saved": True, "path": filename}
+    return {"summary": final_markdown, "saved": True, "path": str(file_path)}
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
