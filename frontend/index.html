@@ -3066,6 +3066,24 @@ async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/n
 
 /* Render tarjetas */
 function processTaskUpdate(data){
+if (!data) return;
+    
+    // --- CORRECCIÓN: Manejar borrado globalmente ---
+    if (data.action === 'delete') {
+        // Intentar borrar de cualquier lista posible por ID
+        const elOps = document.getElementById(`ops-${data.id}`);
+        if (elOps) elOps.remove();
+
+        const elTask = document.getElementById(`task-${data.id}`);
+        if (elTask) elTask.remove();
+        
+        // Actualizar contadores si es Kanban
+        if (updateAllColumnCounts) updateAllColumnCounts();
+        return; // <--- IMPORTANTE: Parar aquí
+    }
+    // -----------------------------------------------
+
+
 if (!isForThisStation(data)) return;      // DESPUÉS
 
 
@@ -5445,7 +5463,7 @@ document.addEventListener('change', (e) => {
   };
 })();
 
-/* ===================== OPS UPDATES (FINAL & ESTABLE) ===================== */
+/* ===================== OPS UPDATES (SOLUCIÓN BORRADO) ===================== */
 (function initOpsUpdates(){
   const LIST   = document.getElementById('ops-list');
   const DIALOG = document.getElementById('ops-dialog');
@@ -5453,6 +5471,7 @@ document.addEventListener('change', (e) => {
   const BTN_ADD= document.getElementById('ops-add');
   const BTN_SAVE = document.getElementById('ops-save');
   
+  // Filtros
   const Q      = document.getElementById('ops-q');
   const FILT_PRIO  = document.getElementById('ops-prio');
   const FILT_SCOPE = document.getElementById('ops-scope');
@@ -5460,71 +5479,50 @@ document.addEventListener('change', (e) => {
   if (!LIST || !DIALOG || !FORM) return;
 
   // --- 1. API ---
-  async function apiCreate(data){
-    const r = await fetch('/api/tasks', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    if (!r.ok) throw new Error('Error al crear');
-    return await r.json();
-  }
-  async function apiUpdate(id, data){
-    const r = await fetch(`/api/tasks/${id}`, {
-      method:'PUT', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    if (!r.ok) throw new Error('Error al actualizar');
-    return await r.json();
-  }
-  async function apiDelete(id){
-    const r = await fetch(`/api/tasks/${id}`, { method:'DELETE' });
-    // Si devuelve 404 (Not Found), es que ya está borrada, así que lo consideramos éxito
-    if (r.status === 404) return true;
-    if (!r.ok) throw new Error('Error al eliminar');
-    return true;
-  }
-  async function apiList(){
-    try {
-        const r = await fetch('/api/tasks?task_type=ops_update', { cache:'no-store' });
-        if (!r.ok) return [];
-        return await r.json();
-    } catch(e) { return []; }
-  }
-
-  // --- 2. RENDER (Solo se usa al cargar o filtrar, NO al borrar) ---
-  async function render(){
-    const items = await apiList();
-    const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
-    
-    // Filtrado seguro
-    let filtered = items.filter(t => !t.station || String(t.station).toUpperCase() === station);
-
-    const q = (Q?.value || '').toLowerCase();
-    const p = (FILT_PRIO?.value || '');
-    const s = (FILT_SCOPE?.value || '');
-
-    filtered = filtered.filter(it => {
-      const txt = (it.title + ' ' + (it.scope||'')).toLowerCase();
-      return (!q || txt.includes(q)) && (!p || it.impact === p) && (!s || it.scope === s);
-    });
-
-    LIST.innerHTML = '';
-    
-    if (filtered.length === 0) {
-      LIST.innerHTML = `<div style="padding:15px;color:#888;text-align:center;font-style:italic;">
-        No hay actualizaciones activas.
-      </div>`;
-      return;
+  async function apiAction(url, method, data=null){
+    const opts = { method, headers: {} };
+    if(data){
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(data);
     }
-
-    filtered.forEach(createCardDOM);
+    const r = await fetch(url, opts);
+    if(method === 'DELETE' && r.status === 404) return true; // Ya borrado
+    if(!r.ok) throw new Error(`Error ${method}`);
+    return method === 'DELETE' ? true : await r.json();
   }
 
-  // Helper para crear el HTML de una tarjeta
+  // --- 2. RENDER (Solo carga inicial y filtros) ---
+  async function render(){
+    try {
+        const items = await (await fetch('/api/tasks?task_type=ops_update', {cache:'no-store'})).json();
+        const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
+        
+        // Filtros
+        const q = (Q?.value || '').toLowerCase();
+        const p = (FILT_PRIO?.value || '');
+        const s = (FILT_SCOPE?.value || '');
+
+        const filtered = items.filter(it => {
+            // Estación
+            if (it.station && it.station.toUpperCase() !== station) return false;
+            // Texto/Impacto/Scope
+            const txt = (it.title + ' ' + (it.scope||'')).toLowerCase();
+            return (!q || txt.includes(q)) && (!p || it.impact === p) && (!s || it.scope === s);
+        });
+
+        LIST.innerHTML = '';
+        if (filtered.length === 0) {
+            LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones.</div>';
+            return;
+        }
+        filtered.forEach(createCardDOM);
+    } catch(e) { console.warn('Error render ops', e); }
+  }
+
   function createCardDOM(it) {
     const el = document.createElement('div');
     el.className = 'ops-item';
-    el.id = `ops-${it.id}`; // ID único en el DOM
+    el.id = `ops-${it.id}`; // ID único para el DOM
     el.dataset.id = it.id;
     
     const impact = it.impact || 'Medio';
@@ -5552,31 +5550,9 @@ document.addEventListener('change', (e) => {
     LIST.appendChild(el);
   }
 
-  // --- 3. MANEJO DEL DIÁLOGO ---
-  function openDialog(data = null){
-    FORM.reset();
-    if (data) {
-      document.getElementById('ops-id').value = data.id || '';
-      document.getElementById('ops-title').value = data.title || '';
-      document.getElementById('ops-impact').value = data.impact || 'Medio';
-      document.getElementById('ops-scope-field').value = data.scope || 'General';
-      document.getElementById('ops-owner').value = data.owner || '';
-      if(data.valid_from) document.getElementById('ops-from').value = data.valid_from.split('T')[0];
-      if(data.valid_to)   document.getElementById('ops-to').value = data.valid_to.split('T')[0];
-    } else {
-      document.getElementById('ops-id').value = '';
-    }
-    try { DIALOG.showModal(); } catch { DIALOG.setAttribute('open', true); }
-  }
-
-  function closeDialog(){
-    try { DIALOG.close(); } catch { DIALOG.removeAttribute('open'); }
-  }
-
-  BTN_ADD?.addEventListener('click', () => openDialog());
+  // --- 3. EVENTOS CRUD ---
   
-  FORM.querySelector('button[value="cancel"]')?.addEventListener('click', (e) => { e.preventDefault(); closeDialog(); });
-
+  // GUARDAR
   BTN_SAVE?.addEventListener('click', async (e) => {
     e.preventDefault();
     const id = document.getElementById('ops-id').value;
@@ -5591,72 +5567,73 @@ document.addEventListener('change', (e) => {
       station: (window.STATION_OVERRIDE || 'MAD').toUpperCase()
     };
 
-    if (!payload.title) { alert('Falta título'); return; }
-    BTN_SAVE.textContent = 'Guardando...'; BTN_SAVE.disabled = true;
+    if (!payload.title) return alert('Falta título');
+    BTN_SAVE.textContent = '...'; BTN_SAVE.disabled = true;
 
     try {
-      if (id) {
-        // UPDATE: Actualizamos servidor y luego el DOM puntual
-        const updated = await apiUpdate(id, payload);
-        const existingCard = document.getElementById(`ops-${id}`);
-        if (existingCard) existingCard.remove(); // Lo quitamos y lo volvemos a crear actualizado
-        createCardDOM(updated);
-      } else {
-        // CREATE: Creamos y añadimos al final
-        const created = await apiCreate(payload);
-        // Si había mensaje de "No hay actualizaciones", bórralo
-        if (LIST.innerHTML.includes('No hay actualizaciones')) LIST.innerHTML = '';
-        createCardDOM(created);
-      }
-      closeDialog();
-    } catch (err) {
-      alert('Error: ' + err.message);
-    } finally {
-      BTN_SAVE.textContent = 'Guardar'; BTN_SAVE.disabled = false;
-    }
+        if (id) {
+            const up = await apiAction(`/api/tasks/${id}`, 'PUT', payload);
+            // Actualizar solo esta tarjeta en el DOM
+            const old = document.getElementById(`ops-${id}`);
+            if(old) old.remove();
+            createCardDOM(up);
+        } else {
+            const neo = await apiAction('/api/tasks', 'POST', payload);
+            // Quitar mensaje vacío si existe
+            if(LIST.innerText.includes('No hay')) LIST.innerHTML = '';
+            createCardDOM(neo);
+        }
+        closeDialog();
+    } catch(err) { alert(err.message); }
+    finally { BTN_SAVE.textContent = 'Guardar'; BTN_SAVE.disabled = false; }
   });
 
-  // --- 4. ELIMINACIÓN ROBUSTA ---
+  // BORRAR / EDITAR
   LIST.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
-    
     const card = btn.closest('.ops-item');
-    const id = card.dataset.id; // ID del servidor
-    const action = btn.dataset.action;
+    const id = card.dataset.id;
 
-    if (action === 'delete') {
-      if (confirm('¿Borrar actualización?')) {
-        // 1. Borrado visual optimista (Inmediato)
-        card.style.opacity = '0.5'; 
-        
-        try {
-          // 2. Llamada al servidor
-          await apiDelete(id);
-          // 3. Si éxito, quitar del DOM
-          card.remove();
-          
-          // Si no queda nada, mostrar mensaje
-          if (LIST.children.length === 0) render();
-          
-        } catch (err) {
-            // Si falla (y no es 404), restaurar visibilidad
-            card.style.opacity = '1';
-            alert('Error al borrar: ' + err.message);
+    if (btn.dataset.action === 'delete') {
+        if(confirm('¿Borrar?')){
+            card.style.opacity = '0.3'; // Feedback visual inmediato
+            try {
+                await apiAction(`/api/tasks/${id}`, 'DELETE');
+                card.remove(); // <--- SOLO BORRA ESTA LÍNEA DEL DOM
+                if(!LIST.children.length) render();
+            } catch(err) {
+                card.style.opacity = '1';
+                alert('Error al borrar');
+            }
         }
-      }
-    } else if (action === 'edit') {
+    } else if (btn.dataset.action === 'edit') {
         const title = card.querySelector('.ops-title').textContent;
         const impact = card.querySelector('.ops-impact').textContent;
         const scope = card.querySelector('.ops-scope').textContent;
         const owner = card.querySelector('.ops-meta span').textContent.replace('Resp: ','');
-        openDialog({ id, title, impact, scope, owner });
+        openDialog({id, title, impact, scope, owner});
     }
   });
 
-  [Q, FILT_PRIO, FILT_SCOPE].forEach(el => el?.addEventListener('input', render));
-  
-  // Carga inicial
+  // --- DIALOGOS Y FILTROS ---
+  function openDialog(d){
+    FORM.reset();
+    document.getElementById('ops-id').value = d?.id || '';
+    if(d){
+        document.getElementById('ops-title').value = d.title;
+        document.getElementById('ops-impact').value = d.impact;
+        document.getElementById('ops-scope-field').value = d.scope;
+        document.getElementById('ops-owner').value = d.owner;
+    }
+    try{ DIALOG.showModal(); }catch{ DIALOG.setAttribute('open',true); }
+  }
+  function closeDialog(){ try{ DIALOG.close(); }catch{ DIALOG.removeAttribute('open'); } }
+
+  BTN_ADD?.addEventListener('click', ()=>openDialog());
+  FORM.querySelector('[value="cancel"]')?.addEventListener('click', (e)=>{ e.preventDefault(); closeDialog(); });
+  [Q, FILT_PRIO, FILT_SCOPE].forEach(el=>el?.addEventListener('input', render));
+
   render();
 })();
 
@@ -6120,6 +6097,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
