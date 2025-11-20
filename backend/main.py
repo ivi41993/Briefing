@@ -3222,7 +3222,7 @@ async def upload_incidents_table(
 from fastapi import Query
 
 @app.get("/api/incidents-table")
-def get_incidents_table(limit: int = Query(None, ge=1, le=100)):
+def get_incidents_table(limit: int = Query(None, ge=1, le=1000)):
     """
     Devuelve la tabla de incidentes, pero solo las primeras `limit` filas.
     Por defecto usa INCIDENTS_VISIBLE_LIMIT (3). Se mantiene `total_rows`
@@ -4373,3 +4373,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
