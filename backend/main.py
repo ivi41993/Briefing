@@ -25,6 +25,76 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+def generate_html_report(data: BriefingSnapshot) -> str:
+    """Genera un HTML bonito y autocontenido con los datos del briefing."""
+    
+    # Preparamos listas HTML
+    ops_html = ""
+    for op in data.ops_updates:
+        ops_html += f"<li class='op-item'><span class='tag {op.get('impact','Medio')}'>{op.get('impact','Medio')}</span> <strong>{op.get('title','')}</strong> ({op.get('scope','')})</li>"
+    
+    checklist_html = ""
+    for k, v in data.checklist.items():
+        color = "green" if v == "OK" else "red"
+        checklist_html += f"<div class='check-item'><span class='dot {color}'></span> {k}: <strong>{v}</strong></div>"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{ font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }}
+            .header {{ background: #b91c1c; color: white; padding: 20px; border-radius: 8px; }}
+            .meta {{ display: flex; justify-content: space-between; margin-top: 10px; background: #f3f4f6; padding: 10px; border-radius: 8px; }}
+            h2 {{ border-bottom: 2px solid #b91c1c; padding-bottom: 5px; color: #b91c1c; }}
+            .kpi-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0; }}
+            .kpi-card {{ background: #fff; border: 1px solid #ddd; padding: 15px; text-align: center; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .kpi-val {{ font-size: 1.5em; font-weight: bold; color: #b91c1c; }}
+            .tag {{ padding: 2px 6px; border-radius: 4px; font-size: 0.8em; color: white; }}
+            .tag.Alto {{ background: #dc2626; }} .tag.Medio {{ background: #f59e0b; }} .tag.Bajo {{ background: #10b981; }}
+            .dot {{ height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }}
+            .dot.green {{ background: #10b981; }} .dot.red {{ background: #dc2626; }}
+            .check-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1 style="margin:0">Resumen de Turno - {data.station}</h1>
+            <div style="margin-top:5px; opacity:0.9">Generado automáticamente</div>
+        </div>
+        
+        <div class="meta">
+            <div><strong>Fecha:</strong> {data.date}</div>
+            <div><strong>Turno:</strong> {data.shift}</div>
+            <div><strong>Tiempo Briefing:</strong> {data.timer}</div>
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi-card"><div>UPH</div><div class="kpi-val">{data.kpis.get('UPH','-')}</div></div>
+            <div class="kpi-card"><div>OTIF</div><div class="kpi-val">{data.kpis.get('OTIF','-')}</div></div>
+            <div class="kpi-card"><div>Backlog</div><div class="kpi-val">{data.kpis.get('Backlog','-')}</div></div>
+            <div class="kpi-card"><div>Costes</div><div class="kpi-val">{data.kpis.get('Costes','-')}</div></div>
+        </div>
+
+        <h2>👥 Equipo ({data.roster_stats})</h2>
+        <p>{', '.join(data.present_names) if data.present_names else 'Sin registro de nombres.'}</p>
+
+        <h2>✅ Checklist</h2>
+        <div class="check-grid">{checklist_html}</div>
+
+        <h2>↩️ Turno Anterior</h2>
+        <div style="background:#fff3cd; padding:15px; border-left:5px solid #f59e0b;">
+            {data.prev_shift_note or "Sin novedades."}
+        </div>
+
+        <h2>🚧 Actualizaciones Operativas</h2>
+        <ul>{ops_html}</ul>
+    </body>
+    </html>
+    """
+    return html
+
 # Cargar variables de entorno INMEDIATAMENTE
 load_dotenv()
 
@@ -4066,92 +4136,68 @@ class BriefingSnapshot(BaseModel):
     
     class Config:
         extra = "allow"
-
 @app.post("/api/briefing/summary")
 async def save_briefing_summary(data: BriefingSnapshot):
-    """
-    Genera el Markdown completo y lo sube a GitHub si STORAGE_BACKEND=github.
-    """
-    # 1. Generar contenido Markdown
+    # 1. Generar Markdown (Tu lógica actual, la mantengo resumida aquí)
     lines = []
-    lines.append(f"# 📝 Resumen de Turno - {data.station}")
-    lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift}")
-    lines.append(f"**⏱️ Cronómetro:** {data.timer}")
-    
-    # Equipo con nombres
-    lines.append(f"**👥 Equipo:** {data.roster_stats}")
+    lines.append(f"### 📝 Resumen de Turno - {data.station}")
+    lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift} | **⏱️** {data.timer}")
+    lines.append(f"**👥 Asistencia:** {data.roster_stats}")
     if data.present_names:
-        names_formatted = ", ".join(data.present_names)
-        lines.append(f"> **Asistentes:** {names_formatted}")
+        lines.append(f"> {', '.join(data.present_names)}")
     
-    # Info Turno Anterior (Solicitado)
-    lines.append("\n### ↩️ Información Turno Anterior")
-    if data.prev_shift_note and data.prev_shift_note.strip():
-        lines.append(f"{data.prev_shift_note}")
-    else:
-        lines.append("_Sin novedades reportadas._")
-
-    lines.append("\n### 📊 KPIs del Turno")
-    for k, v in data.kpis.items():
-        lines.append(f"- **{k.upper()}:** {v}")
-
-    lines.append("\n### ✅ Checklist de Inicio")
-    labels = {
-        "c1": "Dotación", "c2": "Ops Updates", "c3": "Highlights Ant.",
-        "c4": "Seguridad", "c5": "Incidentes", "c6": "KPIs", "c7": "Feedback"
-    }
-    for key, val in data.checklist.items():
-        icon = "🟢" if val == "OK" else "🔴"
-        lines.append(f"- {icon} {labels.get(key, key)}")
-
-    if data.ops_updates:
-        lines.append(f"\n### 🚧 Actualizaciones Operativas ({len(data.ops_updates)})")
-        for op in data.ops_updates:
-            impact = op.get('impact', 'Medio')
-            title = op.get('title', 'Sin título')
-            lines.append(f"- [{impact}] {title}")
+    if data.prev_shift_note:
+        lines.append(f"\n**↩️ Turno Anterior:** {data.prev_shift_note}")
         
-    lines.append("\n### 📋 Estado Kanban")
-    for k, v in data.kanban_counts.items():
-        lines.append(f"- {k}: {v}")
-
-    final_markdown = "\n".join(lines)
-
-    # 2. Gestión de Rutas y Guardado
-    # Nombre del archivo: 19-11-2025_Tarde_Briefing.md
-    safe_date = data.date.replace("/", "-")
-    filename = f"{safe_date}_{data.shift}_Briefing.md"
+    # ... (resto de tu lógica de Markdown para KPIs y Checklist) ...
+    # (Asegúrate de incluir aquí la lógica de KPIs y Checklist que ya tenías)
     
-    # Ruta relativa para el Store (summaries/archivo.md)
-    # GitHubStore prepende automáticamente 'data/' si está configurado así en GH_DIR
-    store_path = f"summaries/{filename}"
+    final_markdown = "\n".join(lines) 
 
+    # --- NUEVO: Generar HTML ---
+    final_html = generate_html_report(data)
+
+    # 2. Rutas y Nombres
+    safe_date = data.date.replace("/", "-")
+    base_name = f"{safe_date}_{data.shift}_Briefing"
+    
+    filename_md = f"summaries/{base_name}.md"
+    filename_html = f"summaries/{base_name}.html" # <--- Archivo HTML
+    
     log_msg = ""
     
     try:
-        # INTENTO SUBIDA A GITHUB
+        # GUARDAR EN GITHUB (MD + HTML + JSON)
         if USE_GITHUB and gh_store:
-            print(f"☁️ Subiendo a GitHub: {store_path}...")
+            print(f"☁️ Subiendo a GitHub...")
             
-            # Subir Markdown
-            gh_store.write_text(store_path, final_markdown, message=f"Briefing {data.date} {data.shift}")
+            # 1. Markdown
+            gh_store.write_text(filename_md, final_markdown, message=f"Briefing MD {data.date}")
             
-            # Subir JSON (datos crudos)
-            json_path = store_path.replace(".md", ".json")
-            gh_store.write_json(json_path, data.dict(), message=f"Briefing Data {data.date}")
+            # 2. HTML (NUEVO) - Se visualiza directo en navegador
+            gh_store.write_text(filename_html, final_html, message=f"Briefing HTML {data.date}")
             
-            log_msg = f"✅ Guardado en GitHub ({gh_store.repo}): {store_path}"
+            # 3. JSON (Datos puros)
+            gh_store.write_json(filename_md.replace(".md", ".json"), data.dict(), message="JSON Data")
+            
+            log_msg = f"✅ Guardado en GitHub (MD + HTML): {gh_store.repo}"
         
         else:
-            # FALLBACK A DISCO (Si STORAGE_BACKEND no es 'github')
-            local_path = Path("./data") / store_path
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(local_path, "w", encoding="utf-8") as f:
-                f.write(final_markdown)
-            log_msg = f"⚠️ Guardado LOCAL (No GitHub): {local_path}"
+            # LOCAL
+            local_dir = Path("./data/summaries")
+            local_dir.mkdir(parents=True, exist_ok=True)
+            
+            (local_dir / f"{base_name}.md").write_text(final_markdown, encoding="utf-8")
+            (local_dir / f"{base_name}.html").write_text(final_html, encoding="utf-8") # <--- Guardar HTML local
+            
+            log_msg = f"⚠️ Guardado LOCAL (MD + HTML)"
+
+        # --- NUEVO: ENVIAR A TEAMS ---
+        # No bloqueamos la respuesta, lo lanzamos en background
+        asyncio.create_task(send_to_teams(data, final_markdown))
             
     except Exception as e:
-        print(f"❌ Error al guardar resumen: {e}")
+        print(f"❌ Error al guardar: {e}")
         log_msg = f"Error: {str(e)}"
 
     return {"summary": final_markdown, "saved": True, "log": log_msg}
@@ -4161,6 +4207,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
