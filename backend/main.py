@@ -3249,7 +3249,13 @@ def get_incidents_table(limit: int = Query(None, ge=1, le=1000)):
         "limited": True,
     }
 
-
+@app.get("/api/incidents")
+def get_incidents_alias():
+    """
+    Redirige /api/incidents a la tabla real.
+    Arregla el error 404 en el frontend/logs.
+    """
+    return get_incidents_table(limit=50)
 
 import pdfplumber, io
 from PIL import Image
@@ -4183,106 +4189,11 @@ class BriefingSnapshot(BaseModel):
 @app.post("/api/briefing/summary")
 async def save_briefing_summary(data: BriefingSnapshot):
     """
-    Genera el Markdown completo y lo sube a GitHub + Excel Online.
-    CORRECCIÓN: Elimina la 'ñ' del nombre de archivo para evitar error 422.
-    """
-    # --- HELPER PARA LIMPIAR NOMBRE DE ARCHIVO ---
-    def clean_filename_str(text: str) -> str:
-        # Descompone caracteres (ñ -> n + ~) y elimina las marcas (~)
-        s = unicodedata.normalize('NFD', text)
-        return ''.join(c for c in s if unicodedata.category(c) != 'Mn')
-
-    # 1. Generar contenido Markdown
-    lines = []
-    lines.append(f"# 📝 Resumen de Turno - {data.station}")
-    lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift}")
-    lines.append(f"**⏱️ Cronómetro:** {data.timer}")
-    
-    lines.append(f"**👥 Equipo:** {data.roster_stats}")
-    if data.present_names:
-        names_formatted = ", ".join(data.present_names)
-        lines.append(f"> **Asistentes:** {names_formatted}")
-    
-    lines.append("\n### ↩️ Información Turno Anterior")
-    if data.prev_shift_note and data.prev_shift_note.strip():
-        lines.append(f"{data.prev_shift_note}")
-    else:
-        lines.append("_Sin novedades reportadas._")
-
-    lines.append("\n### 📊 KPIs del Turno")
-    for k, v in data.kpis.items():
-        lines.append(f"- **{k.upper()}:** {v}")
-
-    lines.append("\n### ✅ Checklist de Inicio")
-    labels = {
-        "c1": "Dotación", "c2": "Ops Updates", "c3": "Info Turno Ant.",
-        "c4": "Seguridad", "c5": "Incidentes", "c6": "KPIs", "c7": "Feedback"
-    }
-    for key, val in data.checklist.items():
-        icon = "🟢" if val == "OK" else "🔴"
-        lines.append(f"- {icon} {labels.get(key, key)}")
-
-    if data.ops_updates:
-        lines.append(f"\n### 🚧 Actualizaciones Operativas ({len(data.ops_updates)})")
-        for op in data.ops_updates:
-            impact = op.get('impact', 'Medio')
-            title = op.get('title', 'Sin título')
-            lines.append(f"- [{impact}] {title}")
-        
-    lines.append("\n### 📋 Estado Kanban")
-    for k, v in data.kanban_counts.items():
-        lines.append(f"- {k}: {v}")
-
-    final_markdown = "\n".join(lines)
-
-    # 2. Gestión de Rutas y Guardado (CON LA CORRECCIÓN)
-    safe_date = data.date.replace("/", "-")
-    
-    # AQUÍ ESTÁ EL ARREGLO: Limpiamos la ñ y tildes del turno
-    safe_shift = clean_filename_str(data.shift) # "Mañana" se convierte en "Manana"
-    
-    filename = f"{safe_date}_{safe_shift}_Briefing.md"
-    
-    # Ruta relativa para el Store
-    store_path = f"summaries/{filename}"
-
-    log_msg = ""
-    
-    try:
-        # INTENTO SUBIDA A GITHUB
-        if USE_GITHUB and gh_store:
-            print(f"☁️ Subiendo a GitHub: {store_path}...")
-            
-            gh_store.write_text(store_path, final_markdown, message=f"Briefing {data.date} {data.shift}")
-            
-            # Subir JSON
-            json_path = store_path.replace(".md", ".json")
-            gh_store.write_json(json_path, data.dict(), message=f"Briefing Data {data.date}")
-            
-            log_msg = f"✅ Guardado en GitHub ({gh_store.repo}): {store_path}"
-        
-        else:
-            # FALLBACK A DISCO
-            local_path = Path("./data") / store_path
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(local_path, "w", encoding="utf-8") as f:
-                f.write(final_markdown)
-            log_msg = f"⚠️ Guardado LOCAL (No GitHub): {local_path}"
-
-        # EXCEL ONLINE (Power Automate)
-        asyncio.create_task(send_to_excel_online(data))
-            
-    except Exception as e:
-        print(f"❌ Error al guardar resumen: {e}")
-        log_msg = f"Error: {str(e)}"
-@app.post("/api/briefing/summary")
-async def save_briefing_summary(data: BriefingSnapshot):
-    """
-    Genera resumen y guarda en GitHub (con timestamp) y Excel.
+    Genera resumen y guarda en GitHub (con TIMESTAMP para evitar error 422) y Excel.
     """
     # --- HELPER PARA LIMPIAR NOMBRE ---
     def clean_str(text: str) -> str:
-        # Quita tildes y caracteres raros
+        # Quita tildes y caracteres raros (ñ -> n)
         s = unicodedata.normalize('NFD', text)
         return ''.join(c for c in s if unicodedata.category(c) != 'Mn')
 
@@ -4292,14 +4203,16 @@ async def save_briefing_summary(data: BriefingSnapshot):
     lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift}")
     lines.append(f"**⏱️ Cronómetro:** {data.timer}")
     
-    lines.append(f"\n**👥 Equipo ({len(data.present_names)}):**")
+    lines.append(f"\n**👥 Equipo:** {data.roster_stats}")
     if data.present_names:
-        lines.append(f"> {', '.join(data.present_names)}")
-    else:
-        lines.append("> Sin datos de nombres.")
-
+        names_list = ", ".join(data.present_names)
+        lines.append(f"> {names_list}")
+    
     lines.append("\n### ↩️ Turno Anterior")
-    lines.append(f"{data.prev_shift_note or 'Sin novedades.'}")
+    if data.prev_shift_note and data.prev_shift_note.strip():
+        lines.append(f"{data.prev_shift_note}")
+    else:
+        lines.append("_Sin novedades._")
 
     lines.append("\n### 📊 KPIs")
     for k, v in data.kpis.items():
@@ -4318,15 +4231,15 @@ async def save_briefing_summary(data: BriefingSnapshot):
     final_markdown = "\n".join(lines)
 
     # 2. Configurar nombre de archivo ÚNICO (Timestamp)
-    # Ejemplo: 2025-11-20_10-30-45_Manana_Resumen.md
     safe_date = data.date.replace("/", "-")
     safe_shift = clean_str(data.shift)
-    timestamp = datetime.now().strftime("%H-%M-%S")
     
-    filename = f"{safe_date}_{timestamp}_{safe_shift}_Resumen.md"
+    # ¡ESTA ES LA CLAVE DEL ARREGLO! Añadimos la hora exacta
+    timestamp = datetime.now().strftime("%H-%M-%S") 
+    
+    filename = f"{safe_date}_{safe_shift}_{timestamp}_Briefing.md"
     
     # Ruta relativa ("summaries/archivo.md")
-    # GitHubStore ya le añade "data/" si está configurado GH_DIR
     store_path = f"summaries/{filename}"
 
     log_msg = ""
@@ -4335,7 +4248,14 @@ async def save_briefing_summary(data: BriefingSnapshot):
     try:
         if USE_GITHUB and gh_store:
             print(f"☁️ Subiendo a GitHub: {store_path}...")
+            
+            # Escribir Markdown
             gh_store.write_text(store_path, final_markdown, message=f"Briefing {data.date} {data.shift}")
+            
+            # Escribir JSON (opcional, pero útil)
+            json_path = store_path.replace(".md", ".json")
+            gh_store.write_json(json_path, data.dict(), message="Data")
+
             log_msg = f"✅ Guardado en GitHub: {store_path}"
         else:
             # Fallback local
@@ -4360,5 +4280,6 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
