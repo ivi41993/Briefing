@@ -6055,9 +6055,9 @@ async function loadAllTasks(){
     // 4. EQUIPO CON NOMBRES
     const peopleList = team.people || [];
     const attMap = team.attendance || {};
-    // Filtramos nombres con asistencia = true
+    
     const presentNames = peopleList
-        .filter(p => attMap[p.nombre_completo] === true)
+        .filter(p => attMap[p.nombre_completo] === true) // Solo true
         .map(p => p.nombre_completo);
     
     const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
@@ -6155,6 +6155,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
