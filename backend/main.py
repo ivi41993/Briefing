@@ -2746,7 +2746,7 @@ async def lifespan(app: FastAPI):
     load_roster_from_disk()
     
 
-    app.state._roster = asyncio.create_task(_roster_watcher())
+    # app.state._roster = asyncio.create_task(_roster_watcher())
    
     app.state._ena = EnablonConnector()
     app.state._ena_task = asyncio.create_task(app.state._ena.run())
@@ -2758,7 +2758,7 @@ async def lifespan(app: FastAPI):
     yield
     print("🛑 Deteniendo sistema...")
 
-    for key in ("_hb", "_poller", "_roster", "_ena_task"):
+    for key in ("_hb", "_ena_task"):
         task: asyncio.Task = getattr(app.state, key, None)
         if task and not task.done():
             task.cancel()
@@ -4284,6 +4284,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
