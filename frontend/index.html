@@ -6025,6 +6025,7 @@ async function loadAllTasks(){
 /* ===== Briefing: Generar Resumen y Guardar ===== */
 /* ===== Briefing: Generar Resumen y Guardar ===== */
 /* ===== Briefing: Generar Resumen Completo ===== */
+/* ===== Briefing: Generar Resumen y Guardar (MEJORADO) ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
@@ -6034,38 +6035,42 @@ async function loadAllTasks(){
   status.style.color = 'var(--text-muted)';
   btn.parentElement.appendChild(status);
 
-  // Recolectar datos
+  // --- 1. Recolectar TODOS los datos ---
   function buildPayload(){
     const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
     const team = (window.TEAM_STATE || {});
     const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
     const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
-
-    // 1. CRONÓMETRO
     const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
-
-    // 2. INFO TURNO ANTERIOR (Tarjeta Derecha)
     const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
 
-    // 3. CHECKLIST
     const checklist = {};
     document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
       .forEach(r => { checklist[r.name] = r.value; });
 
-    // 4. EQUIPO CON NOMBRES
+    // --- CAMBIO IMPORTANTE: Generar lista detallada de equipo ---
     const peopleList = team.people || [];
     const attMap = team.attendance || {};
     
+    // Array solo con nombres presentes (para GitHub/Markdown)
     const presentNames = peopleList
-        .filter(p => attMap[p.nombre_completo] === true) // Solo true
+        .filter(p => attMap[p.nombre_completo] === true)
         .map(p => p.nombre_completo);
     
-    const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
+    // String detallado para EXCEL: "Juan (✅), Pepe (❌)..."
+    const rosterDetailed = peopleList.map(p => {
+        const isPresent = attMap[p.nombre_completo] === true;
+        const mark = isPresent ? "✅" : "❌"; // O usa "Presente"/"Ausente" si prefieres texto
+        return `${p.nombre_completo} ${mark}`;
+    }).join(', ');
 
-    // 5. KPIs y OPS
+    const rosterStats = `${presentNames.length} / ${peopleList.length}`;
+
+    // --- Actualizaciones Operativas ---
     const ops = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(card => ({
       title: card.querySelector('.ops-title')?.textContent?.trim() || '',
-      impact: card.querySelector('.ops-impact')?.textContent?.trim() || ''
+      impact: card.querySelector('.ops-impact')?.textContent?.trim() || '',
+      scope: card.querySelector('.ops-scope')?.textContent?.trim() || ''
     }));
 
     const kpis = {
@@ -6083,18 +6088,19 @@ async function loadAllTasks(){
 
     return {
       station, date, shift, 
-      timer: timerVal,               // <--- Envía Cronómetro
-      prev_shift_note: prevShiftNote,// <--- Envía Info Turno Anterior
+      timer: timerVal,
+      prev_shift_note: prevShiftNote,
       checklist,
       roster_stats: rosterStats,
-      present_names: presentNames,   // <--- Envía lista de nombres
+      present_names: presentNames,
+      roster_details: rosterDetailed, // <--- NUEVO CAMPO PARA EXCEL
       ops_updates: ops,
       kpis,
       kanban_counts: kanbanCounts
     };
   }
 
-  // Mostrar Diálogo
+  // --- 2. Mostrar Diálogo (Igual que antes) ---
   function showSummaryDialog(text, logMsg){
     let dlg = document.getElementById('briefing-summary-dialog');
     if (!dlg){
@@ -6103,7 +6109,7 @@ async function loadAllTasks(){
       dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
       dlg.innerHTML = `
         <form method="dialog" style="display:grid;gap:12px;">
-          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado</h3>
+          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Guardado</h3>
           <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
           <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
           <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
@@ -6119,16 +6125,15 @@ async function loadAllTasks(){
         catch(e) { alert('Error copiando, hazlo manual.'); }
       });
     }
-    
     dlg.querySelector('#briefing-content').textContent = text;
     dlg.querySelector('#briefing-log').textContent = logMsg || "";
     dlg.showModal();
   }
 
-  // Click Handler
+  // --- 3. Envío ---
   btn.addEventListener('click', async ()=>{
     const oldText = btn.textContent;
-    btn.textContent = 'Guardando en GitHub...';
+    btn.textContent = 'Procesando...';
     btn.disabled = true;
     
     try {
@@ -6145,7 +6150,7 @@ async function loadAllTasks(){
       
     } catch (err) {
       console.error(err);
-      alert('Error al guardar resumen. Verifica logs.');
+      alert('Error al guardar resumen.');
     } finally {
       btn.textContent = oldText;
       btn.disabled = false;
@@ -6155,6 +6160,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
