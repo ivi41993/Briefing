@@ -5445,7 +5445,7 @@ document.addEventListener('change', (e) => {
   };
 })();
 
-/* ===================== OPS UPDATES (VERSIÓN CORREGIDA & DEBUG) ===================== */
+/* ===================== OPS UPDATES (FINAL & ESTABLE) ===================== */
 (function initOpsUpdates(){
   const LIST   = document.getElementById('ops-list');
   const DIALOG = document.getElementById('ops-dialog');
@@ -5453,7 +5453,6 @@ document.addEventListener('change', (e) => {
   const BTN_ADD= document.getElementById('ops-add');
   const BTN_SAVE = document.getElementById('ops-save');
   
-  // Filtros UI
   const Q      = document.getElementById('ops-q');
   const FILT_PRIO  = document.getElementById('ops-prio');
   const FILT_SCOPE = document.getElementById('ops-scope');
@@ -5466,7 +5465,7 @@ document.addEventListener('change', (e) => {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(data)
     });
-    if (!r.ok) throw new Error('Error creando tarjeta');
+    if (!r.ok) throw new Error('Error al crear');
     return await r.json();
   }
   async function apiUpdate(id, data){
@@ -5474,93 +5473,86 @@ document.addEventListener('change', (e) => {
       method:'PUT', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(data)
     });
-    if (!r.ok) throw new Error('Error actualizando tarjeta');
+    if (!r.ok) throw new Error('Error al actualizar');
     return await r.json();
   }
   async function apiDelete(id){
     const r = await fetch(`/api/tasks/${id}`, { method:'DELETE' });
-    if (!r.ok) throw new Error('Error eliminando tarjeta');
+    // Si devuelve 404 (Not Found), es que ya está borrada, así que lo consideramos éxito
+    if (r.status === 404) return true;
+    if (!r.ok) throw new Error('Error al eliminar');
     return true;
   }
   async function apiList(){
-    // Pedimos todas las OPS al servidor
-    const r = await fetch('/api/tasks?task_type=ops_update', { cache:'no-store' });
-    if (!r.ok) return [];
-    return await r.json();
+    try {
+        const r = await fetch('/api/tasks?task_type=ops_update', { cache:'no-store' });
+        if (!r.ok) return [];
+        return await r.json();
+    } catch(e) { return []; }
   }
 
-  // --- 2. RENDER ---
+  // --- 2. RENDER (Solo se usa al cargar o filtrar, NO al borrar) ---
   async function render(){
     const items = await apiList();
-    console.log("📥 OPS recibidas del server:", items); // DEBUG: Mira la consola del navegador
-
-    // Normalizamos la estación actual a Mayúsculas para comparar
-    const currentStation = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
+    const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
     
-    // Filtrado ROBUSTO
-    let filtered = items.filter(t => {
-        // Si la tarjeta no tiene estación, la mostramos por si acaso
-        if (!t.station) return true;
-        // Comparamos ignorando mayúsculas/minúsculas
-        return String(t.station).toUpperCase() === currentStation;
-    });
+    // Filtrado seguro
+    let filtered = items.filter(t => !t.station || String(t.station).toUpperCase() === station);
 
-    // Filtros de la UI (Buscador, selectores)
     const q = (Q?.value || '').toLowerCase();
     const p = (FILT_PRIO?.value || '');
     const s = (FILT_SCOPE?.value || '');
 
     filtered = filtered.filter(it => {
       const txt = (it.title + ' ' + (it.scope||'')).toLowerCase();
-      return (!q || txt.includes(q)) &&
-             (!p || it.impact === p) &&
-             (!s || it.scope === s);
+      return (!q || txt.includes(q)) && (!p || it.impact === p) && (!s || it.scope === s);
     });
 
     LIST.innerHTML = '';
     
     if (filtered.length === 0) {
       LIST.innerHTML = `<div style="padding:15px;color:#888;text-align:center;font-style:italic;">
-        No hay actualizaciones para <b>${currentStation}</b>.<br>
-        <small>(Total en sistema: ${items.length})</small>
+        No hay actualizaciones activas.
       </div>`;
       return;
     }
 
-    // Pintar tarjetas
-    filtered.forEach(it => {
-      const el = document.createElement('div');
-      el.className = 'ops-item';
-      el.dataset.id = it.id; // Guardamos ID vital para borrar/editar
-      
-      const impact = it.impact || 'Medio';
-      const scope = it.scope || 'General';
-      const owner = it.owner || it.assigned_to || '—';
-      // Formatear fecha legible
-      const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString() : '';
-
-      el.innerHTML = `
-        <div class="ops-head">
-          <div class="ops-title">${esc(it.title)}</div>
-          <div class="ops-flags">
-            <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
-            <span class="ops-scope">${esc(scope)}</span>
-          </div>
-        </div>
-        <div class="ops-meta">
-          <span>Resp: ${esc(owner)}</span>
-          <span style="margin-left:auto;font-size:0.75rem;color:#999;">${dateStr}</span>
-        </div>
-        <div class="ops-actions">
-          <button class="ops-btn" data-action="edit">Editar</button>
-          <button class="ops-btn" data-action="delete" style="color:#b91c1c;">Eliminar</button>
-        </div>
-      `;
-      LIST.appendChild(el);
-    });
+    filtered.forEach(createCardDOM);
   }
 
-  // --- 3. DIÁLOGO ---
+  // Helper para crear el HTML de una tarjeta
+  function createCardDOM(it) {
+    const el = document.createElement('div');
+    el.className = 'ops-item';
+    el.id = `ops-${it.id}`; // ID único en el DOM
+    el.dataset.id = it.id;
+    
+    const impact = it.impact || 'Medio';
+    const scope = it.scope || 'General';
+    const owner = it.owner || '—';
+    const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString() : '';
+
+    el.innerHTML = `
+      <div class="ops-head">
+        <div class="ops-title">${esc(it.title)}</div>
+        <div class="ops-flags">
+          <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
+          <span class="ops-scope">${esc(scope)}</span>
+        </div>
+      </div>
+      <div class="ops-meta">
+        <span>Resp: ${esc(owner)}</span>
+        <span style="margin-left:auto;font-size:0.75rem;color:#999;">${dateStr}</span>
+      </div>
+      <div class="ops-actions">
+        <button class="ops-btn" data-action="edit">Editar</button>
+        <button class="ops-btn" data-action="delete" style="color:#b91c1c;">Eliminar</button>
+      </div>
+    `;
+    LIST.appendChild(el);
+  }
+
+  // --- 3. MANEJO DEL DIÁLOGO ---
   function openDialog(data = null){
     FORM.reset();
     if (data) {
@@ -5568,7 +5560,7 @@ document.addEventListener('change', (e) => {
       document.getElementById('ops-title').value = data.title || '';
       document.getElementById('ops-impact').value = data.impact || 'Medio';
       document.getElementById('ops-scope-field').value = data.scope || 'General';
-      document.getElementById('ops-owner').value = data.owner || data.assigned_to || '';
+      document.getElementById('ops-owner').value = data.owner || '';
       if(data.valid_from) document.getElementById('ops-from').value = data.valid_from.split('T')[0];
       if(data.valid_to)   document.getElementById('ops-to').value = data.valid_to.split('T')[0];
     } else {
@@ -5583,16 +5575,11 @@ document.addEventListener('change', (e) => {
 
   BTN_ADD?.addEventListener('click', () => openDialog());
   
-  // Botón Cancelar
-  const btnCancel = FORM.querySelector('button[value="cancel"]');
-  if(btnCancel) btnCancel.addEventListener('click', (e) => { e.preventDefault(); closeDialog(); });
+  FORM.querySelector('button[value="cancel"]')?.addEventListener('click', (e) => { e.preventDefault(); closeDialog(); });
 
-  // GUARDAR
   BTN_SAVE?.addEventListener('click', async (e) => {
     e.preventDefault();
     const id = document.getElementById('ops-id').value;
-    const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
-
     const payload = {
       task_type: 'ops_update',
       title: document.getElementById('ops-title').value.trim(),
@@ -5601,64 +5588,76 @@ document.addEventListener('change', (e) => {
       owner: document.getElementById('ops-owner').value.trim(),
       valid_from: document.getElementById('ops-from').value || null,
       valid_to: document.getElementById('ops-to').value || null,
-      station: station // Enviamos la estación explícitamente
+      station: (window.STATION_OVERRIDE || 'MAD').toUpperCase()
     };
 
-    if (!payload.title) { alert('Falta el título'); return; }
-
-    BTN_SAVE.textContent = 'Guardando...';
-    BTN_SAVE.disabled = true;
+    if (!payload.title) { alert('Falta título'); return; }
+    BTN_SAVE.textContent = 'Guardando...'; BTN_SAVE.disabled = true;
 
     try {
-      if (id) await apiUpdate(id, payload);
-      else    await apiCreate(payload);
-      
+      if (id) {
+        // UPDATE: Actualizamos servidor y luego el DOM puntual
+        const updated = await apiUpdate(id, payload);
+        const existingCard = document.getElementById(`ops-${id}`);
+        if (existingCard) existingCard.remove(); // Lo quitamos y lo volvemos a crear actualizado
+        createCardDOM(updated);
+      } else {
+        // CREATE: Creamos y añadimos al final
+        const created = await apiCreate(payload);
+        // Si había mensaje de "No hay actualizaciones", bórralo
+        if (LIST.innerHTML.includes('No hay actualizaciones')) LIST.innerHTML = '';
+        createCardDOM(created);
+      }
       closeDialog();
-      await render(); // Refresco forzoso
     } catch (err) {
-      console.error(err);
       alert('Error: ' + err.message);
     } finally {
-      BTN_SAVE.textContent = 'Guardar';
-      BTN_SAVE.disabled = false;
+      BTN_SAVE.textContent = 'Guardar'; BTN_SAVE.disabled = false;
     }
   });
 
-  // --- 4. CLICK EN LISTA (Editar/Borrar) ---
+  // --- 4. ELIMINACIÓN ROBUSTA ---
   LIST.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
     
     const card = btn.closest('.ops-item');
-    const id = card.dataset.id;
+    const id = card.dataset.id; // ID del servidor
     const action = btn.dataset.action;
 
     if (action === 'delete') {
       if (confirm('¿Borrar actualización?')) {
+        // 1. Borrado visual optimista (Inmediato)
+        card.style.opacity = '0.5'; 
+        
         try {
+          // 2. Llamada al servidor
           await apiDelete(id);
-          await render(); // Recargar lista desde el servidor
-        } catch (err) { alert(err.message); }
+          // 3. Si éxito, quitar del DOM
+          card.remove();
+          
+          // Si no queda nada, mostrar mensaje
+          if (LIST.children.length === 0) render();
+          
+        } catch (err) {
+            // Si falla (y no es 404), restaurar visibilidad
+            card.style.opacity = '1';
+            alert('Error al borrar: ' + err.message);
+        }
       }
     } else if (action === 'edit') {
-      // Recuperamos datos del DOM o pedimos al server. Por rapidez, del DOM:
-      const title = card.querySelector('.ops-title').textContent;
-      const impact = card.querySelector('.ops-impact').textContent;
-      const scope = card.querySelector('.ops-scope').textContent;
-      const owner = card.querySelector('.ops-meta span').textContent.replace('Resp: ','').replace('—','');
-      
-      openDialog({ id, title, impact, scope, owner });
+        const title = card.querySelector('.ops-title').textContent;
+        const impact = card.querySelector('.ops-impact').textContent;
+        const scope = card.querySelector('.ops-scope').textContent;
+        const owner = card.querySelector('.ops-meta span').textContent.replace('Resp: ','');
+        openDialog({ id, title, impact, scope, owner });
     }
   });
 
-  // Listeners Filtros
   [Q, FILT_PRIO, FILT_SCOPE].forEach(el => el?.addEventListener('input', render));
-
-  // Arranque
+  
+  // Carga inicial
   render();
-
-  // Escuchar Websocket para refrescar si otro usuario crea algo
-  window.addEventListener('task_updated', render); // Evento custom si lo usas
 })();
 
 // === INIT GLOBAL (corre una vez cuando el DOM está listo) ===
@@ -6121,6 +6120,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
