@@ -25,6 +25,46 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+async def send_to_excel_online(data: BriefingSnapshot):
+    """
+    Envía los datos a Power Automate para que los escriba en Excel Online.
+    """
+    url = os.getenv("EXCEL_WEBHOOK_URL")
+    if not url:
+        print("⚠️ No se configuró EXCEL_WEBHOOK_URL. Saltando Excel Online.")
+        return
+
+    # Preparamos un JSON plano y sencillo
+    # Calcula totales para enviarlos como texto
+    total_p = len(data.present_names)
+    # Intenta sacar el total del string "12 presentes / 15 totales"
+    try:
+        total_t = data.roster_stats.split("/")[1].strip().split()[0]
+    except:
+        total_t = "?"
+    
+    equipo_str = f"{total_p}/{total_t} ({', '.join(data.present_names[:5])}...)" # Cortamos nombres si son muchos
+
+    payload = {
+        "fecha": data.date,
+        "turno": data.shift,
+        "timer": data.timer,
+        "equipo": equipo_str,
+        "kpi_uph": str(data.kpis.get("UPH", "-")),
+        "kpi_costes": str(data.kpis.get("Costes", "-")),
+        "notas": (data.prev_shift_note or "")[:500] # Limitamos caracteres
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=payload, timeout=10.0)
+            if resp.status_code in (200, 202):
+                print("🚀 Fila enviada a Excel Online correctamente.")
+            else:
+                print(f"⚠️ Error Power Automate: {resp.status_code} {resp.text}")
+    except Exception as e:
+        print(f"⚠️ Excepción enviando a Excel Online: {e}")
+
 def generate_html_report(data: BriefingSnapshot) -> str:
     """Genera un HTML bonito y autocontenido con los datos del briefing."""
     
@@ -4199,7 +4239,12 @@ async def save_briefing_summary(data: BriefingSnapshot):
     except Exception as e:
         print(f"❌ Error al guardar: {e}")
         log_msg = f"Error: {str(e)}"
-
+     # ==========================================
+    # EXCEL ONLINE (Power Automate)
+    # ==========================================
+    # Lo lanzamos en background para no hacer esperar al usuario
+    asyncio.create_task(send_to_excel_online(data))
+    
     return {"summary": final_markdown, "saved": True, "log": log_msg}
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
@@ -4207,6 +4252,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
