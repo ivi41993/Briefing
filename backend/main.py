@@ -27,43 +27,47 @@ from pydantic import BaseModel, Field
 
 async def send_to_excel_online(data: BriefingSnapshot):
     """
-    Envía los datos a Power Automate para que los escriba en Excel Online.
+    Envía los datos a Power Automate.
+    IMPORTANTE: El esquema JSON en Power Automate debe coincidir con estas claves.
     """
     url = os.getenv("EXCEL_WEBHOOK_URL")
     if not url:
-        print("⚠️ No se configuró EXCEL_WEBHOOK_URL. Saltando Excel Online.")
+        print("⚠️ EXCEL_WEBHOOK_URL no está definida en Render.")
         return
 
-    # Preparamos un JSON plano y sencillo
-    # Calcula totales para enviarlos como texto
-    total_p = len(data.present_names)
-    # Intenta sacar el total del string "12 presentes / 15 totales"
+    # 1. Preparar datos planos (Strings) para evitar errores de formato
+    # Extraer números limpios
     try:
-        total_t = data.roster_stats.split("/")[1].strip().split()[0]
+        total_presentes = len(data.present_names)
+        equipo_texto = f"{total_presentes} presentes"
     except:
-        total_t = "?"
-    
-    equipo_str = f"{total_p}/{total_t} ({', '.join(data.present_names[:5])}...)" # Cortamos nombres si son muchos
+        equipo_texto = data.roster_stats
 
     payload = {
-        "fecha": data.date,
-        "turno": data.shift,
-        "timer": data.timer,
-        "equipo": equipo_str,
+        "fecha": str(data.date),
+        "turno": str(data.shift),
+        "timer": str(data.timer),
+        "equipo": str(equipo_texto),
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
-        "notas": (data.prev_shift_note or "")[:500] # Limitamos caracteres
+        # Limitar caracteres para que Excel no falle si es muy largo
+        "notas": str(data.prev_shift_note or "")[:500] 
     }
+
+    print(f"📤 Enviando a Excel Online: {json.dumps(payload)}")
 
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=payload, timeout=10.0)
-            if resp.status_code in (200, 202):
-                print("🚀 Fila enviada a Excel Online correctamente.")
+            resp = await client.post(url, json=payload, timeout=15.0)
+            
+            if resp.status_code == 202 or resp.status_code == 200:
+                print("✅ Excel Online actualizado correctamente.")
             else:
-                print(f"⚠️ Error Power Automate: {resp.status_code} {resp.text}")
+                # Loguear el error exacto de Microsoft
+                print(f"❌ Error Power Automate ({resp.status_code}): {resp.text}")
+                
     except Exception as e:
-        print(f"⚠️ Excepción enviando a Excel Online: {e}")
+        print(f"❌ Excepción conectando con Power Automate: {e}")
 
 def generate_html_report(data: BriefingSnapshot) -> str:
     """Genera un HTML bonito y autocontenido con los datos del briefing."""
@@ -4274,98 +4278,81 @@ async def save_briefing_summary(data: BriefingSnapshot):
 @app.post("/api/briefing/summary")
 async def save_briefing_summary(data: BriefingSnapshot):
     """
-    Genera el Markdown completo y lo sube a GitHub + Excel Online.
-    CORRECCIÓN: Elimina la 'ñ' del nombre de archivo para evitar error 422.
+    Genera resumen y guarda en GitHub (con timestamp) y Excel.
     """
-    # --- HELPER PARA LIMPIAR NOMBRE DE ARCHIVO ---
-    def clean_filename_str(text: str) -> str:
-        # Descompone caracteres (ñ -> n + ~) y elimina las marcas (~)
+    # --- HELPER PARA LIMPIAR NOMBRE ---
+    def clean_str(text: str) -> str:
+        # Quita tildes y caracteres raros
         s = unicodedata.normalize('NFD', text)
         return ''.join(c for c in s if unicodedata.category(c) != 'Mn')
 
-    # 1. Generar contenido Markdown
+    # 1. Generar Markdown visual
     lines = []
-    lines.append(f"# 📝 Resumen de Turno - {data.station}")
+    lines.append(f"# 📝 Resumen - {data.station}")
     lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift}")
     lines.append(f"**⏱️ Cronómetro:** {data.timer}")
     
-    lines.append(f"**👥 Equipo:** {data.roster_stats}")
+    lines.append(f"\n**👥 Equipo ({len(data.present_names)}):**")
     if data.present_names:
-        names_formatted = ", ".join(data.present_names)
-        lines.append(f"> **Asistentes:** {names_formatted}")
-    
-    lines.append("\n### ↩️ Información Turno Anterior")
-    if data.prev_shift_note and data.prev_shift_note.strip():
-        lines.append(f"{data.prev_shift_note}")
+        lines.append(f"> {', '.join(data.present_names)}")
     else:
-        lines.append("_Sin novedades reportadas._")
+        lines.append("> Sin datos de nombres.")
 
-    lines.append("\n### 📊 KPIs del Turno")
+    lines.append("\n### ↩️ Turno Anterior")
+    lines.append(f"{data.prev_shift_note or 'Sin novedades.'}")
+
+    lines.append("\n### 📊 KPIs")
     for k, v in data.kpis.items():
-        lines.append(f"- **{k.upper()}:** {v}")
+        lines.append(f"- **{k}:** {v}")
 
-    lines.append("\n### ✅ Checklist de Inicio")
-    labels = {
-        "c1": "Dotación", "c2": "Ops Updates", "c3": "Info Turno Ant.",
-        "c4": "Seguridad", "c5": "Incidentes", "c6": "KPIs", "c7": "Feedback"
-    }
-    for key, val in data.checklist.items():
-        icon = "🟢" if val == "OK" else "🔴"
-        lines.append(f"- {icon} {labels.get(key, key)}")
-
-    if data.ops_updates:
-        lines.append(f"\n### 🚧 Actualizaciones Operativas ({len(data.ops_updates)})")
-        for op in data.ops_updates:
-            impact = op.get('impact', 'Medio')
-            title = op.get('title', 'Sin título')
-            lines.append(f"- [{impact}] {title}")
+    lines.append("\n### ✅ Checklist")
+    for k, v in data.checklist.items():
+        icon = "🟢" if v == "OK" else "🔴"
+        lines.append(f"- {icon} {k}: {v}")
         
-    lines.append("\n### 📋 Estado Kanban")
-    for k, v in data.kanban_counts.items():
-        lines.append(f"- {k}: {v}")
+    if data.ops_updates:
+        lines.append("\n### 🚧 Actualizaciones Ops")
+        for op in data.ops_updates:
+            lines.append(f"- [{op.get('impact')}] {op.get('title')}")
 
     final_markdown = "\n".join(lines)
 
-    # 2. Gestión de Rutas y Guardado (CON LA CORRECCIÓN)
+    # 2. Configurar nombre de archivo ÚNICO (Timestamp)
+    # Ejemplo: 2025-11-20_10-30-45_Manana_Resumen.md
     safe_date = data.date.replace("/", "-")
+    safe_shift = clean_str(data.shift)
+    timestamp = datetime.now().strftime("%H-%M-%S")
     
-    # AQUÍ ESTÁ EL ARREGLO: Limpiamos la ñ y tildes del turno
-    safe_shift = clean_filename_str(data.shift) # "Mañana" se convierte en "Manana"
+    filename = f"{safe_date}_{timestamp}_{safe_shift}_Resumen.md"
     
-    filename = f"{safe_date}_{safe_shift}_Briefing.md"
-    
-    # Ruta relativa para el Store
+    # Ruta relativa ("summaries/archivo.md")
+    # GitHubStore ya le añade "data/" si está configurado GH_DIR
     store_path = f"summaries/{filename}"
 
     log_msg = ""
     
+    # 3. Guardar en GitHub
     try:
-        # INTENTO SUBIDA A GITHUB
         if USE_GITHUB and gh_store:
             print(f"☁️ Subiendo a GitHub: {store_path}...")
-            
             gh_store.write_text(store_path, final_markdown, message=f"Briefing {data.date} {data.shift}")
-            
-            # Subir JSON
-            json_path = store_path.replace(".md", ".json")
-            gh_store.write_json(json_path, data.dict(), message=f"Briefing Data {data.date}")
-            
-            log_msg = f"✅ Guardado en GitHub ({gh_store.repo}): {store_path}"
-        
+            log_msg = f"✅ Guardado en GitHub: {store_path}"
         else:
-            # FALLBACK A DISCO
-            local_path = Path("./data") / store_path
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(local_path, "w", encoding="utf-8") as f:
+            # Fallback local
+            p = Path("./data") / store_path
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
                 f.write(final_markdown)
-            log_msg = f"⚠️ Guardado LOCAL (No GitHub): {local_path}"
+            log_msg = f"⚠️ Guardado LOCAL: {store_path}"
 
-        # EXCEL ONLINE (Power Automate)
+        # 4. Enviar a Excel (Lanzar y olvidar)
         asyncio.create_task(send_to_excel_online(data))
-            
+
     except Exception as e:
-        print(f"❌ Error al guardar resumen: {e}")
+        print(f"❌ Error guardando: {e}")
         log_msg = f"Error: {str(e)}"
+
+    return {"summary": final_markdown, "saved": True, "log": log_msg}
 
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
@@ -4373,4 +4360,5 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
