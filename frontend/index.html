@@ -5445,7 +5445,7 @@ document.addEventListener('change', (e) => {
   };
 })();
 
-/* ===================== OPS UPDATES (ARREGLADO) ===================== */
+/* ===================== OPS UPDATES (VERSIÓN CORREGIDA & DEBUG) ===================== */
 (function initOpsUpdates(){
   const LIST   = document.getElementById('ops-list');
   const DIALOG = document.getElementById('ops-dialog');
@@ -5453,15 +5453,14 @@ document.addEventListener('change', (e) => {
   const BTN_ADD= document.getElementById('ops-add');
   const BTN_SAVE = document.getElementById('ops-save');
   
-  // Filtros
+  // Filtros UI
   const Q      = document.getElementById('ops-q');
   const FILT_PRIO  = document.getElementById('ops-prio');
   const FILT_SCOPE = document.getElementById('ops-scope');
 
-  // Si falta algo crítico, salimos
   if (!LIST || !DIALOG || !FORM) return;
 
-  // --- 1. API CLIENT ---
+  // --- 1. API ---
   async function apiCreate(data){
     const r = await fetch('/api/tasks', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -5470,7 +5469,6 @@ document.addEventListener('change', (e) => {
     if (!r.ok) throw new Error('Error creando tarjeta');
     return await r.json();
   }
-
   async function apiUpdate(id, data){
     const r = await fetch(`/api/tasks/${id}`, {
       method:'PUT', headers:{'Content-Type':'application/json'},
@@ -5479,15 +5477,13 @@ document.addEventListener('change', (e) => {
     if (!r.ok) throw new Error('Error actualizando tarjeta');
     return await r.json();
   }
-
   async function apiDelete(id){
     const r = await fetch(`/api/tasks/${id}`, { method:'DELETE' });
     if (!r.ok) throw new Error('Error eliminando tarjeta');
     return true;
   }
-
   async function apiList(){
-    // Pedimos solo las de tipo ops_update
+    // Pedimos todas las OPS al servidor
     const r = await fetch('/api/tasks?task_type=ops_update', { cache:'no-store' });
     if (!r.ok) return [];
     return await r.json();
@@ -5496,12 +5492,20 @@ document.addEventListener('change', (e) => {
   // --- 2. RENDER ---
   async function render(){
     const items = await apiList();
-    const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
-    
-    // Filtrar por estación actual (si aplica)
-    let filtered = items.filter(t => !t.station || t.station === station);
+    console.log("📥 OPS recibidas del server:", items); // DEBUG: Mira la consola del navegador
 
-    // Aplicar filtros de UI
+    // Normalizamos la estación actual a Mayúsculas para comparar
+    const currentStation = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
+    
+    // Filtrado ROBUSTO
+    let filtered = items.filter(t => {
+        // Si la tarjeta no tiene estación, la mostramos por si acaso
+        if (!t.station) return true;
+        // Comparamos ignorando mayúsculas/minúsculas
+        return String(t.station).toUpperCase() === currentStation;
+    });
+
+    // Filtros de la UI (Buscador, selectores)
     const q = (Q?.value || '').toLowerCase();
     const p = (FILT_PRIO?.value || '');
     const s = (FILT_SCOPE?.value || '');
@@ -5516,19 +5520,24 @@ document.addEventListener('change', (e) => {
     LIST.innerHTML = '';
     
     if (filtered.length === 0) {
-      LIST.innerHTML = '<div style="padding:10px;color:#888;text-align:center;">No hay actualizaciones operativas</div>';
+      LIST.innerHTML = `<div style="padding:15px;color:#888;text-align:center;font-style:italic;">
+        No hay actualizaciones para <b>${currentStation}</b>.<br>
+        <small>(Total en sistema: ${items.length})</small>
+      </div>`;
       return;
     }
 
+    // Pintar tarjetas
     filtered.forEach(it => {
       const el = document.createElement('div');
       el.className = 'ops-item';
-      // Guardamos el ID real del servidor
-      el.dataset.id = it.id;
+      el.dataset.id = it.id; // Guardamos ID vital para borrar/editar
       
       const impact = it.impact || 'Medio';
       const scope = it.scope || 'General';
       const owner = it.owner || it.assigned_to || '—';
+      // Formatear fecha legible
+      const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString() : '';
 
       el.innerHTML = `
         <div class="ops-head">
@@ -5540,7 +5549,7 @@ document.addEventListener('change', (e) => {
         </div>
         <div class="ops-meta">
           <span>Resp: ${esc(owner)}</span>
-          <span style="margin-left:auto;font-size:0.75rem;color:#999;">${new Date(it.created_at).toLocaleDateString()}</span>
+          <span style="margin-left:auto;font-size:0.75rem;color:#999;">${dateStr}</span>
         </div>
         <div class="ops-actions">
           <button class="ops-btn" data-action="edit">Editar</button>
@@ -5551,18 +5560,17 @@ document.addEventListener('change', (e) => {
     });
   }
 
-  // --- 3. MANEJO DEL DIÁLOGO ---
+  // --- 3. DIÁLOGO ---
   function openDialog(data = null){
     FORM.reset();
-    // Rellenar si es edición
     if (data) {
       document.getElementById('ops-id').value = data.id || '';
       document.getElementById('ops-title').value = data.title || '';
       document.getElementById('ops-impact').value = data.impact || 'Medio';
       document.getElementById('ops-scope-field').value = data.scope || 'General';
       document.getElementById('ops-owner').value = data.owner || data.assigned_to || '';
-      document.getElementById('ops-from').value = (data.valid_from || '').split('T')[0];
-      document.getElementById('ops-to').value = (data.valid_to || '').split('T')[0];
+      if(data.valid_from) document.getElementById('ops-from').value = data.valid_from.split('T')[0];
+      if(data.valid_to)   document.getElementById('ops-to').value = data.valid_to.split('T')[0];
     } else {
       document.getElementById('ops-id').value = '';
     }
@@ -5573,54 +5581,50 @@ document.addEventListener('change', (e) => {
     try { DIALOG.close(); } catch { DIALOG.removeAttribute('open'); }
   }
 
-  // Botón + Nueva
   BTN_ADD?.addEventListener('click', () => openDialog());
+  
+  // Botón Cancelar
+  const btnCancel = FORM.querySelector('button[value="cancel"]');
+  if(btnCancel) btnCancel.addEventListener('click', (e) => { e.preventDefault(); closeDialog(); });
 
-  // Botón Cancelar (dentro del form)
-  FORM.querySelector('button[value="cancel"]')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    closeDialog();
-  });
-
-  // Botón GUARDAR
+  // GUARDAR
   BTN_SAVE?.addEventListener('click', async (e) => {
     e.preventDefault();
     const id = document.getElementById('ops-id').value;
-    
+    const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
+
     const payload = {
-      task_type: 'ops_update', // IMPORTANTE
+      task_type: 'ops_update',
       title: document.getElementById('ops-title').value.trim(),
       impact: document.getElementById('ops-impact').value,
       scope: document.getElementById('ops-scope-field').value,
       owner: document.getElementById('ops-owner').value.trim(),
       valid_from: document.getElementById('ops-from').value || null,
       valid_to: document.getElementById('ops-to').value || null,
-      station: (window.STATION_OVERRIDE || 'MAD').toUpperCase()
+      station: station // Enviamos la estación explícitamente
     };
 
-    if (!payload.title) { alert('El título es obligatorio'); return; }
+    if (!payload.title) { alert('Falta el título'); return; }
 
     BTN_SAVE.textContent = 'Guardando...';
     BTN_SAVE.disabled = true;
 
     try {
-      if (id) {
-        await apiUpdate(id, payload);
-      } else {
-        await apiCreate(payload);
-      }
+      if (id) await apiUpdate(id, payload);
+      else    await apiCreate(payload);
+      
       closeDialog();
-      await render(); // Refrescar lista
+      await render(); // Refresco forzoso
     } catch (err) {
       console.error(err);
-      alert('Error al guardar: ' + err.message);
+      alert('Error: ' + err.message);
     } finally {
       BTN_SAVE.textContent = 'Guardar';
       BTN_SAVE.disabled = false;
     }
   });
 
-  // --- 4. EVENTOS DE LISTA (EDITAR / BORRAR) ---
+  // --- 4. CLICK EN LISTA (Editar/Borrar) ---
   LIST.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
@@ -5630,32 +5634,31 @@ document.addEventListener('change', (e) => {
     const action = btn.dataset.action;
 
     if (action === 'delete') {
-      if (confirm('¿Seguro que quieres eliminar esta actualización?')) {
+      if (confirm('¿Borrar actualización?')) {
         try {
           await apiDelete(id);
-          card.remove();
-          if (LIST.children.length === 0) render(); // Mostrar mensaje vacío si procede
-        } catch (err) {
-          alert('No se pudo eliminar: ' + err.message);
-        }
+          await render(); // Recargar lista desde el servidor
+        } catch (err) { alert(err.message); }
       }
     } else if (action === 'edit') {
-      // Recuperar datos frescos o del DOM
+      // Recuperamos datos del DOM o pedimos al server. Por rapidez, del DOM:
       const title = card.querySelector('.ops-title').textContent;
       const impact = card.querySelector('.ops-impact').textContent;
       const scope = card.querySelector('.ops-scope').textContent;
-      // Para editar bien, lo ideal es tener todos los datos. 
-      // Simplificamos cogiendo lo que hay y abriendo.
-      // Si quieres ser preciso, haz un fetch single aquí.
-      openDialog({ id, title, impact, scope }); 
+      const owner = card.querySelector('.ops-meta span').textContent.replace('Resp: ','').replace('—','');
+      
+      openDialog({ id, title, impact, scope, owner });
     }
   });
 
-  // Filtros
+  // Listeners Filtros
   [Q, FILT_PRIO, FILT_SCOPE].forEach(el => el?.addEventListener('input', render));
 
-  // Carga inicial
+  // Arranque
   render();
+
+  // Escuchar Websocket para refrescar si otro usuario crea algo
+  window.addEventListener('task_updated', render); // Evento custom si lo usas
 })();
 
 // === INIT GLOBAL (corre una vez cuando el DOM está listo) ===
@@ -6118,6 +6121,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
