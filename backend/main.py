@@ -26,48 +26,50 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 async def send_to_excel_online(data: BriefingSnapshot):
-    """
-    Envía los datos a Power Automate.
-    IMPORTANTE: El esquema JSON en Power Automate debe coincidir con estas claves.
-    """
     url = os.getenv("EXCEL_WEBHOOK_URL")
     if not url:
-        print("⚠️ EXCEL_WEBHOOK_URL no está definida en Render.")
+        print("⚠️ EXCEL_WEBHOOK_URL no definida.")
         return
 
-    # 1. Preparar datos planos (Strings) para evitar errores de formato
-    # Extraer números limpios
-    try:
-        total_presentes = len(data.present_names)
-        equipo_texto = f"{total_presentes} presentes"
-    except:
-        equipo_texto = data.roster_stats
+    # 1. Formatear Actualizaciones Operativas como texto
+    # Ejemplo: "[Alto] Problema Red (General) | [Medio] Visita (Isla)"
+    ops_text = ""
+    if data.ops_updates:
+        ops_lines = []
+        for op in data.ops_updates:
+            titulo = op.get("title", "Sin título")
+            impacto = op.get("impact", "Info")
+            scope = op.get("scope", "")
+            ops_lines.append(f"[{impacto}] {titulo} ({scope})")
+        ops_text = " | ".join(ops_lines) # Separador para que quepa en una celda
 
+    # 2. Usar roster_details si existe, si no el stats
+    equipo_final = data.roster_details if data.roster_details else data.roster_stats
+
+    # 3. Payload para Power Automate
+    # IMPORTANTE: He añadido claves nuevas. Tendrás que actualizar el JSON en Power Automate
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
         "timer": str(data.timer),
-        "equipo": str(equipo_texto),
+        "equipo": str(equipo_final),      # Ahora lleva nombres y iconos
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
-        # Limitar caracteres para que Excel no falle si es muy largo
-        "notas": str(data.prev_shift_note or "")[:500] 
+        "notas_turno_ant": str(data.prev_shift_note or "Sin datos"), # Turno anterior
+        "actualizaciones_ops": str(ops_text or "Sin actualizaciones") # Ops Updates
     }
 
-    print(f"📤 Enviando a Excel Online: {json.dumps(payload)}")
+    print(f"📤 Enviando a Excel: {json.dumps(payload)}")
 
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, json=payload, timeout=15.0)
-            
-            if resp.status_code == 202 or resp.status_code == 200:
-                print("✅ Excel Online actualizado correctamente.")
+            if resp.status_code in (200, 202):
+                print("✅ Excel actualizado.")
             else:
-                # Loguear el error exacto de Microsoft
-                print(f"❌ Error Power Automate ({resp.status_code}): {resp.text}")
-                
+                print(f"❌ Error Excel ({resp.status_code}): {resp.text}")
     except Exception as e:
-        print(f"❌ Excepción conectando con Power Automate: {e}")
+        print(f"❌ Excepción Excel: {e}")
 
 def generate_html_report(data: BriefingSnapshot) -> str:
     """Genera un HTML bonito y autocontenido con los datos del briefing."""
@@ -4171,18 +4173,20 @@ if not FRONTEND_DIR.exists():
 # FINAL: Generación de Resumen y Subida a GITHUB
 # ==========================================
 
+# === MODELO ACTUALIZADO ===
 class BriefingSnapshot(BaseModel):
     station: Optional[str] = "MAD"
     date: str
     shift: str
-    timer: str                          # Cronómetro
+    timer: str
     checklist: Dict[str, str] = {}
     kpis: Dict[str, Any] = {}
     roster_stats: str = ""
-    present_names: List[str] = []       # Lista de nombres
+    present_names: List[str] = []
+    roster_details: str = ""          # <--- NUEVO: String con todos los nombres y estado
     ops_updates: List[Dict[str, Any]] = []
     kanban_counts: Dict[str, int] = {}
-    prev_shift_note: Optional[str] = "" # Info turno anterior
+    prev_shift_note: Optional[str] = ""
     
     class Config:
         extra = "allow"
@@ -4280,6 +4284,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
