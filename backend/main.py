@@ -2765,6 +2765,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/api/incidents/protocol")
+def get_protocol_dummy():
+    # Endpoint vacío para evitar error 404 en el frontend
+    return {}
+
+@app.post("/api/incidents/protocol")
+def post_protocol_dummy(payload: dict):
+    # Endpoint dummy para guardar protocolo
+    return {"ok": True}
 
 @app.get("/api/backup")
 def api_backup():
@@ -4258,6 +4267,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
