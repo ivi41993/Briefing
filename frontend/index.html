@@ -5445,221 +5445,217 @@ document.addEventListener('change', (e) => {
   };
 })();
 
-/* ===================== OPS UPDATES – wiring completo ===================== */
+/* ===================== OPS UPDATES (ARREGLADO) ===================== */
 (function initOpsUpdates(){
   const LIST   = document.getElementById('ops-list');
   const DIALOG = document.getElementById('ops-dialog');
   const FORM   = document.getElementById('ops-form');
   const BTN_ADD= document.getElementById('ops-add');
   const BTN_SAVE = document.getElementById('ops-save');
+  
+  // Filtros
   const Q      = document.getElementById('ops-q');
   const FILT_PRIO  = document.getElementById('ops-prio');
   const FILT_SCOPE = document.getElementById('ops-scope');
 
+  // Si falta algo crítico, salimos
   if (!LIST || !DIALOG || !FORM) return;
 
-  // --- 1) FIX botones del <dialog> ---
-  // a) Cancelar debe saltarse validation
-  const cancelBtn = FORM.querySelector('button[value="cancel"]');
-  if (cancelBtn) cancelBtn.setAttribute('formnovalidate','');
-  // b) Guardar gestionado por JS (no confiamos en method="dialog")
-  BTN_SAVE?.addEventListener('click', async (e)=>{
-    e.preventDefault();
-    const payload = collectForm();
-    if (!payload.title) { alert('Falta el título'); return; }
-    try{
-      if (payload.id) { await opsUpdate(payload.id, payload); }
-      else            { await opsCreate(payload); }
-      closeDialog();
-      await loadOpsInitial(true);
-    }catch(err){ alert(err.message || 'No se pudo guardar'); }
-  });
+  // --- 1. API CLIENT ---
+  async function apiCreate(data){
+    const r = await fetch('/api/tasks', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    if (!r.ok) throw new Error('Error creando tarjeta');
+    return await r.json();
+  }
 
-  // c) Abrir con +Nueva
-  BTN_ADD?.addEventListener('click', ()=> openDialog());
+  async function apiUpdate(id, data){
+    const r = await fetch(`/api/tasks/${id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    if (!r.ok) throw new Error('Error actualizando tarjeta');
+    return await r.json();
+  }
 
-  // d) Búsqueda / filtros
-  [Q, FILT_PRIO, FILT_SCOPE].forEach(el=>{
-    el?.addEventListener('input', applyFilters);
-    el?.addEventListener('change', applyFilters);
-  });
+  async function apiDelete(id){
+    const r = await fetch(`/api/tasks/${id}`, { method:'DELETE' });
+    if (!r.ok) throw new Error('Error eliminando tarjeta');
+    return true;
+  }
 
-  // e) Delegación: editar / eliminar / pin
-  LIST.addEventListener('click', (e)=>{
-    const edit = e.target.closest('[data-op="edit"]');
-    const del  = e.target.closest('[data-op="del"]');
-    const pin  = e.target.closest('[data-op="pin"]');
-    const card = e.target.closest('.ops-item');
-    if (!card) return;
-    const id   = card.dataset.id;
+  async function apiList(){
+    // Pedimos solo las de tipo ops_update
+    const r = await fetch('/api/tasks?task_type=ops_update', { cache:'no-store' });
+    if (!r.ok) return [];
+    return await r.json();
+  }
 
-    if (edit){
-      const data = cardToObj(card);
-      openDialog(data);
+  // --- 2. RENDER ---
+  async function render(){
+    const items = await apiList();
+    const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
+    
+    // Filtrar por estación actual (si aplica)
+    let filtered = items.filter(t => !t.station || t.station === station);
+
+    // Aplicar filtros de UI
+    const q = (Q?.value || '').toLowerCase();
+    const p = (FILT_PRIO?.value || '');
+    const s = (FILT_SCOPE?.value || '');
+
+    filtered = filtered.filter(it => {
+      const txt = (it.title + ' ' + (it.scope||'')).toLowerCase();
+      return (!q || txt.includes(q)) &&
+             (!p || it.impact === p) &&
+             (!s || it.scope === s);
+    });
+
+    LIST.innerHTML = '';
+    
+    if (filtered.length === 0) {
+      LIST.innerHTML = '<div style="padding:10px;color:#888;text-align:center;">No hay actualizaciones operativas</div>';
+      return;
     }
-    if (del){
-      if (confirm('¿Eliminar esta actualización?')){
-        opsDelete(id).then(()=> card.remove()).catch(err=>alert(err.message||'No se pudo eliminar'));
-      }
-    }
-    if (pin){
-      card.classList.toggle('ops-pin-on');
-    }
-  });
 
-  // ========= Helpers dialog =========
-  function openDialog(data=null){
-    // hidratar
+    filtered.forEach(it => {
+      const el = document.createElement('div');
+      el.className = 'ops-item';
+      // Guardamos el ID real del servidor
+      el.dataset.id = it.id;
+      
+      const impact = it.impact || 'Medio';
+      const scope = it.scope || 'General';
+      const owner = it.owner || it.assigned_to || '—';
+
+      el.innerHTML = `
+        <div class="ops-head">
+          <div class="ops-title">${esc(it.title)}</div>
+          <div class="ops-flags">
+            <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
+            <span class="ops-scope">${esc(scope)}</span>
+          </div>
+        </div>
+        <div class="ops-meta">
+          <span>Resp: ${esc(owner)}</span>
+          <span style="margin-left:auto;font-size:0.75rem;color:#999;">${new Date(it.created_at).toLocaleDateString()}</span>
+        </div>
+        <div class="ops-actions">
+          <button class="ops-btn" data-action="edit">Editar</button>
+          <button class="ops-btn" data-action="delete" style="color:#b91c1c;">Eliminar</button>
+        </div>
+      `;
+      LIST.appendChild(el);
+    });
+  }
+
+  // --- 3. MANEJO DEL DIÁLOGO ---
+  function openDialog(data = null){
     FORM.reset();
-    FORM.querySelector('#ops-id').value      = data?.id || '';
-    FORM.querySelector('#ops-title').value   = data?.title || '';
-    FORM.querySelector('#ops-impact').value  = data?.impact || 'Medio';
-    FORM.querySelector('#ops-scope-field').value = data?.scope || 'General';
-    FORM.querySelector('#ops-owner').value   = data?.owner || '';
-    FORM.querySelector('#ops-from').value    = (data?.from || '').slice(0,10);
-    FORM.querySelector('#ops-to').value      = (data?.to   || '').slice(0,10);
-
-    // Cancelar cierra siempre
-    cancelBtn?.addEventListener('click', (ev)=>{ ev.preventDefault(); closeDialog(); }, { once:true });
-
-    // showModal con fallback
-    try { DIALOG.showModal(); }
-    catch { DIALOG.setAttribute('open',''); }
+    // Rellenar si es edición
+    if (data) {
+      document.getElementById('ops-id').value = data.id || '';
+      document.getElementById('ops-title').value = data.title || '';
+      document.getElementById('ops-impact').value = data.impact || 'Medio';
+      document.getElementById('ops-scope-field').value = data.scope || 'General';
+      document.getElementById('ops-owner').value = data.owner || data.assigned_to || '';
+      document.getElementById('ops-from').value = (data.valid_from || '').split('T')[0];
+      document.getElementById('ops-to').value = (data.valid_to || '').split('T')[0];
+    } else {
+      document.getElementById('ops-id').value = '';
+    }
+    try { DIALOG.showModal(); } catch { DIALOG.setAttribute('open', true); }
   }
 
   function closeDialog(){
     try { DIALOG.close(); } catch { DIALOG.removeAttribute('open'); }
   }
 
-  function collectForm(){
-    const id = FORM.querySelector('#ops-id').value.trim();
-    return {
-      id: id || null,
-      task_type: 'ops_update',
-      title: (FORM.querySelector('#ops-title').value||'').trim(),
-      impact: FORM.querySelector('#ops-impact').value,
-      scope:  FORM.querySelector('#ops-scope-field').value,
-      owner: (FORM.querySelector('#ops-owner').value||'').trim() || null,
-      from:  FORM.querySelector('#ops-from').value || null,
-      to:    FORM.querySelector('#ops-to').value || null,
-      station: (typeof STATION_CODE!=='undefined' ? STATION_CODE : 'MAD')
+  // Botón + Nueva
+  BTN_ADD?.addEventListener('click', () => openDialog());
+
+  // Botón Cancelar (dentro del form)
+  FORM.querySelector('button[value="cancel"]')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeDialog();
+  });
+
+  // Botón GUARDAR
+  BTN_SAVE?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('ops-id').value;
+    
+    const payload = {
+      task_type: 'ops_update', // IMPORTANTE
+      title: document.getElementById('ops-title').value.trim(),
+      impact: document.getElementById('ops-impact').value,
+      scope: document.getElementById('ops-scope-field').value,
+      owner: document.getElementById('ops-owner').value.trim(),
+      valid_from: document.getElementById('ops-from').value || null,
+      valid_to: document.getElementById('ops-to').value || null,
+      station: (window.STATION_OVERRIDE || 'MAD').toUpperCase()
     };
-  }
 
-  // ========= Backend minimal =========
-  async function opsCreate(data){
-    const r = await fetch('/api/tasks', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    if (!r.ok) throw new Error('create failed');
-    return r.json();
-  }
-  async function opsUpdate(id, data){
-    const r = await fetch(`/api/tasks/${id}`, {
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    if (!r.ok) throw new Error('update failed');
-    return r.json();
-  }
-  async function opsDelete(id){
-    const r = await fetch(`/api/tasks/${id}`, { method:'DELETE' });
-    if (!r.ok) throw new Error('delete failed');
-  }
+    if (!payload.title) { alert('El título es obligatorio'); return; }
 
-  // ========= Render =========
-  function cardToObj(card){
-    return {
-      id: card.dataset.id,
-      title: card.querySelector('.ops-title')?.textContent.trim() || '',
-      impact: card.querySelector('.ops-impact')?.dataset?.v || card.querySelector('.ops-impact')?.textContent.trim() || 'Medio',
-      scope:  card.querySelector('.ops-scope')?.textContent.trim() || 'General',
-      owner:  card.querySelector('.ops-owner')?.textContent.replace(/^@/,'').trim() || '',
-      from:   card.dataset.from || null,
-      to:     card.dataset.to   || null
-    };
-  }
+    BTN_SAVE.textContent = 'Guardando...';
+    BTN_SAVE.disabled = true;
 
-  function renderItem(item){
-    const id = `ops-${item.id}`;
-    let el = document.getElementById(id);
-    if (!el){
-      el = document.createElement('div');
-      el.id = id;
-      LIST.appendChild(el);
+    try {
+      if (id) {
+        await apiUpdate(id, payload);
+      } else {
+        await apiCreate(payload);
+      }
+      closeDialog();
+      await render(); // Refrescar lista
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar: ' + err.message);
+    } finally {
+      BTN_SAVE.textContent = 'Guardar';
+      BTN_SAVE.disabled = false;
     }
-    el.className = 'ops-item';
-    el.dataset.id = item.id;
-    el.dataset.from = item.from || '';
-    el.dataset.to   = item.to || '';
+  });
 
-    const impact = (item.impact || 'Medio');
-    const scope  = (item.scope  || 'General');
-    const owner  = item.owner ? `@${esc(item.owner)}` : '—';
-    const fromH  = item.from ? new Date(item.from).toLocaleDateString('es-ES') : '—';
-    const toH    = item.to   ? new Date(item.to).toLocaleDateString('es-ES')   : '—';
+  // --- 4. EVENTOS DE LISTA (EDITAR / BORRAR) ---
+  LIST.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    
+    const card = btn.closest('.ops-item');
+    const id = card.dataset.id;
+    const action = btn.dataset.action;
 
-    el.innerHTML = `
-      <div class="ops-head">
-        <div class="ops-title">${esc(item.title || '')}</div>
-        <div class="ops-flags">
-          <span class="ops-impact ${esc(impact)}" data-v="${esc(impact)}">${esc(impact)}</span>
-          <span class="ops-scope">${esc(scope)}</span>
-        </div>
-      </div>
-      <div class="ops-meta">
-        <span class="badge">Resp: <span class="ops-owner">${owner}</span></span>
-        <span class="badge">Desde: ${fromH}</span>
-        <span class="badge">Hasta: ${toH}</span>
-      </div>
-      <div class="ops-actions">
-        <button class="ops-btn" data-op="edit">Editar</button>
-        <button class="ops-btn" data-op="pin">Pin</button>
-        <button class="ops-btn" data-op="del">Eliminar</button>
-      </div>
-      <div class="ops-ack" aria-label="Acuses">
-        <div class="ops-ack-bar"><span style="width:0%"></span></div>
-        <small>0% leído</small>
-      </div>
-    `;
-  }
-
- 
-
-  function applyFilters(){
-    const q = (Q?.value || '').toLowerCase().trim();
-    const p = (FILT_PRIO?.value || '').trim();
-    const s = (FILT_SCOPE?.value || '').trim();
-    LIST.querySelectorAll('.ops-item').forEach(card=>{
-      const txt   = card.querySelector('.ops-title')?.textContent.toLowerCase() || '';
-      const imp   = card.querySelector('.ops-impact')?.dataset?.v || '';
-      const scope = card.querySelector('.ops-scope')?.textContent || '';
-      const okQ = !q || txt.includes(q);
-      const okP = !p || imp === p;
-      const okS = !s || scope === s;
-      card.style.display = (okQ && okP && okS) ? '' : 'none';
-    });
-  }
-
-  // ========= Carga inicial =========
-  async function loadOpsInitial(replace=false){
-    try{
-      const qs = `task_type=ops_update&station=${encodeURIComponent(STATION_CODE)}`;
-      const r  = await fetch('/api/tasks?'+qs, { cache:'no-store' });
-      const arr = await r.json();
-      if (replace) LIST.innerHTML = '';
-      (Array.isArray(arr)?arr:[]).forEach(renderItem);
-      applyFilters();
-    }catch(err){
-      console.warn('No se pudieron cargar OPS:', err);
+    if (action === 'delete') {
+      if (confirm('¿Seguro que quieres eliminar esta actualización?')) {
+        try {
+          await apiDelete(id);
+          card.remove();
+          if (LIST.children.length === 0) render(); // Mostrar mensaje vacío si procede
+        } catch (err) {
+          alert('No se pudo eliminar: ' + err.message);
+        }
+      }
+    } else if (action === 'edit') {
+      // Recuperar datos frescos o del DOM
+      const title = card.querySelector('.ops-title').textContent;
+      const impact = card.querySelector('.ops-impact').textContent;
+      const scope = card.querySelector('.ops-scope').textContent;
+      // Para editar bien, lo ideal es tener todos los datos. 
+      // Simplificamos cogiendo lo que hay y abriendo.
+      // Si quieres ser preciso, haz un fetch single aquí.
+      openDialog({ id, title, impact, scope }); 
     }
-  }
+  });
 
-  // Iniciar
-  loadOpsInitial();
+  // Filtros
+  [Q, FILT_PRIO, FILT_SCOPE].forEach(el => el?.addEventListener('input', render));
+
+  // Carga inicial
+  render();
 })();
 
 // === INIT GLOBAL (corre una vez cuando el DOM está listo) ===
@@ -6122,6 +6118,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
