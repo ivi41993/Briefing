@@ -7,6 +7,9 @@ import asyncio  # NUEVO
 import ssl      # NUEVO
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+import unicodedata
+import base64
+import httpx
 
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -427,10 +430,75 @@ EXT_POLL_SECONDS = int(os.getenv("EXT_POLL_SECONDS", "60"))
 # SSL (elige 1 modo en .env): TRUSTSTORE | CERTIFI | CAFILE | FALSE
 EXT_VERIFY_MODE  = os.getenv("EXT_VERIFY_MODE", "TRUSTSTORE").upper()
 EXT_CAFILE       = os.getenv("EXT_CAFILE", "").strip()
+# === Storage backend ===
+STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
+USE_GITHUB = (STORAGE_BACKEND == "github")
 
+# Rutas específicas para BCN
+TASKS_DB = os.getenv("TASKS_DB_BCN", "./data/tasks_bcn.json")
+# (Si usas persistencia de roster/incidentes en JSON, defínelos también con _bcn)
 # -----------------------------------
 # Modelos
 # -----------------------------------
+class GitHubStore:
+    def __init__(self):
+        self.api = os.getenv("GH_API_URL", "https://api.github.com").rstrip("/")
+        self.repo = os.getenv("GH_REPO", "").strip()
+        self.branch = os.getenv("GH_BRANCH", "main")
+        self.dir = (os.getenv("GH_DIR", "data").strip("/"))
+        self.token = os.getenv("GH_TOKEN", "")
+        self.commit_name = os.getenv("GH_COMMIT_NAME", "CI-BCN")
+        self.commit_email = os.getenv("GH_COMMIT_EMAIL", "ci-bcn@example.com")
+        self._sha_cache = {}
+
+    def _headers(self):
+        return {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
+    def _gh_path(self, local_path: str) -> str:
+        p = local_path.replace("\\", "/").lstrip("./")
+        if self.dir and not p.startswith(self.dir + "/"):
+            p = f"{self.dir}/{p.split('/')[-1] if p.startswith('data/') else p}"
+        return p
+
+    def _url(self, gh_path: str) -> str:
+        return f"{self.api}/repos/{self.repo}/contents/{gh_path}"
+
+    def write_text(self, local_path: str, text: str, message: str):
+        if not self.token: return
+        gh_path = self._gh_path(local_path)
+        payload = {
+            "message": message,
+            "content": base64.b64encode(text.encode("utf-8")).decode("ascii"),
+            "branch": self.branch,
+            "committer": {"name": self.commit_name, "email": self.commit_email}
+        }
+        # Intentar obtener SHA previo si existe para actualizar
+        if gh_path in self._sha_cache:
+            payload["sha"] = self._sha_cache[gh_path]
+        
+        try:
+            with httpx.Client(timeout=15.0) as c:
+                # GET primero para obtener SHA si no lo tenemos cacheado
+                if "sha" not in payload:
+                    r_get = c.get(self._url(gh_path), headers=self._headers(), params={"ref": self.branch})
+                    if r_get.status_code == 200:
+                        payload["sha"] = r_get.json()["sha"]
+
+                r = c.put(self._url(gh_path), headers=self._headers(), json=payload)
+                if r.status_code in (200, 201):
+                    self._sha_cache[gh_path] = r.json()["content"]["sha"]
+        except Exception as e:
+            print(f"⚠️ GitHub Write Error: {e}")
+
+    def write_json(self, local_path: str, data: Any, message: str):
+        self.write_text(local_path, json.dumps(data, ensure_ascii=False, indent=2), message)
+
+gh_store = GitHubStore() if USE_GITHUB else None
+
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     task_type: str
@@ -552,7 +620,23 @@ def load_persons_from_disk():
     except Exception as e:
         print("⚠️ Error leyendo personas:", repr(e))
 
+class BriefingSnapshot(BaseModel):
+    station: Optional[str] = "BCN"
+    date: str
+    shift: str
+    timer: str
+    supervisor: str = "No especificado"
+    checklist: Dict[str, str] = {}
+    kpis: Dict[str, Any] = {}
+    roster_details: str = ""
+    prev_shift_note: str = ""
+    present_names: List[str] = []
+    ops_updates: List[Dict[str, Any]] = []
+    kanban_counts: Dict[str, int] = {}
+    roster_stats: str = ""
 
+    class Config:
+        extra = "allow"
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -580,6 +664,37 @@ class ConnectionManager:
             await websocket.send_json(data)
         except Exception:
             self.disconnect(websocket)
+
+async def send_to_excel_online(data: BriefingSnapshot):
+    url = os.getenv("EXCEL_WEBHOOK_URL") # Asegúrate de tener esta variable en Render
+    if not url:
+        print("⚠️ EXCEL_WEBHOOK_URL no definida.")
+        return
+
+    # Formatear Actualizaciones como texto plano
+    ops_text = "Sin actualizaciones"
+    if data.ops_updates:
+        ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
+        ops_text = " | ".join(ops_lines)
+
+    payload = {
+        "fecha": str(data.date),
+        "turno": str(data.shift),
+        "timer": str(data.timer),
+        "supervisor": str(data.supervisor),
+        "equipo": str(data.roster_details if data.roster_details else "Sin datos"),
+        "kpi_uph": str(data.kpis.get("UPH", "-")),
+        "kpi_costes": str(data.kpis.get("Costes", "-")),
+        "notas_turno_ant": str(data.prev_shift_note),
+        "actualizaciones_ops": str(ops_text)
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(url, json=payload, timeout=15.0)
+            print("✅ Excel BCN actualizado.")
+    except Exception as e:
+        print(f"❌ Error Excel BCN: {e}")
 
 app = FastAPI()
 manager = ConnectionManager()
@@ -1261,7 +1376,76 @@ from typing import Any, Dict, List, Optional
 from fastapi import Header, HTTPException, Request
 
 from fastapi import Header, HTTPException, Request
+@app.post("/api/briefing/summary")
+async def save_briefing_summary(data: BriefingSnapshot):
+    def clean_str(text: str) -> str:
+        s = unicodedata.normalize('NFD', text)
+        return ''.join(c for c in s if unicodedata.category(c) != 'Mn')
 
+    # 1. Generar Markdown
+    lines = []
+    lines.append(f"# 📝 Resumen BCN - {data.station}")
+    lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift}")
+    lines.append(f"**⏱️ Cronómetro:** {data.timer}")
+    lines.append(f"**👮 Supervisor:** {data.supervisor}")
+    
+    lines.append(f"\n**👥 Equipo:**\n{data.roster_details}")
+
+    lines.append("\n### ↩️ Turno Anterior")
+    lines.append(f"{data.prev_shift_note or 'Sin novedades.'}")
+
+    lines.append("\n### 📊 KPIs")
+    for k, v in data.kpis.items():
+        lines.append(f"- **{k}:** {v}")
+
+    lines.append("\n### ✅ Checklist")
+    for k, v in data.checklist.items():
+        icon = "🟢" if v == "OK" else "🔴"
+        lines.append(f"- {icon} {k}: {v}")
+        
+    if data.ops_updates:
+        lines.append("\n### 🚧 Actualizaciones Ops")
+        for op in data.ops_updates:
+            lines.append(f"- [{op.get('impact')}] {op.get('title')}")
+
+    final_markdown = "\n".join(lines)
+
+    # 2. Guardar con Timestamp (Evita error 422)
+    safe_date = data.date.replace("/", "-")
+    safe_shift = clean_str(data.shift)
+    timestamp = datetime.now().strftime("%H-%M-%S")
+    
+    filename = f"{safe_date}_{safe_shift}_{timestamp}_Briefing_BCN.md"
+    store_path = f"summaries/{filename}"
+
+    log_msg = ""
+    
+    try:
+        if USE_GITHUB and gh_store:
+            print(f"☁️ Subiendo a GitHub: {store_path}")
+            gh_store.write_text(store_path, final_markdown, message=f"Briefing BCN {data.date}")
+            
+            # Guardar JSON también
+            json_path = store_path.replace(".md", ".json")
+            gh_store.write_json(json_path, data.dict(), message="Briefing Data BCN")
+            
+            log_msg = "✅ Guardado en GitHub"
+        else:
+            p = Path("./data") / store_path
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(final_markdown)
+            log_msg = "⚠️ Guardado Local"
+
+        # 3. Enviar a Excel
+        asyncio.create_task(send_to_excel_online(data))
+
+    except Exception as e:
+        print(f"❌ Error summary: {e}")
+        log_msg = f"Error: {str(e)}"
+
+    return {"summary": final_markdown, "saved": True, "log": log_msg}
+    
 @app.post("/webhook/sharepoint-bulk-update")
 async def sharepoint_bulk_update(request: Request, x_api_key: Optional[str] = Header(None)):
     if x_api_key != API_KEY:
@@ -1766,6 +1950,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
