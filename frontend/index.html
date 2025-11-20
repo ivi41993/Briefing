@@ -1461,10 +1461,11 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 <button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
 </div>
 
+<!-- Busca esto en tu header y reemplázalo o modifícalo -->
 <div class="header-controls">
-<input type="text" class="date-picker" value="julio de 2025">
-<input type="text" placeholder="WHOP">
-<button class="btn-primary" type="button">Generar Resumen</button>
+    <!-- El date-picker lo quitamos antes por JS, así que pon esto: -->
+    <input type="text" id="briefing-supervisor" placeholder="Supervisor" style="min-width: 140px; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+    <button class="btn-primary" type="button">Generar Resumen</button>
 </div>
 </header>
 
@@ -6038,136 +6039,80 @@ async function loadAllTasks(){
   updateAllColumnCounts();
 })();
 
-// ===== Briefing: generar resumen desde el botón de cabecera =====
-/* ===== Briefing: Generar Resumen y Guardar ===== */
-/* ===== Briefing: Generar Resumen y Guardar ===== */
-/* ===== Briefing: Generar Resumen Completo ===== */
-/* ===== Briefing: Generar Resumen y Guardar (MEJORADO) ===== */
+/* ===== Briefing: Generar Resumen con SUPERVISOR ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
 
-  const status = document.createElement('small');
-  status.style.marginLeft = '8px';
-  status.style.color = 'var(--text-muted)';
-  btn.parentElement.appendChild(status);
-
   // --- 1. Recolectar TODOS los datos ---
   function buildPayload(){
-    const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
     const team = (window.TEAM_STATE || {});
-    const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
-    const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
-    const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
-    const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
+    
+    // CAPTURA DEL SUPERVISOR
+    const supInput = document.getElementById('briefing-supervisor');
+    const supervisorVal = supInput ? supInput.value.trim() : "No especificado";
 
-    const checklist = {};
-    document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
-      .forEach(r => { checklist[r.name] = r.value; });
-
-    // --- CAMBIO IMPORTANTE: Generar lista detallada de equipo ---
+    // Lista de nombres
     const peopleList = team.people || [];
     const attMap = team.attendance || {};
     
-    // Array solo con nombres presentes (para GitHub/Markdown)
-    const presentNames = peopleList
-        .filter(p => attMap[p.nombre_completo] === true)
-        .map(p => p.nombre_completo);
+    const rosterList = peopleList.map(p => {
+        const name = p.nombre_completo || "Sin Nombre";
+        const isPresent = attMap[name] === true;
+        return `${name} (${isPresent ? "Presente" : "Ausente"})`;
+    });
     
-    // String detallado para EXCEL: "Juan (✅), Pepe (❌)..."
-    const rosterDetailed = peopleList.map(p => {
-        const isPresent = attMap[p.nombre_completo] === true;
-        const mark = isPresent ? "✅" : "❌"; // O usa "Presente"/"Ausente" si prefieres texto
-        return `${p.nombre_completo} ${mark}`;
-    }).join(', ');
+    const rosterString = rosterList.length > 0 ? rosterList.join(", ") : "Sin datos de equipo";
 
-    const rosterStats = `${presentNames.length} / ${peopleList.length}`;
-
-    // --- Actualizaciones Operativas ---
-    const ops = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(card => ({
-      title: card.querySelector('.ops-title')?.textContent?.trim() || '',
-      impact: card.querySelector('.ops-impact')?.textContent?.trim() || '',
-      scope: card.querySelector('.ops-scope')?.textContent?.trim() || ''
-    }));
-
-    const kpis = {
-      "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '—',
-      "OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '—',
-      "Backlog": document.getElementById('kpi-backlog')?.textContent?.trim() || '—',
-      "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() + '€'
-    };
-
-    const kanbanCounts = {
-      "Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
-      "En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
-      "Cerradas": document.querySelectorAll('#kanban_rapida-Cerradas .card').length
-    };
-
+    // Datos básicos
     return {
-      station, date, shift, 
-      timer: timerVal,
-      prev_shift_note: prevShiftNote,
-      checklist,
-      roster_stats: rosterStats,
-      present_names: presentNames,
-      roster_details: rosterDetailed, // <--- NUEVO CAMPO PARA EXCEL
-      ops_updates: ops,
-      kpis,
-      kanban_counts: kanbanCounts
+      station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
+      date: new Date().toLocaleDateString('es-ES'),
+      shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
+      timer: document.getElementById('timer-display')?.textContent || '00:00:00',
+      supervisor: supervisorVal, // <--- NUEVO CAMPO ENVIADO
+      
+      roster_details: rosterString,
+      prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
+      
+      // Listas para procesar en backend
+      ops_updates: Array.from(document.querySelectorAll('#ops-list .ops-item')).map(c => ({
+          title: c.querySelector('.ops-title')?.textContent?.trim() || '',
+          impact: c.querySelector('.ops-impact')?.textContent?.trim() || ''
+      })),
+      
+      kpis: {
+        "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
+        "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
+      },
+      
+      // Necesario para que el modelo no falle, aunque vaya vacío
+      checklist: {}, kanban_counts: {}, roster_stats: "", present_names: []
     };
   }
 
-  // --- 2. Mostrar Diálogo (Igual que antes) ---
-  function showSummaryDialog(text, logMsg){
-    let dlg = document.getElementById('briefing-summary-dialog');
-    if (!dlg){
-      dlg = document.createElement('dialog');
-      dlg.id = 'briefing-summary-dialog';
-      dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
-      dlg.innerHTML = `
-        <form method="dialog" style="display:grid;gap:12px;">
-          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Guardado</h3>
-          <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
-          <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
-          <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
-            <button class="btn-compact" value="cancel">Cerrar</button>
-            <button type="button" id="btn-copy-summary" class="btn-primary">Copiar</button>
-          </div>
-        </form>`;
-      document.body.appendChild(dlg);
-      
-      dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
-        const txt = dlg.querySelector('#briefing-content').innerText;
-        try { await navigator.clipboard.writeText(txt); alert('Copiado!'); } 
-        catch(e) { alert('Error copiando, hazlo manual.'); }
-      });
-    }
-    dlg.querySelector('#briefing-content').textContent = text;
-    dlg.querySelector('#briefing-log').textContent = logMsg || "";
-    dlg.showModal();
-  }
-
-  // --- 3. Envío ---
+  // --- 2. Envío ---
   btn.addEventListener('click', async ()=>{
     const oldText = btn.textContent;
-    btn.textContent = 'Procesando...';
+    btn.textContent = 'Guardando...';
     btn.disabled = true;
     
     try {
       const payload = buildPayload();
+      console.log("📤 Enviando:", payload); // Debug
+
       const res = await fetch('/api/briefing/summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Error en servidor');
+      if (!res.ok) throw new Error('Error servidor');
       const respData = await res.json();
-      showSummaryDialog(respData.summary, respData.log);
+      
+      alert("✅ Resumen guardado con éxito.\nSupervisor: " + payload.supervisor);
       
     } catch (err) {
       console.error(err);
-      alert('Error al guardar resumen.');
+      alert('Error al guardar.');
     } finally {
       btn.textContent = oldText;
       btn.disabled = false;
@@ -6177,6 +6122,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
