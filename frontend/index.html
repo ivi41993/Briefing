@@ -2622,13 +2622,33 @@ updateTeamMeta(TEAM_STATE);
 updateTeamMeta(TEAM_STATE);
 }
 async function initTeamRoster(){
-const state = await fetchServerRoster();
-if(state){
-renderRoster(document.getElementById('team-list'), state.people||[], state);
-}else{
-const list=document.getElementById('team-list');
-if(list) list.innerHTML='<div style="color:var(--text-muted)">Sin datos del informe. Añade manualmente o sube el Excel.</div>';
-}
+    // 1. Bloqueamos la carga automática del servidor
+    /* 
+    const state = await fetchServerRoster();
+    if(state){ ... } 
+    */
+
+    // 2. Ponemos el mensaje de procedimiento manual
+    const list = document.getElementById('team-list');
+    if(list) {
+        list.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: var(--text-muted); background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;">
+                <strong>⚠️ Atención</strong><br>
+                Se tiene que seguir el procedimiento manual hasta ahora.
+            </div>
+        `;
+    }
+
+    // 3. Inicializamos el estado vacío para permitir altas manuales si se desea
+    window.TEAM_STATE = {
+        shift: null,
+        people: [],
+        attendance: {},
+        zones: {}
+    };
+    
+    // Actualizamos la meta-info (contador) a ceros
+    updateTeamMeta(window.TEAM_STATE);
 }
 
 /* === FIX 1: Eliminar el date-picker estático de cabecera === */
@@ -3046,10 +3066,7 @@ async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/n
 /* Render tarjetas */
 function processTaskUpdate(data){
 if (!isForThisStation(data)) return;      // DESPUÉS
-if (data && data.type==='roster_update'){
-renderRoster(document.getElementById('team-list'), data.people||[], data); 
-return;
-}
+
 
 if (data && data.type==='presence_update'){
 // sólo si coincide con el turno/fecha que estoy viendo
@@ -6160,6 +6177,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
