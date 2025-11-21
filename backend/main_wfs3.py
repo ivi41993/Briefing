@@ -746,11 +746,11 @@ async def shutdown():
 # -----------------------------------
 # Montaje Frontend
 # -----------------------------------
-# Esto busca 'frontend_wfs3' DENTRO de la carpeta 'backend'
-FRONTEND_DIR = Path(__file__).resolve().parent / "frontend_wfs3"
+# CAMBIO AQUÍ: Añadimos .parent.parent para salir de 'backend' y buscar en la raíz
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_wfs3"
 
 if not FRONTEND_DIR.exists():
-    print(f"⚠️ FRONTEND_DIR no existe: {FRONTEND_DIR} (Asegúrate de crear la carpeta y poner index.html)")
+    print(f"⚠️ FRONTEND_DIR no existe: {FRONTEND_DIR} (Revisa la estructura de carpetas)")
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
