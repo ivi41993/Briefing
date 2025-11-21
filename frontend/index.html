@@ -2957,19 +2957,18 @@ function handleDeleteClick(e){
   const btn = e.target.closest('.ops-delete-btn, .delete-card-btn');
   if (!btn) return;
 
-  // Prioriza tarjeta OPS
+  // Prioriza tarjeta OPS o Kanban
   const host = btn.closest('.ops-item, .card');
   if (!host) return;
 
-  // ID seguro
-  let id = btn.dataset.id || host.dataset.id || '';
-  id = id ? String(id) : '';
+  // 1. ID seguro desde dataset (lo que hemos añadido en el render)
+  let id = btn.dataset.id || host.dataset.id;
 
-  if (!id){
-    // último recurso: intenta por patrón en el id de DOM
-    const m = String(host.id || '').match(/(\d+|client-[^-]+-[a-z0-9]+)/i);
-    if (m) id = m[1];
+  // 2. Si no hay dataset, intentamos limpiar el ID del DOM (task-XXXX -> XXXX)
+  if (!id && host.id){
+    id = host.id.replace(/^(task-|ops-|sec-|client-)/, ''); 
   }
+
   if (!id) return;
 
   const ttype = host.dataset.taskType || btn.dataset.taskType ||
@@ -2978,12 +2977,16 @@ function handleDeleteClick(e){
 
   if (!confirm('¿Seguro que quieres eliminar esta tarjeta?')) return;
 
+  // Efecto visual inmediato para mejor UX
+  host.style.opacity = '0.5';
+
   deleteTaskOnServer(id, ttype)
     .then(()=>{
       host.remove();
       updateAllColumnCounts?.();
     })
     .catch((err)=>{
+      host.style.opacity = '1'; // Restaurar si falla
       console.error(err);
       alert('Error: No se pudo eliminar la tarjeta.');
     });
@@ -3404,6 +3407,11 @@ function renderBoardCard(task, elementId){
     card.id = elementId; 
   }
   card.className = 'card';
+  
+  // --- CORRECCIÓN: Guardar ID explícito ---
+  card.dataset.id = task.id; 
+  // ----------------------------------------
+  
   card.dataset.status = safeStatus;
   card.dataset.taskType = 'kanban_rapida';
 
@@ -3456,7 +3464,6 @@ function renderBoardCard(task, elementId){
   // —— Edición rápida —— //
   const id = task.id;
 
-  // Título
   const titleEl = card.querySelector('[data-edit="title"]');
   titleEl?.addEventListener('click', async ()=>{
     const prev = titleEl.textContent.trim();
@@ -3467,7 +3474,6 @@ function renderBoardCard(task, elementId){
     }
   });
 
-  // Responsable
   const asgEl = card.querySelector('[data-edit="assigned_to"]');
   asgEl?.addEventListener('click', async ()=>{
     const prev = asgEl.textContent.trim();
@@ -3478,7 +3484,6 @@ function renderBoardCard(task, elementId){
     }
   });
 
-  // Fecha objetivo
   const dueBtn = card.querySelector('[data-edit="due"]');
   dueBtn?.addEventListener('click', async ()=>{
     const input = document.createElement('input');
@@ -3497,7 +3502,6 @@ function renderBoardCard(task, elementId){
     input.click();
   });
 
-  // Categoría (ciclo simple por prompt)
   const catBtn = card.querySelector('[data-edit="category"]');
   catBtn?.addEventListener('click', async ()=>{
     const opts = ['Seguridad','Incidencias','Mantenimiento','Calidad','Servicio','General'];
@@ -3515,36 +3519,56 @@ function renderBoardCard(task, elementId){
 
 
 function renderKaizenCard(task, elementId){
-const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
-const columnId=`kaizen-${safeStatus}`;
-const column=document.getElementById(columnId); if(!column) return;
+  const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
+  const columnId=`kaizen-${safeStatus}`;
+  const column=document.getElementById(columnId); if(!column) return;
 
-let card=document.getElementById(elementId);
-if(!card){ card=document.createElement('div'); card.id=elementId; }
-card.className='card'; card.dataset.status=safeStatus;
-card.dataset.taskType='kaizen';  
-if(card.parentElement!==column) column.prepend(card);
+  let card=document.getElementById(elementId);
+  if(!card){ card=document.createElement('div'); card.id=elementId; }
+  card.className='card'; 
+  
+  // --- CORRECCIÓN: Guardar ID explícito ---
+  card.dataset.id = task.id; 
+  // ----------------------------------------
+  
+  card.dataset.status=safeStatus;
+  card.dataset.taskType='kaizen';  
+  if(card.parentElement!==column) column.prepend(card);
 
-let dueHuman=''; if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
+  let dueHuman=''; 
+  if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
 
-card.innerHTML=`
+  card.innerHTML=`
     ${GRIP}
-      <div class="card-content">
-        <div class="card-title">${task.title || ''}</div>
-        <div class="card-details">
-          ${task.assigned_to ? `Responsable: ${task.assigned_to}` : 'Responsable: —'}
-          ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
-        </div>
+    <div class="card-content">
+      <div class="card-title" data-edit="title">${esc(task.title || '')}</div>
+      <div class="card-details">
+        ${task.assigned_to ? `Responsable: ${esc(task.assigned_to)}` : 'Responsable: —'}
+        ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
       </div>
-      <div class="card-actions">
-        <button class="delete-card-btn" title="Eliminar">
-          <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-          </svg>
-        </button>
-      </div>`;
-ensureFullscreenBtn(card);
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Eliminar">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </svg>
+      </button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+
+  // Edición rápida
+  const id = task.id;
+  const titleEl = card.querySelector('[data-edit="title"]');
+  titleEl?.addEventListener('click', async ()=>{
+    const prev = titleEl.textContent.trim();
+    const next = (prompt('Nuevo título', prev) || '').trim();
+    if (next && next !== prev){
+      try { await updateTaskOnServer(id, { title: next }); } 
+      catch { alert('No se pudo actualizar el título'); }
+    }
+  });
 }
 
 function renderGwTask(task, elementId){
@@ -6097,6 +6121,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
