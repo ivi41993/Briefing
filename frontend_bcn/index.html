@@ -1075,113 +1075,7 @@ content: attr(data-placeholder);
 color: var(--text-muted);
 pointer-events: none;
 }
-/* --- HEADER MEJORADO --- */
-header {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr; /* Izquierda | Centro (Timer) | Derecha */
-  align-items: center;
-  gap: 16px;
-  background: #fff;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.03);
-}
 
-/* Ajuste para pantallas pequeñas */
-@media (max-width: 1100px) {
-  header { grid-template-columns: 1fr auto; grid-template-rows: auto auto; }
-  .header-controls { grid-column: 1 / -1; justify-content: flex-end; }
-}
-
-.header-left h1 {
-  font-size: 1.5rem;
-  margin-bottom: 4px;
-  color: var(--text);
-}
-.header-left h1 span { color: var(--brand-red-600); } /* Para el "BCN" */
-
-/* --- CRONÓMETRO DIGITAL --- */
-.header-timer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #f8fafc;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 6px 16px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
-}
-
-.timer-display {
-  font-family: 'Space Grotesk', monospace; /* Fuente monoespaciada */
-  font-size: 2.2rem; /* Grande y legible */
-  font-weight: 700;
-  color: var(--text);
-  font-variant-numeric: tabular-nums; /* Evita que los números "bailen" */
-  line-height: 1;
-  cursor: pointer;
-  min-width: 160px;
-  text-align: center;
-}
-
-.timer-display.is-running { color: var(--brand-red-600); }
-
-.timer-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.timer-btn-mini {
-  border: none;
-  background: none;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-.timer-btn-mini:hover { background: #e2e8f0; color: var(--text); }
-
-/* --- CONTROLES Y SUPERVISOR --- */
-.header-controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.supervisor-wrapper {
-  position: relative;
-}
-
-.supervisor-wrapper input {
-  padding: 10px 12px 10px 36px; /* Espacio para icono */
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: 0.95rem;
-  width: 180px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.supervisor-wrapper input:focus {
-  border-color: var(--brand-red-600);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-  outline: none;
-}
-
-/* Icono de usuario dentro del input */
-.supervisor-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0.4;
-  width: 18px;
-  height: 18px;
-  pointer-events: none;
-}
 </style>
 </head>
 <body>
@@ -1206,57 +1100,26 @@ Modo presentación
 <div class="dashboard-3col">
 <!-- HEADER -->
 <header>
-    <div class="header-left">
-      <h1>Factory Floor Dashboard - BCN</h1>
-      <div id="now-header">—</div>
-  <!-- IZQUIERDA: Título e Info -->
-  <div class="header-left">
-    <h1>Factory Floor <span>WFS BCN</span></h1>
-    <div style="display:flex; gap:10px; align-items:center;">
-      <div id="now-header" style="font-weight:500; color:#64748b">—</div>
+<div class="header-left">
+<h1>Factory Floor Dashboard - BCN</h1>
+<div id="now-header">—</div>
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
-  </div>
 
-    <!-- Cronómetro -->
-    <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
-      <div class="timer-face" id="timer-face">
-        <div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
-        <span class="timer-dot" aria-hidden="true"></span>
-      </div>
-      <button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
-  <!-- CENTRO: Cronómetro Mejorado -->
-  <div class="header-timer" id="timer-widget" aria-label="Cronómetro de reunión">
-    <!-- Pantalla del tiempo -->
-    <div class="timer-display" id="timer-display" title="Clic para Iniciar/Pausar">00:00:00</div>
-    
-    <!-- Botones pequeños al lado -->
-    <div class="timer-controls">
-      <button type="button" class="timer-btn-mini" id="timer-toggle">Start/Stop</button>
-      <button type="button" class="timer-btn-mini" id="timer-reset">Reset</button>
+<!-- Cronómetro -->
+<div class="header-timer" id="timer-widget" aria-label="Cronómetro">
+<div class="timer-face" id="timer-face">
+<div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
+<span class="timer-dot" aria-hidden="true"></span>
 </div>
-  </div>
-
-    <div class="header-controls">
-      <input type="text" class="date-picker" value="julio de 2025">
-      <input type="text" placeholder="Filtro...">
-      <button class="btn-primary" type="button">Generar Resumen</button>
-  <!-- DERECHA: Supervisor y Acción -->
-  <div class="header-controls">
-    <!-- Input de Supervisor con Icono -->
-    <div class="supervisor-wrapper" title="Nombre del Supervisor">
-      <svg class="supervisor-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-        <circle cx="12" cy="7" r="4"></circle>
-      </svg>
-      <input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor..." autocomplete="name">
+<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
 </div>
-  </header>
 
-    <button class="btn-primary" type="button" id="btn-generate-summary">
-      Generar Resumen
-    </button>
-  </div>
+<div class="header-controls">
+<input type="text" class="date-picker" value="julio de 2025">
+<input type="text" placeholder="Filtro...">
+<button class="btn-primary" type="button">Generar Resumen</button>
+</div>
 </header>
 
 <!-- IZQUIERDA: EQUIPO -->
@@ -2010,21 +1873,14 @@ h1.textContent = `Factory Floor Dashboard - ${STATION_CODE}`;
 /* ==========================
   Cronómetro Header
 ========================== */
-/* ==========================
-   Cronómetro Header (Lógica Actualizada)
-========================== */
 (function(){
-  const KEY='header_big_timer_v1';
-  const KEY='header_big_timer_bcn_v1'; // Clave distinta para BCN
+const KEY='header_big_timer_v1';
 let running=false, startedAt=0, elapsed=0, tick=null;
 
-  const $ = id => document.getElementById(id);
-  const host = $('timer-widget');
-  const display = $('timer-display');
-  const resetBtn = $('timer-reset');
-  const display = document.getElementById('timer-display');
-  const toggleBtn = document.getElementById('timer-toggle'); // Nuevo botón
-  const resetBtn = document.getElementById('timer-reset');
+const $ = id => document.getElementById(id);
+const host = $('timer-widget');
+const display = $('timer-display');
+const resetBtn = $('timer-reset');
 
 function fmt(ms){
 const t = Math.floor(ms/1000);
@@ -2033,20 +1889,14 @@ const m = Math.floor((t%3600)/60);
 const s = t%60;
 return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
-
 function paint(){
-    display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
-    if(display) display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
-    if(display) display.classList.toggle('is-running', running);
+display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
 }
-
 function save(){
-    try{
-      localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
-    }catch(e){}
-    try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch(e){}
+try{
+localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
+}catch(e){}
 }
-
 function load(){
 try{
 const s = JSON.parse(localStorage.getItem(KEY)||'null');
@@ -2055,73 +1905,48 @@ running = !!s.running;
 elapsed = Number(s.elapsed)||0;
 startedAt = Number(s.startedAt)||0;
 if (running){
-        // Recalcular elapsed al volver
 const now=Date.now();
 elapsed = Math.max(elapsed, now-startedAt);
 startedAt = now - elapsed;
 }
 }catch(e){}
 }
-  function setUI(){
-    if (!host) return;
-    host.classList.toggle('timer-running', running);
-    if (resetBtn) resetBtn.disabled = (!running && elapsed===0);
-  }
-  function start(){
-    if (running) return;
-    running = true;
-    startedAt = Date.now() - elapsed;
-    tick = setInterval(paint, 250);
-    setUI(); paint(); save();
-  }
-  function pause(){
-    if (!running) return;
-    running = false;
-    elapsed = Date.now() - startedAt;
-    clearInterval(tick); tick=null;
-    setUI(); paint(); save();
-
-  function toggle(){
-    if (running) {
-      // Pausar
-      running = false;
-      elapsed = Date.now() - startedAt;
-      clearInterval(tick); tick=null;
-    } else {
-      // Iniciar
-      running = true;
-      startedAt = Date.now() - elapsed;
-      tick = setInterval(paint, 250);
-    }
-    paint(); save();
+function setUI(){
+if (!host) return;
+host.classList.toggle('timer-running', running);
+if (resetBtn) resetBtn.disabled = (!running && elapsed===0);
 }
-
+function start(){
+if (running) return;
+running = true;
+startedAt = Date.now() - elapsed;
+tick = setInterval(paint, 250);
+setUI(); paint(); save();
+}
+function pause(){
+if (!running) return;
+running = false;
+elapsed = Date.now() - startedAt;
+clearInterval(tick); tick=null;
+setUI(); paint(); save();
+}
 function reset(){
 running = false; startedAt = 0; elapsed = 0;
 clearInterval(tick); tick=null;
-    setUI(); paint(); save();
-    paint(); save();
+setUI(); paint(); save();
 }
 
-  display?.addEventListener('click', ()=> (running ? pause() : start()));
-  // Listeners
-  display?.addEventListener('click', toggle);
-  toggleBtn?.addEventListener('click', toggle); // Nuevo listener
+display?.addEventListener('click', ()=> (running ? pause() : start()));
 resetBtn?.addEventListener('click', reset);
 
 document.addEventListener('visibilitychange', ()=>{
 if (!running) return;
-    // Resync visual al volver a la pestaña
 startedAt = Date.now() - elapsed;
-    paint(); save();
-    paint();
+paint(); save();
 });
 
-  // Init global
 window.initHeaderTimer = function(){
-    load(); paint(); setUI();
-    load(); 
-    paint();
+load(); paint(); setUI();
 if (running && !tick) tick = setInterval(paint, 250);
 };
 })();
@@ -2482,26 +2307,33 @@ updateTeamMeta(TEAM_STATE);
 }
 
 async function initTeamRoster(){
-// Bloqueamos carga auto: const state = await fetchServerRoster();
+  const state = await fetchServerRoster();
+  const list = document.getElementById('team-list');
+  if (state){
+    renderRoster(list, state.people||[], state);
+  }else if(list){
+    list.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster. Sube el Excel o añade manualmente.</div>';
+  }
+    // Bloqueamos carga auto: const state = await fetchServerRoster();
 
-const list = document.getElementById('team-list');
-if(list) {
-list.innerHTML = `
-           <div style="padding: 20px; text-align: center; color: var(--text-muted); background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;">
-               <strong>⚠️ Atención BCN</strong><br>
-               Se tiene que seguir el procedimiento manual hasta ahora.
-           </div>
-       `;
-}
+    const list = document.getElementById('team-list');
+    if(list) {
+        list.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: var(--text-muted); background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;">
+                <strong>⚠️ Atención BCN</strong><br>
+                Se tiene que seguir el procedimiento manual hasta ahora.
+            </div>
+        `;
+    }
 
-// Estado vacío inicial para permitir altas manuales
-window.TEAM_STATE = {
-shift: null,
-people: [],
-attendance: {},
-zones: {}
-};
-updateTeamMeta(window.TEAM_STATE);
+    // Estado vacío inicial para permitir altas manuales
+    window.TEAM_STATE = {
+        shift: null,
+        people: [],
+        attendance: {},
+        zones: {}
+    };
+    updateTeamMeta(window.TEAM_STATE);
 }
 
 /* Upload roster Excel */
@@ -3963,155 +3795,155 @@ try{ initSafetyDailyWidget(); }catch(e){ console.error('Safety widget', e); }
 updateSpotlightRouting?.();
 /* ===== Briefing: Generar Resumen BCN Completo ===== */
 (function wireBriefingGenerate(){
-const btn = document.querySelector('header .header-controls .btn-primary');
-if (!btn) return;
+  const btn = document.querySelector('header .header-controls .btn-primary');
+  if (!btn) return;
 
-// Crear pequeño estado visual
-const status = document.createElement('small');
-status.style.marginLeft = '8px';
-status.style.color = 'var(--text-muted)';
-btn.parentElement.appendChild(status);
+  // Crear pequeño estado visual
+  const status = document.createElement('small');
+  status.style.marginLeft = '8px';
+  status.style.color = 'var(--text-muted)';
+  btn.parentElement.appendChild(status);
 
-// --- 1. Recolectar TODOS los datos ---
-function buildPayload(){
-const station = (window.STATION_OVERRIDE || 'BCN').toUpperCase();
-const team = (window.TEAM_STATE || {});
-const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
-const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
+  // --- 1. Recolectar TODOS los datos ---
+  function buildPayload(){
+    const station = (window.STATION_OVERRIDE || 'BCN').toUpperCase();
+    const team = (window.TEAM_STATE || {});
+    const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
+    const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
 
-// 1. CRONÓMETRO & SUPERVISOR
-const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
-const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
+    // 1. CRONÓMETRO & SUPERVISOR
+    const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
+    const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
 
-// 2. INFO TURNO ANTERIOR
-const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
+    // 2. INFO TURNO ANTERIOR
+    const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
 
-// 3. CHECKLIST
-const checklist = {};
-document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
-.forEach(r => { checklist[r.name] = r.value; });
+    // 3. CHECKLIST
+    const checklist = {};
+    document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
+      .forEach(r => { checklist[r.name] = r.value; });
 
-// 4. EQUIPO (Lógica para Excel y GitHub)
-const peopleList = team.people || [];
-const attMap = team.attendance || {};
+    // 4. EQUIPO (Lógica para Excel y GitHub)
+    const peopleList = team.people || [];
+    const attMap = team.attendance || {};
+    
+    // Lista para GitHub (Solo nombres presentes)
+    const presentNames = peopleList
+        .filter(p => attMap[p.nombre_completo] === true)
+        .map(p => p.nombre_completo);
 
-// Lista para GitHub (Solo nombres presentes)
-const presentNames = peopleList
-.filter(p => attMap[p.nombre_completo] === true)
-.map(p => p.nombre_completo);
+    // Texto detallado para Excel (Nombre + Icono estado)
+    // Genera: "Juan (✅), Pepe (❌), Ana (✅)"
+    const rosterDetailsArr = peopleList.map(p => {
+        const name = p.nombre_completo || "Sin Nombre";
+        const isPresent = attMap[name] === true;
+        return `${name} (${isPresent ? "✅" : "❌"})`;
+    });
+    const rosterDetailsStr = rosterDetailsArr.length > 0 ? rosterDetailsArr.join(", ") : "Sin datos de equipo";
+    
+    const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
 
-// Texto detallado para Excel (Nombre + Icono estado)
-// Genera: "Juan (✅), Pepe (❌), Ana (✅)"
-const rosterDetailsArr = peopleList.map(p => {
-const name = p.nombre_completo || "Sin Nombre";
-const isPresent = attMap[name] === true;
-return `${name} (${isPresent ? "✅" : "❌"})`;
-});
-const rosterDetailsStr = rosterDetailsArr.length > 0 ? rosterDetailsArr.join(", ") : "Sin datos de equipo";
+    // 5. KPIs y OPS
+    // Nota: En BCN usas 'ops-lines-list' y tarjetas '.ops-line-card' en lugar de '.ops-item'
+    // Adaptamos el selector para que funcione con tu HTML de BCN
+    const opsCards = document.querySelectorAll('.ops-line-card, .ops-item'); 
+    const ops = Array.from(opsCards).map(card => ({
+      title: card.querySelector('.ops-line-title, .ops-title')?.textContent?.trim() || '',
+      impact: card.dataset.priority || card.querySelector('.ops-impact')?.textContent?.trim() || '',
+      scope: 'General' // En BCN parece que no usas scope explícito en tarjetas de líneas
+    }));
 
-const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
+    const kpis = {
+      "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
+      "OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '-',
+      "Backlog": document.getElementById('kpi-backlog')?.textContent?.trim() || '-',
+      "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
+    };
 
-// 5. KPIs y OPS
-// Nota: En BCN usas 'ops-lines-list' y tarjetas '.ops-line-card' en lugar de '.ops-item'
-// Adaptamos el selector para que funcione con tu HTML de BCN
-const opsCards = document.querySelectorAll('.ops-line-card, .ops-item'); 
-const ops = Array.from(opsCards).map(card => ({
-title: card.querySelector('.ops-line-title, .ops-title')?.textContent?.trim() || '',
-impact: card.dataset.priority || card.querySelector('.ops-impact')?.textContent?.trim() || '',
-scope: 'General' // En BCN parece que no usas scope explícito en tarjetas de líneas
-}));
+    const kanbanCounts = {
+      "Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
+      "En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
+      "Cerradas": document.querySelectorAll('#kanban_rapida-Cerradas .card').length
+    };
 
-const kpis = {
-"UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
-"OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '-',
-"Backlog": document.getElementById('kpi-backlog')?.textContent?.trim() || '-',
-"Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
-};
+    // Payload exacto para BriefingSnapshot en main_bcn.py
+    return {
+      station, date, shift, 
+      timer: timerVal,
+      supervisor: supVal,            
+      prev_shift_note: prevShiftNote,
+      checklist,
+      
+      // Datos de equipo
+      roster_stats: rosterStats,
+      present_names: presentNames,   // Para Markdown
+      roster_details: rosterDetailsStr, // Para Excel (Texto largo)
+      
+      ops_updates: ops,
+      kpis,
+      kanban_counts: kanbanCounts
+    };
+  }
 
-const kanbanCounts = {
-"Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
-"En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
-"Cerradas": document.querySelectorAll('#kanban_rapida-Cerradas .card').length
-};
+  // --- 2. Diálogo de Confirmación ---
+  function showSummaryDialog(text, logMsg){
+    let dlg = document.getElementById('briefing-summary-dialog');
+    if (!dlg){
+      dlg = document.createElement('dialog');
+      dlg.id = 'briefing-summary-dialog';
+      dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
+      dlg.innerHTML = `
+        <form method="dialog" style="display:grid;gap:12px;">
+          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado (BCN)</h3>
+          <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
+          <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
+          <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+            <button class="btn-compact" value="cancel">Cerrar</button>
+            <button type="button" id="btn-copy-summary" class="btn-primary">Copiar Texto</button>
+          </div>
+        </form>`;
+      document.body.appendChild(dlg);
+      
+      dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
+        const txt = dlg.querySelector('#briefing-content').innerText;
+        try { await navigator.clipboard.writeText(txt); alert('Copiado al portapapeles'); } 
+        catch(e) { alert('Error copiando automática, selecciona y copia.'); }
+      });
+    }
+    
+    dlg.querySelector('#briefing-content').textContent = text;
+    dlg.querySelector('#briefing-log').textContent = logMsg || "";
+    try{ dlg.showModal(); }catch{ dlg.setAttribute('open',true); }
+  }
 
-// Payload exacto para BriefingSnapshot en main_bcn.py
-return {
-station, date, shift, 
-timer: timerVal,
-supervisor: supVal,            
-prev_shift_note: prevShiftNote,
-checklist,
+  // --- 3. Envío al Servidor ---
+  btn.addEventListener('click', async ()=>{
+    const oldText = btn.textContent;
+    btn.textContent = 'Guardando...';
+    btn.disabled = true;
+    
+    try {
+      const payload = buildPayload();
+      console.log("📤 Enviando BCN:", payload);
 
-// Datos de equipo
-roster_stats: rosterStats,
-present_names: presentNames,   // Para Markdown
-roster_details: rosterDetailsStr, // Para Excel (Texto largo)
+      const res = await fetch('/api/briefing/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-ops_updates: ops,
-kpis,
-kanban_counts: kanbanCounts
-};
-}
-
-// --- 2. Diálogo de Confirmación ---
-function showSummaryDialog(text, logMsg){
-let dlg = document.getElementById('briefing-summary-dialog');
-if (!dlg){
-dlg = document.createElement('dialog');
-dlg.id = 'briefing-summary-dialog';
-dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
-dlg.innerHTML = `
-       <form method="dialog" style="display:grid;gap:12px;">
-         <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado (BCN)</h3>
-         <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
-         <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
-         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
-           <button class="btn-compact" value="cancel">Cerrar</button>
-           <button type="button" id="btn-copy-summary" class="btn-primary">Copiar Texto</button>
-         </div>
-       </form>`;
-document.body.appendChild(dlg);
-
-dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
-const txt = dlg.querySelector('#briefing-content').innerText;
-try { await navigator.clipboard.writeText(txt); alert('Copiado al portapapeles'); } 
-catch(e) { alert('Error copiando automática, selecciona y copia.'); }
-});
-}
-
-dlg.querySelector('#briefing-content').textContent = text;
-dlg.querySelector('#briefing-log').textContent = logMsg || "";
-try{ dlg.showModal(); }catch{ dlg.setAttribute('open',true); }
-}
-
-// --- 3. Envío al Servidor ---
-btn.addEventListener('click', async ()=>{
-const oldText = btn.textContent;
-btn.textContent = 'Guardando...';
-btn.disabled = true;
-
-try {
-const payload = buildPayload();
-console.log("📤 Enviando BCN:", payload);
-
-const res = await fetch('/api/briefing/summary', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(payload)
-});
-
-if (!res.ok) throw new Error('Error en servidor');
-const respData = await res.json();
-showSummaryDialog(respData.summary, respData.log);
-
-} catch (err) {
-console.error(err);
-alert('Error al guardar resumen. Revisa la consola.');
-} finally {
-btn.textContent = oldText;
-btn.disabled = false;
-}
-});
+      if (!res.ok) throw new Error('Error en servidor');
+      const respData = await res.json();
+      showSummaryDialog(respData.summary, respData.log);
+      
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar resumen. Revisa la consola.');
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+    }
+  });
 })();
 });
 </script>
