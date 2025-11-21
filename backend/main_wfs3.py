@@ -14,12 +14,12 @@ from zoneinfo import ZoneInfo
 from pathlib import Path
 import pandas as pd
 from dataclasses import dataclass, field
+from urllib.parse import parse_qs
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconnect, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import tempfile
-from urllib.parse import parse_qs
 
 # -----------------------------------
 # Configuración General WFS3
@@ -27,30 +27,241 @@ from urllib.parse import parse_qs
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
-# Configuración específica WFS3
-STATION_NAME = "WFS3 MAD"
+# === RUTAS Y VARIABLES WFS3 (Aislamiento de datos) ===
+STATION_NAME = "WFS3"
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
+ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
+ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "true"
+
+# Rutas de datos específicas para WFS3
 TASKS_DB = os.getenv("TASKS_DB_WFS3", "./data/tasks_wfs3.json")
 PERSONS_DB = os.getenv("PERSONS_DB_WFS3", "./data/roster_persons_wfs3.json")
-ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx") # Puede ser compartido o único
+# El Excel puede ser compartido o único, se configura en .env
+ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx")
 
-# Configuración GitHub (Reutilizable o específica según variable de entorno)
+# Configuración GitHub
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
 USE_GITHUB = (STORAGE_BACKEND == "github")
 
-# Configuración Externa (Intranet / Planificación)
+# Configuración Fuente Externa (Intranet/Planificación)
 EXT_URL = os.getenv("EXT_URL", "").strip()
 EXT_POLL_SECONDS = int(os.getenv("EXT_POLL_SECONDS", "60"))
 EXT_VERIFY_MODE = os.getenv("EXT_VERIFY_MODE", "TRUSTSTORE").upper()
 EXT_CAFILE = os.getenv("EXT_CAFILE", "").strip()
+EXT_USER_AGENT = os.getenv("EXT_USER_AGENT", "Mozilla/5.0")
+EXT_REFERER = os.getenv("EXT_REFERER", "").strip()
+EXT_COOKIE = os.getenv("EXT_COOKIE", "").strip()
 
 app = FastAPI(title=f"Dashboard {STATION_NAME}")
 
 # -----------------------------------
-# Clases y Utilidades (Heredadas de BCN)
+# Helpers Lógica de Turnos y Excel (Heredado de BCN)
 # -----------------------------------
+SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 
-# ... (El bloque de GitHubStore se mantiene igual, solo cambiaremos cómo se usa si es necesario) ...
+roster_cache: dict[str, Any] = {
+    "file_mtime": None,
+    "sheet_date": None,
+    "shift": None,
+    "people": [],
+    "updated_at": None,
+}
+
+def _now_local():
+    return datetime.now(ZoneInfo(ROSTER_TZ))
+
+def _current_shift_info(now):
+    hhmm = now.strftime("%H:%M")
+    if "06:00" <= hhmm < "14:00":
+        return "Mañana", now.date(), "06:00", "14:00"
+    if "14:00" <= hhmm < "22:00":
+        return "Tarde", now.date(), "14:00", "22:00"
+    # Noche
+    if hhmm < "06:00":
+        sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY else now.date()
+    else:
+        sheet_date = now.date()
+    return "Noche", sheet_date, "22:00", "06:00"
+
+def _parse_range_to_tuple(s: str) -> tuple[int,int] | None:
+    if not isinstance(s, str): return None
+    m = re.search(r'(\d{1,2})(?::?(\d{2}))?\s*[-–]\s*(\d{1,2})(?::?(\d{2}))?', s)
+    if not m: return None
+    h1 = int(m.group(1)); m1 = int(m.group(2) or 0)
+    h2 = int(m.group(3)); m2 = int(m.group(4) or 0)
+    return (h1*60 + m1, h2*60 + m2)
+
+SHIFT_RANGES = {
+    "Mañana": (6*60, 14*60),
+    "Tarde":  (14*60, 22*60),
+    "Noche":  (22*60, 6*60),
+}
+
+def _match_shift(horario: str, shift: str) -> bool:
+    rng = _parse_range_to_tuple(horario)
+    if not rng: return False
+    s,e = rng
+    S,E = SHIFT_RANGES[shift]
+    if shift != "Noche":
+        return (s, e) == (S, E)
+    return (s == S and e == E) or (s == S and e in (0,)) or (s == 22*60 and e == 6*60)
+
+def _normalize_cols(cols):
+    norm = {}
+    for c in cols:
+        k = c.strip().lower()
+        norm[k] = c
+    def pick(*cands):
+        for cand in cands:
+            if cand in norm: return norm[cand]
+        return None
+    return {
+        "apellidos": pick("apellidos","apellido","apellidos/s"),
+        "nombre": pick("nombre","nombree","nombres"),
+        "horario": pick("horario","turno","franja"),
+        "observaciones": pick("observaciones","observación","obs","observaciones "),
+    }
+
+DATE_SHEET_RE = re.compile(r'(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})')
+
+def _parse_sheet_date(name: str) -> date | None:
+    if not isinstance(name, str): return None
+    m = DATE_SHEET_RE.search(name.strip())
+    if not m: return None
+    d, mth, y = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    if y < 100: y += 2000
+    try: return date(y, mth, d)
+    except ValueError: return None
+
+def _list_sheet_names(xlsx_path: str) -> list[str]:
+    if not Path(xlsx_path).exists(): return []
+    try:
+        xl = pd.ExcelFile(xlsx_path)
+        return list(xl.sheet_names or [])
+    except Exception as e:
+        print("⚠️ No se pudieron listar hojas:", repr(e))
+        return []
+
+def _find_sheet_for_date(xlsx_path: str, desired: date) -> tuple[str | None, list[str]]:
+    names = _list_sheet_names(xlsx_path)
+    if not names: return None, []
+    parsed = [(n, _parse_sheet_date(n)) for n in names]
+    for n, dte in parsed:
+        if dte == desired: return n, names
+    futures = sorted([(dte, n) for n, dte in parsed if dte and dte >= desired], key=lambda x: x[0])
+    pasts   = sorted([(dte, n) for n, dte in parsed if dte and dte <  desired], key=lambda x: x[0], reverse=True)
+    if futures: return futures[0][1], names
+    if pasts: return pasts[0][1], names
+    return None, names
+
+def _read_sheet_people(xlsx_path: str, sheet_name: str, shift: str) -> list[dict]:
+    if not Path(xlsx_path).exists(): return []
+    try:
+        df = pd.read_excel(xlsx_path, sheet_name=sheet_name, dtype=str)
+    except Exception as e:
+        print("⚠️ No se pudo leer hoja:", sheet_name, repr(e))
+        return []
+    cols = _normalize_cols(list(df.columns))
+    req = ["apellidos","nombre","horario"]
+    if any(cols[k] is None for k in req):
+        return []
+    ap_col = cols["apellidos"]; no_col = cols["nombre"]; ho_col = cols["horario"]
+    ob_col = cols["observaciones"] or cols["horario"]
+    people = []
+    for _, row in df.iterrows():
+        ap = (row.get(ap_col) or "").strip()
+        no = (row.get(no_col) or "").strip()
+        ho = (row.get(ho_col) or "").strip()
+        ob = (row.get(ob_col) or "").strip() if cols["observaciones"] else ""
+        if not ap and not no: continue
+        if not _match_shift(ho, shift): continue
+        full = f"{ap}, {no}" if ap and no else (ap or no)
+        people.append({
+            "apellidos": ap, "nombre": no, "nombre_completo": full,
+            "horario": ho, "observaciones": ob
+        })
+    return people
+
+# -----------------------------------
+# Persistencia Tareas y Personas
+# -----------------------------------
+tasks_in_memory_store: Dict[str, Any] = {}
+manual_persons_store: Dict[str, Any] = {}
+
+def sanitize_task(raw: dict) -> dict:
+    t = dict(raw or {})
+    t["id"] = str(t.get("id") or t.get("ID") or t.get("Id") or "")
+    t.setdefault("is_completed", False)
+    return t
+
+SERVER_FIELDS = ("is_completed", "note")
+def merge_preserve_server(existing: dict | None, incoming: dict | None) -> dict:
+    base = dict(existing or {})
+    base.update(incoming or {})
+    if existing:
+        for f in SERVER_FIELDS:
+            if f in existing and f not in (incoming or {}):
+                base[f] = existing[f]
+    return sanitize_task(base)
+
+def _atomic_write_json(path: str, data: Any):
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_wfs3_", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        try:
+            if Path(tmp).exists(): os.remove(tmp)
+        except Exception:
+            pass
+
+def save_tasks_to_disk():
+    try:
+        payload = [sanitize_task(t) for t in tasks_in_memory_store.values()]
+        _atomic_write_json(TASKS_DB, payload)
+    except Exception as e:
+        print("⚠️ Error guardando tareas WFS3:", repr(e))
+
+def load_tasks_from_disk():
+    try:
+        p = Path(TASKS_DB)
+        if not p.exists(): return
+        with p.open("r", encoding="utf-8") as fh:
+            arr = json.load(fh)
+        tasks_in_memory_store.clear()
+        for t in arr or []:
+            t = sanitize_task(t)
+            if t.get("id"): tasks_in_memory_store[t["id"]] = t
+        print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas WFS3")
+    except Exception as e:
+        print("⚠️ Error leyendo tareas WFS3:", repr(e))
+
+def save_persons_to_disk():
+    try:
+        payload = list(manual_persons_store.values())
+        _atomic_write_json(PERSONS_DB, payload)
+    except Exception as e:
+        print("⚠️ Error guardando personas WFS3:", repr(e))
+
+def load_persons_from_disk():
+    try:
+        p = Path(PERSONS_DB)
+        if not p.exists(): return
+        with p.open("r", encoding="utf-8") as fh:
+            arr = json.load(fh) or []
+        manual_persons_store.clear()
+        for raw in arr:
+            manual_persons_store[raw["id"]] = raw
+        print(f"🗂️ Cargadas {len(manual_persons_store)} personas manuales WFS3")
+    except Exception as e:
+        print("⚠️ Error leyendo personas WFS3:", repr(e))
+
+# -----------------------------------
+# Modelos Pydantic
+# -----------------------------------
 class GitHubStore:
     def __init__(self):
         self.api = os.getenv("GH_API_URL", "https://api.github.com").rstrip("/")
@@ -58,7 +269,7 @@ class GitHubStore:
         self.branch = os.getenv("GH_BRANCH", "main")
         self.dir = (os.getenv("GH_DIR", "data").strip("/"))
         self.token = os.getenv("GH_TOKEN", "")
-        self.commit_name = os.getenv("GH_COMMIT_NAME", "CI-WFS3") # Ajustado
+        self.commit_name = os.getenv("GH_COMMIT_NAME", "CI-WFS3") # WFS3
         self.commit_email = os.getenv("GH_COMMIT_EMAIL", "ci-wfs3@example.com")
         self._sha_cache = {}
 
@@ -106,7 +317,6 @@ class GitHubStore:
 
 gh_store = GitHubStore() if USE_GITHUB else None
 
-# Modelos de Datos
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     task_type: str
@@ -133,11 +343,11 @@ class TaskNoteUpdate(BaseModel):
     note: str | None = None
 
 class BriefingSnapshot(BaseModel):
-    station: Optional[str] = "WFS3"  # Ajustado para WFS3
+    station: Optional[str] = "WFS3"
     date: str
     shift: str
-    timer: str        # Requerido
-    supervisor: str   # Requerido
+    timer: str
+    supervisor: str
     checklist: Dict[str, str] = {}
     kpis: Dict[str, Any] = {}
     roster_details: str = ""
@@ -146,69 +356,15 @@ class BriefingSnapshot(BaseModel):
     ops_updates: List[Dict[str, Any]] = []
     kanban_counts: Dict[str, int] = {}
     roster_stats: str = ""
+    class Config: extra = "allow"
 
-    class Config:
-        extra = "allow"
+# -----------------------------------
+# Estado & WS
+# -----------------------------------
+latest_external_table: Dict[str, Any] = {
+    "columns": [], "rows": [], "fetched_at": None, "version": 0,
+}
 
-# Persistencia
-tasks_in_memory_store: Dict[str, Any] = {}
-manual_persons_store: Dict[str, Any] = {}
-
-def _atomic_write_json(path: str, data: Any):
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_wfs3_", suffix=".json")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False)
-        os.replace(tmp, path)
-    finally:
-        try:
-            if Path(tmp).exists(): os.remove(tmp)
-        except Exception:
-            pass
-
-def save_tasks_to_disk():
-    try:
-        payload = [t for t in tasks_in_memory_store.values()]
-        _atomic_write_json(TASKS_DB, payload)
-    except Exception as e:
-        print("⚠️ Error guardando tareas WFS3:", repr(e))
-
-def load_tasks_from_disk():
-    try:
-        p = Path(TASKS_DB)
-        if not p.exists(): return
-        with p.open("r", encoding="utf-8") as fh:
-            arr = json.load(fh)
-        tasks_in_memory_store.clear()
-        for t in arr or []:
-            if t.get("id"): tasks_in_memory_store[t["id"]] = t
-        print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas WFS3")
-    except Exception as e:
-        print("⚠️ Error leyendo tareas WFS3:", repr(e))
-
-def save_persons_to_disk():
-    try:
-        payload = list(manual_persons_store.values())
-        _atomic_write_json(PERSONS_DB, payload)
-    except Exception as e:
-        print("⚠️ Error guardando personas WFS3:", repr(e))
-
-def load_persons_from_disk():
-    try:
-        p = Path(PERSONS_DB)
-        if not p.exists(): return
-        with p.open("r", encoding="utf-8") as fh:
-            arr = json.load(fh) or []
-        manual_persons_store.clear()
-        for raw in arr:
-            manual_persons_store[raw["id"]] = raw
-        print(f"🗂️ Cargadas {len(manual_persons_store)} personas manuales WFS3")
-    except Exception as e:
-        print("⚠️ Error leyendo personas WFS3:", repr(e))
-
-# WebSockets Manager
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -223,20 +379,100 @@ class ConnectionManager:
 
     async def broadcast(self, data: Dict[str, Any]):
         for connection in list(self.active_connections):
-            try:
-                await connection.send_json(data)
-            except Exception:
-                self.disconnect(connection)
+            try: await connection.send_json(data)
+            except Exception: self.disconnect(connection)
+    
+    async def send_one(self, websocket: WebSocket, data: Dict[str, Any]):
+        try: await websocket.send_json(data)
+        except Exception: self.disconnect(websocket)
 
 manager = ConnectionManager()
 
 # -----------------------------------
-# Lógica de Negocio WFS3
+# Lógica Externa (Tabla Planificación)
+# -----------------------------------
+# ... (Manteniendo helpers de ExternalConnector simplificados para no alargar infinito, 
+#      pero funcionales para leer EXT_URL si existe)
+def _build_ssl_context() -> ssl.SSLContext | bool:
+    mode = (EXT_VERIFY_MODE or "").upper()
+    if mode == "FALSE": return False
+    if mode == "TRUSTSTORE":
+        try: import truststore; truststore.inject_into_ssl(); return ssl.create_default_context()
+        except: return ssl.create_default_context()
+    if mode == "CAFILE" and EXT_CAFILE: return ssl.create_default_context(cafile=EXT_CAFILE)
+    return ssl.create_default_context()
+
+def _table_from_json(payload: Any) -> tuple[list[str], list[list[Any]]]:
+    # (Lógica simplificada de BCN para extraer filas y columnas)
+    if isinstance(payload, dict) and "rows" in payload:
+        return payload.get("columns") or [], payload.get("rows") or []
+    if isinstance(payload, list) and payload and isinstance(payload[0], dict):
+        cols = list(payload[0].keys())
+        rows = [[str(r.get(c)) for c in cols] for r in payload]
+        return cols, rows
+    return [], []
+
+async def apply_external_table(payload: Any):
+    cols, rows = _table_from_json(payload)
+    ts = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    latest_external_table["columns"] = cols
+    latest_external_table["rows"] = rows
+    latest_external_table["fetched_at"] = ts
+    latest_external_table["version"] = int(latest_external_table.get("version", 0)) + 1
+    await manager.broadcast({
+        "type": "table_ping", "table": "external",
+        "version": latest_external_table["version"], "rows": len(rows), "fetched_at": ts,
+    })
+
+async def push_external_table_state(websocket: WebSocket):
+    await manager.send_one(websocket, {
+        "type": "table_state", "table": "external",
+        "version": latest_external_table.get("version", 0),
+        "rows": len(latest_external_table.get("rows", [])),
+        "fetched_at": latest_external_table.get("fetched_at"),
+    })
+
+# Connector básico (versión reducida de BCN para no saturar)
+@dataclass
+class ExternalSettings:
+    urls: list[str] = field(default_factory=list)
+    poll_seconds: int = 60
+
+    @classmethod
+    def from_env(cls):
+        urls = [u.strip() for u in os.getenv("EXT_URLS", "").split(",") if u.strip()]
+        if not urls and EXT_URL: urls = [EXT_URL]
+        return cls(urls=urls, poll_seconds=EXT_POLL_SECONDS)
+
+class ExternalConnector:
+    def __init__(self):
+        self.settings = ExternalSettings.from_env()
+        self._client = None
+
+    async def run(self):
+        if not self.settings.urls: return
+        # Bucle simple de polling
+        while True:
+            try:
+                async with httpx.AsyncClient(verify=_build_ssl_context(), timeout=30.0) as client:
+                    resp = await client.get(self.settings.urls[0])
+                    if resp.status_code == 200:
+                        await apply_external_table(resp.json())
+            except Exception as e:
+                print(f"External poll error: {e}")
+            await asyncio.sleep(self.settings.poll_seconds)
+    
+    def status(self): return {"ok": True} # Placeholder
+
+# -----------------------------------
+# Endpoints y Lógica de Negocio
 # -----------------------------------
 
 async def send_to_excel_online(data: BriefingSnapshot):
-    # BUSCA LA VARIABLE ESPECÍFICA DE WFS3
+    # USAR VARIABLE WFS3
     url = os.getenv("EXCEL_WEBHOOK_URL_WFS3") 
+    if not url:
+        url = os.getenv("EXCEL_WEBHOOK_URL") # Fallback
     
     if not url:
         print("⚠️ EXCEL_WEBHOOK_URL_WFS3 no definida.")
@@ -250,54 +486,110 @@ async def send_to_excel_online(data: BriefingSnapshot):
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
-        "timer": str(data.timer),          # CAMPO CRÍTICO
-        "supervisor": str(data.supervisor), # CAMPO CRÍTICO
+        "timer": str(data.timer),
+        "supervisor": str(data.supervisor),
         "equipo": str(data.roster_details if data.roster_details else "Sin datos"),
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
-        "actualizaciones_ops": str(ops_text),
-        "origen": "WFS3"
+        "actualizaciones_ops": str(ops_text)
     }
     
     print(f"📤 Enviando a Excel WFS3: {json.dumps(payload)}")
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, json=payload, timeout=20.0)
-            if resp.status_code < 300:
-                print("✅ Excel WFS3 actualizado.")
-            else:
-                print(f"❌ Error Excel WFS3: {resp.status_code} {resp.text}")
+            if resp.status_code < 300: print("✅ Excel WFS3 actualizado.")
+            else: print(f"❌ Error Excel WFS3: {resp.status_code} {resp.text}")
     except Exception as e:
         print(f"❌ Excepción Excel WFS3: {e}")
 
-# -----------------------------------
-# Endpoints API
-# -----------------------------------
+# --- Webhooks para PowerBI / Sharepoint ---
+def _extract_tasks_flex(data: Any) -> list[dict]:
+    # Helper para parsear tareas entrantes
+    if isinstance(data, list): return [x for x in data if isinstance(x, dict)]
+    if isinstance(data, dict):
+        for k in ['body', 'value', 'items']:
+            if k in data and isinstance(data[k], list): return data[k]
+    return []
+
+async def _best_effort_get_payload(request: Request) -> Any:
+    try: return await request.json()
+    except: return {}
+
+@app.post("/webhook/sharepoint-bulk-update")
+async def sharepoint_bulk_update(request: Request, x_api_key: Optional[str] = Header(None)):
+    if x_api_key != API_KEY: raise HTTPException(status_code=401, detail="Invalid API Key")
+    payload = await _best_effort_get_payload(request)
+    tasks_raw = _extract_tasks_flex(payload)
+    
+    upserts = []
+    for it in tasks_raw:
+        # Convertir a modelo gw_task
+        _id = str(it.get("id") or it.get("ID") or uuid.uuid4())
+        t = sanitize_task({
+            "id": _id, "task_type": "gw_task",
+            "title": str(it.get("title") or "Tarea"),
+            "station": it.get("station"),
+            "is_completed": str(it.get("completed") or "").lower() in ["true", "yes", "1"]
+        })
+        prev = tasks_in_memory_store.get(t["id"])
+        merged = merge_preserve_server(prev, t)
+        tasks_in_memory_store[merged["id"]] = merged
+        upserts.append(merged)
+
+    save_tasks_to_disk()
+    for t in upserts: await manager.broadcast(t)
+    await apply_external_table(tasks_raw) # Refrescar tabla planning también
+    return {"ok": True, "upserts": len(upserts)}
+
+@app.post("/webhook/powerbi-total-cost")
+async def powerbi_total_cost(request: Request, x_api_key: Optional[str] = Header(None)):
+    if x_api_key != API_KEY: raise HTTPException(status_code=401, detail="Invalid API Key")
+    data = await _best_effort_get_payload(request)
+    
+    payload = {
+        "type": "kpi_update",
+        "tab": str(data.get("tab","")),
+        "metric": str(data.get("metric","")),
+        "value": data.get("value"),
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+    await manager.broadcast(payload)
+    return {"status": "ok"}
 
 @app.post("/api/briefing/summary")
 async def save_briefing_summary(data: BriefingSnapshot):
-    # 1. Generar Markdown
+    def clean_str(text: str) -> str:
+        s = unicodedata.normalize('NFD', text)
+        return ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+
     lines = []
-    lines.append(f"# 📝 Resumen {data.station} - WFS3")
+    lines.append(f"# 📝 Resumen WFS3 - {data.station}")
     lines.append(f"**Fecha:** {data.date} | **Turno:** {data.shift}")
     lines.append(f"**⏱️ Cronómetro:** {data.timer}")
     lines.append(f"**👮 Supervisor:** {data.supervisor}")
     lines.append(f"\n**👥 Equipo:**\n{data.roster_details}")
-    
-    # ... (Lógica de checklist y KPIs igual que BCN) ...
+    lines.append("\n### ↩️ Turno Anterior")
+    lines.append(f"{data.prev_shift_note or 'Sin novedades.'}")
+    lines.append("\n### 📊 KPIs")
+    for k, v in data.kpis.items(): lines.append(f"- **{k}:** {v}")
     lines.append("\n### ✅ Checklist")
     for k, v in data.checklist.items():
         icon = "🟢" if v == "OK" else "🔴"
         lines.append(f"- {icon} {k}: {v}")
+    if data.ops_updates:
+        lines.append("\n### 🚧 Actualizaciones Ops")
+        for op in data.ops_updates: lines.append(f"- [{op.get('impact')}] {op.get('title')}")
 
     final_markdown = "\n".join(lines)
-
-    # 2. Guardar con Timestamp y Sufijo WFS3
+    
+    # Guardar con sufijo WFS3
     safe_date = data.date.replace("/", "-")
+    safe_shift = clean_str(data.shift)
     timestamp = datetime.now().strftime("%H-%M-%S")
-    filename = f"{safe_date}_{data.shift}_{timestamp}_Briefing_WFS3.md"
-    store_path = f"summaries_wfs3/{filename}" # Carpeta separada opcional, o prefijo en nombre
+    filename = f"{safe_date}_{safe_shift}_{timestamp}_Briefing_WFS3.md"
+    store_path = f"summaries_wfs3/{filename}"
 
     try:
         if USE_GITHUB and gh_store:
@@ -307,37 +599,53 @@ async def save_briefing_summary(data: BriefingSnapshot):
         else:
             p = Path("./data") / store_path
             p.parent.mkdir(parents=True, exist_ok=True)
-            with open(p, "w", encoding="utf-8") as f:
-                f.write(final_markdown)
-
-        # 3. Enviar a Excel WFS3
+            with open(p, "w", encoding="utf-8") as f: f.write(final_markdown)
+        
         asyncio.create_task(send_to_excel_online(data))
 
     except Exception as e:
-        print(f"❌ Error summary WFS3: {e}")
+        print(f"❌ Error summary: {e}")
         return {"saved": False, "error": str(e)}
 
     return {"summary": final_markdown, "saved": True}
 
+# --- CRUD Tareas ---
 @app.get("/api/tasks")
 async def get_all_tasks():
-    return list(tasks_in_memory_store.values())
+    return [sanitize_task(t) for t in tasks_in_memory_store.values()]
 
 @app.post("/api/tasks", response_model=Task, status_code=201)
 async def create_task(task: Task):
     t_dict = task.dict()
-    tasks_in_memory_store[t_dict["id"]] = t_dict
+    sanitized = sanitize_task(t_dict)
+    tasks_in_memory_store[sanitized["id"]] = sanitized
     save_tasks_to_disk()
-    await manager.broadcast(t_dict)
-    return Task(**t_dict)
+    await manager.broadcast(sanitized)
+    return Task(**sanitized)
+
+@app.put("/api/tasks/{task_id}", response_model=Task)
+async def update_task_status(task_id: str, task_update: TaskUpdate):
+    if task_id not in tasks_in_memory_store: raise HTTPException(status_code=404)
+    tasks_in_memory_store[task_id]["status"] = task_update.status
+    save_tasks_to_disk()
+    await manager.broadcast(tasks_in_memory_store[task_id])
+    return Task(**tasks_in_memory_store[task_id])
 
 @app.put("/api/tasks/{task_id}/complete")
-async def update_task_completion(task_id: str, update_data: TaskCompletionUpdate):
-    if task_id in tasks_in_memory_store:
-        tasks_in_memory_store[task_id]["is_completed"] = update_data.is_completed
-        save_tasks_to_disk()
-        await manager.broadcast(tasks_in_memory_store[task_id])
-    return tasks_in_memory_store.get(task_id)
+async def update_task_completion(task_id: str, upd: TaskCompletionUpdate):
+    if task_id not in tasks_in_memory_store: raise HTTPException(status_code=404)
+    tasks_in_memory_store[task_id]["is_completed"] = upd.is_completed
+    save_tasks_to_disk()
+    await manager.broadcast(tasks_in_memory_store[task_id])
+    return tasks_in_memory_store[task_id]
+
+@app.put("/api/tasks/{task_id}/note")
+async def update_task_note(task_id: str, upd: TaskNoteUpdate):
+    if task_id not in tasks_in_memory_store: raise HTTPException(status_code=404)
+    tasks_in_memory_store[task_id]["note"] = upd.note or ""
+    save_tasks_to_disk()
+    await manager.broadcast(tasks_in_memory_store[task_id])
+    return tasks_in_memory_store[task_id]
 
 @app.delete("/api/tasks/{task_id}", status_code=204)
 async def delete_task(task_id: str):
@@ -347,20 +655,34 @@ async def delete_task(task_id: str):
         await manager.broadcast({"id": task_id, "action": "delete", "task_type": t.get("task_type")})
     return {}
 
-# Endpoint Personas Manuales
+@app.get("/api/external-table")
+async def get_external_table():
+    return latest_external_table
+
+# --- Roster Personas Manuales ---
+def _require_api_key(x_api_key: Optional[str] = Header(None)):
+    if x_api_key != API_KEY: raise HTTPException(status_code=401)
+
 @app.post("/api/roster/persons")
 async def add_persons(payload: Any):
     items = payload if isinstance(payload, list) else [payload]
     upserts = []
     for it in items:
-        # Generar ID si no existe
-        if not it.get("id"): it["id"] = str(uuid.uuid4())
-        it["source"] = "manual"
-        manual_persons_store[it["id"]] = it
-        upserts.append(it)
+        d = _person_defaults(it)
+        manual_persons_store[d["id"]] = d
+        upserts.append(d)
     save_persons_to_disk()
-    for d in upserts:
-        await manager.broadcast({"type":"roster_manual_upsert","id":d["id"], "data": d})
+    await _build_roster_state(force=True)
+    for d in upserts: await manager.broadcast({"type":"roster_manual_upsert","id":d["id"]})
+    return {"ok": True}
+
+@app.delete("/api/roster/persons/{pid}")
+async def delete_person(pid: str):
+    if pid in manual_persons_store:
+        manual_persons_store.pop(pid)
+        save_persons_to_disk()
+        await _build_roster_state(force=True)
+        await manager.broadcast({"type":"roster_manual_delete","id":pid})
     return {"ok": True}
 
 @app.get("/api/roster/persons")
@@ -370,38 +692,67 @@ def list_persons(date: Optional[str] = None, shift: Optional[str] = None):
     if shift: vals = [p for p in vals if p.get("turno") == shift]
     return vals
 
-@app.delete("/api/roster/persons/{pid}")
-async def delete_person(pid: str):
-    if pid in manual_persons_store:
-        manual_persons_store.pop(pid)
-        save_persons_to_disk()
-        await manager.broadcast({"type":"roster_manual_delete","id":pid})
-    return {"ok": True}
+@app.get("/api/roster/current")
+async def get_roster_current():
+    state = await _build_roster_state(force=False)
+    return {
+        "shift": state.get("shift"),
+        "sheet": state.get("sheet"),
+        "sheet_date": state.get("sheet_date").isoformat() if state.get("sheet_date") else None,
+        "window": state.get("window"),
+        "people": state.get("people", []),
+        "updated_at": state.get("updated_at"),
+    }
 
+async def _roster_watcher():
+    try: await _build_roster_state(force=True)
+    except Exception as e: print(f"Roster init error: {e}")
+    while True:
+        await asyncio.sleep(max(15, ROSTER_POLL_SECONDS))
+        try: await _build_roster_state(force=False)
+        except: pass
+
+# -----------------------------------
+# Websocket Endpoint
+# -----------------------------------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        while True:
-            await websocket.receive_text()
+        if latest_external_table.get("version", 0) > 0:
+            await push_external_table_state(websocket)
+        while True: await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# Eventos de Ciclo de Vida
+# -----------------------------------
+# Startup / Shutdown
+# -----------------------------------
 @app.on_event("startup")
 async def startup():
     load_tasks_from_disk()
     load_persons_from_disk()
-    print("🚀 WFS3 MAD Backend Iniciado")
+    app.state._roster = asyncio.create_task(_roster_watcher())
+    app.state._ext = ExternalConnector()
+    app.state._poller = asyncio.create_task(app.state._ext.run())
+    print(f"🚀 WFS3 MAD Backend Iniciado en puerto 8002")
 
-# Servir Frontend WFS3
-# CAMBIO AQUÍ: Añadimos .parent.parent para salir de 'backend' y buscar en la raíz
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_wfs3"
+@app.on_event("shutdown")
+async def shutdown():
+    for key in ("_poller","_roster"):
+        task: asyncio.Task = getattr(app.state, key, None)
+        if task: task.cancel()
+
+# -----------------------------------
+# Montaje Frontend
+# -----------------------------------
+# Esto busca 'frontend_wfs3' DENTRO de la carpeta 'backend'
+FRONTEND_DIR = Path(__file__).resolve().parent / "frontend_wfs3"
+
 if not FRONTEND_DIR.exists():
-    FRONTEND_DIR.mkdir(exist_ok=True)
+    print(f"⚠️ FRONTEND_DIR no existe: {FRONTEND_DIR} (Asegúrate de crear la carpeta y poner index.html)")
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
 if __name__ == "__main__":
-    # PUERTO LOCAL 8002 COMO SOLICITADO
     uvicorn.run("main_wfs3:app", host="0.0.0.0", port=8002, reload=True)
