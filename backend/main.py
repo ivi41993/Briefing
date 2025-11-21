@@ -43,7 +43,8 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
-        "actualizaciones_ops": str(ops_text)
+        "actualizaciones_ops": str(ops_text),
+        "feedback_kanban": str(data.kanban_details or "Sin feedback")
     }
 
     print(f"📤 Payload Excel: {json.dumps(payload)}")
@@ -4182,6 +4183,7 @@ class BriefingSnapshot(BaseModel):
     present_names: List[str] = []
     ops_updates: List[Dict[str, Any]] = []
     kanban_counts: Dict[str, int] = {}
+    kanban_details: str = "" 
     roster_stats: str = ""
 
     class Config:
@@ -4267,6 +4269,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
