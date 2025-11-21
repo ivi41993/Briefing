@@ -1182,6 +1182,49 @@ header {
   height: 18px;
   pointer-events: none;
 }
+
+/* --- CHECKLIST BOTÓN ÚNICO --- */
+.check-actions input[type="checkbox"] {
+  display: none; /* Ocultar la casilla fea */
+}
+
+.check-single-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+/* Estado HOVER */
+.check-single-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+/* Estado MARCADO (OK) */
+.check-actions input[type="checkbox"]:checked + .check-single-btn {
+  background: #ecfdf5;       /* Fondo Verde Claro */
+  color: #065f46;            /* Texto Verde Oscuro */
+  border-color: #10b981;     /* Borde Verde */
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.15);
+}
+
+/* Cambiar texto al marcar usando pseudo-elemento */
+.check-actions input[type="checkbox"]:checked + .check-single-btn::after {
+  content: " ✓";
+  margin-left: 6px;
+  font-weight: 800;
+}
 </style>
 </head>
 <body>
@@ -1276,94 +1319,70 @@ header {
   <!-- CENTRO -->
   <section class="col-middle">
     <!-- CHECKLIST BRIEFING -->
-    <div class="widget" id="brief-check">
-      <div id="brief-check-explain" class="br-explain" aria-live="polite">
-        <span class="br-explain-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-          </svg>
-        </span>
-        <strong class="br-explain-label">Guía</strong>
-        <span class="br-explain-text">Pasa el ratón o toca cada punto para ver qué revisar.</span>
-      </div>
-
-      <h2 class="widget-title"><span>Checklist</span></h2>
-      <span id="shift-badge" class="shift-chip">—</span>
-
-      <div class="check-grid">
-        <div class="check-card" tabindex="0"
-             data-help="Revisa incidencias y puntos clave del turno anterior (BCN)."
-             data-target="prev-shift-widget">
-          <span class="check-title">1) Highlights del turno anterior</span>
-          <div class="check-actions" role="group" aria-label="Bloque 1">
-            <input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
-            <input id="c1no" type="radio" name="c1" value="NO"><label for="c1no">NO</label>
-          </div>
-        </div>
-
-        <div class="check-card" tabindex="0"
-             data-help="Revisar objetivos y carga de trabajo, cambios en los procedimientos y actualizaciones en equipos"
-             data-target="ops-updates-widget">
-          <span class="check-title">2) Actualizaciones operativas</span>
-          <div class="check-actions" role="group" aria-label="Bloque 2">
-            <input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
-            <input id="c2no" type="radio" name="c2" value="NO"><label for="c2no">NO</label>
-          </div>
-        </div>
-
-        <div class="check-card" tabindex="0"
-             data-help="Dotación, ausencias y zonas BCN."
-             data-target="team-widget">
-          <span class="check-title">3) Dotación y recursos</span>
-          <div class="check-actions" role="group" aria-label="Bloque 3">
-            <input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
-            <input id="c3no" type="radio" name="c3" value="NO"><label for="c3no">NO</label>
-          </div>
-        </div>
-
-        <div class="check-card" tabindex="0"
-             data-help="Seguridad: EPIs, accesos, consignas específicas BCN."
-             data-target="safety-daily-widget">
-          <span class="check-title">4) Seguridad y protección</span>
-          <div class="check-actions" role="group" aria-label="Bloque 4">
-            <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
-            <input id="c4no" type="radio" name="c4" value="NO"><label for="c4no">NO</label>
-          </div>
-        </div>
-
-        <div class="check-card" tabindex="0"
-             data-help="Procedimiento de incidentes / PULSE / Enablon."
-             data-target="incidentes-widget">
-          <span class="check-title">5) Preparación/reportes incidentes</span>
-          <div class="check-actions" role="group" aria-label="Bloque 5">
-            <input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
-            <input id="c5no" type="radio" name="c5" value="NO"><label for="c5no">NO</label>
-          </div>
-        </div>
-
-        <div class="check-card" tabindex="0"
-             data-help="KPIs BCN: flujos, mantenimiento, servicio."
-             data-target="kpi-center">
-          <span class="check-title">6) Revisión KPIs BCN</span>
-          <div class="check-actions" role="group" aria-label="Bloque 6">
-            <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
-            <input id="c6no" type="radio" name="c6" value="NO"><label for="c6no">NO</label>
-          </div>
-        </div>
-
-        <div class="check-card" tabindex="0"
-             data-help="Feedback del equipo BCN → acciones Kanban rápida."
-             data-target="kanban-widget">
-          <span class="check-title">7) Feedback → Acciones</span>
-          <div class="check-actions" role="group" aria-label="Bloque 7">
-            <input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
-            <input id="c7no" type="radio" name="c7" value="NO"><label for="c7no">NO</label>
-          </div>
-        </div>
-      </div>
-
-      <small class="kpi-text" id="brief-check-meta">—</small>
+    <div class="check-grid">
+  <!-- 1) Highlights -->
+  <div class="check-card" data-target="prev-shift-widget">
+    <span class="check-title">1) Highlights turno anterior</span>
+    <div class="check-actions">
+      <input type="checkbox" id="chk_c1" name="c1" value="OK">
+      <label for="chk_c1" class="check-single-btn">Confirmar Revisión</label>
     </div>
+  </div>
+
+  <!-- 2) Actualizaciones -->
+  <div class="check-card" data-target="ops-updates-widget">
+    <span class="check-title">2) Actualizaciones operativas</span>
+    <div class="check-actions">
+      <input type="checkbox" id="chk_c2" name="c2" value="OK">
+      <label for="chk_c2" class="check-single-btn">Confirmar Revisión</label>
+    </div>
+  </div>
+
+  <!-- 3) Dotación -->
+  <div class="check-card" data-target="team-widget">
+    <span class="check-title">3) Dotación y recursos</span>
+    <div class="check-actions">
+      <input type="checkbox" id="chk_c3" name="c3" value="OK">
+      <label for="chk_c3" class="check-single-btn">Confirmar Revisión</label>
+    </div>
+  </div>
+
+  <!-- 4) Seguridad -->
+  <div class="check-card" data-target="safety-daily-widget">
+    <span class="check-title">4) Seguridad y protección</span>
+    <div class="check-actions">
+      <input type="checkbox" id="chk_c4" name="c4" value="OK">
+      <label for="chk_c4" class="check-single-btn">Confirmar Revisión</label>
+    </div>
+  </div>
+
+  <!-- 5) Incidentes -->
+  <div class="check-card" data-target="incidentes-widget">
+    <span class="check-title">5) Preparación incidentes</span>
+    <div class="check-actions">
+      <input type="checkbox" id="chk_c5" name="c5" value="OK">
+      <label for="chk_c5" class="check-single-btn">Confirmar Revisión</label>
+    </div>
+  </div>
+
+  <!-- 6) KPIs -->
+  <div class="check-card" data-target="kpi-center">
+    <span class="check-title">6) Revisión KPIs BCN</span>
+    <div class="check-actions">
+      <input type="checkbox" id="chk_c6" name="c6" value="OK">
+      <label for="chk_c6" class="check-single-btn">Confirmar Revisión</label>
+    </div>
+  </div>
+
+  <!-- 7) Feedback -->
+  <div class="check-card" data-target="kanban-widget">
+    <span class="check-title">7) Feedback → Acciones</span>
+    <div class="check-actions">
+      <input type="checkbox" id="chk_c7" name="c7" value="OK">
+      <label for="chk_c7" class="check-single-btn">Confirmar Revisión</label>
+    </div>
+  </div>
+</div>
 
     <!-- ACTUALIZACIONES OPERATIVAS -->
 <div class="widget" id="ops-updates-widget">
@@ -3942,8 +3961,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
     // 3. CHECKLIST
     const checklist = {};
-    document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
-      .forEach(r => { checklist[r.name] = r.value; });
+    document.querySelectorAll('#brief-check .check-actions input[type="checkbox"]:checked')
+      .forEach(r => { checklist[r.name] = "OK"; });
 
     // 4. EQUIPO (Lógica para Excel y GitHub)
     const peopleList = team.people || [];
