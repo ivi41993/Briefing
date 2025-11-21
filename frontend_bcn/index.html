@@ -2313,37 +2313,37 @@ updateTeamMeta(TEAM_STATE);
 }
 
 async function initTeamRoster(){
-  const state = await fetchServerRoster();
-  const list = document.getElementById('team-list');
-  if (state){
-    renderRoster(list, state.people||[], state);
-  }else if(list){
-    list.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster. Sube el Excel o añade manualmente.</div>';
-  }
-    // Bloqueamos carga auto: const state = await fetchServerRoster();
-
-    // 1. NO cargamos datos del servidor automáticamente (Procedimiento Manual)
+    const list = document.getElementById('team-list');
     
-const list = document.getElementById('team-list');
-if(list) {
-list.innerHTML = `
-           <div style="padding: 20px; text-align: center; color: var(--text-muted); background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;">
-               <strong>⚠️ Atención BCN</strong><br>
-               Se tiene que seguir el procedimiento manual hasta ahora.
-           </div>
-       `;
-}
+    // Mensaje de aviso de procedimiento manual
+    if(list) {
+        list.innerHTML = `
+            <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px;">
+                <strong>⚠️ Atención BCN</strong><br>Procedimiento manual activo.
+            </div>`;
+    }
 
-    // Estado vacío inicial para permitir altas manuales
-    // 2. Inicializamos estado vacío para permitir altas manuales
-window.TEAM_STATE = {
-shift: null,
-people: [],
-attendance: {},
-zones: {}
-};
+    // Inicializar estado vacío para permitir altas manuales
+    window.TEAM_STATE = { people: [], attendance: {} };
     
-updateTeamMeta(window.TEAM_STATE);
+    // Lógica para el formulario de alta manual
+    const form = document.getElementById('team-form');
+    if(form) {
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('team-name');
+            const name = nameInput.value.trim();
+            if(!name) return;
+            
+            // Añadir persona localmente
+            window.TEAM_STATE.people.push({ nombre_completo: name });
+            // Marcar como presente por defecto
+            window.TEAM_STATE.attendance[name] = true;
+            
+            renderLocalRoster();
+            nameInput.value = '';
+        };
+    }
 }
 
 /* Upload roster Excel */
@@ -2380,7 +2380,37 @@ const form  = document.getElementById('team-form');
 const input = document.getElementById('team-name');
 const list  = document.getElementById('team-list');
 if (!form || !input || !list) return;
+function renderLocalRoster() {
+    const list = document.getElementById('team-list');
+    // Mantenemos el aviso (primer hijo)
+    const aviso = list.querySelector('div') ? list.querySelector('div').outerHTML : '';
+    
+    let html = aviso;
+    
+    // Generamos la lista de nombres con checkbox
+    window.TEAM_STATE.people.forEach((p) => {
+        const isPresent = window.TEAM_STATE.attendance[p.nombre_completo];
+        html += `
+            <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+                <span>${p.nombre_completo}</span>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
+                    <input type="checkbox" ${isPresent ? 'checked' : ''} 
+                           onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
+                    Presente
+                </label>
+            </div>`;
+    });
+    list.innerHTML = html;
+    
+    // Actualizar contador si existe
+    const meta = document.getElementById('team-meta');
+    if(meta) meta.textContent = `${window.TEAM_STATE.people.length} personas`;
+}
 
+// Función global para el onchange del checkbox
+window.togglePresence = (name, checked) => {
+    window.TEAM_STATE.attendance[name] = checked;
+};
 async function syncServerAdd(name){
 // Endpoint esperado en backend: POST /api/roster/add
 // payload: { person, station, date, shift }
