@@ -53,12 +53,21 @@ h1,h2,h3,.widget-title,.column-title .count{
   letter-spacing:.2px;
 }
 
-/* Header */
-header{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:16px;
+/* --- HEADER MEJORADO (BCN) --- */
+header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr; /* Izquierda | Centro (Timer) | Derecha */
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+}
+
+@media (max-width: 1100px) {
+  header { grid-template-columns: 1fr auto; grid-template-rows: auto auto; }
+  .header-controls { grid-column: 1 / -1; justify-content: flex-end; }
 }
 header h1{
   margin:0;
@@ -1075,7 +1084,7 @@ button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
   color: var(--text-muted);
   pointer-events: none;
 }
-/* --- HEADER MEJORADO --- */
+/* --- HEADER MEJORADO (BCN) --- */
 header {
   display: grid;
   grid-template-columns: 1fr auto 1fr; /* Izquierda | Centro (Timer) | Derecha */
@@ -1087,7 +1096,6 @@ header {
   box-shadow: 0 2px 10px rgba(0,0,0,0.03);
 }
 
-/* Ajuste para pantallas pequeñas */
 @media (max-width: 1100px) {
   header { grid-template-columns: 1fr auto; grid-template-rows: auto auto; }
   .header-controls { grid-column: 1 / -1; justify-content: flex-end; }
@@ -1098,7 +1106,7 @@ header {
   margin-bottom: 4px;
   color: var(--text);
 }
-.header-left h1 span { color: var(--brand-red-600); } /* Para el "BCN" */
+.header-left h1 span { color: var(--brand-red-600); }
 
 /* --- CRONÓMETRO DIGITAL --- */
 .header-timer {
@@ -1111,119 +1119,60 @@ header {
   padding: 6px 16px;
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
 }
-
 .timer-display {
-  font-family: 'Space Grotesk', monospace; /* Fuente monoespaciada */
-  font-size: 2.2rem; /* Grande y legible */
+  font-family: 'Space Grotesk', monospace;
+  font-size: 2.2rem;
   font-weight: 700;
   color: var(--text);
-  font-variant-numeric: tabular-nums; /* Evita que los números "bailen" */
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   cursor: pointer;
   min-width: 160px;
   text-align: center;
 }
-
 .timer-display.is-running { color: var(--brand-red-600); }
-
-.timer-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
+.timer-controls { display: flex; flex-direction: column; gap: 2px; }
 .timer-btn-mini {
-  border: none;
-  background: none;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
+  border: none; background: none; font-size: 0.75rem; font-weight: 700;
+  text-transform: uppercase; color: var(--text-muted); cursor: pointer;
+  padding: 2px 6px; border-radius: 4px;
 }
 .timer-btn-mini:hover { background: #e2e8f0; color: var(--text); }
 
-/* --- CONTROLES Y SUPERVISOR --- */
+/* --- CONTROLES SUPERVISOR --- */
 .header-controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
+  display: flex; align-items: center; justify-content: flex-end; gap: 12px;
 }
-
-.supervisor-wrapper {
-  position: relative;
-}
-
+.supervisor-wrapper { position: relative; }
 .supervisor-wrapper input {
-  padding: 10px 12px 10px 36px; /* Espacio para icono */
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: 0.95rem;
-  width: 180px;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid var(--border); border-radius: 10px;
+  font-size: 0.95rem; width: 180px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .supervisor-wrapper input:focus {
-  border-color: var(--brand-red-600);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-  outline: none;
+  border-color: var(--brand-red-600); box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1); outline: none;
 }
-
-/* Icono de usuario dentro del input */
 .supervisor-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0.4;
-  width: 18px;
-  height: 18px;
-  pointer-events: none;
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  opacity: 0.4; width: 18px; height: 18px; pointer-events: none;
 }
 
 /* --- CHECKLIST BOTÓN ÚNICO --- */
-.check-actions input[type="checkbox"] {
-  display: none; /* Ocultar la casilla fea */
-}
-
+.check-actions input[type="checkbox"] { display: none; }
 .check-single-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #f8fafc;
-  color: #64748b;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: center;
+  display: flex; align-items: center; justify-content: center; width: 100%;
+  padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #f8fafc; color: #64748b; font-weight: 600; font-size: 0.85rem;
+  cursor: pointer; transition: all 0.2s ease; text-align: center;
 }
-
-/* Estado HOVER */
-.check-single-btn:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-}
-
-/* Estado MARCADO (OK) */
+.check-single-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
 .check-actions input[type="checkbox"]:checked + .check-single-btn {
-  background: #ecfdf5;       /* Fondo Verde Claro */
-  color: #065f46;            /* Texto Verde Oscuro */
-  border-color: #10b981;     /* Borde Verde */
+  background: #ecfdf5; color: #065f46; border-color: #10b981;
   box-shadow: 0 2px 4px rgba(16, 185, 129, 0.15);
 }
-
-/* Cambiar texto al marcar usando pseudo-elemento */
 .check-actions input[type="checkbox"]:checked + .check-single-btn::after {
-  content: " ✓";
-  margin-left: 6px;
-  font-weight: 800;
+  content: " ✓"; margin-left: 6px; font-weight: 800;
 }
 </style>
 </head>
@@ -1248,10 +1197,10 @@ header {
 
 <div class="dashboard-3col">
   <!-- HEADER -->
-  <header>
+ <header>
   <!-- IZQUIERDA: Título e Info -->
   <div class="header-left">
-    <h1>Factory Floor <span>WFS BCN</span></h1>
+    <h1>Factory Floor <span>WFS4 BCN</span></h1>
     <div style="display:flex; gap:10px; align-items:center;">
       <div id="now-header" style="font-weight:500; color:#64748b">—</div>
       <span id="shift-badge-header" class="shift-chip">—</span>
@@ -1259,11 +1208,8 @@ header {
   </div>
 
   <!-- CENTRO: Cronómetro Mejorado -->
-  <div class="header-timer" id="timer-widget" aria-label="Cronómetro de reunión">
-    <!-- Pantalla del tiempo -->
+  <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
     <div class="timer-display" id="timer-display" title="Clic para Iniciar/Pausar">00:00:00</div>
-    
-    <!-- Botones pequeños al lado -->
     <div class="timer-controls">
       <button type="button" class="timer-btn-mini" id="timer-toggle">Start/Stop</button>
       <button type="button" class="timer-btn-mini" id="timer-reset">Reset</button>
@@ -1272,7 +1218,6 @@ header {
 
   <!-- DERECHA: Supervisor y Acción -->
   <div class="header-controls">
-    <!-- Input de Supervisor con Icono -->
     <div class="supervisor-wrapper" title="Nombre del Supervisor">
       <svg class="supervisor-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -1280,10 +1225,7 @@ header {
       </svg>
       <input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor..." autocomplete="name">
     </div>
-
-    <button class="btn-primary" type="button" id="btn-generate-summary">
-      Generar Resumen
-    </button>
+    <button class="btn-primary" type="button" id="btn-generate-summary">Generar Resumen</button>
   </div>
 </header>
 
@@ -2012,17 +1954,14 @@ function isForThisStation(obj){
 })();
 
 /* ==========================
-   Cronómetro Header
-========================== */
-/* ==========================
-   Cronómetro Header (Lógica Actualizada)
+   Cronómetro Header BCN (Mejorado)
 ========================== */
 (function(){
-  const KEY='header_big_timer_bcn_v1'; // Clave distinta para BCN
+  const KEY='header_big_timer_bcn_v1';
   let running=false, startedAt=0, elapsed=0, tick=null;
 
   const display = document.getElementById('timer-display');
-  const toggleBtn = document.getElementById('timer-toggle'); // Nuevo botón
+  const toggleBtn = document.getElementById('timer-toggle'); 
   const resetBtn = document.getElementById('timer-reset');
 
   function fmt(ms){
@@ -2038,65 +1977,34 @@ function isForThisStation(obj){
     if(display) display.classList.toggle('is-running', running);
   }
 
-  function save(){
-    try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch(e){}
-  }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch(e){} }
 
   function load(){
     try{
       const s = JSON.parse(localStorage.getItem(KEY)||'null');
       if(!s) return;
-      running = !!s.running;
-      elapsed = Number(s.elapsed)||0;
-      startedAt = Number(s.startedAt)||0;
+      running = !!s.running; elapsed = Number(s.elapsed)||0; startedAt = Number(s.startedAt)||0;
       if (running){
-        // Recalcular elapsed al volver
-        const now=Date.now();
-        elapsed = Math.max(elapsed, now-startedAt);
-        startedAt = now - elapsed;
+        const now=Date.now(); elapsed = Math.max(elapsed, now-startedAt); startedAt = now - elapsed;
       }
     }catch(e){}
   }
 
   function toggle(){
-    if (running) {
-      // Pausar
-      running = false;
-      elapsed = Date.now() - startedAt;
-      clearInterval(tick); tick=null;
-    } else {
-      // Iniciar
-      running = true;
-      startedAt = Date.now() - elapsed;
-      tick = setInterval(paint, 250);
-    }
+    if (running) { running = false; elapsed = Date.now() - startedAt; clearInterval(tick); tick=null; }
+    else { running = true; startedAt = Date.now() - elapsed; tick = setInterval(paint, 250); }
     paint(); save();
   }
 
-  function reset(){
-    running = false; startedAt = 0; elapsed = 0;
-    clearInterval(tick); tick=null;
-    paint(); save();
-  }
+  function reset(){ running = false; startedAt = 0; elapsed = 0; clearInterval(tick); tick=null; paint(); save(); }
 
-  // Listeners
   display?.addEventListener('click', toggle);
-  toggleBtn?.addEventListener('click', toggle); // Nuevo listener
+  toggleBtn?.addEventListener('click', toggle);
   resetBtn?.addEventListener('click', reset);
 
-  document.addEventListener('visibilitychange', ()=>{
-    if (!running) return;
-    // Resync visual al volver a la pestaña
-    startedAt = Date.now() - elapsed;
-    paint();
-  });
+  document.addEventListener('visibilitychange', ()=>{ if (!running) return; startedAt = Date.now() - elapsed; paint(); });
 
-  // Init global
-  window.initHeaderTimer = function(){
-    load(); 
-    paint();
-    if (running && !tick) tick = setInterval(paint, 250);
-  };
+  window.initHeaderTimer = function(){ load(); paint(); if (running && !tick) tick = setInterval(paint, 250); };
 })();
 
 /* ==========================
@@ -3166,7 +3074,39 @@ function initOpsUpdates(){
   });
 
 }
+(function checklistPerShift(){
+  // ... (código anterior igual)
+  const host = document.getElementById('brief-check');
+  if (!host) return;
 
+  // CAMBIO: Buscar checkboxes
+  const inputs = Array.from(host.querySelectorAll('.check-actions input[type="checkbox"]'));
+  if (!inputs.length) return;
+
+  function saveState(){
+    const key = currentKey();
+    const state = {};
+    // Guardar solo si checked = OK
+    inputs.forEach(r => { if (r.checked) state[r.name] = "OK"; });
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+  }
+
+  function loadState(){
+    // ...
+    inputs.forEach(r => r.checked = false);
+    if (state && typeof state === 'object'){
+      inputs.forEach(r => { if (state[r.name] === "OK") r.checked = true; });
+    }
+  }
+  
+  function clearForNewKey(){
+      inputs.forEach(r => r.checked = false);
+      saveState();
+  }
+
+  inputs.forEach(r => r.addEventListener('change', saveState));
+  // ... (resto igual)
+})();
 /* ==========================
    Reordenar checklist + renumerar
 ========================== */
