@@ -2307,13 +2307,26 @@ function renderRoster(listEl, people, state){
 }
 
 async function initTeamRoster(){
-  const state = await fetchServerRoster();
-  const list = document.getElementById('team-list');
-  if (state){
-    renderRoster(list, state.people||[], state);
-  }else if(list){
-    list.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster. Sube el Excel o añade manualmente.</div>';
-  }
+    // Bloqueamos carga auto: const state = await fetchServerRoster();
+
+    const list = document.getElementById('team-list');
+    if(list) {
+        list.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: var(--text-muted); background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;">
+                <strong>⚠️ Atención BCN</strong><br>
+                Se tiene que seguir el procedimiento manual hasta ahora.
+            </div>
+        `;
+    }
+
+    // Estado vacío inicial para permitir altas manuales
+    window.TEAM_STATE = {
+        shift: null,
+        people: [],
+        attendance: {},
+        zones: {}
+    };
+    updateTeamMeta(window.TEAM_STATE);
 }
 
 /* Upload roster Excel */
@@ -3773,6 +3786,158 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 
   updateSpotlightRouting?.();
+/* ===== Briefing: Generar Resumen BCN Completo ===== */
+(function wireBriefingGenerate(){
+  const btn = document.querySelector('header .header-controls .btn-primary');
+  if (!btn) return;
+
+  // Crear pequeño estado visual
+  const status = document.createElement('small');
+  status.style.marginLeft = '8px';
+  status.style.color = 'var(--text-muted)';
+  btn.parentElement.appendChild(status);
+
+  // --- 1. Recolectar TODOS los datos ---
+  function buildPayload(){
+    const station = (window.STATION_OVERRIDE || 'BCN').toUpperCase();
+    const team = (window.TEAM_STATE || {});
+    const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
+    const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
+
+    // 1. CRONÓMETRO & SUPERVISOR
+    const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
+    const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
+
+    // 2. INFO TURNO ANTERIOR
+    const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
+
+    // 3. CHECKLIST
+    const checklist = {};
+    document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
+      .forEach(r => { checklist[r.name] = r.value; });
+
+    // 4. EQUIPO (Lógica para Excel y GitHub)
+    const peopleList = team.people || [];
+    const attMap = team.attendance || {};
+    
+    // Lista para GitHub (Solo nombres presentes)
+    const presentNames = peopleList
+        .filter(p => attMap[p.nombre_completo] === true)
+        .map(p => p.nombre_completo);
+
+    // Texto detallado para Excel (Nombre + Icono estado)
+    // Genera: "Juan (✅), Pepe (❌), Ana (✅)"
+    const rosterDetailsArr = peopleList.map(p => {
+        const name = p.nombre_completo || "Sin Nombre";
+        const isPresent = attMap[name] === true;
+        return `${name} (${isPresent ? "✅" : "❌"})`;
+    });
+    const rosterDetailsStr = rosterDetailsArr.length > 0 ? rosterDetailsArr.join(", ") : "Sin datos de equipo";
+    
+    const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
+
+    // 5. KPIs y OPS
+    // Nota: En BCN usas 'ops-lines-list' y tarjetas '.ops-line-card' en lugar de '.ops-item'
+    // Adaptamos el selector para que funcione con tu HTML de BCN
+    const opsCards = document.querySelectorAll('.ops-line-card, .ops-item'); 
+    const ops = Array.from(opsCards).map(card => ({
+      title: card.querySelector('.ops-line-title, .ops-title')?.textContent?.trim() || '',
+      impact: card.dataset.priority || card.querySelector('.ops-impact')?.textContent?.trim() || '',
+      scope: 'General' // En BCN parece que no usas scope explícito en tarjetas de líneas
+    }));
+
+    const kpis = {
+      "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
+      "OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '-',
+      "Backlog": document.getElementById('kpi-backlog')?.textContent?.trim() || '-',
+      "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
+    };
+
+    const kanbanCounts = {
+      "Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
+      "En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
+      "Cerradas": document.querySelectorAll('#kanban_rapida-Cerradas .card').length
+    };
+
+    // Payload exacto para BriefingSnapshot en main_bcn.py
+    return {
+      station, date, shift, 
+      timer: timerVal,
+      supervisor: supVal,            
+      prev_shift_note: prevShiftNote,
+      checklist,
+      
+      // Datos de equipo
+      roster_stats: rosterStats,
+      present_names: presentNames,   // Para Markdown
+      roster_details: rosterDetailsStr, // Para Excel (Texto largo)
+      
+      ops_updates: ops,
+      kpis,
+      kanban_counts: kanbanCounts
+    };
+  }
+
+  // --- 2. Diálogo de Confirmación ---
+  function showSummaryDialog(text, logMsg){
+    let dlg = document.getElementById('briefing-summary-dialog');
+    if (!dlg){
+      dlg = document.createElement('dialog');
+      dlg.id = 'briefing-summary-dialog';
+      dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
+      dlg.innerHTML = `
+        <form method="dialog" style="display:grid;gap:12px;">
+          <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado (BCN)</h3>
+          <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
+          <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
+          <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+            <button class="btn-compact" value="cancel">Cerrar</button>
+            <button type="button" id="btn-copy-summary" class="btn-primary">Copiar Texto</button>
+          </div>
+        </form>`;
+      document.body.appendChild(dlg);
+      
+      dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
+        const txt = dlg.querySelector('#briefing-content').innerText;
+        try { await navigator.clipboard.writeText(txt); alert('Copiado al portapapeles'); } 
+        catch(e) { alert('Error copiando automática, selecciona y copia.'); }
+      });
+    }
+    
+    dlg.querySelector('#briefing-content').textContent = text;
+    dlg.querySelector('#briefing-log').textContent = logMsg || "";
+    try{ dlg.showModal(); }catch{ dlg.setAttribute('open',true); }
+  }
+
+  // --- 3. Envío al Servidor ---
+  btn.addEventListener('click', async ()=>{
+    const oldText = btn.textContent;
+    btn.textContent = 'Guardando...';
+    btn.disabled = true;
+    
+    try {
+      const payload = buildPayload();
+      console.log("📤 Enviando BCN:", payload);
+
+      const res = await fetch('/api/briefing/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error('Error en servidor');
+      const respData = await res.json();
+      showSummaryDialog(respData.summary, respData.log);
+      
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar resumen. Revisa la consola.');
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+    }
+  });
+})();
 });
 </script>
 </body>
