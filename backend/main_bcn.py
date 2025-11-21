@@ -666,9 +666,15 @@ class ConnectionManager:
             self.disconnect(websocket)
 
 async def send_to_excel_online(data: BriefingSnapshot):
-    url = os.getenv("EXCEL_WEBHOOK_URL") # Asegúrate de tener esta variable en Render
+    # CAMBIO AQUÍ: Buscamos la variable específica de BCN
+    url = os.getenv("EXCEL_WEBHOOK_URL_BCN") 
+    
     if not url:
-        print("⚠️ EXCEL_WEBHOOK_URL no definida.")
+        # Fallback por si olvidaste cambiar el nombre en Render, intenta la genérica
+        url = os.getenv("EXCEL_WEBHOOK_URL")
+    
+    if not url:
+        print("⚠️ EXCEL_WEBHOOK_URL_BCN no definida.")
         return
 
     # Formatear Actualizaciones como texto plano
@@ -677,6 +683,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
         ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
         ops_text = " | ".join(ops_lines)
 
+    # Payload que coincide con el esquema JSON de Power Automate
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
@@ -688,13 +695,17 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text)
     }
-
+    
+    print(f"📤 Enviando a Excel BCN: {json.dumps(payload)}")
     try:
         async with httpx.AsyncClient() as client:
-            await client.post(url, json=payload, timeout=15.0)
-            print("✅ Excel BCN actualizado.")
+            resp = await client.post(url, json=payload, timeout=20.0)
+            if resp.status_code < 300:
+                print("✅ Excel BCN actualizado.")
+            else:
+                print(f"❌ Error Excel BCN: {resp.status_code} {resp.text}")
     except Exception as e:
-        print(f"❌ Error Excel BCN: {e}")
+        print(f"❌ Excepción Excel BCN: {e}")
 
 app = FastAPI()
 manager = ConnectionManager()
@@ -1950,6 +1961,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
