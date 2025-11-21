@@ -395,8 +395,8 @@ async def startup():
     print("🚀 WFS3 MAD Backend Iniciado")
 
 # Servir Frontend WFS3
-# Asumimos que index_wfs3.html estará en una carpeta llamada 'frontend_wfs3'
-FRONTEND_DIR = Path(__file__).resolve().parent / "frontend_wfs3"
+# CAMBIO AQUÍ: Añadimos .parent.parent para salir de 'backend' y buscar en la raíz
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_wfs3"
 if not FRONTEND_DIR.exists():
     FRONTEND_DIR.mkdir(exist_ok=True)
 
