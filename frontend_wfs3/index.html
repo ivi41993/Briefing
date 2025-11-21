@@ -1,248 +1,3990 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Operativo WFS3 MAD</title>
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #f4f6f9; }
-        .header-bar { background-color: #2c3e50; color: white; padding: 15px; }
-        .timer-box { font-size: 1.5rem; font-family: monospace; font-weight: bold; background: #000; color: #0f0; padding: 5px 15px; border-radius: 5px; }
-        .manual-warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 10px; margin-bottom: 15px; border-radius: 5px; font-weight: bold; display: flex; align-items: center; }
-        .manual-warning span { margin-left: 10px; }
-        .card-custom { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; margin-bottom: 20px; }
-        .station-badge { background-color: #e74c3c; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; }
-    </style>
-    <script>
-        // IDENTIDAD WFS3
-        window.STATION_OVERRIDE = 'WFS3';
-    </script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="UTF-8" />
+<title>Factory Floor Dashboard - WFS3 MAD</title>
+
+<!-- Fuentes -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{ --ui-scale: 1; }                  /* 1 = 100% */
+html{ font-size: calc(16px * var(--ui-scale)); }
+@media (min-width: 1600px){
+:root{ --ui-scale: 1.15; }             /* TVs grandes: sube ligeramente por defecto */
+}
+
+:root{
+--brand-red-900:#7f1d1d; --brand-red-800:#991b1b; --brand-red-700:#b91c1c;
+--brand-red-600:#dc2626; --brand-red-500:#ef4444; --brand-red-400:#f87171;
+
+--bg-page:#f7f8fa;
+--bg-card:#ffffff;
+--border:#e6e8ec;
+--text:#1f2937;
+--text-muted:#6b7280;
+
+/* Categorías Kanban (fondo completo) */
+--cat-seg:#fee2e2;
+--cat-inc:#fff1e6;
+--cat-man:#eaf8f0;
+--cat-cal:#fce7ff;
+--cat-ser:#fef9c3;
+}
+
+:focus-visible{
+outline:2px solid var(--brand-red-600);
+outline-offset:2px;
+}
+
+
+/* Base */
+html,body{ background:var(--bg-page); color:var(--text); height:100%; }
+body{
+margin:0;
+font:14px "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+-webkit-text-size-adjust:100%;
+}
+h1,h2,h3,.widget-title,.column-title .count{
+font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+letter-spacing:.2px;
+}
+
+/* Header */
+header{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:16px;
+}
+header h1{
+margin:0;
+color:var(--brand-red-600);
+font-weight:700;
+font-size: clamp(1.6rem, 1vw + 1rem, 2.2rem);
+}
+.header-left{ display:flex; flex-direction:column; gap:2px; }
+#now-header{
+font-size:.95rem;
+color:var(--text-muted);
+}
+.shift-chip{
+display:inline-flex; align-items:center; gap:6px;
+padding:4px 10px; border:1px solid var(--border);
+border-radius:999px; background:#fff;
+font-weight:600; font-size:.85rem;
+}
+
+/* Turnos colores */
+.shift-chip[data-shift="Mañana"]{
+background:#ecfdf5; color:#065f46; border-color:#a7f3d0;
+}
+.shift-chip[data-shift="Tarde"]{
+background:#fff7ed; color:#9a3412; border-color:#fed7aa;
+}
+.shift-chip[data-shift="Noche"]{
+background:#eef2ff; color:#3730a3; border-color:#c7d2fe;
+}
+
+.header-controls{
+display:flex; gap:12px; align-items:center;
+}
+.header-controls input{
+padding:6px 10px;
+border:1px solid var(--border);
+border-radius:8px;
+font-size:.9rem;
+background:#fff;
+}
+.btn-primary{
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color:#fff; border:none; border-radius:10px; padding:10px 16px;
+box-shadow:0 6px 16px rgba(220,38,38,.25);
+transition:.15s transform,.2s box-shadow,.2s filter;
+cursor:pointer;
+}
+.btn-primary:hover{
+transform:translateY(-1px);
+filter:saturate(110%);
+}
+
+.top-bar{
+position:sticky;
+top:0;
+z-index:20;
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:12px;
+padding:
+8px
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-right))
+4px
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+background:linear-gradient(to bottom, rgba(247,248,250,0.98), rgba(247,248,250,0.92));
+backdrop-filter:blur(6px);
+}
+.top-bar-left{
+display:flex;
+align-items:center;
+gap:6px;
+font-size:.78rem;
+color:var(--text-muted);
+}
+.top-bar select{
+padding:4px 8px;
+border-radius:8px;
+border:1px solid var(--border);
+font-size:.8rem;
+background:#fff;
+}
+.top-bar-right .btn-primary{
+padding:8px 14px;
+min-height:36px;
+box-shadow:0 4px 12px rgba(220,38,38,.2);
+}
+
+
+/* ======= Layout 3 columnas ======= */
+.dashboard-3col{
+min-height: 100svh;
+display:grid;
+grid-template-columns: 320px 1fr 380px;  /* IZQ / CENTRO / DER */
+grid-template-rows: auto 1fr;
+gap:16px;
+padding:
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-top))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-right))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+}
+header{ grid-column: 1 / -1; }
+.col-left, .col-middle, .col-right{
+min-height:0;
+overflow:auto;
+display:flex;
+flex-direction:column;
+gap:20px;
+-webkit-overflow-scrolling:touch;
+overscroll-behavior:contain;
+}
+
+/* Widgets / tarjetas */
+.widget,.card{
+background:var(--bg-card);
+border:1px solid var(--border);
+border-radius:12px;
+box-shadow: 0 6px 18px rgba(17,24,39,.06);
+padding:16px;
+position:relative;
+}
+.widget-title{
+font-size:1.05rem;
+font-weight:700;
+margin:0 0 12px;
+display:flex; align-items:center; justify-content:space-between;
+}
+.widget-title-icon{ width:16px; height:16px; color:var(--text-muted); }
+
+/* Kanban / Kaizen */
+.board-container{ display:grid; gap:12px; }
+.board-container.kanban{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+.board-container.kaizen{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+.board-container.kaizen.compact{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+
+.kanban-column{ display:flex; flex-direction:column; min-width:0; }
+.column-title{
+display:flex; justify-content:space-between; align-items:baseline;
+font-size:.85rem; font-weight:600; color:var(--text-muted);
+margin:0 0 6px; padding-bottom:8px; border-bottom:2px solid #e9ecef;
+}
+.column-title .count{
+background:#eef1f4; color:var(--text-muted);
+padding:2px 6px; border-radius:6px; font-size:.8rem;
+}
+.cards-container{
+min-height:120px;
+max-height: clamp(280px, 48svh, 70vh);
+overflow:auto;
+padding-top:4px;
+-webkit-overflow-scrolling:touch;
+overscroll-behavior:contain;
+}
+
+.card{
+margin-bottom:8px;
+padding:10px 12px;
+display:flex; align-items:center; justify-content:space-between; gap:10px;
+cursor:grab;
+}
+.card:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.card-content{ flex:1 1 auto; min-width:0; }
+.card-title{
+font-weight:600; font-size:.95rem; margin:0 0 4px; line-height:1.25;
+overflow:hidden; max-height:2.5em;
+}
+.card-details,.card-assignee{
+font-size:.8rem; color:var(--text-muted);
+}
+.card-assignee{ margin-top:4px; }
+
+.card-actions .icon{ width:14px; height:14px; }
+.delete-card-btn{
+background:none; border:none; color:#9ca3af;
+display:none; cursor:pointer;
+}
+.card:hover .delete-card-btn{ display:block; }
+
+.sortable-ghost{ opacity:.4; background:#dee2e6; }
+.sortable-drag{
+opacity:1 !important;
+transform:rotate(2deg);
+box-shadow:0 8px 24px rgba(0,0,0,.15);
+}
+
+/* Asa de arrastre */
+.drag-handle{
+align-self:stretch;
+display:flex; align-items:center; justify-content:center;
+padding:6px;
+border:1px solid var(--border);
+border-radius:10px;
+background:var(--bg-card);
+cursor:grab;
+opacity:.7;
+}
+.card:active .drag-handle{ cursor:grabbing; opacity:1; }
+.drag-handle svg{ width:14px; height:14px; }
+
+/* Chips de categoría */
+.cat-chip{
+display:inline-block; margin-left:8px; font-size:.7rem; font-weight:700;
+padding:2px 6px; border-radius:999px; border:1px solid rgba(0,0,0,.08);
+vertical-align:middle; background:rgba(255,255,255,.7);
+}
+
+/* KANBAN: fondo por categoría */
+#kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
+#kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
+#kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
+#kanban-widget .card.cat-calidad       { background: var(--cat-cal); }
+#kanban-widget .card.cat-servicio      { background: var(--cat-ser); }
+
+#kanban-widget .cat-chip{ font-weight:800; }
+#kanban-widget .cat-chip.is-seguridad   { background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+#kanban-widget .cat-chip.is-incidencias { background:#fff1e6; color:#7a3800; border-color:#ffd7b5; }
+#kanban-widget .cat-chip.is-mantenimiento{background:#eaf8f0; color:#065f46; border-color:#b7f0d3; }
+#kanban-widget .cat-chip.is-calidad     { background:#fce7ff; color:#6b21a8; border-color:#f0abfc; }
+#kanban-widget .cat-chip.is-servicio    { background:#fef9c3; color:#854d0e; border-color:#fde68a; }
+
+/* 5S & GW */
+.checkbox-item{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.9rem; }
+.gw-task-item{
+display:flex; align-items:center; gap:8px;
+padding:6px 4px;
+font-size:.9rem;
+border-bottom:1px solid var(--border);
+cursor:pointer;
+}
+.gw-task-item:last-child{ border-bottom:none; }
+.gw-task-item.completed label{
+color:var(--text-muted);
+text-decoration:line-through;
+}
+.gw-note{
+font-size:.85rem;
+width:100%; margin-top:4px;
+padding:6px 8px;
+border:1px solid var(--border);
+border-radius:6px;
+}
+.gw-note:disabled{
+background:#f8f9fa;
+color:var(--text-muted);
+}
+.highlight-gw{ animation: highlight-gw 2s ease-out; }
+@keyframes highlight-gw {
+from{ background:#dbe4ff; }
+to{ background:transparent; }
+}
+
+/* 5S compacto */
+.s5-compact{
+display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+}
+.s5-pill{
+display:inline-flex; align-items:center; gap:6px;
+border:1px solid var(--border); background:#fff;
+border-radius:999px; padding:6px 10px;
+font-size:.8rem; line-height:1;
+cursor:pointer; user-select:none;
+transition:transform .06s, box-shadow .12s, border-color .12s, background .12s;
+}
+.s5-pill:hover{ transform:translateY(-1px); }
+.s5-pill:active{ transform:translateY(0); }
+.s5-dot{
+width:8px; height:8px; border-radius:50%; background:#d1d5db;
+}
+.s5-pill.on{
+background:linear-gradient(135deg, #ecfdf5, #ffffff);
+border-color: rgba(16,185,129,.55);
+box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+}
+.s5-pill.on .s5-dot{ background:#10b981; }
+@keyframes s5-bump{
+0%{transform:scale(1);}
+50%{transform:scale(1.05);}
+100%{transform:scale(1);}
+}
+.s5-pill.bump{ animation:s5-bump .18s ease-out; }
+#s5-meta{ margin-top:4px; font-size:.78rem; }
+
+/* EHS simple */
+#ehs-widget{ display:flex; flex-direction:column; gap:8px; }
+#ehs-month{ color:var(--text-muted); font-size:.95rem; }
+.ehs-controls{
+display:flex; align-items:center; gap:14px;
+border:1px solid var(--border); border-radius:12px; padding:8px 10px;
+}
+.ehs-btn{
+width:42px; height:42px; border:none; border-radius:10px; cursor:pointer;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color:#fff; font-size:1.3rem; line-height:1;
+display:flex; align-items:center; justify-content:center;
+}
+.ehs-big{
+font-size: clamp(2rem, 2.2vw + .8rem, 3rem);
+font-weight:800; line-height:1;
+color:var(--brand-red-600);
+min-width:3ch; text-align:center;
+}
+
+/* KPI Costes */
+#kpi-costes .kpi-value.large{
+font-size: clamp(2.1rem, 2.3vw + 1rem, 3.2rem);
+line-height:1; font-weight:700;
+}
+#kpi-total-cost{
+color:var(--brand-red-600); font-weight:800;
+}
+.kpi-text{
+color:var(--text-muted); margin:0; font-size:.9rem;
+}
+.kpi-currency{
+font-size:1rem; font-weight:600;
+margin-left:4px; vertical-align:super;
+color:var(--brand-red-600);
+}
+.flash{ animation: flash-kpi 900ms ease-out; }
+@keyframes flash-kpi{
+from{ background:#fff3cd; }
+to{ background:transparent; }
+}
+
+/* KPIs grid */
+.kpi-grid{
+display:grid;
+grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+gap:12px;
+}
+.kpi-tile{
+border:1px solid var(--border);
+border-radius:12px;
+background:#fff;
+padding:14px;
+box-shadow:0 6px 18px rgba(17,24,39,.06);
+}
+.kpi-label{
+font-weight:700;
+font-size:.9rem;
+color:var(--text-muted);
+margin-bottom:4px;
+}
+.kpi-value{
+font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+font-weight:800;
+font-size: clamp(1.6rem, 2.6vw + .4rem, 2.6rem);
+line-height:1;
+color:var(--brand-red-600);
+}
+
+/* Planificación / tablas */
+.table-scroll{
+overflow-x:auto;
+max-width:100%;
+padding-bottom:8px;
+}
+#planif-table, #incidentes-table, #incidentes-pdf-table{
+width:100%;
+border-collapse:collapse;
+font-size:.9rem;
+}
+#planif-table thead th,
+#incidentes-table thead th,
+#incidentes-pdf-table thead th{
+position:sticky; top:0;
+background:#fafafa;
+border-bottom:1px solid var(--border);
+text-align:left;
+padding:8px;
+z-index:2;
+}
+#planif-table tbody td,
+#incidentes-table tbody td,
+#incidentes-pdf-table tbody td{
+padding:8px;
+border-bottom:1px solid var(--border);
+white-space:nowrap;
+}
+
+/* Fullscreen helpers */
+.fs-toggle{
+position:absolute; top:10px; right:10px;
+border:1px solid var(--border);
+background:rgba(255,255,255,.95);
+border-radius:12px;
+padding:10px;
+cursor:pointer; line-height:0; opacity:.8;
+display:inline-flex; align-items:center; justify-content:center;
+transition: opacity .15s, transform .15s, box-shadow .15s;
+box-shadow:0 4px 12px rgba(0,0,0,.10);
+min-width:44px; min-height:44px;
+}
+.fs-toggle:hover{ opacity:1; transform:scale(1.06); }
+.fs-toggle svg{ width:18px; height:18px; display:block; }
+
+.widget:fullscreen, .card:fullscreen{
+background:#fff; border-radius:0; box-shadow:none; padding:24px;
+}
+:fullscreen{ overflow:auto; }
+html.fs-zoom{ font-size:18px; }
+@media (min-width:1280px){ html.fs-zoom{ font-size:20px; } }
+
+/* Spotlight checklist */
+#brief-check{
+position: sticky;
+top: 0;
+z-index: 5;
+border: 2px solid rgba(239,68,68,.45);
+box-shadow:
+0 14px 36px rgba(239,68,68,.18),
+0 2px 0 rgba(255,255,255,.9) inset;
+background:
+radial-gradient(1200px 200px at 50% -60px, rgba(239,68,68,.06), transparent),
+#fff;
+animation: brief-pop .25s ease-out;
+backdrop-filter: saturate(105%) blur(2px);
+}
+#brief-check .widget-title{
+font-size: 1.25rem;
+color: var(--brand-red-700);
+}
+#brief-check .check-grid{
+display:grid; gap:8px;
+grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+#brief-check .check-card{
+display:flex; flex-direction:column;
+align-items:flex-start; gap:10px;
+padding:14px 16px;
+min-height:96px;
+border:1px solid var(--border);
+box-shadow:0 6px 16px rgba(17,24,39,.06);
+}
+.check-title{
+font-weight:600;
+font-size:.95rem;
+line-height:1.25;
+word-break:break-word;
+}
+.check-actions{
+width:100%;
+display:flex; flex-wrap:wrap;
+gap:8px;
+}
+.check-actions label{
+padding:6px 12px;
+border-radius:999px;
+font-size:.78rem;
+border:1px solid var(--border);
+cursor:pointer;
+}
+.check-actions input{ display:none; }
+.check-actions input:checked + label{
+background:#ecfdf5;
+border-color:rgba(16,185,129,.6);
+box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+}
+#brief-check .shift-chip{
+margin:6px auto 10px;
+}
+
+/* Caja explicación */
+#brief-check .br-explain{
+display:flex; align-items:center; gap:8px;
+margin: 8px 0 12px;
+padding: 10px 12px;
+background:#fff;
+color: var(--brand-red-700);
+border: 2px solid var(--brand-red-600);
+border-radius: 12px;
+box-shadow: 0 6px 16px rgba(239,68,68,.12);
+font-size: .95rem;
+line-height: 1.35;
+min-height: 44px;
+}
+#brief-check .br-explain-ico{
+display:inline-flex; align-items:center; justify-content:center;
+width: 26px; height: 26px; border-radius: 999px;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color:#fff;
+box-shadow: 0 4px 10px rgba(239,68,68,.25);
+}
+#brief-check .br-explain-label{
+font-weight: 800; letter-spacing:.2px;
+}
+#brief-check .br-explain-text{
+font-weight: 600;
+}
+
+/* Spotlight parpadeo */
+.spotlight-blink{
+position: relative;
+border-color: rgba(239,68,68,.6) !important;
+box-shadow:
+0 0 0 3px rgba(239,68,68,.20),
+0 14px 36px rgba(239,68,68,.12);
+animation: blink-glow 1.2s ease-in-out infinite;
+}
+@keyframes blink-glow{
+0%,100%{
+box-shadow:
+0 0 0 2px rgba(239,68,68,.18),
+0 8px 22px rgba(239,68,68,.10);
+transform: scale(1);
+}
+50%{
+box-shadow:
+0 0 0 5px rgba(239,68,68,.28),
+0 18px 44px rgba(239,68,68,.18);
+transform: scale(1.01);
+}
+}
+
+/* Incidentes BCN */
+#incidentes-widget .incident-remember{
+margin:6px 0 8px;
+padding:10px 12px;
+background:#fff !important;
+color: var(--brand-red-700) !important;
+border: 2px solid var(--brand-red-600) !important;
+border-radius: 12px;
+box-shadow:none !important;
+font-weight:800;
+letter-spacing:.2px;
+}
+#incidentes-widget .title-bullets{
+list-style:none; margin:0 0 10px; padding:0;
+display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+}
+#incidentes-widget .title-chip{
+display:inline-flex; align-items:center;
+padding:6px 12px;
+border-radius:999px;
+font-size:.8rem; font-weight:700;
+background:#fff !important;
+color:var(--brand-red-700) !important;
+border:2px solid var(--brand-red-600) !important;
+box-shadow:none !important;
+}
+#incidentes-widget .title-chip:hover{
+box-shadow:0 0 0 3px rgba(239,68,68,.12);
+}
+
+/* Equipo / presencia */
+.presence-toggle{
+display:inline-flex; align-items:center;
+border:1px solid var(--border);
+border-radius:10px;
+overflow:hidden;
+background:#fff;
+}
+.presence-toggle input{ display:none; }
+.presence-toggle label{
+padding:6px 10px;
+font-size:.82rem; font-weight:700;
+cursor:pointer; user-select:none;
+display:inline-flex; align-items:center; gap:6px;
+}
+.presence-toggle label + input + label{
+border-left:1px solid var(--border);
+}
+.presence-toggle .yes{ color:#166534; }
+.presence-toggle .no { color:#991b1b; }
+.presence-toggle input[value="yes"]:checked + label.yes{
+background:#e3f9e5; box-shadow: inset 0 0 0 2px rgba(16,185,129,.12);
+}
+.presence-toggle input[value="no"]:checked + label.no{
+background:#ffe3e3; box-shadow: inset 0 0 0 2px rgba(239,68,68,.12);
+}
+.team-right .zone-select{
+padding:6px 10px; border:1px solid var(--border);
+border-radius:8px; background:#fff; font-size:.85rem;
+}
+.chip-zone{
+display:inline-block; margin-left:6px; padding:2px 8px;
+border-radius:999px; font-size:.72rem; font-weight:700;
+color:#3730a3; background:#eef2ff; border:1px solid #c7d2fe;
+}
+
+/* Split Kaizen + 5S/GW */
+.actions-split{
+display:grid;
+grid-template-columns: 1.2fr 1fr;
+gap:20px;
+align-items:start;
+}
+@media (max-width:1100px){
+.actions-split{ grid-template-columns:1fr; }
+}
+
+/* Responsive layout ajustes */
+@media (min-width:980px) and (max-width:1280px){
+.dashboard-3col{
+grid-template-columns:
+clamp(260px, 28vw, 320px)
+minmax(0, 1fr);
+grid-template-rows:auto 1fr auto;
+gap:16px;
+}
+.col-left{ order:1; grid-column:1; }
+.col-middle{ order:2; grid-column:2; }
+.col-right{
+order:3; grid-column:1 / -1;
+display:grid;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap:16px;
+}
+}
+
+@media (max-width:960px){
+.dashboard-3col{
+grid-template-columns:1fr;
+grid-template-rows:auto auto auto auto;
+}
+.col-left,.col-right{ order:2; }
+.col-middle{ order:1; }
+#brief-check{
+position:static !important;
+max-height:none !important;
+overflow:visible !important;
+}
+#brief-check .check-grid{
+grid-template-columns:1fr;
+}
+}
+
+/* iOS: evita zoom en inputs */
+@supports (-webkit-touch-callout: none) {
+input, select, textarea {
+font-size:16px !important;
+}
+}
+
+/* Táctil */
+* { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
+touch-action: manipulation;
+min-height:44px;
+}
+
+/* Accesibilidad / motion */
+@media (prefers-reduced-motion: reduce){
+* { animation:none !important; transition:none !important; }
+}
+
+.widget--zoomed{
+position:fixed;
+inset: max(env(safe-area-inset-top), 8px)
+max(env(safe-area-inset-right), 8px)
+max(env(safe-area-inset-bottom), 8px)
+max(env(safe-area-inset-left), 8px);
+z-index:40;
+background:#ffffff;
+border-radius:16px;
+box-shadow:0 18px 60px rgba(15,23,42,.32);
+overflow:auto;
+}
+.widget--zoomed .fs-toggle{
+z-index:41;
+}
+
+/* Placeholders para contenteditable */
+[contenteditable][data-placeholder]:empty:before {
+content: attr(data-placeholder);
+color: var(--text-muted);
+pointer-events: none;
+}
+
+/* Campos editables de incidentes */
+#incidentes-widget .incident-input,
+#incidentes-widget #incident-remember {
+min-height: 84px;
+padding: 10px 12px;
+border: 1px solid var(--border);
+border-radius: 10px;
+background: #fff;
+line-height: 1.4;
+box-shadow: 0 6px 16px rgba(17,24,39,.04);
+outline: none;
+}
+#incidentes-widget .incident-field {
+display: grid;
+gap: 6px;
+margin: 10px 0 12px;
+}
+#incidentes-widget .incident-field label {
+font-weight: 700;
+font-size: .9rem;
+color: var(--text-muted);
+}
+
+/* Tarjetas editables de Incidentes */
+#incidentes-widget .incident-card-grid{
+display:grid;
+grid-template-columns: repeat(3, minmax(220px, 1fr));
+gap:12px;
+margin:10px 0 4px;
+}
+@media (max-width:1100px){
+#incidentes-widget .incident-card-grid{
+grid-template-columns: 1fr;
+}
+}
+#incidentes-widget .incident-card{
+background:#fff;
+border:1px solid var(--border);
+border-radius:12px;
+box-shadow:0 6px 16px rgba(17,24,39,.06);
+padding:12px;
+display:flex;
+flex-direction:column;
+gap:8px;
+}
+#incidentes-widget .incident-card-title{
+font-weight:800;
+font-size:.95rem;
+color:var(--brand-red-700);
+display:flex; align-items:center; gap:8px;
+}
+#incidentes-widget .incident-card-body{
+min-height:84px;
+padding:10px 12px;
+border:1px solid var(--border);
+border-radius:10px;
+background:#fff;
+line-height:1.4;
+outline:none;
+}
+#incidentes-widget .incident-card-body:focus{
+border-color: var(--brand-red-500);
+box-shadow: 0 0 0 3px rgba(239,68,68,.12);
+}
+/* Placeholder para contenteditable */
+[contenteditable][data-placeholder]:empty:before{
+content: attr(data-placeholder);
+color: var(--text-muted);
+pointer-events:none;
+}
+
+/* === Actualizaciones operativas === */
+#ops-updates-widget .ops-actions{
+display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;
+}
+#ops-updates-widget .ops-actions .btn{
+border:1px solid var(--border); background:#fff; border-radius:10px;
+padding:8px 12px; cursor:pointer; font-weight:700; font-size:.85rem;
+}
+#ops-updates-widget .ops-grid{
+display:grid; gap:12px;
+grid-template-columns: 1fr 1fr;
+}
+@media (max-width:1100px){
+#ops-updates-widget .ops-grid{ grid-template-columns: 1fr; }
+}
+
+/* Tarjeta tipo secciones (reusa estética de incidentes) */
+#ops-updates-widget .ops-card{
+background:#fff; border:1px solid var(--border); border-radius:12px;
+box-shadow:0 6px 16px rgba(17,24,39,.06); padding:12px; display:flex; flex-direction:column; gap:10px;
+}
+#ops-updates-widget .ops-section{
+border:1px solid var(--border); border-radius:10px; background:#fff; padding:10px; display:grid; gap:8px;
+}
+#ops-updates-widget .ops-section-title{
+font-weight:800; color:var(--brand-red-700);
+border:1px solid var(--border); border-radius:8px; padding:8px; outline:none;
+}
+#ops-updates-widget .ops-section-body{
+min-height:84px; line-height:1.4; outline:none;
+border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:#fff;
+}
+/* Lista rápida por líneas */
+#ops-updates-widget .ops-quicklines{
+min-height:120px; line-height:1.45; outline:none;
+border:1px solid var(--border); border-radius:10px; padding:12px; background:#fff;
+}
+
+/* Placeholder contenteditable */
+#ops-updates-widget [contenteditable][data-placeholder]:empty:before{
+content: attr(data-placeholder);
+color: var(--text-muted);
+pointer-events:none;
+}
+
+/* === Seguridad y protección (diario + manual) === */
+#safety-daily-widget .safety-grid{
+display:grid; gap:12px;
+grid-template-columns: 1fr 1fr;
+}
+@media (max-width:1100px){
+#safety-daily-widget .safety-grid{ grid-template-columns: 1fr; }
+}
+#safety-daily-widget .safety-card{
+background:#fff; border:1px solid var(--border); border-radius:12px;
+box-shadow:0 6px 16px rgba(17,24,39,.06); padding:12px; display:flex; flex-direction:column; gap:10px;
+}
+#safety-daily-widget .tips{
+display:flex; flex-direction:column; gap:8px;
+}
+#safety-daily-widget .tip{
+border:1px solid var(--border); border-radius:10px; padding:10px; background:#fff;
+font-weight:600; line-height:1.35;
+}
+#safety-daily-widget .controls{ display:flex; gap:8px; flex-wrap:wrap; }
+#safety-daily-widget .btn{
+border:1px solid var(--border); background:#fff; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:700; font-size:.85rem;
+}
+
+#safety-daily-widget .incident-form{
+display:grid; gap:8px; grid-template-columns: 1fr;
+}
+#safety-daily-widget .incident-form input,
+#safety-daily-widget .incident-form textarea{
+padding:10px; border:1px solid var(--border); border-radius:10px; background:#fff; font-size:.95rem;
+}
+#safety-daily-widget .incident-list{
+display:flex; flex-direction:column; gap:8px; margin-top:6px;
+}
+#safety-daily-widget .incident-item{
+border:1px solid var(--border); border-radius:10px; padding:10px; background:#fff;
+}
+#safety-daily-widget .incident-head{
+display:flex; justify-content:space-between; align-items:center; gap:8px; font-weight:700;
+}
+#safety-daily-widget .incident-meta{ color:var(--text-muted); font-size:.85rem; }
+#safety-daily-widget .danger{ color:#991b1b; cursor:pointer; }
+/* === Actualizaciones operativas === */
+#ops-updates-widget .ops-form{
+display:grid; gap:8px; grid-template-columns: 1fr 1fr auto;
+}
+#ops-updates-widget .ops-form input,
+#ops-updates-widget .ops-form select{
+padding:10px; border:1px solid var(--border); border-radius:10px; background:#fff; font-size:.95rem;
+}
+#ops-updates-widget .ops-form .wide{ grid-column: 1 / -1; }
+#ops-updates-widget .ops-list{
+display:flex; flex-direction:column; gap:10px; margin-top:10px;
+}
+.ops-item{
+border:1px solid var(--border);
+border-left:6px solid var(--brand-red-500);
+border-radius:12px; background:#fff;
+box-shadow:0 6px 16px rgba(17,24,39,.06);
+padding:10px 12px;
+}
+.ops-head{
+display:flex; justify-content:space-between; align-items:center; gap:8px;
+}
+.ops-title{ font-weight:800; }
+.ops-meta{ color:var(--text-muted); font-size:.82rem; display:flex; gap:10px; flex-wrap:wrap; }
+.ops-badge{
+display:inline-block; padding:2px 8px; border-radius:999px; font-size:.72rem; font-weight:800;
+background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;
+}
+.ops-body{ margin-top:6px; line-height:1.35; }
+.ops-actions{ display:flex; gap:8px; margin-top:8px; }
+.ops-btn{
+border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:700; font-size:.85rem;
+}
+
+/* Colores por prioridad */
+.ops-item[data-priority="Alta"]   { border-left-color:#ef4444; }
+.ops-item[data-priority="Media"]  { border-left-color:#f59e0b; }
+.ops-item[data-priority="Baja"]   { border-left-color:#10b981; }
+
+/* Animación al crear */
+@keyframes ops-pop {
+0% { transform: translateY(-4px); box-shadow:0 0 0 rgba(0,0,0,0); }
+100% { transform: translateY(0);   box-shadow:0 6px 16px rgba(17,24,39,.10); }
+}
+.ops-item.highlight-new{
+animation: ops-pop .25s ease-out, blink-glow 1.1s ease-in-out 1;
+}
+
+/* --- OPS: Toolbar, filtros y tarjetas de líneas --- */
+#ops-updates-widget .ops-toolbar{
+display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 4px;
+}
+#ops-updates-widget .ops-search{
+flex:1; min-width:200px; padding:8px 10px; border:1px solid var(--border);
+border-radius:10px; background:#fff; font-size:.9rem;
+}
+#ops-updates-widget .ops-filter{ padding:8px 10px; border:1px solid var(--border);
+border-radius:10px; background:#fff; font-size:.85rem;
+}
+
+#ops-lines-list{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+.ops-line-card{
+border:1px solid var(--border); border-left:6px solid var(--brand-red-500);
+border-radius:12px; background:#fff; box-shadow:0 6px 16px rgba(17,24,39,.06);
+padding:10px 12px;
+}
+.ops-line-card[aria-selected="true"]{ box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+.ops-line-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.ops-line-title{ font-weight:800; }
+.ops-line-meta{ color:var(--text-muted); font-size:.82rem; display:flex; gap:10px; flex-wrap:wrap; }
+.ops-badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:.72rem; font-weight:800;
+background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;
+}
+.ops-badge.prio-high{ background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+.ops-badge.prio-med { background:#fff7ed; color:#9a3412; border-color:#fed7aa; }
+.ops-badge.prio-low { background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
+
+.ops-line-actions{ display:flex; gap:8px; margin-top:8px; }
+.ops-line-btn{
+border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px 10px;
+cursor:pointer; font-weight:700; font-size:.85rem;
+}
+
+.ops-line-card[data-priority="Alta"]  { border-left-color:#ef4444; }
+.ops-line-card[data-priority="Media"] { border-left-color:#f59e0b; }
+.ops-line-card[data-priority="Baja"]  { border-left-color:#10b981; }
+
+.ops-line-card.is-archived{
+opacity:.65; background:#fafafa; border-style:dashed;
+}
+
+/* Foco y animación alta */
+@keyframes ops-pop2 { 0%{transform:translateY(-2px);} 100%{transform:translateY(0);} }
+.ops-line-card.highlight-new{ animation: ops-pop2 .2s ease-out, blink-glow 1.1s ease-in-out 1; }
+
+/* ===== Fixes & Polish ===== */
+
+/* Botón compacto usado en Kanban/Ops */
+.btn-compact{
+border:1px solid var(--border);
+background:#fff;
+border-radius:10px;
+padding:6px 10px;
+font-weight:700;
+font-size:.82rem;
+cursor:pointer;
+transition:transform .1s, box-shadow .15s, border-color .15s;
+}
+.btn-compact:hover{ transform:translateY(-1px); box-shadow:0 4px 12px rgba(17,24,39,.08); }
+.btn-compact:focus-visible{ outline:2px solid var(--brand-red-500); outline-offset:2px; }
+
+/* Cronómetro header (faltaban estilos) */
+.header-timer{
+display:flex; align-items:center; gap:10px;
+border:1px solid var(--border); border-radius:12px; background:#fff; padding:8px 10px;
+}
+.timer-face{ position:relative; display:flex; align-items:center; gap:8px; }
+.timer-display{
+font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+font-weight:800; letter-spacing:.5px;
+font-variant-numeric:tabular-nums; cursor:pointer; user-select:none;
+}
+.timer-dot{
+width:8px; height:8px; border-radius:50%; background:#d1d5db;
+transition: background .2s;
+}
+.timer-reset{
+border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px 10px;
+font-weight:700; font-size:.82rem; cursor:pointer;
+}
+.timer-running .timer-dot{ background:var(--brand-red-500); }
+
+/* Scrollbar suave (Chromium/Edge/Firefox) */
+*{ scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent; }
+*::-webkit-scrollbar{ height:8px; width:8px; }
+*::-webkit-scrollbar-thumb{ background:#cbd5e1; border-radius:10px; }
+*::-webkit-scrollbar-track{ background:transparent; }
+
+/* Snap en columnas para listas largas */
+.cards-container{ scroll-snap-type:y proximity; }
+.card{ scroll-snap-align:start; }
+
+/* Kanban: refuerzo de contraste por categoría (borde izq.) */
+#kanban-widget .card.cat-seguridad     { border-left:6px solid #ef4444; }
+#kanban-widget .card.cat-incidencias   { border-left:6px solid #f59e0b; }
+#kanban-widget .card.cat-mantenimiento { border-left:6px solid #10b981; }
+#kanban-widget .card.cat-calidad       { border-left:6px solid #a855f7; }
+#kanban-widget .card.cat-servicio      { border-left:6px solid #eab308; }
+
+/* Píldora de categoría coherente (por si no hay chip en título) */
+#kanban-widget .card .cat-chip{ background:#fff; border-color:#e5e7eb; }
+#kanban-widget .card.cat-seguridad  .cat-chip{ background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+#kanban-widget .card.cat-incidencias .cat-chip{ background:#fff1e6; color:#7a3800; border-color:#ffd7b5; }
+#kanban-widget .card.cat-mantenimiento .cat-chip{ background:#eaf8f0; color:#065f46; border-color:#b7f0d3; }
+#kanban-widget .card.cat-calidad .cat-chip{ background:#fce7ff; color:#6b21a8; border-color:#f0abfc; }
+#kanban-widget .card.cat-servicio .cat-chip{ background:#fef9c3; color:#854d0e; border-color:#fde68a; }
+
+/* Top-bar sombra sutil al hacer scroll */
+.top-bar{ box-shadow:0 1px 0 rgba(0,0,0,.04); }
+@supports(selector(:has(*))){
+.top-bar:has(+ .dashboard-3col .col-middle:where(:not(:hover))) { box-shadow:0 1px 0 rgba(0,0,0,.06); }
+}
+
+/* Imprimir: oculta cromo y deja contenido clave limpio */
+@media print{
+.top-bar, .fs-toggle, #present-btn, .new-item-form, .ops-toolbar, .ops-actions { display:none !important; }
+body{ background:white !important; }
+.widget, .kpi-tile{ break-inside:avoid; box-shadow:none; border-color:#ddd; }
+}
+
+/* Dark mode manteniendo la marca */
+@media (prefers-color-scheme: dark){
+:root{
+--bg-page:#0f172a; --bg-card:#0b1220; --border:#1f2937; --text:#e5e7eb; --text-muted:#94a3b8;
+}
+.btn-primary{ box-shadow:0 6px 16px rgba(239,68,68,.25); }
+.kpi-tile, .widget, .card{ box-shadow:0 6px 18px rgba(0,0,0,.35); }
+.presence-toggle{ background:#0b1220; }
+.table-scroll thead th{ background:#0f172a; }
+.fs-toggle{ background:rgba(15,23,42,.85); }
+}
+
+/* Placeholders contenteditable (unificados) */
+[contenteditable][data-placeholder]:empty:before{
+content: attr(data-placeholder);
+color: var(--text-muted);
+pointer-events: none;
+}
+
+</style>
 </head>
 <body>
+<div class="top-bar" role="banner">
+<div class="top-bar-left">
+<label for="scale-select" class="top-label">Escala</label>
+<select id="scale-select" aria-label="Escala UI">
+<option value="1">100%</option>
+<option value="1.15" selected>115%</option>
+<option value="1.3">130%</option>
+<option value="1.5">150%</option>
+</select>
+</div>
+<div class="top-bar-right">
+<button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">
+Modo presentación
+</button>
+</div>
+</div>
 
-    <!-- Header -->
-    <div class="header-bar d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center gap-3">
-            <h3 class="m-0">MAD <span class="station-badge">WFS3</span></h3>
-            <div class="input-group input-group-sm" style="width: 250px;">
-                <span class="input-group-text">Supervisor:</span>
-                <input type="text" id="supervisorName" class="form-control" placeholder="Tu nombre aquí...">
-            </div>
-        </div>
-        <div class="d-flex align-items-center gap-3">
-            <div id="currentDate">--/--/----</div>
-            <div id="shiftTimer" class="timer-box">00:00:00</div>
-        </div>
+
+<div class="dashboard-3col">
+<!-- HEADER -->
+<header>
+<div class="header-left">
+<h1>Factory Floor Dashboard - WFS3 MAD</h1>
+<div id="now-header">—</div>
+<span id="shift-badge-header" class="shift-chip">—</span>
+</div>
+
+<!-- Cronómetro -->
+<div class="header-timer" id="timer-widget" aria-label="Cronómetro">
+<div class="timer-face" id="timer-face">
+<div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
+<span class="timer-dot" aria-hidden="true"></span>
+</div>
+<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+</div>
+
+<div class="header-controls">
+    <!-- Input del Supervisor con el ID que busca el script -->
+    <input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
+           style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; min-width: 200px; background: #fff;">
+    
+    <button class="btn-primary" type="button">Generar Resumen</button>
+</div>
+</header>
+
+<!-- IZQUIERDA: EQUIPO -->
+<section class="col-left">
+<div class="widget" id="team-widget">
+<h2 class="widget-title">1) Equipo / Turno BCN</h2>
+<small class="kpi-text" id="team-meta">—</small>
+
+<!-- Alta manual rápida (local / opcional) -->
+<form id="team-form" class="team-form" autocomplete="off"
+style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+<input type="text" id="team-name" placeholder="Añadir persona…" required
+style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
+<button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
+</form>
+
+<!-- Subida Excel roster -->
+<form id="roster-upload-form"
+style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+<input type="file" id="roster-file" accept=".xlsx,.xls" required
+style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+<button class="btn-primary" type="submit">Subir Excel</button>
+</form>
+<small id="roster-upload-result" class="kpi-text">—</small>
+
+<div id="team-list"
+class="team-list"
+style="display:flex; flex-direction:column; gap:6px;"></div>
+</div>
+</section>
+
+<!-- CENTRO -->
+<section class="col-middle">
+<!-- CHECKLIST BRIEFING -->
+<div class="widget" id="brief-check">
+<div id="brief-check-explain" class="br-explain" aria-live="polite">
+<span class="br-explain-ico" aria-hidden="true">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+<path d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+</svg>
+</span>
+<strong class="br-explain-label">Guía</strong>
+<span class="br-explain-text">Pasa el ratón o toca cada punto para ver qué revisar.</span>
+</div>
+
+<h2 class="widget-title"><span>Checklist</span></h2>
+<span id="shift-badge" class="shift-chip">—</span>
+
+<div class="check-grid">
+<div class="check-card" tabindex="0"
+data-help="Revisa incidencias y puntos clave del turno anterior (BCN)."
+data-target="prev-shift-widget">
+<span class="check-title">1) Highlights del turno anterior</span>
+<div class="check-actions" role="group" aria-label="Bloque 1">
+<input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
+<input id="c1no" type="radio" name="c1" value="NO"><label for="c1no">NO</label>
+</div>
+</div>
+
+<div class="check-card" tabindex="0"
+data-help="Revisar objetivos y carga de trabajo, cambios en los procedimientos y actualizaciones en equipos"
+data-target="ops-updates-widget">
+<span class="check-title">2) Actualizaciones operativas</span>
+<div class="check-actions" role="group" aria-label="Bloque 2">
+<input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
+<input id="c2no" type="radio" name="c2" value="NO"><label for="c2no">NO</label>
+
+</div>
+</div>
+
+<div class="check-card" tabindex="0"
+data-help="Dotación, ausencias y zonas BCN."
+data-target="team-widget">
+<span class="check-title">3) Dotación y recursos</span>
+<div class="check-actions" role="group" aria-label="Bloque 3">
+<input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
+<input id="c3no" type="radio" name="c3" value="NO"><label for="c3no">NO</label>
+
+</div>
+</div>
+
+<div class="check-card" tabindex="0"
+data-help="Seguridad: EPIs, accesos, consignas específicas BCN."
+data-target="safety-daily-widget">
+<span class="check-title">4) Seguridad y protección</span>
+<div class="check-actions" role="group" aria-label="Bloque 4">
+<input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
+<input id="c4no" type="radio" name="c4" value="NO"><label for="c4no">NO</label>
+
+</div>
+</div>
+
+<div class="check-card" tabindex="0"
+data-help="Procedimiento de incidentes / PULSE / Enablon."
+data-target="incidentes-widget">
+<span class="check-title">5) Preparación/reportes incidentes</span>
+<div class="check-actions" role="group" aria-label="Bloque 5">
+<input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
+<input id="c5no" type="radio" name="c5" value="NO"><label for="c5no">NO</label>
+
+</div>
+</div>
+
+<div class="check-card" tabindex="0"
+data-help="KPIs BCN: flujos, mantenimiento, servicio."
+data-target="kpi-center">
+<span class="check-title">6) Revisión KPIs BCN</span>
+<div class="check-actions" role="group" aria-label="Bloque 6">
+<input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
+<input id="c6no" type="radio" name="c6" value="NO"><label for="c6no">NO</label>
+
+</div>
+</div>
+
+<div class="check-card" tabindex="0"
+data-help="Feedback del equipo BCN → acciones Kanban rápida."
+data-target="kanban-widget">
+<span class="check-title">7) Feedback → Acciones</span>
+<div class="check-actions" role="group" aria-label="Bloque 7">
+<input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
+<input id="c7no" type="radio" name="c7" value="NO"><label for="c7no">NO</label>
+
+</div>
+</div>
+</div>
+
+<small class="kpi-text" id="brief-check-meta">—</small>
+</div>
+
+<!-- ACTUALIZACIONES OPERATIVAS -->
+<div class="widget" id="ops-updates-widget">
+<h2 class="widget-title">3) Actualizaciones operativas</h2>
+<div class="ops-toolbar" aria-label="Filtros actualizaciones operativas">
+<input id="ops-search" class="ops-search" type="search" placeholder="Buscar (#etiqueta, @persona, texto)…">
+<select id="ops-filter-prio" class="ops-filter" title="Filtrar prioridad">
+<option value="">Todas las prioridades</option>
+<option value="Alta">Alta (!!)</option>
+<option value="Media">Media (!)</option>
+<option value="Baja">Baja</option>
+</select>
+<button type="button" class="btn" id="ops-export">Copiar resumen</button>
+<div id="ops-lines-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
+
+</div>
+
+
+<div class="ops-actions">
+<button type="button" class="btn" id="ops-add-section">+ Nueva sección</button>
+<button type="button" class="btn" id="ops-clear">Vaciar</button>
+</div>
+
+<div class="ops-grid">
+<!-- Columna izquierda: secciones -->
+<div class="ops-card">
+<strong>Secciones</strong>
+<div id="ops-sections"></div>
+</div>
+
+<!-- Columna derecha: líneas rápidas -->
+<div class="ops-card">
+<strong>Lista rápida (líneas)</strong>
+<div id="ops-quicklines"
+class="ops-quicklines"
+role="textbox" aria-multiline="true"
+contenteditable="true"
+data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
+<small class="kpi-text">Consejo: usa una línea por actualización, p.ej. “Cambio layout export • vigencia hoy”.</small>
+</div>
+</div>
+</div>
+
+
+
+
+
+<!-- SEGURIDAD Y PROTECCIÓN (diario + manual) -->
+<div class="widget" id="safety-daily-widget">
+<h2 class="widget-title">4) Seguridad y protección — Diario</h2>
+
+<div class="safety-grid">
+<!-- Columna izquierda: 2 tips diarios -->
+<div class="safety-card">
+<strong>Recordatorios de hoy</strong>
+<div id="safety-tips" class="tips"></div>
+<div class="controls">
+<button type="button" class="btn" id="safety-refresh">Regenerar hoy</button>
+<button type="button" class="btn" id="safety-history">Historial</button>
+</div>
+<small class="kpi-text" id="safety-meta">—</small>
+</div>
+
+<!-- Columna derecha: alta manual de incidentes -->
+<div class="safety-card">
+<strong>Alta manual de incidentes</strong>
+<form id="safety-form" class="incident-form" autocomplete="off">
+<input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
+<textarea id="safety-desc" rows="4" placeholder="Descripción breve, lugar, personas implicadas…" required></textarea>
+<div class="controls">
+<button type="submit" class="btn">Guardar incidente</button>
+<button type="button" class="btn" id="safety-clear">Vaciar lista</button>
+</div>
+</form>
+<div id="safety-list" class="incident-list" aria-live="polite"></div>
+<small class="kpi-text" id="safety-inc-meta">—</small>
+</div>
+</div>
+</div>
+
+
+<!-- INCIDENTES / PULSE / ENABLON -->
+<div class="widget" id="incidentes-widget">
+<h2 class="widget-title">
+<span>5) Incidentes / Seguridad BCN</span>
+</h2>
+
+<div id="incident-remember"
+class="incident-remember"
+role="textbox"
+aria-label="Recordatorio general de seguridad"
+contenteditable="true"
+data-placeholder="Escribe aquí el recordatorio general (EPIs, comunicación, registro, etc.)…">
+RECORDAR: Uso correcto de EPIs, comunicación inmediata y registro en sistema oficial.
+</div>
+
+
+
+
+
+<div class="incident-card-grid" aria-label="Procedimientos de incidentes">
+<div class="incident-card">
+<div class="incident-card-title">Qué hacer</div>
+<div id="incident-what"
+class="incident-card-body"
+role="textbox"
+aria-label="Qué hacer en caso de incidente"
+contenteditable="true"
+data-placeholder="Describe el procedimiento paso a paso…"></div>
+</div>
+
+<div class="incident-card">
+<div class="incident-card-title">A quién avisar</div>
+<div id="incident-who"
+class="incident-card-body"
+role="textbox"
+aria-label="A quién avisar en caso de incidente"
+contenteditable="true"
+data-placeholder="Nombres, teléfonos, radio, cadena de avisos…"></div>
+</div>
+
+<div class="incident-card">
+<div class="incident-card-title">Dónde están los equipos</div>
+<div id="incident-where"
+class="incident-card-body"
+role="textbox"
+aria-label="Dónde están los equipos de emergencia"
+contenteditable="true"
+data-placeholder="Extintores, botiquines, DESA, salidas de emergencia…"></div>
+</div>
+</div>
+
+
+<!-- Subida PDF -->
+<form id="incidents-pdf-form"
+style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+<input type="file" id="incidents-pdf-file" accept="application/pdf" required
+style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+<button class="btn-primary" type="submit">Subir PDF</button>
+</form>
+<small id="incidents-pdf-status" class="kpi-text">—</small>
+
+<div class="table-scroll" id="incidentes-pdf-wrap" style="display:none; margin-top:6px;">
+<table id="incidentes-pdf-table"></table>
+</div>
+
+<small id="incidentes-meta" class="kpi-text">—</small>
+<div class="table-scroll">
+<table id="incidentes-table"></table>
+</div>
+</div>
+
+<!-- KPIs CENTRO -->
+<div class="widget kpi-widget" id="kpi-center">
+<h2 class="widget-title">6) KPIs Operativos BCN</h2>
+<div class="kpi-grid">
+<div class="kpi-tile">
+<div class="kpi-label">Productividad</div>
+<div class="kpi-value" id="kpi-uph">—</div>
+<small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
+</div>
+<div class="kpi-tile">
+<div class="kpi-label">Servicio</div>
+<div class="kpi-value" id="kpi-otif">—</div>
+<small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
+</div>
+<div class="kpi-tile">
+<div class="kpi-label">Backlog</div>
+<div class="kpi-value" id="kpi-backlog">—</div>
+<small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
+</div>
+
+<!-- KPI Costes BCN -->
+<div class="kpi-tile" id="kpi-costes">
+<h3 class="widget-title" style="margin-bottom:4px;">
+<span>Costes Mantenimiento BCN</span>
+<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none"
+stroke="currentColor" stroke-width="2" stroke-linecap="round"
+stroke-linejoin="round">
+<polyline points="23 4 23 10 17 10"></polyline>
+<polyline points="1 20 1 14 7 14"></polyline>
+<path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path>
+</svg>
+</h3>
+<div class="kpi-value large">
+<span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
+</div>
+<small class="kpi-text" id="kpi-costes-meta"></small>
+</div>
+</div>
+</div>
+
+<!-- KANBAN FEEDBACK DIRECTO -->
+<div class="widget" id="kanban-widget">
+<h2 class="widget-title">7) Feedback directo BCN</h2>
+<div class="board-container kanban">
+<div class="kanban-column">
+<h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
+</div>
+</div>
+
+<!-- Alta Kanban BCN -->
+<form class="new-item-form" id="new-kanban-form"
+style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
+                 display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
+                 gap:8px; align-items:center;">
+<select id="problem-category" name="category" required>
+<option value="" disabled selected>Selecciona categoría…</option>
+<option value="seguridad">Seguridad</option>
+<option value="incidencias">Incidencias</option>
+<option value="mantenimiento">Mantenimiento</option>
+<option value="calidad">Calidad</option>
+<option value="servicio">Servicio</option>
+</select>
+<input type="text" name="title" placeholder="Tipo de problema" required>
+<input type="date" name="due_date" required>
+<select name="assigned_to" required title="Equipo de soporte">
+<option value="" disabled selected>Equipo de soporte…</option>
+<option>Mantenimiento</option>
+<option>IT</option>
+<option>Calidad</option>
+<option>Compras</option>
+<option>CI</option>
+<option>QHSSE</option>
+<option>Ops</option>
+</select>
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
+</div>
+
+<!-- KAIZEN + 5S/GW -->
+<div class="actions-split">
+<div class="widget" id="kaizen-widget">
+<h2 class="widget-title">KAIZEN BCN</h2>
+<form class="new-item-form" id="new-kaizen-form" autocomplete="off"
+style="display:grid; grid-template-columns: 1fr 1fr auto auto;
+                   gap:8px; align-items:center;">
+<input type="text" name="title" placeholder="Proyecto de mejora…" required>
+<input type="text" name="assigned_to" placeholder="Responsable…">
+<input type="date" name="due_date" aria-label="Fecha máxima">
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
+<div class="board-container kaizen compact" style="margin-top:12px;">
+<div class="kanban-column">
+<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+</div>
+</div>
+</div>
+
+<div class="widget" id="rotativas-widget">
+<h2 class="widget-title">5S & GW (Rápido)</h2>
+
+<!-- 5S -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+<strong>5S</strong>
+<div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
+<button type="button" class="s5-pill" data-key="seiri"><span class="s5-dot"></span>1S</button>
+<button type="button" class="s5-pill" data-key="seiton"><span class="s5-dot"></span>2S</button>
+<button type="button" class="s5-pill" data-key="seiso"><span class="s5-dot"></span>3S</button>
+<button type="button" class="s5-pill" data-key="seiketsu"><span class="s5-dot"></span>4S</button>
+<button type="button" class="s5-pill" data-key="shitsuke"><span class="s5-dot"></span>5S</button>
+</div>
+</div>
+<small id="s5-meta" class="kpi-text">—</small>
+
+<!-- GW -->
+<strong style="margin-top:12px; display:block;">GW</strong>
+<div id="gw-tasks-dynamic-container"></div>
+</div>
+</div>
+</section>
+
+<!-- DERECHA -->
+<section class="col-right">
+<div class="widget" id="prev-shift-widget">
+<h2 class="widget-title">2) Información Turno Anterior BCN</h2>
+<div id="prev-shift-note" class="editable-note" contenteditable="true"
+role="textbox" aria-multiline="true"
+aria-label="Escribe la información del turno anterior"
+spellcheck="true"
+style="min-height:96px; padding:10px 12px; border:1px solid var(--border);
+                border-radius:10px; background:#fff; line-height:1.4;"
+data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
+<small class="kpi-text" id="prev-shift-saved-hint"></small>
+</div>
+
+<div class="widget" id="ehs-widget">
+<h2 class="widget-title">Días sin incidentes</h2>
+<div class="ehs-month" id="ehs-month">—</div>
+<div id="ehs-spin" class="ehs-controls" role="spinbutton"
+aria-label="Días sin incidentes del mes actual"
+aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
+<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
+<div class="ehs-big" id="ehs-days">0</div>
+<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
+</div>
+</div>
+</section>
+</div>
+
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+<script>
+/* Estación actual FORZADA a WFS3 */
+const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ', 'WFS3'];
+const STATION_CODE = 'WFS3'; // <--- ESTO ES LO IMPORTANTE
+window.STATION_OVERRIDE = 'WFS3';
+
+
+function opsKey(base){ return `${base}_${STATION_CODE}`; }
+
+const OPS_SECTIONS_KEY = opsKey('ops_updates_sections_v1');
+const OPS_LINES_KEY    = opsKey('ops_updates_lines_v1');
+
+/* ==========================
+ Utilidades básicas
+========================== */
+function esc(s){
+return String(s ?? '')
+.replace(/&/g,'&amp;')
+.replace(/</g,'&lt;')
+.replace(/>/g,'&gt;')
+.replace(/"/g,'&quot;')
+.replace(/'/g,"&#39;");
+}
+function $$(sel){ return Array.from(document.querySelectorAll(sel)); }
+
+/* ==========================
+ Seguridad y protección — diario + manual
+========================== */
+const SAFETY_TIPS_KEY = 'safety_daily_tips_history_v1';
+const SAFETY_INC_KEY  = 'safety_manual_incidents_v1';
+
+// Lista completa de frases (tal cual la facilitaste)
+const SAFETY_TIPS_MASTER = [
+"Temas de seguridad de actualidad (noticias, redes sociales, cambios de nivel de amenaza, etc.).",
+"Incidentes o no conformidades en tu estación u otras.",
+"Resultados de auditorías (aerolíneas, autoridades, autoauditorías).",
+"Próximas auditorías o visitas.",
+"Mantener puertas cerradas cuando no se usen.",
+"Reportar comportamientos sospechosos.",
+"Retar a personas sin acreditación o acompañamiento.",
+"Acompañar a todos los visitantes en todo momento.",
+"Llevar chaleco de alta visibilidad en almacén y zona aire.",
+"Saber dónde están los contactos de emergencia.",
+"Segregar carga segura e insegura.",
+"Revisar signos de manipulación en paquetes.",
+"Llevar la acreditación visible en todo momento.",
+"No llevar mochilas ni bolsas a zonas seguras.",
+"Guardar cintas, precintos y elementos de seguridad de forma segura.",
+"No permitir el acceso de personas no autorizadas.",
+"Preguntar si no se conoce un procedimiento.",
+"No dar información de seguridad a externos.",
+"No permitir personas no autorizadas cerca de carga segura.",
+"No saltarse procedimientos.",
+"Si una carga no es segura, no cargarla y revisarla.",
+"Leer todos los avisos de seguridad y pedir aclaraciones.",
+"Si ves algo, dilo.",
+"Informar si las normas no son prácticas o seguras.",
+"Escalar errores o riesgos de seguridad a la dirección.",
+"Mantener la información sensible segura.",
+"Cumplir siempre las normas y procedimientos de seguridad.",
+"No seguir instrucciones que comprometan la seguridad.",
+"No cargar mercancía con etiquetas de parada o retención.",
+"Animar a los compañeros a cumplir las normas.",
+"Revisar la validez de la acreditación y avisar si va a caducar.",
+"Si no sabes, pregunta; si sabes, enseña.",
+"Pensar en las consecuencias de no cumplir las normas.",
+"Identificar a la persona con la que hablas.",
+"Comparar la foto de la acreditación con la persona.",
+"Registrar entrada y salida de visitantes.",
+"Si ves conductores deambulando, indícale la zona designada.",
+"Mantener puertas de zona aire cerradas.",
+"No interferir con los controles de seguridad.",
+"Al controlar, centrarse en la tarea.",
+"Rechazar o revisar carga dañada.",
+"No aceptar carga sin identificación o documentación.",
+"Revisar que los camiones estén sellados.",
+"Comprobar la identificación de quien recoge la carga.",
+"Contar todas las piezas de un envío.",
+"Comparar el nombre del visitante con el registro.",
+"Comprobar la validez en bases de datos oficiales.",
+"Verificar acuerdos de subcontratistas.",
+"No prestar acreditaciones.",
+"Avisar si se pierde la acreditación.",
+"Comprobar identificación y estatus en cada ocasión.",
+"No permitir acceso no autorizado a zonas restringidas.",
+"Asistir y prestar atención a la reunión de turno.",
+"Presentar la acreditación en lectores de proximidad.",
+"Informar de errores a supervisores.",
+"Todos pueden pulsar el botón de parada de emergencia por seguridad.",
+"Mejor prevenir que curar.",
+"Cooperar en los controles de seguridad.",
+"Avisar si algo no parece correcto.",
+"No manipular ni poner en riesgo sistemas de seguridad.",
+"Sospechar de precintos diferentes en paquetes.",
+"Las fechas límite no justifican saltarse la seguridad.",
+"Dejar trabajar a los perros de seguridad.",
+"Asegurarse de que la carga ha sido revisada.",
+"La seguridad es responsabilidad de todos.",
+"Informar de puertas, ventanas o vallas dañadas.",
+"Retar a desconocidos en el almacén.",
+"Ayudar a los controladores en el escaneo de envíos.",
+"Usar cinta de seguridad para cerrar paquetes revisados.",
+"Usar sellos correctos para indicar el estado de seguridad.",
+"Llamar a la policía si es necesario.",
+"Leer los boletines de seguridad y pedir aclaraciones.",
+"Ayudar a nuevos empleados a cumplir las normas.",
+"Informar de daños en carga, puertas, ventanas, señalización.",
+"Transferir la carga segura inmediatamente a la zona segura.",
+"Guardar carga valiosa en áreas designadas y bajo CCTV.",
+"Asegurarse de que los visitantes devuelvan su acreditación.",
+"Dejar pertenencias personales en la taquilla.",
+"No entregar carga a conductores no autorizados.",
+"Comprobar que los controles de seguridad estén registrados.",
+"Asegurarse de que los archivos de vuelo estén completos.",
+"Comprobar que cada envío tenga el CSD correcto.",
+"La seguridad es para proteger a todos, incluidos tus seres queridos.",
+"Todos deben estar formados según su función.",
+"Adaptar los procedimientos a la seguridad, no al revés.",
+"No tomar fotos en zonas seguras.",
+"No publicar información de seguridad en redes sociales.",
+"No permitir que los clientes decidan el método de control.",
+"No permitir que clientes/conductores usen baños sin acompañamiento.",
+"Mantener cerradas las puertas de zonas restringidas.",
+"Informar siempre de carga dañada.",
+"Informar de carga manipulada o posible robo.",
+"Informar de comportamientos extraños de compañeros.",
+"Conocer el cartel de “whistle blower”.",
+"Concienciación sobre amenazas internas.",
+"No asumir riesgos innecesarios con la seguridad.",
+"No dejar carga segura desatendida fuera de la instalación.",
+"Mantenerse siempre alerta.",
+"No dejar puertas abiertas sin vigilancia.",
+"No compartir procesos de seguridad del sector.",
+"La seguridad es tu responsabilidad."
+];
+
+// —— helpers persistencia
+function loadJson(key, fallback){
+try{ return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; }catch{ return fallback; }
+}
+function saveJson(key, val){
+try{ localStorage.setItem(key, JSON.stringify(val)); }catch{}
+}
+
+(function ensureUniqueQuicklines(){
+const nodes = document.querySelectorAll('#ops-quicklines');
+if (nodes.length > 1){
+nodes.forEach((n,i)=>{ if(i>0) n.remove(); });
+}
+})();
+
+
+// —— tips diarios
+function todayKey(){
+const d = new Date();
+const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+return `${y}-${m}-${dd}`;
+}
+function hashStr(s){
+let h=0; for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i))|0; } return Math.abs(h);
+}
+function pickTwoDistinct(arr, seedStr){
+if(arr.length<2) return arr.slice(0,2);
+const h = hashStr(seedStr);
+const i1 = h % arr.length;
+const i2 = (Math.floor(h/7) + 1) % arr.length;
+return i1===i2 ? [arr[i1], arr[(i2+1)%arr.length]] : [arr[i1], arr[i2]];
+}
+
+function renderSafetyTips(){
+const host = document.getElementById('safety-tips');
+const meta = document.getElementById('safety-meta');
+if(!host) return;
+const day = todayKey();
+let hist = loadJson(SAFETY_TIPS_KEY, {}); // { 'YYYY-MM-DD': [tip1, tip2], ... }
+
+if(!Array.isArray(hist[day]) || hist[day].length!==2){
+hist[day] = pickTwoDistinct(SAFETY_TIPS_MASTER, day + '|' + STATION_CODE);
+saveJson(SAFETY_TIPS_KEY, hist);
+}
+
+host.innerHTML = '';
+hist[day].forEach(t=>{
+const el = document.createElement('div');
+el.className = 'tip';
+el.textContent = t;
+host.appendChild(el);
+});
+if(meta){
+meta.textContent = `Fecha: ${new Date().toLocaleDateString('es-ES')} • Guardado local`;
+}
+}
+
+function setupSafetyDaily(){
+renderSafetyTips();
+document.getElementById('safety-refresh')?.addEventListener('click', ()=>{
+// Fuerza nueva selección para hoy: usa un "seed" alterno con la hora
+const day = todayKey();
+const hist = loadJson(SAFETY_TIPS_KEY, {});
+hist[day] = pickTwoDistinct(SAFETY_TIPS_MASTER, day + '|' + Date.now());
+saveJson(SAFETY_TIPS_KEY, hist);
+renderSafetyTips();
+});
+document.getElementById('safety-history')?.addEventListener('click', ()=>{
+const hist = loadJson(SAFETY_TIPS_KEY, {});
+const entries = Object.entries(hist).sort(([a],[b])=>a.localeCompare(b));
+alert(entries.map(([d,v])=>`${d}:\n• ${v?.[0]||''}\n• ${v?.[1]||''}`).join('\n\n') || 'Sin historial');
+});
+}
+
+// —— incidentes manuales
+function loadIncidents(){ return loadJson(SAFETY_INC_KEY, []); }
+function saveIncidents(list){ saveJson(SAFETY_INC_KEY, list); }
+
+function renderIncidents(){
+const listEl = document.getElementById('safety-list');
+const meta = document.getElementById('safety-inc-meta');
+if(!listEl) return;
+const data = loadIncidents();
+listEl.innerHTML = '';
+data.slice().reverse().forEach((it, idx)=>{
+const card = document.createElement('div');
+card.className = 'incident-item';
+const ts = new Date(it.ts||Date.now());
+card.innerHTML = `
+    <div class="incident-head">
+      <span>${esc(it.title||'')}</span>
+      <span class="danger" data-del="${it.id}" title="Eliminar">🗑</span>
     </div>
+    <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
+    <div>${esc(it.desc||'')}</div>
+  `;
+listEl.appendChild(card);
+});
+if(meta){
+meta.textContent = `Incidentes guardados: ${data.length}`;
+}
 
-    <div class="container-fluid mt-4">
-        <div class="row">
-            <!-- Columna Izquierda: Roster y Checklist -->
-            <div class="col-md-4">
-                
-                <!-- ROSTER MANUAL -->
-                <div class="card card-custom">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between">
-                        <h5 class="m-0">👥 Equipo (Roster)</h5>
-                        <button class="btn btn-sm btn-light" onclick="openManualAddModal()">+ Añadir</button>
-                    </div>
-                    <div class="card-body">
-                        <div class="manual-warning">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-exclamation-triangle-fill" viewBox="0 0 16 16">
-                                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
-                            </svg>
-                            <span>PROCEDIMIENTO MANUAL ACTIVADO</span>
-                        </div>
-                        <ul id="rosterList" class="list-group list-group-flush small">
-                            <li class="list-group-item text-muted text-center">Cargando o vacío...</li>
-                        </ul>
-                    </div>
-                </div>
+listEl.querySelectorAll('[data-del]').forEach(btn=>{
+btn.addEventListener('click', ()=>{
+const id = btn.getAttribute('data-del');
+const cur = loadIncidents().filter(x=>String(x.id)!==String(id));
+saveIncidents(cur);
+renderIncidents();
+});
+});
+}
 
-                <!-- CHECKLIST -->
-                <div class="card card-custom">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="m-0">✅ Checklist Inicio Turno</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-check mb-2">
-                            <input class="form-check-input briefing-check" type="checkbox" id="chk_clean">
-                            <label class="form-check-label" for="chk_clean">Limpieza de zona (5S)</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input briefing-check" type="checkbox" id="chk_equip">
-                            <label class="form-check-label" for="chk_equip">Equipos (PDAs/Radios) OK</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input briefing-check" type="checkbox" id="chk_safety">
-                            <label class="form-check-label" for="chk_safety">Charla Seguridad impartida</label>
-                        </div>
-                        <div class="d-grid gap-2 mt-3">
-                            <button class="btn btn-outline-success btn-sm" id="btnConfirmCheck">Confirmar Revisión</button>
-                        </div>
-                    </div>
-                </div>
+function setupSafetyIncidents(){
+const form = document.getElementById('safety-form');
+const title = document.getElementById('safety-title');
+const desc  = document.getElementById('safety-desc');
+const clear = document.getElementById('safety-clear');
 
-            </div>
+renderIncidents();
 
-            <!-- Columna Central/Derecha: Tareas y Resumen -->
-            <div class="col-md-8">
-                <div class="card card-custom">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="m-0">📋 Gestión del Turno</h5>
-                        <button class="btn btn-primary" onclick="generateSummary()">📤 Generar y Enviar Resumen</button>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info">
-                            Conectado a WFS3. Las tareas aparecerán aquí en tiempo real.
-                        </div>
-                        <div id="tasksContainer">
-                            <!-- Tareas inyectadas por JS -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+form?.addEventListener('submit', (e)=>{
+e.preventDefault();
+const t = (title?.value||'').trim();
+const d = (desc?.value||'').trim();
+if(!t || !d) return;
+const cur = loadIncidents();
+cur.push({ id: Date.now(), title: t, desc: d, ts: Date.now(), station: STATION_CODE });
+saveIncidents(cur);
+title.value=''; desc.value='';
+renderIncidents();
+});
+
+clear?.addEventListener('click', ()=>{
+if(!confirm('¿Vaciar todos los incidentes guardados?')) return;
+saveIncidents([]); renderIncidents();
+});
+}
+
+function initSafetyDailyWidget(){
+setupSafetyDaily();
+setupSafetyIncidents();
+
+// Accesibilidad: Enter en textarea -> salto de línea normal; ya OK por defecto.
+}
+
+
+
+/* Acepta tareas sin estación o con station = STATION_CODE */
+function isForThisStation(obj){
+const st = (obj && obj.station ? String(obj.station) : '').toUpperCase();
+return !st || st === STATION_CODE;
+}
+
+/* Ajusta H1 si el título no lleva código correcto */
+(function(){
+try{
+const h1 = document.querySelector('header h1');
+if (h1 && !h1.textContent.toUpperCase().includes(STATION_CODE)){
+h1.textContent = `Factory Floor Dashboard - ${STATION_CODE}`;
+}
+}catch(e){}
+})();
+
+/* ==========================
+ Cronómetro Header
+========================== */
+(function(){
+const KEY='header_big_timer_v1';
+let running=false, startedAt=0, elapsed=0, tick=null;
+
+const $ = id => document.getElementById(id);
+const host = $('timer-widget');
+const display = $('timer-display');
+const resetBtn = $('timer-reset');
+
+function fmt(ms){
+const t = Math.floor(ms/1000);
+const h = Math.floor(t/3600);
+const m = Math.floor((t%3600)/60);
+const s = t%60;
+return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function paint(){
+display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
+}
+function save(){
+try{
+localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
+}catch(e){}
+}
+function load(){
+try{
+const s = JSON.parse(localStorage.getItem(KEY)||'null');
+if(!s) return;
+running = !!s.running;
+elapsed = Number(s.elapsed)||0;
+startedAt = Number(s.startedAt)||0;
+if (running){
+const now=Date.now();
+elapsed = Math.max(elapsed, now-startedAt);
+startedAt = now - elapsed;
+}
+}catch(e){}
+}
+function setUI(){
+if (!host) return;
+host.classList.toggle('timer-running', running);
+if (resetBtn) resetBtn.disabled = (!running && elapsed===0);
+}
+function start(){
+if (running) return;
+running = true;
+startedAt = Date.now() - elapsed;
+tick = setInterval(paint, 250);
+setUI(); paint(); save();
+}
+function pause(){
+if (!running) return;
+running = false;
+elapsed = Date.now() - startedAt;
+clearInterval(tick); tick=null;
+setUI(); paint(); save();
+}
+function reset(){
+running = false; startedAt = 0; elapsed = 0;
+clearInterval(tick); tick=null;
+setUI(); paint(); save();
+}
+
+display?.addEventListener('click', ()=> (running ? pause() : start()));
+resetBtn?.addEventListener('click', reset);
+
+document.addEventListener('visibilitychange', ()=>{
+if (!running) return;
+startedAt = Date.now() - elapsed;
+paint(); save();
+});
+
+window.initHeaderTimer = function(){
+load(); paint(); setUI();
+if (running && !tick) tick = setInterval(paint, 250);
+};
+})();
+
+/* ==========================
+ Escala UI
+========================== */
+(function initUIScaling(){
+const KEY='ui_scale_v1';
+function apply(v){
+document.documentElement.style.setProperty('--ui-scale', v);
+}
+const sel = document.getElementById('scale-select');
+if (!sel) return;
+const saved = localStorage.getItem(KEY) || sel.value || '1.15';
+apply(saved);
+sel.value = saved;
+sel.addEventListener('change', e=>{
+const v = e.target.value;
+localStorage.setItem(KEY, v);
+apply(v);
+});
+})();
+
+/* ==========================
+ Fullscreen helpers
+========================== */
+const FS_ICONS = {
+on:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
+off:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>'
+};
+function ensureFullscreenBtn(host){
+if (!host || host.querySelector('.fs-toggle')) return;
+const btn = document.createElement('button');
+btn.className='fs-toggle';
+btn.type='button';
+btn.setAttribute('aria-label','Ver a pantalla completa');
+btn.innerHTML = FS_ICONS.off;
+btn.addEventListener('mousedown', e=>e.stopPropagation(), true);
+btn.addEventListener('click', async e=>{
+e.preventDefault(); e.stopPropagation();
+try{
+if (document.fullscreenElement === host){
+await document.exitFullscreen?.();
+}else{
+await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.());
+}
+}catch(err){ console.warn('Fullscreen error', err); }
+});
+host.appendChild(btn);
+}
+function initFullscreenToggles(){
+document.querySelectorAll('.widget, .card').forEach(ensureFullscreenBtn);
+document.addEventListener('fullscreenchange', ()=>{
+const cur = document.fullscreenElement;
+document.querySelectorAll('.fs-toggle').forEach(btn=>{
+const owner = btn.closest('.widget, .card');
+const isOn = cur === owner;
+btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
+btn.setAttribute('aria-label', isOn ? 'Salir de pantalla completa' : 'Ver a pantalla completa');
+btn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+});
+document.documentElement.classList.toggle('fs-zoom', !!cur);
+});
+
+
+document.getElementById('present-btn')?.addEventListener('click', async ()=>{
+const host = document.querySelector('.dashboard-3col') || document.body;
+try{
+await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.());
+}catch(e){ console.warn('Fullscreen fail', e); }
+});
+}
+
+/* ==========================
+ Fecha / hora / turno
+========================== */
+function computeShift(d=new Date()){
+const m=d.getHours()*60+d.getMinutes();
+if (m>=360 && m<840)   return {name:'Mañana',from:'06:00',to:'14:00'};
+if (m>=840 && m<1320)  return {name:'Tarde', from:'14:00',to:'22:00'};
+return {name:'Noche',from:'22:00',to:'06:00'};
+}
+function paintDateTimeAndShift(){
+const now = new Date();
+const dt = now.toLocaleString('es-ES',{
+weekday:'long', day:'2-digit', month:'long', year:'numeric',
+hour:'2-digit', minute:'2-digit'
+});
+const head = document.getElementById('now-header');
+if (head) head.textContent = dt;
+
+const shift = computeShift(now);
+const paint = el=>{
+if (!el) return;
+el.textContent = `Turno: ${shift.name} (${shift.from}–${shift.to})`;
+el.dataset.shift = shift.name;
+};
+paint(document.getElementById('shift-badge'));
+paint(document.getElementById('shift-badge-header'));
+}
+function initDateTimeAndShift(){
+paintDateTimeAndShift();
+const now = new Date();
+const ms = (60-now.getSeconds())*1000 - now.getMilliseconds();
+setTimeout(()=>{
+paintDateTimeAndShift();
+setInterval(paintDateTimeAndShift, 60000);
+}, Math.max(0, ms));
+}
+
+/* ==========================
+ EHS simple
+========================== */
+function initEhsSimple(){
+const now=new Date();
+const year=now.getFullYear();
+const month=now.getMonth();
+const daysInMonth=new Date(year,month+1,0).getDate();
+const monthEl=document.getElementById('ehs-month');
+const daysEl=document.getElementById('ehs-days');
+const spin=document.getElementById('ehs-spin');
+if (!monthEl || !daysEl || !spin) return;
+monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+const keyMonth=`${year}-${month+1}`;
+const lastKey=localStorage.getItem('ehs_month_key');
+let days=Number(localStorage.getItem('ehs_days_month'))||0;
+if (lastKey!==keyMonth) days=0;
+function render(){
+days=Math.max(0,Math.min(daysInMonth,Math.trunc(days)));
+daysEl.textContent = days;
+spin.setAttribute('aria-valuemin','0');
+spin.setAttribute('aria-valuemax',String(daysInMonth));
+spin.setAttribute('aria-valuenow',String(days));
+localStorage.setItem('ehs_days_month',String(days));
+localStorage.setItem('ehs_month_key',keyMonth);
+}
+const inc=()=>{ if(days<daysInMonth){ days++; render(); } };
+const dec=()=>{ if(days>0){ days--; render(); } };
+spin.querySelectorAll('.ehs-btn').forEach(btn=>{
+btn.addEventListener('click', ()=>{
+(btn.dataset.op==='inc'?inc:dec)();
+});
+});
+spin.addEventListener('keydown', e=>{
+if(e.key==='ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
+if(e.key==='ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
+});
+render();
+}
+
+/* ==========================
+ 5S (localStorage)
+========================== */
+const S5_STATE_KEY='s5_state_v1';
+function loadS5State(){
+try{ return JSON.parse(localStorage.getItem(S5_STATE_KEY)||'{}'); }
+catch{ return {}; }
+}
+function saveS5State(s){
+try{ localStorage.setItem(S5_STATE_KEY, JSON.stringify(s)); }
+catch(e){}
+}
+function render5S(){
+const strip=document.getElementById('s5-strip');
+if (!strip) return;
+const state=loadS5State();
+let done=0;
+strip.querySelectorAll('.s5-pill').forEach(btn=>{
+const k=btn.dataset.key;
+const on=!!state[k];
+btn.classList.toggle('on', on);
+if (on) done++;
+});
+const meta=document.getElementById('s5-meta');
+if (meta){
+const ts=state.updated_at ? new Date(state.updated_at).toLocaleString('es-ES') : null;
+meta.textContent = `${done}/5 completadas${ts?` • Actualizado: ${ts}`:''}`;
+}
+}
+function toggle5S(key, el){
+const s=loadS5State();
+s[key]=!s[key];
+s.updated_at=new Date().toISOString();
+saveS5State(s);
+render5S();
+if (el){
+el.classList.add('bump');
+setTimeout(()=>el.classList.remove('bump'),220);
+}
+}
+function init5S(){
+const strip=document.getElementById('s5-strip');
+if (!strip) return;
+strip.addEventListener('click', e=>{
+const pill=e.target.closest('.s5-pill');
+if (!pill) return;
+const key=pill.dataset.key;
+if (!key) return;
+toggle5S(key, pill);
+});
+render5S();
+}
+
+/* ==========================
+ Roster / Equipo
+========================== */
+let TEAM_STATE = null;
+
+function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
+
+async function fetchServerRoster(){
+try{
+const r = await fetch('/api/roster/current', {
+cache:'no-store',
+headers:{'Accept':'application/json'}
+});
+if (!r.ok) return null;
+return await r.json();
+}catch(e){
+console.error('Roster error', e);
+return null;
+}
+}
+
+function updateTeamMeta(state){
+const meta=document.getElementById('team-meta');
+if (!meta || !state) return;
+const total=(state.people||[]).length;
+const present=countPresent(state.attendance||{});
+const shift=state.shift || '—';
+const win=state.window ? `${state.window.from}–${state.window.to}` : '—';
+meta.textContent = `${shift} • ${win} • Presentes ${present}/${total}`;
+}
+
+async function updatePresenceOnServer(person, present){
+try{
+await fetch('/api/roster/presence',{
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+person, present,
+date: TEAM_STATE?.sheet_date || null,
+shift: TEAM_STATE?.shift || null
+})
+});
+}catch(e){ console.error(e); }
+}
+async function updateZoneOnServer(person, zone){
+try{
+await fetch('/api/roster/zone',{
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+person, zone,
+date: TEAM_STATE?.sheet_date || null,
+shift: TEAM_STATE?.shift || null
+})
+});
+}catch(e){ console.error(e); }
+}
+
+function renderRoster(listEl, people, state){
+if (!listEl) return;
+TEAM_STATE = state || TEAM_STATE || {};
+TEAM_STATE.people = people || [];
+TEAM_STATE.attendance = state?.attendance || TEAM_STATE.attendance || {};
+TEAM_STATE.zones = state?.zones || TEAM_STATE.zones || {};
+
+listEl.innerHTML = '';
+
+if (!TEAM_STATE.people.length){
+listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster actual.</div>';
+updateTeamMeta(TEAM_STATE);
+return;
+}
+
+const ZONES = ['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'];
+
+TEAM_STATE.people.forEach((p,idx)=>{
+const full = p.nombre_completo || '—';
+const horario = p.horario || '';
+const obs = p.observaciones || '';
+const presentVal = (TEAM_STATE.attendance||{})[full];
+const yesChecked = presentVal === true  ? 'checked' : '';
+const noChecked  = presentVal === false ? 'checked' : '';
+const zone = (TEAM_STATE.zones||{})[full] || '';
+
+const row = document.createElement('div');
+row.className='team-row';
+row.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px;gap:10px;';
+
+const left = document.createElement('div');
+left.className='team-left';
+left.innerHTML =
+`<span class="team-name" style="font-weight:600">${esc(full)}</span>`+
+(horario?` <small class="meta">• ${esc(horario)}</small>`:'')+
+(obs?    ` <small class="meta">• ${esc(obs)}</small>`:'')+
+(zone?   ` <span class="chip-zone" data-zone-chip="${esc(full)}">${esc(zone)}</span>`:'');
+
+const right = document.createElement('div');
+right.className='team-right';
+right.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+right.innerHTML = `
+    <div class="presence-toggle" role="group" aria-label="Presencia">
+      <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+      <label for="att-${idx}-y" class="yes">✓ Presente</label>
+      <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+      <label for="att-${idx}-n" class="no">✕ Ausente</label>
     </div>
+    <select class="zone-select" data-person="${esc(full)}" title="Zona">
+      <option value="" ${zone?'':'selected'} disabled>Zona…</option>
+      ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+    </select>
+  `;
 
-    <!-- JS Logic -->
-    <script>
-        const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + "/ws";
-        let socket;
-        let shiftStartTime = new Date(); // Reinicia al cargar página o guardar lógica
+row.appendChild(left);
+row.appendChild(right);
+listEl.appendChild(row);
+});
 
-        // 1. CRONÓMETRO
-        function updateTimer() {
-            const now = new Date();
-            const diff = now - shiftStartTime;
-            const hh = String(Math.floor(diff / 3600000)).padStart(2, '0');
-            const mm = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
-            const ss = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
-            document.getElementById('shiftTimer').innerText = `${hh}:${mm}:${ss}`;
+// Presencia
+listEl.querySelectorAll('.att-radio').forEach(inp=>{
+inp.addEventListener('change', e=>{
+const person=e.target.dataset.person;
+const present=e.target.value==='yes';
+TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+TEAM_STATE.attendance[person]=present;
+updateTeamMeta(TEAM_STATE);
+updatePresenceOnServer(person, present);
+updateSpotlightRouting?.();
+});
+});
+
+// Zonas
+listEl.querySelectorAll('.zone-select').forEach(sel=>{
+sel.addEventListener('change', e=>{
+const person=e.target.dataset.person;
+const zone=e.target.value || '';
+TEAM_STATE.zones = TEAM_STATE.zones || {};
+TEAM_STATE.zones[person]=zone;
+// chip
+const chip = listEl.querySelector(`.chip-zone[data-zone-chip="${CSS.escape(person)}"]`);
+if (chip){
+chip.textContent = zone;
+}else if(zone){
+const host = e.target.closest('.team-row')?.querySelector('.team-left');
+if (host){
+host.insertAdjacentHTML('beforeend', ` <span class="chip-zone" data-zone-chip="${esc(person)}">${esc(zone)}</span>`);
+}
+}
+updateZoneOnServer(person, zone);
+updateTeamMeta(TEAM_STATE);
+});
+});
+
+updateTeamMeta(TEAM_STATE);
+}
+
+async function initTeamRoster(){
+    const list = document.getElementById('team-list');
+    
+    
+    if(list) {
+        list.innerHTML = `
+            <div style="padding: 15px; text-align: center; background: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 8px; margin-bottom: 10px;">
+                <strong>⚠️ Atención WFS3</strong><br>Procedimiento manual activo.<br>
+                <small>Añade operarios usando el botón "+".</small>
+            </div>`;
+    }
+
+    // Inicializar estado vacío para permitir altas manuales
+    window.TEAM_STATE = { people: [], attendance: {} };
+    
+    // Lógica para el formulario de alta manual
+    const form = document.getElementById('team-form');
+    if(form) {
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('team-name');
+            const name = nameInput.value.trim();
+            if(!name) return;
             
-            // Fecha
-            const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-            document.getElementById('currentDate').innerText = now.toLocaleDateString('es-ES', options);
-        }
-        setInterval(updateTimer, 1000);
-
-        // 2. WEBSOCKET
-        function connectWS() {
-            socket = new WebSocket(WS_URL);
-            socket.onopen = () => console.log("🔌 WS Conectado WFS3");
-            socket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if(data.type === 'roster_manual_upsert' || data.type === 'roster_manual_delete') {
-                    loadRoster();
-                }
-                // Aquí iría lógica extra para tareas
-            };
-            socket.onclose = () => setTimeout(connectWS, 3000);
-        }
-        connectWS();
-
-        // 3. CARGAR ROSTER (Manual)
-        async function loadRoster() {
-            try {
-                const res = await fetch('/api/roster/persons');
-                const people = await res.json();
-                const list = document.getElementById('rosterList');
-                list.innerHTML = '';
-                
-                if(people.length === 0) {
-                    list.innerHTML = '<li class="list-group-item text-muted">Sin personal asignado.</li>';
-                    return;
-                }
-
-                people.forEach(p => {
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
-                    li.innerHTML = `
-                        <div>
-                            <strong>${p.nombre} ${p.apellidos}</strong><br>
-                            <small class="text-muted">${p.horario} - ${p.observaciones || ''}</small>
-                        </div>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deletePerson('${p.id}')">X</button>
-                    `;
-                    list.appendChild(li);
-                });
-            } catch(e) { console.error("Error loading roster", e); }
-        }
-        // Cargar al inicio
-        loadRoster();
-
-        async function deletePerson(id) {
-            if(!confirm("¿Eliminar?")) return;
-            await fetch(`/api/roster/persons/${id}`, { method: 'DELETE' });
-        }
-
-        // 4. GENERAR RESUMEN
-        async function generateSummary() {
-            const supervisor = document.getElementById('supervisorName').value.trim();
-            if (!supervisor) {
-                alert("⚠️ Debes introducir el NOMBRE DEL SUPERVISOR.");
-                document.getElementById('supervisorName').focus();
-                return;
-            }
-
-            const timerValue = document.getElementById('shiftTimer').innerText;
+            // Añadir persona localmente
+            window.TEAM_STATE.people.push({ nombre_completo: name });
+            // Marcar como presente por defecto
+            window.TEAM_STATE.attendance[name] = true;
             
-            // Recopilar Checklist
-            const checks = {};
-            document.querySelectorAll('.briefing-check').forEach(chk => {
-                const label = document.querySelector(`label[for="${chk.id}"]`).innerText;
-                checks[label] = chk.checked ? "OK" : "NO";
-            });
+            renderLocalRoster();
+            nameInput.value = '';
+        };
+    }
+}
 
-            // Obtener detalles del roster actual para el texto
-            const rosterItems = [];
-            document.querySelectorAll('#rosterList li div strong').forEach(el => rosterItems.push(el.innerText));
-            const rosterText = rosterItems.length > 0 ? rosterItems.join(", ") : "Sin equipo registrado";
+/* Upload roster Excel */
+(function initRosterUpload(){
+const form=document.getElementById('roster-upload-form');
+const input=document.getElementById('roster-file');
+const status=document.getElementById('roster-upload-result');
+if (!form) return;
+form.addEventListener('submit', async e=>{
+e.preventDefault();
+const f=input.files?.[0];
+if(!f){ status.textContent='Selecciona un .xlsx/.xls'; return; }
+const fd=new FormData();
+fd.append('file', f);
+status.textContent='Subiendo…';
+try{
+const res=await fetch('/api/roster/upload',{method:'POST',body:fd});
+const data=await res.json().catch(()=>({}));
+if(!res.ok) throw new Error(data.detail||'Error al subir');
+status.textContent = `OK: ${data.people_count||'-'} personas • Hoja: ${data.sheet_loaded||'—'} • Fecha: ${data.sheet_date||'—'}`;
+const cur = await fetchServerRoster();
+if (cur) renderRoster(document.getElementById('team-list'), cur.people||[], cur);
+}catch(err){
+status.textContent=`Error: ${err.message||err}`;
+}finally{
+input.value='';
+}
+});
+})();
 
-            const payload = {
-                station: "WFS3",
-                date: new Date().toLocaleDateString('es-ES'),
-                shift: (new Date().getHours() >= 14 && new Date().getHours() < 22) ? "Tarde" : "Mañana", // Simplificado
-                timer: timerValue,
-                supervisor: supervisor,
-                checklist: checks,
-                roster_details: rosterText
-            };
+/* Alta manual de persona en Equipo/Turno (persistente) */
+(function initTeamAddForm(){
+const form  = document.getElementById('team-form');
+const input = document.getElementById('team-name');
+const list  = document.getElementById('team-list');
+if (!form || !input || !list) return;
+function renderLocalRoster() {
+    const list = document.getElementById('team-list');
+    // Mantenemos el aviso (primer hijo)
+    const aviso = list.querySelector('div') ? list.querySelector('div').outerHTML : '';
+    
+    let html = aviso;
+    
+    // Generamos la lista de nombres con checkbox
+    window.TEAM_STATE.people.forEach((p) => {
+        const isPresent = window.TEAM_STATE.attendance[p.nombre_completo];
+        html += `
+            <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+                <span>${p.nombre_completo}</span>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
+                    <input type="checkbox" ${isPresent ? 'checked' : ''} 
+                           onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
+                    Presente
+                </label>
+            </div>`;
+    });
+    list.innerHTML = html;
+    
+    // Actualizar contador si existe
+    const meta = document.getElementById('team-meta');
+    if(meta) meta.textContent = `${window.TEAM_STATE.people.length} personas`;
+}
 
-            try {
-                const res = await fetch('/api/briefing/summary', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                });
-                const result = await res.json();
-                if(result.saved) {
-                    alert("✅ Resumen WFS3 Generado y Enviado a Excel.");
-                } else {
-                    alert("❌ Error al guardar: " + result.error);
-                }
-            } catch(e) {
-                alert("Error de red al enviar resumen.");
-            }
-        }
+// Función global para el onchange del checkbox
+window.togglePresence = (name, checked) => {
+    window.TEAM_STATE.attendance[name] = checked;
+};
+async function syncServerAdd(name){
+// Endpoint esperado en backend: POST /api/roster/add
+// payload: { person, station, date, shift }
+const payload = {
+person: name,
+station: STATION_CODE,
+date:   TEAM_STATE?.sheet_date || null,
+shift:  TEAM_STATE?.shift || computeShift().name
+};
+const res = await fetch('/api/roster/add', {
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body: JSON.stringify(payload)
+});
+// Si el backend confirma, refrescamos del servidor para tener sheet_date/shift/IDs correctos
+if (res.ok) {
+const cur = await fetchServerRoster();
+if (cur) renderRoster(list, cur.people||[], cur);
+return true;
+}
+return false;
+}
 
-        // Mock modal function for simplicity in this snippet
-        function openManualAddModal() {
-            const name = prompt("Nombre y Apellidos:");
-            if(name) {
-                fetch('/api/roster/persons', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        nombre: name, apellidos: "", 
-                        fecha: new Date().toLocaleDateString('es-ES'), // Formato simple
-                        turno: "Mañana" // Simplificado, deberías detectar turno real
-                    })
-                });
-            }
-        }
-    </script>
+form.addEventListener('submit', async (e)=>{
+e.preventDefault();
+const raw = (input.value||'').trim();
+if (!raw) return;
+
+// Evita duplicados por nombre
+const exists = (TEAM_STATE?.people||[]).some(p =>
+String(p?.nombre_completo||'').trim().toLowerCase() === raw.toLowerCase()
+);
+if (exists){
+input.value = '';
+return;
+}
+
+// 1) Alta optimista para feedback inmediato
+const newPerson = { nombre_completo: raw, horario: '', observaciones: '' };
+const next = [...(TEAM_STATE?.people||[]), newPerson];
+renderRoster(list, next, TEAM_STATE);
+
+// 2) Persistir en servidor (si falla, mantenemos la vista y logueamos)
+try{
+const ok = await syncServerAdd(raw);
+if (!ok) console.warn('No se pudo persistir /api/roster/add. Se mantiene solo en cliente.');
+}catch(err){
+console.warn('Error al persistir /api/roster/add', err);
+}finally{
+input.value = '';
+updateSpotlightRouting?.();
+}
+});
+})();
+
+/* ==========================
+ Prev shift note (local)
+========================== */
+(function(){
+const KEY='prev_shift_note_wfs3_v1';
+const KEY_WHEN='prev_shift_note_bcn_saved_v1';
+const el=document.getElementById('prev-shift-note');
+const hint=document.getElementById('prev-shift-saved-hint');
+if (!el) return;
+try{
+const txt=localStorage.getItem(KEY);
+if(txt!==null) el.textContent=txt;
+const when=localStorage.getItem(KEY_WHEN);
+if(when && hint) hint.textContent=`Guardado: ${new Date(when).toLocaleString('es-ES')}`;
+}catch(e){}
+let t;
+const save=()=>{
+try{
+const plain=el.textContent||'';
+localStorage.setItem(KEY, plain);
+const now=new Date().toISOString();
+localStorage.setItem(KEY_WHEN, now);
+if (hint) hint.textContent=`Guardado: ${new Date(now).toLocaleString('es-ES')}`;
+}catch(e){}
+};
+el.addEventListener('input', ()=>{
+clearTimeout(t);
+t=setTimeout(save, 400);
+});
+el.addEventListener('blur', save);
+})();
+
+/* ==========================
+ GW Top-3
+========================== */
+const GW_MAP = new Map();
+function gwGetDate(t){
+const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+const d = cand ? new Date(cand) : null;
+return (d && !isNaN(d)) ? d.getTime() : -Infinity;
+}
+function renderGwTask(task, elementId){
+const container=document.getElementById('gw-tasks-dynamic-container');
+if(!container) return;
+let el=document.getElementById(elementId);
+const chkId=`gw-check-${task.id}`;
+const noteId=`gw-note-${task.id}`;
+if(!el){
+el=document.createElement('div');
+el.id=elementId;
+container.prepend(el);
+}
+el.className='gw-task-item';
+el.innerHTML=`
+  <input type="checkbox" id="${chkId}" ${task.is_completed?'checked':''}>
+  <label for="${chkId}">${esc(task.title||'')}</label>
+  <input type="text" class="gw-note" id="${noteId}"
+         placeholder="Añadir nota (opcional)"
+         ${task.is_completed?'':'disabled'}
+         value="${task.note?esc(task.note):''}">
+`;
+el.classList.toggle('completed', !!task.is_completed);
+el.classList.add('highlight-gw');
+setTimeout(()=>el.classList.remove('highlight-gw'),2000);
+
+const chk=el.querySelector('#'+chkId);
+const note=el.querySelector('#'+noteId);
+chk.addEventListener('change', async ()=>{
+const done=chk.checked;
+note.disabled = !done;
+try{
+await updateTaskCompletion(task.id, done);
+el.classList.toggle('completed', done);
+}catch(e){
+chk.checked = !done;
+note.disabled = chk.checked ? false : true;
+}
+});
+note.addEventListener('blur', async ()=>{
+try{ await updateTaskNote(task.id, note.value); }catch(e){}
+});
+}
+function renderGwTop3(){
+const cont=document.getElementById('gw-tasks-dynamic-container');
+if(!cont) return;
+cont.innerHTML='';
+const top3=[...GW_MAP.values()]
+.sort((a,b)=>gwGetDate(b)-gwGetDate(a))
+.slice(0,3);
+top3.slice().reverse().forEach(t=>renderGwTask(t, `task-${t.id}`));
+}
+
+/* ==========================
+ Incidentes / PDF
+========================== */
+const INC_CACHE_KEY='incidents_cache_wfs3_v1';
+function cacheIncidentes(state){
+try{ localStorage.setItem(INC_CACHE_KEY, JSON.stringify(state)); }catch(e){}
+}
+function getCachedIncidentes(){
+try{ return JSON.parse(localStorage.getItem(INC_CACHE_KEY)||'null'); }
+catch{ return null; }
+}
+
+function renderIncidentes(state, targetId){
+const tbl = document.getElementById(targetId || 'incidentes-table');
+const meta= document.getElementById('incidentes-meta');
+if (!tbl) return;
+
+const cols = Array.isArray(state?.columns) ? state.columns : [];
+const rows = Array.isArray(state?.rows) ? state.rows : [];
+const ts   = state?.fetched_at ? new Date(state.fetched_at).toLocaleString('es-ES') : '—';
+
+const rowsAreObjects = rows[0] && typeof rows[0]==='object' && !Array.isArray(rows[0]);
+const norm = s=>String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'')
+.replace(/\s+/g,' ').trim().toLowerCase();
+
+const candidateCols = rowsAreObjects
+? Array.from(new Set(rows.flatMap(r=>Object.keys(r||{}))))
+: cols.slice();
+const colNameByNorm = new Map(candidateCols.map(c=>[norm(c), c]));
+
+const pick = (...aliases)=>{
+for(const a of aliases){
+const k=norm(a);
+if (rowsAreObjects && colNameByNorm.has(k))
+return {name:colNameByNorm.get(k), idx:cols.indexOf(colNameByNorm.get(k))};
+if (!rowsAreObjects){
+const i=cols.findIndex(c=>norm(c)===k);
+if(i!==-1) return {name:cols[i], idx:i};
+}
+}
+return null;
+};
+
+let selected = [
+pick('Id','ID','Incident Id','IncidentId','Number','Reference','Incident No'),
+pick('Accidente','Accident Title','incident_title','Title','Subject','Summary'),
+pick('Status','State','Workflow Status','Current Status'),
+pick('Priority','Severity','Risk Level','Criticality'),
+pick('Category','Type','Incident Type','Classification','event_type'),
+pick('Site','Location','Area','Department','Plant'),
+pick('Created','Creation Date','Date','Reported On','Report Date','Start Date'),
+pick('Due Date','Target Date','Deadline'),
+pick('Owner','Assigned To','Assignee','Responsible','Manager')
+].filter(Boolean);
+
+if (!selected.length && candidateCols.length){
+const base=candidateCols.slice(0,6);
+selected = base.map(n=>({name:n, idx:cols.indexOf(n)}));
+}
+
+if (!selected.length){
+tbl.innerHTML='<tbody><tr><td>Sin columnas reconocibles.</td></tr></tbody>';
+if (meta) meta.textContent = `Filas: ${rows.length} • Actualizado: ${ts}`;
+return;
+}
+
+let thead='<thead><tr>'+selected.map(c=>`<th>${esc(c.name)}</th>`).join('')+'</tr></thead>';
+const MAX_ROWS = targetId ? 6 : 4;
+const slice = rows.slice(0,MAX_ROWS);
+let tbody='<tbody>';
+for(const r of slice){
+if (rowsAreObjects){
+tbody+='<tr>'+selected.map(c=>`<td>${r?.[c.name]!=null?esc(String(r[c.name])):''}</td>`).join('')+'</tr>';
+}else{
+tbody+='<tr>'+selected.map(c=>`<td>${r?.[c.idx]!=null?esc(String(r[c.idx])):''}</td>`).join('')+'</tr>';
+}
+}
+if (rows.length>MAX_ROWS){
+tbody+=`<tr><td colspan="${selected.length}" style="color:var(--text-muted)">Mostrando ${MAX_ROWS} de ${rows.length}…</td></tr>`;
+}
+tbody+='</tbody>';
+tbl.innerHTML = thead+tbody;
+if (meta && !targetId){
+meta.textContent = `Columnas: ${candidateCols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
+}
+}
+
+async function loadIncidentes(){
+const cached = getCachedIncidentes();
+if (cached) renderIncidentes(cached);
+
+try{
+const r = await fetch('/api/incidents-table',{cache:'no-store'});
+if (!r.ok) throw new Error('GET /api/incidents-table');
+const data = await r.json();
+if (data.columns && data.rows){
+renderIncidentes(data);
+cacheIncidentes(data);
+}
+}catch(e){
+console.warn('Incidentes error', e);
+if (cached){
+renderIncidentes(cached);
+}
+}
+}
+
+/* Upload PDF incidentes */
+(function initIncidentsPdfUpload(){
+const form=document.getElementById('incidents-pdf-form');
+const input=document.getElementById('incidents-pdf-file');
+const status=document.getElementById('incidents-pdf-status');
+const wrap=document.getElementById('incidentes-pdf-wrap');
+const tbl=document.getElementById('incidentes-pdf-table');
+if (!form || !input || !status || !wrap || !tbl) return;
+
+form.addEventListener('submit', async e=>{
+e.preventDefault();
+const f=input.files?.[0];
+if (!f){ status.textContent='Selecciona un PDF'; return; }
+const fd=new FormData();
+fd.append('file', f);
+status.textContent='Subiendo…';
+try{
+const res=await fetch('/api/incidents-table',{method:'POST',body:fd});
+const data=await res.json().catch(()=>({}));
+if(!res.ok) throw new Error(data.detail||'Error al subir');
+status.textContent=`OK: ${Array.isArray(data.rows)?data.rows.length:'-'} filas`;
+wrap.style.display='block';
+if (data.columns && data.rows){
+renderIncidentes(data, 'incidentes-pdf-table');
+}
+}catch(err){
+status.textContent=`Error: ${err.message||err}`;
+}finally{
+input.value='';
+}
+});
+})();
+
+/* ==========================
+ Incidentes (edición local)
+========================== */
+(function initIncidentEditableFields(){
+const FIELDS = [
+['incident-remember', 'inc_wfs3_remember_v1'],
+['incident-what',     'inc_wfs3_what_v1'],
+['incident-who',      'inc_wfs3_who_v1'],
+['incident-where',    'inc_wfs_where_v1']
+];
+
+FIELDS.forEach(([id, key])=>{
+const el = document.getElementById(id);
+if (!el) return;
+
+// Carga inicial
+try{
+const saved = localStorage.getItem(key);
+if (saved !== null) el.textContent = saved;
+}catch(e){}
+
+// Guardado (debounce)
+let t;
+const save = ()=>{
+try{
+localStorage.setItem(key, el.textContent || '');
+}catch(e){}
+};
+el.addEventListener('input', ()=>{
+clearTimeout(t);
+t = setTimeout(save, 350);
+});
+el.addEventListener('blur', save);
+
+// Accesibilidad: Enter inserta salto de línea (y no dispara nada extraño)
+el.addEventListener('keydown', (e)=>{
+if (e.key === 'Enter') {
+document.execCommand?.('insertLineBreak');
+e.preventDefault();
+}
+});
+});
+})();
+
+
+function opsLoad(){
+let sections = [];
+let lines = '';
+try{
+sections = JSON.parse(localStorage.getItem(OPS_SECTIONS_KEY) || '[]');
+}catch{}
+try{
+lines = localStorage.getItem(OPS_LINES_KEY) || '';
+}catch{}
+if (!Array.isArray(sections) || !sections.length){
+sections = [{title:'Cambios turno', body:''}];
+}
+return {sections, lines};
+}
+function opsSave({sections, lines}){
+try{ localStorage.setItem(OPS_SECTIONS_KEY, JSON.stringify(sections||[])); }catch{}
+try{ localStorage.setItem(OPS_LINES_KEY, String(lines??'')); }catch{}
+}
+
+function opsSerializeFromDOM(){
+const cont = document.getElementById('ops-sections');
+const quick = document.getElementById('ops-quicklines');
+const sections = [...(cont?.querySelectorAll('.ops-section')||[])].map(sec=>{
+const t = sec.querySelector('.ops-section-title')?.textContent || '';
+const b = sec.querySelector('.ops-section-body')?.textContent || '';
+return {title:t.trim(), body:b.trim()};
+});
+const lines = (quick?.textContent||'').trim();
+return {sections, lines};
+}
+
+function opsRender(data){
+const cont = document.getElementById('ops-sections');
+const quick = document.getElementById('ops-quicklines');
+if (!cont) return;
+
+cont.innerHTML = '';
+(data.sections||[]).forEach((s, idx)=>{
+const el = document.createElement('div');
+el.className = 'ops-section';
+el.innerHTML = `
+    <div class="ops-section-title"
+         role="textbox" aria-label="Título de sección" contenteditable="true"
+         data-placeholder="Título de sección…">${esc(s.title||'')}</div>
+    <div class="ops-section-body"
+         role="textbox" aria-label="Contenido de sección" contenteditable="true"
+         data-placeholder="Escribe las actualizaciones (una por línea)…">${esc(s.body||'')}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="btn-compact" data-act="addline">+ Línea</button>
+      <button type="button" class="btn-compact" data-act="delete">Eliminar sección</button>
+    </div>
+  `;
+cont.appendChild(el);
+});
+
+if (quick){
+quick.textContent = data.lines || '';
+}
+
+// listeners de edición (debounce)
+let t;
+const scheduleSave = ()=>{
+clearTimeout(t);
+t = setTimeout(()=>{
+const state = opsSerializeFromDOM();
+opsSave(state);
+}, 300);
+};
+
+cont.addEventListener('input', scheduleSave);
+quick?.addEventListener('input', scheduleSave);
+
+// botones por sección
+cont.querySelectorAll('.ops-section').forEach(sec=>{
+sec.addEventListener('click', e=>{
+const btn = e.target.closest('[data-act]');
+if (!btn) return;
+const act = btn.getAttribute('data-act');
+if (act === 'addline'){
+const body = sec.querySelector('.ops-section-body');
+if (body){
+// inserta salto de línea al final
+body.focus();
+document.execCommand?.('insertLineBreak');
+scheduleSave();
+}
+}
+if (act === 'delete'){
+sec.remove();
+scheduleSave();
+}
+});
+});
+}
+function parseOpsLine(raw){
+// Sintaxis:  "Texto libre #Etiqueta @Nombre >2025-11-18 !!"
+const line=(raw||'').trim().replace(/\s+/g,' ');
+if(!line) return null;
+
+// Prioridad
+let priority='Baja';
+if(/\B!!\b/.test(line)) priority='Alta';
+else if(/\B!\b/.test(line)) priority='Media';
+
+// Etiquetas (#)
+const tags=[...line.matchAll(/#([\p{L}\d_-]+)/gu)].map(m=>m[1]);
+
+// Asignado (@)
+const assigned=([...line.matchAll(/@([\p{L}\d][\p{L}\d._ -]{0,40})/gu)].pop()||[])[1]||null;
+
+// Vencimiento (>)
+const dueMatch= line.match(/>(\d{4}-\d{2}-\d{2})/);
+const dueISO= dueMatch ? dueMatch[1] : null;
+
+// Título limpio (sin tokens)
+const title=line
+.replace(/\B!!\b|\B!\b/g,'')
+.replace(/#[\p{L}\d_-]+/gu,'')
+.replace(/@[\p{L}\d][\p{L}\d._ -]{0,40}/gu,'')
+.replace(/>\d{4}-\d{2}-\d{2}/,'')
+.trim();
+
+// Sección por primera #Etiqueta si existe, si no "General"
+const section = tags.length ? tags[0] : 'General';
+
+return {
+id: Date.now() + Math.random(),
+raw: line,
+title: title || line,
+section,
+tags,
+priority,
+assigned,
+due_date: dueISO,
+ts: Date.now(),
+station: STATION_CODE,
+archived: false,
+};
+}
+
+function parseQuickLinesToList(){
+const quick = document.getElementById('ops-quicklines');
+const text = (quick?.textContent||'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
+return text.map(parseOpsLine).filter(Boolean);
+}
+
+function renderOpsLines(list){
+const host = document.getElementById('ops-lines-list');
+const search = document.getElementById('ops-search')?.value.trim().toLowerCase() || '';
+const fPrio  = document.getElementById('ops-filter-prio')?.value || '';
+if(!host) return;
+
+// Filtrado
+let data = list.slice();
+if (fPrio) data = data.filter(x=>x.priority===fPrio);
+if (search){
+data = data.filter(x=>{
+const hay = [
+x.title, x.section, x.assigned, (x.tags||[]).join(' ')
+].filter(Boolean).join(' ').toLowerCase();
+return hay.includes(search);
+});
+}
+
+// Orden: Alta→Media→Baja y luego más recientes
+const orderPrio={Alta:0,Media:1,Baja:2};
+data.sort((a,b)=> (orderPrio[a.priority]-orderPrio[b.priority]) || (b.ts - a.ts));
+
+host.innerHTML='';
+data.forEach(it=>{
+const card = document.createElement('div');
+card.className='ops-line-card';
+card.setAttribute('role','listitem');
+card.dataset.priority = it.priority;
+card.innerHTML = `
+    <div class="ops-line-head">
+      <div class="ops-line-title">${esc(it.title)}</div>
+      <div class="ops-line-meta">
+        <span class="ops-badge ${it.priority==='Alta'?'prio-high':it.priority==='Media'?'prio-med':'prio-low'}">${esc(it.priority)}</span>
+        ${it.section ? `<span class="ops-badge">#${esc(it.section)}</span>` : ''}
+        ${it.assigned ? `<span>@${esc(it.assigned)}</span>` : ''}
+        ${it.due_date ? `<span>⏲ ${new Date(it.due_date).toLocaleDateString('es-ES')}</span>` : ''}
+        <span>${new Date(it.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+    </div>
+    <div class="ops-line-actions">
+      <button class="ops-line-btn" data-act="kanban">Mandar al Kanban</button>
+      <button class="ops-line-btn" data-act="pin">${it.archived?'Quitar pin':'Pin/Archivar'}</button>
+      <button class="ops-line-btn" data-act="del">Eliminar</button>
+    </div>
+  `;
+if (it.archived) card.classList.add('is-archived');
+host.appendChild(card);
+
+// acciones
+card.querySelector('[data-act="kanban"]')?.addEventListener('click', async ()=>{
+try{
+await createTaskOnServer({
+task_type:'kanban_rapida',
+status:'Abiertas',
+category:(it.section||'').toLowerCase(), // mapea con tu CAT_LABELS
+title: it.title,
+due_date: it.due_date || null,
+assigned_to: it.assigned || null,
+station: STATION_CODE
+});
+card.setAttribute('aria-selected','true');
+setTimeout(()=>card.removeAttribute('aria-selected'), 1000);
+}catch(e){ alert('No se pudo crear en Kanban.'); }
+});
+
+card.querySelector('[data-act="pin"]')?.addEventListener('click', ()=>{
+it.archived = !it.archived;
+saveRenderedOpsLines(list);
+renderOpsLines(list);
+});
+
+card.querySelector('[data-act="del"]')?.addEventListener('click', ()=>{
+const idx = list.findIndex(x=>x.id===it.id);
+if (idx>-1){ list.splice(idx,1); saveRenderedOpsLines(list); renderOpsLines(list); }
+});
+});
+}
+
+const OPS_LINES_RENDER_KEY = opsKey('ops_lines_render_v1');
+function loadRenderedOpsLines(){
+try{ return JSON.parse(localStorage.getItem(OPS_LINES_RENDER_KEY)||'[]'); }catch{ return []; }
+}
+function saveRenderedOpsLines(list){
+try{ localStorage.setItem(OPS_LINES_RENDER_KEY, JSON.stringify(list||[])); }catch{}
+}
+
+
+function initOpsUpdates(){
+const addBtn = document.getElementById('ops-add-section');
+const clearBtn = document.getElementById('ops-clear');
+const state = opsLoad();
+opsRender(state);
+
+addBtn?.addEventListener('click', ()=>{
+const cur = opsSerializeFromDOM();
+cur.sections.push({title:'Nueva sección', body:''});
+opsRender(cur);
+opsSave(cur);
+});
+
+clearBtn?.addEventListener('click', ()=>{
+if (!confirm('¿Vaciar “Actualizaciones operativas”?')) return;
+const empty = {sections:[{title:'Cambios turno', body:''}], lines:''};
+opsRender(empty); opsSave(empty);
+saveRenderedOpsLines([]);           // ← limpia tarjetas derivadas
+renderOpsLines([]);                 // ← repinta vacío
+});
+
+// Accesibilidad: Enter = salto línea en contenteditable
+document.getElementById('ops-updates-widget')?.addEventListener('keydown', e=>{
+const ce = e.target.getAttribute?.('contenteditable');
+if (ce === 'true' && e.key === 'Enter'){
+document.execCommand?.('insertLineBreak');
+e.preventDefault();
+}
+});
+// Estado de tarjetas derivadas de quicklines
+let OPS_LIST = loadRenderedOpsLines();
+const quick = document.getElementById('ops-quicklines');
+const listHost = document.getElementById('ops-lines-list');
+
+function refreshOpsFromQuicklines(){
+const parsed = parseQuickLinesToList();
+// mantenemos archivados por raw-title match
+const archivedSet = new Set(OPS_LIST.filter(x=>x.archived).map(x=>x.raw));
+OPS_LIST = parsed.map(x => ({...x, archived: archivedSet.has(x.raw)}));
+saveRenderedOpsLines(OPS_LIST);
+renderOpsLines(OPS_LIST);
+}
+
+// Primera pintura
+renderOpsLines(OPS_LIST.length ? OPS_LIST : (OPS_LIST = parseQuickLinesToList(), saveRenderedOpsLines(OPS_LIST), OPS_LIST));
+
+// Listeners
+let tOps; // debounce
+quick?.addEventListener('input', ()=>{
+clearTimeout(tOps);
+tOps = setTimeout(()=>{
+const state = opsSerializeFromDOM();
+opsSave(state);
+refreshOpsFromQuicklines();
+}, 250);
+});
+
+document.getElementById('ops-search')?.addEventListener('input', ()=>renderOpsLines(OPS_LIST));
+document.getElementById('ops-filter-prio')?.addEventListener('change', ()=>renderOpsLines(OPS_LIST));
+
+document.getElementById('ops-export')?.addEventListener('click', async ()=>{
+const orderPrio={Alta:0,Media:1,Baja:2};
+const visible = (()=>{ // aplica filtros actuales
+const s=document.getElementById('ops-search')?.value.trim().toLowerCase()||'';
+const p=document.getElementById('ops-filter-prio')?.value||'';
+return OPS_LIST.filter(x=>{
+if (p && x.priority!==p) return false;
+if (s){
+const hay=[x.title,x.section,x.assigned,(x.tags||[]).join(' ')].filter(Boolean).join(' ').toLowerCase();
+if (!hay.includes(s)) return false;
+}
+return true;
+}).sort((a,b)=> (orderPrio[a.priority]-orderPrio[b.priority]) || (b.ts-a.ts));
+})();
+const text = visible.map(x=>{
+const bits=[`• ${x.title}`];
+if(x.section)  bits.push(`#${x.section}`);
+if(x.priority) bits.push(`[${x.priority}]`);
+if(x.assigned) bits.push(`@${x.assigned}`);
+if(x.due_date) bits.push(`(${x.due_date})`);
+return bits.join(' ');
+}).join('\n');
+try{
+await navigator.clipboard.writeText(text||'');
+alert('Resumen copiado al portapapeles.');
+}catch{ alert('No se pudo copiar.'); }
+});
+
+}
+
+/* ==========================
+ Reordenar checklist + renumerar
+========================== */
+function reorderChecklist(){
+const grid = document.querySelector('#brief-check .check-grid');
+if(!grid) return;
+
+// Detecta las tarjetas por su data-target original
+const card1 = [...grid.children].find(c => c.querySelector('.check-title')?.textContent?.trim().startsWith('1)'));
+const card3 = [...grid.children].find(c => c.querySelector('.check-title')?.textContent?.includes('Dotación y recursos'));
+
+if(card1 && card3 && card3 !== grid.firstElementChild){
+grid.insertBefore(card3, grid.firstElementChild); // Dotación y recursos → primera
+}
+
+// Renumera los prefijos "n) " según el orden visual
+const cards = [...grid.children];
+cards.forEach((c, idx)=>{
+const t = c.querySelector('.check-title');
+if(!t) return;
+const raw = t.textContent.replace(/^\s*\d+\)\s*/,''); // quita prefijo existente
+t.textContent = `${idx+1}) ${raw}`;
+});
+}
+
+
+/* ==========================
+ KPI Costes
+========================== */
+function formatEuro(n){
+if (n==null || Number.isNaN(n)) return '—';
+return new Intl.NumberFormat('es-ES',{
+minimumFractionDigits:2,
+maximumFractionDigits:2
+}).format(n);
+}
+function updateKpiTotalCost(value, ts){
+const v=document.getElementById('kpi-total-cost');
+const m=document.getElementById('kpi-costes-meta');
+const tile=document.getElementById('kpi-costes');
+if (!v || !tile) return;
+v.textContent = formatEuro(value);
+if (m && ts){
+m.textContent = `Actualizado: ${new Date(ts).toLocaleString('es-ES')}`;
+}
+tile.classList.remove('flash'); void tile.offsetWidth; tile.classList.add('flash');
+}
+function hydrateKpiTotalCost(){
+try{
+const cached = JSON.parse(localStorage.getItem('kpi_total_cost_'+STATION_CODE) || 'null');
+if (cached && Number.isFinite(cached.value)){
+updateKpiTotalCost(cached.value, cached.timestamp);
+}
+}catch(e){}
+}
+
+function formatPercent(n){
+if (n==null || Number.isNaN(n)) return '—';
+return new Intl.NumberFormat('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1}).format(n);
+}
+function flash(el){
+if(!el) return;
+el.classList.remove('flash');
+void el.offsetWidth;
+el.classList.add('flash');
+}
+function setKpiValue(idValue, idMeta, valueText){
+const v=document.getElementById(idValue);
+const m=document.getElementById(idMeta);
+if (!v) return;
+v.textContent = valueText;
+if (m) m.textContent = `Actualizado: ${new Date().toLocaleString('es-ES')}`;
+const tile=v.closest('.kpi-tile');
+if (tile) flash(tile);
+}
+
+/* ==========================
+ Tasks API helpers
+========================== */
+async function createTaskOnServer(data){
+const r=await fetch('/api/tasks',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(data)
+});
+if (!r.ok) throw new Error('create failed');
+const task=await r.json();
+processTaskUpdate(task);
+return task;
+}
+async function updateTaskOnServer(id,data){
+const r=await fetch(`/api/tasks/${id}`,{
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(data)
+});
+if (!r.ok) throw new Error('update failed');
+const task=await r.json();
+processTaskUpdate(task);
+return task;
+}
+async function deleteTaskOnServer(id, taskType){
+const r=await fetch(`/api/tasks/${id}`,{method:'DELETE'});
+if (!r.ok) throw new Error('delete failed');
+processTaskUpdate({id,action:'delete',task_type:taskType||'kanban_rapida'});
+}
+async function updateTaskCompletion(id,done){
+const r=await fetch(`/api/tasks/${id}/complete`,{
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({is_completed:done})
+});
+if (!r.ok) throw new Error('tick failed');
+}
+async function updateTaskNote(id,note){
+const r=await fetch(`/api/tasks/${id}/note`,{
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({note:note??''})
+});
+if (!r.ok) throw new Error('note failed');
+}
+
+/* ==========================
+ Render tarjetas (Kanban, Kaizen, GW)
+========================== */
+const GRIP =
+'<div class="drag-handle" aria-hidden="true" title="Arrastrar">'+
+'<svg viewBox="0 0 24 24" fill="currentColor">'+
+'<circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/>'+
+'<circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/>'+
+'</svg></div>';
+
+function renderBoardCard(task, elementId){
+const safeStatus=(task.status||'Abiertas').replace(/\s+/g,'-');
+const columnId=`${task.task_type}-${safeStatus}`;
+const col=document.getElementById(columnId);
+if (!col) return;
+
+let card=document.getElementById(elementId);
+if (!card){
+card=document.createElement('div');
+card.id=elementId;
+}
+card.className='card';
+card.dataset.status=safeStatus;
+card.dataset.taskType='kanban_rapida';
+
+const createdAt = task.created_at ? new Date(task.created_at) : null;
+const creationDate = (createdAt && !isNaN(createdAt)) ? createdAt.toLocaleDateString('es-ES'): '—';
+const dueISO = task.due_date || null;
+const dueDate = dueISO ? new Date(dueISO) : null;
+const dueHuman = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES'): '';
+
+const catKey = String(task.category||'').toLowerCase();
+const CAT_LABELS={
+seguridad:'Seguridad',
+incidencias:'Incidencias',
+mantenimiento:'Mantenimiento',
+calidad:'Calidad',
+servicio:'Servicio'
+};
+const catLabel = CAT_LABELS[catKey] || 'General';
+
+card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento','cat-calidad','cat-servicio');
+if (['seguridad','incidencias','mantenimiento','calidad','servicio'].includes(catKey)){
+card.classList.add(`cat-${catKey}`);
+}
+
+card.innerHTML=`
+  ${GRIP}
+  <div class="card-content">
+    <div class="card-title" data-edit="title">${esc(task.title||'')}</div>
+    <div class="card-details">
+      Alta: ${creationDate} • Objetivo:
+      <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
+    </div>
+    <div class="card-assignee">
+      Responsable:
+      <span class="assignee" data-edit="assigned_to">${esc(task.assigned_to || 'Sin asignar')}</span>
+    </div>
+    <div style="margin-top:6px;">
+      <button class="btn-compact" data-edit="category">${catLabel}</button>
+    </div>
+  </div>
+  <div class="card-actions">
+    <button class="delete-card-btn" title="Eliminar">
+      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+      </svg>
+    </button>
+  </div>
+`;
+// en renderBoardCard(), tras construir innerHTML:
+const content = card.querySelector('.card-content');
+if (content && !content.querySelector('.cat-chip')) {
+const chip = document.createElement('span');
+chip.className = 'cat-chip';
+chip.textContent = catLabel;
+content.querySelector('.card-title')?.appendChild(chip);
+}
+
+ensureFullscreenBtn(card);
+if (card.parentElement !== col) col.prepend(card);
+
+const id=task.id;
+
+// Ediciones rápidas
+card.querySelector('[data-edit="title"]')?.addEventListener('click', async()=>{
+const prev=task.title||'';
+const next=(prompt('Nuevo título', prev)||'').trim();
+if(next && next!==prev){
+try{ await updateTaskOnServer(id,{title:next}); }catch(e){ alert('No se pudo actualizar'); }
+}
+});
+const asg=card.querySelector('[data-edit="assigned_to"]');
+asg?.addEventListener('click', async()=>{
+const prev=task.assigned_to||'';
+const next=(prompt('Responsable', prev)||'').trim();
+if(next!==prev){
+try{ await updateTaskOnServer(id,{assigned_to:next||null}); }catch(e){ alert('No se pudo actualizar'); }
+}
+});
+const dueBtn=card.querySelector('[data-edit="due"]');
+dueBtn?.addEventListener('click', ()=>{
+const input=document.createElement('input');
+input.type='date';
+input.value=dueISO||'';
+input.style.position='fixed';
+input.style.opacity='0';
+document.body.appendChild(input);
+input.addEventListener('change', async()=>{
+const newISO=input.value||null;
+document.body.removeChild(input);
+if (newISO!==dueISO){
+try{ await updateTaskOnServer(id,{due_date:newISO}); }catch(e){ alert('No se pudo actualizar'); }
+}
+},{once:true});
+input.click();
+});
+const catBtn=card.querySelector('[data-edit="category"]');
+catBtn?.addEventListener('click', async()=>{
+const opts=['Seguridad','Incidencias','Mantenimiento','Calidad','Servicio','General'];
+const prev=catLabel;
+const next=(prompt(`Categoría (${opts.join(' / ')})`, prev)||prev).trim();
+const map={
+Seguridad:'seguridad',Incidencias:'incidencias',Mantenimiento:'mantenimiento',
+Calidad:'calidad',Servicio:'servicio',General:''
+};
+const val = map[next] ?? map[prev];
+if (val !== (task.category||'')){
+try{ await updateTaskOnServer(id,{category:val}); }catch(e){ alert('No se pudo actualizar'); }
+}
+});
+}
+
+function renderKaizenCard(task, elementId){
+const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
+const columnId=`kaizen-${safeStatus}`;
+const col=document.getElementById(columnId);
+if (!col) return;
+let card=document.getElementById(elementId);
+if (!card){
+card=document.createElement('div');
+card.id=elementId;
+}
+card.className='card';
+card.dataset.status=safeStatus;
+card.dataset.taskType='kaizen';
+
+const dueISO = task.due_date || null;
+const dueDate = dueISO ? new Date(dueISO) : null;
+const dueHuman = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES'): '';
+
+card.innerHTML=`
+  ${GRIP}
+  <div class="card-content">
+    <div class="card-title">${esc(task.title||'')}</div>
+    <div class="card-details">
+      ${task.assigned_to ? 'Responsable: '+esc(task.assigned_to) : 'Responsable: —'}
+      ${dueHuman ? ' • Fecha máx: '+dueHuman : ''}
+    </div>
+  </div>
+  <div class="card-actions">
+    <button class="delete-card-btn" title="Eliminar">
+      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+      </svg>
+    </button>
+  </div>
+`;
+ensureFullscreenBtn(card);
+if (card.parentElement !== col) col.prepend(card);
+}
+
+/* ==========================
+ Column counts / Sortable
+========================== */
+function updateAllColumnCounts(){
+document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
+const c=col.querySelector('.column-title .count');
+const cards=col.querySelector('.cards-container');
+if(c&&cards) c.textContent = `(${cards.children.length})`;
+});
+document.querySelectorAll('#kaizen-widget .kanban-column').forEach(col=>{
+const c=col.querySelector('.column-title .count');
+const cards=col.querySelector('.cards-container');
+if(c&&cards) c.textContent = `(${cards.children.length})`;
+});
+}
+function makeColumnsSortable(){
+const common = {
+animation:150,
+ghostClass:'sortable-ghost',
+dragClass:'sortable-drag',
+handle:'.drag-handle',
+forceFallback:true,
+delayOnTouchOnly:true,
+delay:120,
+fallbackTolerance:6,
+touchStartThreshold:4,
+onEnd:handleDragEnd
+};
+document.querySelectorAll('#kanban-widget .cards-container')
+.forEach(c=>new Sortable(c, {group:'kanban-board', ...common}));
+document.querySelectorAll('#kaizen-widget .cards-container')
+.forEach(c=>new Sortable(c, {group:'kaizen-board', ...common}));
+}
+async function handleDragEnd(evt){
+const {item,to,from,oldIndex} = evt;
+if(to===from){ updateAllColumnCounts(); return; }
+const id=item.id.replace('task-','');
+const st=to.dataset.status;
+try{
+await updateTaskOnServer(id,{status:st});
+}catch(e){
+from.insertBefore(item, from.children[oldIndex] || null);
+alert('No se pudo actualizar el estado en servidor.');
+}finally{
+updateAllColumnCounts();
+}
+}
+
+/* ==========================
+ Formularios Kanban/Kaizen
+========================== */
+function setupEventListeners(){
+document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+document.addEventListener('click', handleDeleteClick);
+
+const gwContainer=document.getElementById('gw-tasks-dynamic-container');
+gwContainer?.addEventListener('change', e=>{
+if (e.target.classList.contains('gw-note')) return;
+});
+}
+async function handleKanbanSubmit(e){
+e.preventDefault();
+const f=e.target;
+const taskData={
+task_type:'kanban_rapida',
+status:'Abiertas',
+category:(f.elements.category?.value||'').trim().toLowerCase(),
+title:(f.elements.title?.value||'').trim(),
+due_date:f.elements.due_date?.value || null,
+assigned_to:(f.elements.assigned_to?.value||'').trim() || null,
+station:STATION_CODE
+};
+if (!taskData.category || !taskData.title || !taskData.due_date) return;
+try{
+await createTaskOnServer(taskData);
+f.reset();
+document.getElementById('problem-category').selectedIndex = 0;
+updateAllColumnCounts();
+}catch(err){
+console.error(err);
+alert('No se pudo crear la tarjeta.');
+}
+}
+async function handleKaizenSubmit(e){
+e.preventDefault();
+const f=e.target;
+const taskData={
+task_type:'kaizen',
+status:'Proyectos',
+title:(f.elements.title?.value||'').trim(),
+assigned_to:(f.elements.assigned_to?.value||'').trim(),
+due_date:f.elements.due_date?.value || null,
+station:STATION_CODE
+};
+if (!taskData.title) return;
+try{
+await createTaskOnServer(taskData);
+f.reset();
+updateAllColumnCounts();
+}catch(err){
+alert('No se pudo crear el KAIZEN.');
+}
+}
+function handleDeleteClick(e){
+const btn=e.target.closest('.delete-card-btn');
+if (!btn) return;
+const card=btn.closest('.card');
+if (!card) return;
+const id=card.id.replace('task-','');
+const type=card.dataset.taskType || 'kanban_rapida';
+if (confirm('¿Eliminar esta tarjeta?')){
+deleteTaskOnServer(id, type).catch(()=>alert('No se pudo eliminar.'));
+}
+}
+
+/* ==========================
+ WebSocket + processTaskUpdate
+========================== */
+function connectWebSocket(){
+const wsUrl = `${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
+const socket = new WebSocket(wsUrl);
+socket.onopen = ()=>console.log('WS conectado');
+socket.onmessage = ev=>{
+try{
+const data = JSON.parse(ev.data);
+processTaskUpdate(data);
+}catch(e){ console.error('WS parse', e); }
+};
+socket.onclose = ()=> setTimeout(connectWebSocket, 3000);
+socket.onerror = err=>{
+console.error('WS error', err);
+socket.close();
+};
+}
+
+/* processTaskUpdate central BCN+MAD */
+function processTaskUpdate(data){
+if (!data) return;
+
+// Filtrado por estación
+if (!isForThisStation(data)) return;
+
+// Actualizaciones roster
+if (data.type === 'roster_update'){
+renderRoster(document.getElementById('team-list'), data.people||[], data);
+return;
+}
+
+// GW / tablas / etc
+if (data.type === 'table_ping' || data.type === 'table_state'){
+if (data.table === 'incidents'){
+loadIncidentes();
+}
+return;
+}
+
+// KPIs (usa STATION_CODE, no hardcode MAD)
+if (data.type==='kpi_update' || data.type==='kpi_state' || data.metric){
+const metric = String(data.metric||'').trim().toLowerCase();
+const tab    = String(data.tab||'').toUpperCase();
+
+if (metric === 'total cost'){
+// Acepta si tab vacío o contiene estación (BCN / MAD / etc)
+if (!tab || tab.includes(STATION_CODE)){
+let v=data.value;
+if (typeof v==='string'){
+const m=v.match(/-?\d+(?:[.,]\d+)?/);
+v=m?parseFloat(m[0].replace(',','.')):null;
+}else if (Array.isArray(v)){
+const f=v[0]||{};
+v=f['[Total Cost]']??f['Total Cost']??f.value??null;
+}else if (v && typeof v==='object'){
+v=v['[Total Cost]']??v['Total Cost']??v.value??null;
+}
+if (typeof v==='number' && Number.isFinite(v)){
+updateKpiTotalCost(v, data.timestamp);
+try{
+localStorage.setItem('kpi_total_cost_'+STATION_CODE,
+JSON.stringify({value:v,timestamp:data.timestamp||null}));
+}catch(e){}
+}
+}
+return;
+}
+
+if (metric === 'uph' && (!tab || tab.includes(STATION_CODE))){
+const v=Number(data.value);
+if (Number.isFinite(v))
+setKpiValue('kpi-uph','kpi-uph-meta',
+new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
+return;
+}
+if (metric === 'otif' && (!tab || tab.includes(STATION_CODE))){
+const v=Number(data.value);
+if (Number.isFinite(v))
+setKpiValue('kpi-otif','kpi-otif-meta', formatPercent(v)+' %');
+return;
+}
+if (metric === 'backlog' && (!tab || tab.includes(STATION_CODE))){
+const v=Number(data.value);
+if (Number.isFinite(v))
+setKpiValue('kpi-backlog','kpi-backlog-meta',
+new Intl.NumberFormat('es-ES').format(v));
+return;
+}
+}
+
+// Delete
+if (data.action === 'delete' && data.id != null){
+const el=document.getElementById(`task-${data.id}`);
+if (el) el.remove();
+if (data.task_type === 'gw_task'){
+GW_MAP.delete(data.id);
+renderGwTop3();
+}
+updateAllColumnCounts();
+return;
+}
+
+// Render según tipo
+if (data.task_type === 'gw_task'){
+GW_MAP.set(data.id, data);
+renderGwTop3();
+return;
+}
+if (data.task_type === 'kanban_rapida'){
+renderBoardCard(data, `task-${data.id}`);
+updateAllColumnCounts();
+return;
+}
+if (data.task_type === 'kaizen'){
+renderKaizenCard(data, `task-${data.id}`);
+updateAllColumnCounts();
+return;
+}
+}
+
+/* ==========================
+ Checklist compact (persist)
+========================== */
+(function(){
+const host=document.getElementById('brief-check');
+if (!host) return;
+const meta=document.getElementById('brief-check-meta');
+const KEY='brief_check_wfs3_v1';
+
+function save(){
+const data={};
+host.querySelectorAll('.check-actions input:checked')
+.forEach(i=> data[i.name]=i.value);
+try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
+}
+function load(){
+try{
+const data=JSON.parse(localStorage.getItem(KEY)||'{}');
+Object.entries(data).forEach(([n,v])=>{
+const el=host.querySelector(`input[name="${n}"][value="${v}"]`);
+if (el) el.checked=true;
+});
+}catch(e){}
+}
+function recalc(){
+const groups=[...new Set([...host.querySelectorAll('.check-actions input')]
+.map(i=>i.name))];
+const ok=groups.filter(n=>{
+const sel=host.querySelector(`input[name="${n}"]:checked`);
+return sel && sel.value==='OK';
+}).length;
+const cov = groups.length ? Math.round(ok/groups.length*100) : 0;
+if (meta) meta.textContent=`Bloques OK: ${ok}/${groups.length} · Cobertura: ${cov}%`;
+}
+
+function bump(){
+save();
+recalc();
+updateSpotlightRouting?.();
+}
+
+load();
+recalc();
+updateSpotlightRouting?.();
+
+host.addEventListener('change', e=>{
+if (e.target.matches('.check-actions input')) bump();
+});
+})();
+
+/* ==========================
+ Spotlight routing
+========================== */
+function rosterComplete(){
+const total=(TEAM_STATE?.people||[]).length;
+if (!total) return false;
+const att=TEAM_STATE?.attendance||{};
+return TEAM_STATE.people.every(p=>{
+const k=p.nombre_completo || '—';
+return att[k] === true || att[k] === false;
+});
+}
+function readC(name){
+const sel=document.querySelector(`#brief-check input[name="${name}"]:checked`);
+return sel ? sel.value : null;
+}
+function setSpotlight(ids){
+const ALL=['team-widget','prev-shift-widget','rotativas-widget','incidentes-widget','kanban-widget','kpi-costes','ops-updates-widget','safety-daily-widget'];
+ALL.forEach(id=>{
+const el=document.getElementById(id);
+if (!el) return;
+el.classList.toggle('spotlight-blink', ids.includes(id));
+});
+}
+function updateSpotlightRouting(){
+if (!rosterComplete()) return setSpotlight(['team-widget']);
+if (readC('c1')!=='OK') return setSpotlight(['prev-shift-widget']);
+if (readC('c2')!=='OK') return setSpotlight(['ops-updates-widget']);
+if (readC('c3')!=='OK') return setSpotlight(['team-widget']);
+if (readC('c4')!=='OK') return setSpotlight(['safety-daily-widget']);
+if (readC('c5')!=='OK') return setSpotlight(['incidentes-widget']);
+if (readC('c6')!=='OK') return setSpotlight(['kpi-costes']);
+if (readC('c7')!=='OK') return setSpotlight(['kanban-widget']);
+setSpotlight([]);
+}
+window.updateSpotlightRouting = updateSpotlightRouting;
+
+/* Checklist → abrir widgets */
+function openWidgetFromChecklist(targetId){
+if (!targetId) return;
+const el = document.getElementById(targetId);
+if (!el) {
+console.warn('Checklist target no encontrado:', targetId);
+return;
+}
+
+// Llevarlo a la vista
+el.scrollIntoView({ behavior:'smooth', block:'center' });
+
+// Asegurar botón de fullscreen
+try { ensureFullscreenBtn(el); } catch {}
+
+// Intentar fullscreen real
+if (el.requestFullscreen) {
+el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
+// Fallback visual si el navegador bloquea fullscreen
+el.classList.add('widget--zoomed');
+setTimeout(()=> el.classList.remove('widget--zoomed'), 120000);
+});
+} else {
+// Fallback en navegadores sin API
+el.classList.add('widget--zoomed');
+setTimeout(()=> el.classList.remove('widget--zoomed'), 120000);
+}
+}
+
+
+(function initBriefExplain(){
+const host   = document.getElementById('brief-check');
+if (!host) return;
+
+const targetText = host.querySelector('#brief-check-explain .br-explain-text');
+const DEFAULT_MSG = 'Pasa el ratón o toca para ver la guía. Haz clic para abrir el bloque correspondiente.';
+
+const setText = (t)=> {
+if (targetText) targetText.textContent = t || DEFAULT_MSG;
+};
+
+host.querySelectorAll('.check-card').forEach(card => {
+const msg =
+card.getAttribute('data-help') ||
+card.querySelector('.check-title')?.textContent ||
+'';
+// Soportar tanto data-target como el posible typo data-targer
+const targetId =
+card.getAttribute('data-target') ||
+card.getAttribute('data-targer') ||
+'';
+if (targetId) {
+card.setAttribute('role', 'button');
+card.setAttribute('aria-controls', targetId);
+}
+
+
+// Hover / foco: texto explicativo
+card.addEventListener('mouseenter', ()=> setText(msg));
+card.addEventListener('mouseleave', ()=> setText());
+card.addEventListener('focusin',    ()=> setText(msg));
+card.addEventListener('focusout',   ()=> setText());
+
+// Click en la tarjeta → abrir widget en fullscreen
+card.addEventListener('click', (e)=>{
+// No interceptar clics en radios/labels
+if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+if (targetId) {
+e.preventDefault();
+openWidgetFromChecklist(targetId);
+}
+});
+
+// Teclado: Enter o Space con foco en la tarjeta
+card.addEventListener('keydown', (e)=>{
+if (e.key === 'Enter' || e.key === ' ') {
+if (targetId) {
+e.preventDefault();
+openWidgetFromChecklist(targetId);
+}
+}
+});
+});
+
+setText();
+})();
+
+
+/* ==========================
+ Carga inicial
+========================== */
+async function loadBoardsInitial(){
+try{
+const qs = 'station='+encodeURIComponent(STATION_CODE);
+const [kanRes,kaiRes,gwRes] = await Promise.all([
+fetch('/api/tasks?task_type=kanban_rapida&'+qs,{cache:'no-store'}),
+fetch('/api/tasks?task_type=kaizen&'+qs,{cache:'no-store'}),
+fetch('/api/tasks?task_type=gw_task&'+qs,{cache:'no-store'})
+]);
+const [kan,kai,gw] = await Promise.all([
+kanRes.json().catch(()=>[]),
+kaiRes.json().catch(()=>[]),
+gwRes.json().catch(()=>[])
+]);
+(Array.isArray(kan)?kan:[]).filter(isForThisStation)
+.forEach(t=>processTaskUpdate(t));
+(Array.isArray(kai)?kai:[]).filter(isForThisStation)
+.forEach(t=>processTaskUpdate(t));
+(Array.isArray(gw)?gw:[]).filter(isForThisStation)
+.forEach(t=>{
+if (t.task_type==='gw_task'){
+GW_MAP.set(t.id,t);
+}
+});
+renderGwTop3();
+updateAllColumnCounts();
+}catch(e){
+console.error('loadBoardsInitial', e);
+}
+}
+
+/* ==========================
+ DOM Ready
+========================== */
+document.addEventListener('DOMContentLoaded', ()=>{
+console.log('Init BCN dashboard, estación:', STATION_CODE);
+try{ initHeaderTimer(); }catch(e){ console.error('Timer', e); }
+try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/turno', e); }
+try{ initFullscreenToggles(); }catch(e){ console.error('FS', e); }
+try{ init5S(); }catch(e){ console.error('5S', e); }
+try{ initEhsSimple(); }catch(e){ console.error('EHS', e); }
+try{ initTeamRoster(); }catch(e){ console.error('Roster', e); }
+try{ setupEventListeners(); }catch(e){ console.error('Listeners', e); }
+try{ makeColumnsSortable(); }catch(e){ console.error('Sortable', e); }
+try{ hydrateKpiTotalCost(); }catch(e){ console.error('KPI cost cache', e); }
+try{ loadBoardsInitial(); }catch(e){ console.error('Boards', e); }
+try{ loadIncidentes(); }catch(e){ console.error('Incidentes', e); }
+try{ connectWebSocket(); }catch(e){ console.error('WS', e); }
+try{ initOpsUpdates(); }catch(e){ console.error('Ops updates', e); }
+try{ reorderChecklist(); }catch(e){ console.error('Checklist reorder', e); }
+try{ initSafetyDailyWidget(); }catch(e){ console.error('Safety widget', e); }
+
+
+
+updateSpotlightRouting?.();
+/* ===== Briefing: Generar Resumen BCN Completo ===== */
+(function wireBriefingGenerate(){
+const btn = document.querySelector('header .header-controls .btn-primary');
+if (!btn) return;
+
+// Crear pequeño estado visual
+const status = document.createElement('small');
+status.style.marginLeft = '8px';
+status.style.color = 'var(--text-muted)';
+btn.parentElement.appendChild(status);
+
+// --- 1. Recolectar TODOS los datos ---
+function buildPayload(){
+const station = (window.STATION_OVERRIDE || 'BCN').toUpperCase();
+const team = (window.TEAM_STATE || {});
+const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
+const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
+
+// 1. CRONÓMETRO & SUPERVISOR
+const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
+const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
+
+// 2. INFO TURNO ANTERIOR
+const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
+
+// 3. CHECKLIST
+const checklist = {};
+document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
+.forEach(r => { checklist[r.name] = r.value; });
+
+// 4. EQUIPO (Lógica para Excel y GitHub)
+const peopleList = team.people || [];
+const attMap = team.attendance || {};
+
+// Lista para GitHub (Solo nombres presentes)
+const presentNames = peopleList
+.filter(p => attMap[p.nombre_completo] === true)
+.map(p => p.nombre_completo);
+
+// Texto detallado para Excel (Nombre + Icono estado)
+// Genera: "Juan (✅), Pepe (❌), Ana (✅)"
+const rosterDetailsArr = peopleList.map(p => {
+const name = p.nombre_completo || "Sin Nombre";
+const isPresent = attMap[name] === true;
+return `${name} (${isPresent ? "✅" : "❌"})`;
+});
+const rosterDetailsStr = rosterDetailsArr.length > 0 ? rosterDetailsArr.join(", ") : "Sin datos de equipo";
+
+const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
+
+// 5. KPIs y OPS
+// Nota: En BCN usas 'ops-lines-list' y tarjetas '.ops-line-card' en lugar de '.ops-item'
+// Adaptamos el selector para que funcione con tu HTML de BCN
+const opsCards = document.querySelectorAll('.ops-line-card, .ops-item'); 
+const ops = Array.from(opsCards).map(card => ({
+title: card.querySelector('.ops-line-title, .ops-title')?.textContent?.trim() || '',
+impact: card.dataset.priority || card.querySelector('.ops-impact')?.textContent?.trim() || '',
+scope: 'General' // En BCN parece que no usas scope explícito en tarjetas de líneas
+}));
+
+const kpis = {
+"UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
+"OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '-',
+"Backlog": document.getElementById('kpi-backlog')?.textContent?.trim() || '-',
+"Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
+};
+
+const kanbanCounts = {
+"Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
+"En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
+"Cerradas": document.querySelectorAll('#kanban_rapida-Cerradas .card').length
+};
+
+// Payload exacto para BriefingSnapshot en main_bcn.py
+return {
+station, date, shift, 
+timer: timerVal,
+supervisor: supVal,            
+prev_shift_note: prevShiftNote,
+checklist,
+
+// Datos de equipo
+roster_stats: rosterStats,
+present_names: presentNames,   // Para Markdown
+roster_details: rosterDetailsStr, // Para Excel (Texto largo)
+
+ops_updates: ops,
+kpis,
+kanban_counts: kanbanCounts
+};
+}
+
+// --- 2. Diálogo de Confirmación ---
+function showSummaryDialog(text, logMsg){
+let dlg = document.getElementById('briefing-summary-dialog');
+if (!dlg){
+dlg = document.createElement('dialog');
+dlg.id = 'briefing-summary-dialog';
+dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
+dlg.innerHTML = `
+       <form method="dialog" style="display:grid;gap:12px;">
+         <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado (BCN)</h3>
+         <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
+         <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
+         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+           <button class="btn-compact" value="cancel">Cerrar</button>
+           <button type="button" id="btn-copy-summary" class="btn-primary">Copiar Texto</button>
+         </div>
+       </form>`;
+document.body.appendChild(dlg);
+
+dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
+const txt = dlg.querySelector('#briefing-content').innerText;
+try { await navigator.clipboard.writeText(txt); alert('Copiado al portapapeles'); } 
+catch(e) { alert('Error copiando automática, selecciona y copia.'); }
+});
+}
+
+dlg.querySelector('#briefing-content').textContent = text;
+dlg.querySelector('#briefing-log').textContent = logMsg || "";
+try{ dlg.showModal(); }catch{ dlg.setAttribute('open',true); }
+}
+
+// --- 3. Envío al Servidor ---
+btn.addEventListener('click', async ()=>{
+const oldText = btn.textContent;
+btn.textContent = 'Guardando...';
+btn.disabled = true;
+
+try {
+const payload = buildPayload();
+console.log("📤 Enviando BCN:", payload);
+
+const res = await fetch('/api/briefing/summary', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(payload)
+});
+
+if (!res.ok) throw new Error('Error en servidor');
+const respData = await res.json();
+showSummaryDialog(respData.summary, respData.log);
+
+} catch (err) {
+console.error(err);
+alert('Error al guardar resumen. Revisa la consola.');
+} finally {
+btn.textContent = oldText;
+btn.disabled = false;
+}
+});
+})();
+});
+</script>
 </body>
 </html>
