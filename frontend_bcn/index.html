@@ -1175,7 +1175,6 @@ data-target="prev-shift-widget">
 <span class="check-title">1) Highlights del turno anterior</span>
 <div class="check-actions" role="group" aria-label="Bloque 1">
 <input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
-<input id="c1no" type="radio" name="c1" value="NO"><label for="c1no">NO</label>
 </div>
 </div>
 
@@ -1185,7 +1184,7 @@ data-target="ops-updates-widget">
 <span class="check-title">2) Actualizaciones operativas</span>
 <div class="check-actions" role="group" aria-label="Bloque 2">
 <input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
-<input id="c2no" type="radio" name="c2" value="NO"><label for="c2no">NO</label>
+
 </div>
 </div>
 
@@ -1195,7 +1194,7 @@ data-target="team-widget">
 <span class="check-title">3) Dotación y recursos</span>
 <div class="check-actions" role="group" aria-label="Bloque 3">
 <input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
-<input id="c3no" type="radio" name="c3" value="NO"><label for="c3no">NO</label>
+
 </div>
 </div>
 
@@ -1205,7 +1204,7 @@ data-target="safety-daily-widget">
 <span class="check-title">4) Seguridad y protección</span>
 <div class="check-actions" role="group" aria-label="Bloque 4">
 <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
-<input id="c4no" type="radio" name="c4" value="NO"><label for="c4no">NO</label>
+
 </div>
 </div>
 
@@ -1215,7 +1214,7 @@ data-target="incidentes-widget">
 <span class="check-title">5) Preparación/reportes incidentes</span>
 <div class="check-actions" role="group" aria-label="Bloque 5">
 <input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
-<input id="c5no" type="radio" name="c5" value="NO"><label for="c5no">NO</label>
+
 </div>
 </div>
 
@@ -1225,7 +1224,7 @@ data-target="kpi-center">
 <span class="check-title">6) Revisión KPIs BCN</span>
 <div class="check-actions" role="group" aria-label="Bloque 6">
 <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
-<input id="c6no" type="radio" name="c6" value="NO"><label for="c6no">NO</label>
+
 </div>
 </div>
 
@@ -1235,7 +1234,7 @@ data-target="kanban-widget">
 <span class="check-title">7) Feedback → Acciones</span>
 <div class="check-actions" role="group" aria-label="Bloque 7">
 <input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
-<input id="c7no" type="radio" name="c7" value="NO"><label for="c7no">NO</label>
+
 </div>
 </div>
 </div>
@@ -2307,15 +2306,8 @@ updateTeamMeta(TEAM_STATE);
 }
 
 async function initTeamRoster(){
-  const state = await fetchServerRoster();
-  const list = document.getElementById('team-list');
-  if (state){
-    renderRoster(list, state.people||[], state);
-  }else if(list){
-    list.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster. Sube el Excel o añade manualmente.</div>';
-  }
-    // Bloqueamos carga auto: const state = await fetchServerRoster();
-
+    // 1. NO cargamos datos del servidor automáticamente (Procedimiento Manual)
+    
     const list = document.getElementById('team-list');
     if(list) {
         list.innerHTML = `
@@ -2326,13 +2318,14 @@ async function initTeamRoster(){
         `;
     }
 
-    // Estado vacío inicial para permitir altas manuales
+    // 2. Inicializamos estado vacío para permitir altas manuales
     window.TEAM_STATE = {
         shift: null,
         people: [],
         attendance: {},
         zones: {}
     };
+    
     updateTeamMeta(window.TEAM_STATE);
 }
 
