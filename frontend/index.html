@@ -6039,6 +6039,7 @@ async function loadAllTasks(){
 })();
 
 /* ===== Briefing: Generar Resumen con SUPERVISOR ===== */
+/* ===== Briefing: Generar Resumen con SUPERVISOR y KANBAN ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
@@ -6063,17 +6064,38 @@ async function loadAllTasks(){
     
     const rosterString = rosterList.length > 0 ? rosterList.join(", ") : "Sin datos de equipo";
 
+    // === NUEVO: Recolectar datos del KANBAN (Feedback Directo) ===
+    const kanbanItems = [];
+    // Recorremos las columnas en orden lógico
+    ['Abiertas', 'En-Curso', 'Cerradas', 'Vencidas'].forEach(status => {
+        // Nota: los IDs del DOM son 'kanban_rapida-Abiertas', etc.
+        const col = document.getElementById(`kanban_rapida-${status}`);
+        if(col) {
+            col.querySelectorAll('.card').forEach(card => {
+                const title = card.querySelector('.card-title')?.textContent?.trim() || 'Tarea';
+                const resp = card.querySelector('.assignee')?.textContent?.trim() || '';
+                // Formato: [Abiertas] Título (Responsable)
+                kanbanItems.push(`[${status.toUpperCase()}] ${title} ${resp ? '('+resp+')' : ''}`);
+            });
+        }
+    });
+    const kanbanString = kanbanItems.length > 0 ? kanbanItems.join(" | ") : "Sin feedback registrado";
+    // =============================================================
+
     // Datos básicos
     return {
       station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
       date: new Date().toLocaleDateString('es-ES'),
       shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
       timer: document.getElementById('timer-display')?.textContent || '00:00:00',
-      supervisor: supervisorVal, // <--- NUEVO CAMPO ENVIADO
+      supervisor: supervisorVal,
       
       roster_details: rosterString,
       prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
       
+      // Añadimos el nuevo campo
+      kanban_details: kanbanString, 
+
       // Listas para procesar en backend
       ops_updates: Array.from(document.querySelectorAll('#ops-list .ops-item')).map(c => ({
           title: c.querySelector('.ops-title')?.textContent?.trim() || '',
@@ -6085,7 +6107,6 @@ async function loadAllTasks(){
         "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
       },
       
-      // Necesario para que el modelo no falle, aunque vaya vacío
       checklist: {}, kanban_counts: {}, roster_stats: "", present_names: []
     };
   }
@@ -6098,7 +6119,7 @@ async function loadAllTasks(){
     
     try {
       const payload = buildPayload();
-      console.log("📤 Enviando:", payload); // Debug
+      console.log("📤 Enviando:", payload); 
 
       const res = await fetch('/api/briefing/summary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
@@ -6121,6 +6142,7 @@ async function loadAllTasks(){
 </script>
 </body>
 </html>
+
 
 
 
