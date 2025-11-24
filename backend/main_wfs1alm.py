@@ -752,4 +752,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     # Puerto diferente para no chocar con WFS4/BCN
-    uvicorn.run("main_wfs1:app", host="0.0.0.0", port=10000, reload=True)
+    uvicorn.run("main_wfs1:app", host="0.0.0.0", port=10020, reload=True)
