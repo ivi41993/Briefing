@@ -730,14 +730,24 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 # -----------------------------------
-# Frontend WFS1
+# Montaje Frontend (CON DIAGNÓSTICO)
 # -----------------------------------
 # Busca la carpeta 'frontend_wfs1' EN LA RAÍZ (subiendo 2 niveles desde backend/main_wfs1.py)
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_wfs1"
 
-if not FRONTEND_DIR.exists():
-    print(f"⚠️ FRONTEND_DIR no existe: {FRONTEND_DIR}. Crea la carpeta y pon index.html.")
+print(f"🔍 DEBUG PATH: Buscando frontend en: {FRONTEND_DIR}")
 
+if not FRONTEND_DIR.exists():
+    print(f"❌ ERROR CRÍTICO: La carpeta {FRONTEND_DIR} NO EXISTE en el servidor.")
+else:
+    print("✅ La carpeta existe. Listando contenido:")
+    files = list(FRONTEND_DIR.iterdir())
+    if not files:
+        print("⚠️ LA CARPETA ESTÁ VACÍA (Git no sube carpetas vacías o hubo error al subir)")
+    for f in files:
+        print(f"   📄 Encontrado archivo: '{f.name}'")
+
+# Montar estáticos
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
 if __name__ == "__main__":
