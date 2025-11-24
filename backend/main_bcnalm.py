@@ -1951,7 +1951,7 @@ async def _roster_watcher():
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-FRONTEND_BCN_DIR = Path(__file__).resolve().parent.parent / "frontend_bcn"
+FRONTEND_BCN_DIR = Path(__file__).resolve().parent.parent / "frontend_bcnalm"
 
 if not FRONTEND_BCN_DIR.exists():
     print(f"⚠️ FRONTEND_BCN_DIR no existe: {FRONTEND_BCN_DIR}")
