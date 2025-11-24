@@ -4149,7 +4149,7 @@ async def _roster_watcher():
 from pathlib import Path
 
 # Ruta absoluta al directorio del frontend de Madrid
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_alm"
 
 if not FRONTEND_DIR.exists():
     # Log visible en Render si algo va mal con la ruta
