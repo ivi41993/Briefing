@@ -404,4 +404,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     # PUERTO LOCAL 8002 COMO SOLICITADO
-    uvicorn.run("main_wfs3:app", host="0.0.0.0", port=8002, reload=True)
+    uvicorn.run("main_wfs3:app", host="0.0.0.0", port=10010, reload=True)
