@@ -667,7 +667,7 @@ class ConnectionManager:
 
 async def send_to_excel_online(data: BriefingSnapshot):
     # CAMBIO AQUÍ: Buscamos la variable específica de BCN
-    url = os.getenv("EXCEL_WEBHOOK_URL_BCN") 
+    url = os.getenv("EXCEL_WEBHOOK_URL_BCNALM") 
     
     if not url:
         # Fallback por si olvidaste cambiar el nombre en Render, intenta la genérica
