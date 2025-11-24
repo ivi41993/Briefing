@@ -1,0 +1,3932 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="UTF-8" />
+<title>Dashboard - VLC</title> <!-- CAMBIO WFS1 -->
+
+<!-- Fuentes -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{ --ui-scale: 1; }                  /* 1 = 100% */
+html{ font-size: calc(16px * var(--ui-scale)); }
+@media (min-width: 1600px){
+:root{ --ui-scale: 1.15; }             /* TVs grandes: sube ligeramente por defecto */
+}
+
+:root{
+--brand-red-900:#7f1d1d; --brand-red-800:#991b1b; --brand-red-700:#b91c1c;
+--brand-red-600:#dc2626; --brand-red-500:#ef4444; --brand-red-400:#f87171;
+
+--bg-page:#f7f8fa;
+--bg-card:#ffffff;
+--border:#e6e8ec;
+--text:#1f2937;
+--text-muted:#6b7280;
+
+/* Categorías Kanban (fondo completo) */
+--cat-seg:#fee2e2;
+--cat-inc:#fff1e6;
+--cat-man:#eaf8f0;
+--cat-cal:#EE27F5;
+--cat-ser:#F5EE27;  
+}
+
+/* Base */
+html,body{ background:var(--bg-page); color:var(--text); height:100%; }
+body{ margin:0; font:14px "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+h1,h2,h3,.widget-title,.column-title .count{ font-family:"Space Grotesk", Inter, system-ui, sans-serif; letter-spacing:.2px; }
+
+/* Header */
+header{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
+header h1{ margin:0; color:var(--brand-red-600); font-weight:700; font-size: clamp(1.6rem, 1vw + 1rem, 2.2rem); }
+.header-controls{ display:flex; gap:12px; align-items:center; }
+.header-controls input{ padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:.9rem; background:#fff; }
+.btn-primary{
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color:#fff; border:none; border-radius:10px; padding:10px 16px;
+box-shadow:0 6px 16px rgba(220,38,38,.25);
+transition:.15s transform,.2s box-shadow,.2s filter; cursor:pointer;
+}
+.btn-primary:hover{ transform:translateY(-1px); filter:saturate(110%); }
+
+/* ======= Layout 3 columnas ======= */
+.dashboard-3col{
+min-height: 100svh;   /* respeta barra/gestos iPad */
+height: auto;
+display:grid;
+grid-template-columns: 320px 1fr 380px;  /* IZQ / CENTRO / DER */
+grid-template-rows: auto 1fr;
+gap:20px; padding:20px;
+}
+header{ grid-column: 1 / -1; }
+.col-left, .col-middle, .col-right{
+min-height:0; overflow:auto; display:flex; flex-direction:column; gap:20px;
+}
+
+/* Widgets / tarjetas */
+.widget,.card{
+background:var(--bg-card);
+border:1px solid var(--border);
+border-radius:12px;
+box-shadow: 0 6px 18px rgba(17,24,39,.06);
+padding:16px;
+}
+.widget-title{ font-size:1.05rem; font-weight:700; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
+.widget-title-icon{ width:16px; height:16px; color:var(--text-muted); }
+
+/* Kanban / Kaizen */
+.board-container{ display:grid; gap:12px; }
+.board-container.kanban{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+.board-container.kaizen{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+.board-container.kaizen.compact{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+
+.kanban-column{ display:flex; flex-direction:column; min-width:0; }
+.column-title{
+display:flex; justify-content:space-between; align-items:baseline;
+font-size:.85rem; font-weight:600; color:var(--text-muted);
+margin:0 0 6px; padding-bottom:8px; border-bottom:2px solid #e9ecef;
+}
+.column-title .count{ background:#eef1f4; color:var(--text-muted); padding:2px 6px; border-radius:6px; font-size:.8rem; }
+.cards-container{ min-height:120px; max-height: clamp(280px, 48svh, 70vh);
+overscroll-behavior: contain;
+-webkit-overflow-scrolling: touch; overflow:auto; padding-top:4px; }
+
+.card{
+position:relative;
+margin-bottom:8px;
+padding:10px 12px;
+display:flex; align-items:center; justify-content:space-between; gap:8px;
+cursor:grab;
+}
+.card:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.card-content{ flex:1 1 auto; min-width:0; }
+.card-title{
+font-weight:600; font-size:.95rem; margin:0 0 4px; line-height:1.25;
+overflow:hidden; max-height:2.5em; display:inline-block;
+transform:scale(1.12); transform-origin:left top;
+}
+.card-details,.card-assignee{ font-size:.8rem; color:var(--text-muted); }
+.card-assignee{ margin-top:4px; }
+.card-actions .icon{ width:14px; height:14px; }
+.delete-card-btn{ background:none; border:none; color:#9ca3af; display:none; cursor:pointer; }
+.card:hover .delete-card-btn{ display:block; }
+
+.sortable-ghost{ opacity:.4; background:#dee2e6; }
+.sortable-drag{ opacity:1 !important; transform:rotate(2deg); box-shadow:0 8px 24px rgba(0,0,0,.15); }
+
+/* Chips de categoría */
+.cat-chip{
+display:inline-block; margin-left:8px; font-size:.7rem; font-weight:700;
+padding:2px 6px; border-radius:999px; border:1px solid rgba(0,0,0,.08);
+vertical-align:middle; background:rgba(255,255,255,.7);
+}
+
+/* === KANBAN: teñido completo por categoría (scoped) === */
+#kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
+#kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
+#kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
+#kanban-widget .card.cat-calidad { background: var(--cat-cal); }
+#kanban-widget .card.cat-servicio { background: var(--cat-ser); }  
+
+/* 5S & GW */
+.checkbox-item{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.9rem; }
+.gw-task-item{
+display:flex; align-items:center; gap:8px; padding:6px 4px;
+font-size:.9rem; border-bottom:1px solid var(--border); cursor:pointer;
+}
+.gw-task-item:last-child{ border-bottom:none; }
+.gw-task-item.completed label{ color:var(--text-muted); text-decoration:line-through; }
+.gw-note{
+font-size:.85rem; width:100%; margin-top:4px; padding:6px 8px;
+border:1px solid var(--border); border-radius:6px;
+}
+.gw-note:disabled{ background:#f8f9fa; color:var(--text-muted); }
+.highlight-gw{ animation: highlight-gw 2s ease-out; }
+@keyframes highlight-gw { from{ background:#dbe4ff; } to{ background:transparent; } }
+
+/* ===== 5S gestionable ===== */
+
+.s5-compact{
+display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+}
+.s5-pill{
+display:inline-flex; align-items:center; gap:6px;
+border:1px solid var(--border); background:#fff;
+border-radius:999px; padding:6px 10px; font-size:.8rem; line-height:1;
+cursor:pointer; user-select:none;
+transition:transform .06s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+.s5-pill:hover{ transform:translateY(-1px); }
+.s5-pill:active{ transform:translateY(0); }
+.s5-dot{ width:8px; height:8px; border-radius:50%; background:#d1d5db; }
+
+/* Estado activado (OK) */
+.s5-pill.on{
+background:linear-gradient(135deg, #ecfdf5, #ffffff);
+border-color: rgba(16,185,129,.55);
+box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+}
+.s5-pill.on .s5-dot{ background:#10b981; }
+
+/* Micro-animación al cambiar */
+@keyframes s5-bump{ 0%{transform:scale(1);} 50%{transform:scale(1.05);} 100%{transform:scale(1);} }
+.s5-pill.bump{ animation:s5-bump .18s ease-out; }
+
+/* Meta compacta */
+#s5-meta{ margin-top:4px; font-size:.78rem; }
+
+
+/* EHS simple */
+#ehs-widget{ display:flex; flex-direction:column; gap:8px; }
+#ehs-month{ color:var(--text-muted); font-size:.95rem; }
+.ehs-controls{
+display:flex; align-items:center; gap:14px;
+border:1px solid var(--border); border-radius:12px; padding:8px 10px;
+}
+.ehs-btn{
+width:42px; height:42px; border:none; border-radius:10px; cursor:pointer;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color:#fff; font-size:1.3rem; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.ehs-big{ font-size: clamp(2rem, 2.2vw + .8rem, 3rem); font-weight:800; line-height:1; color:var(--brand-red-600); min-width:3ch; text-align:center; }
+
+/* KPI Costes */
+#kpi-costes .kpi-value.large{ font-size: clamp(2.1rem, 2.3vw + 1rem, 3.2rem); line-height:1; font-weight:700; }
+#kpi-total-cost{ color:var(--brand-red-600); font-weight:800; }
+.kpi-text{ color:var(--text-muted); margin:0; font-size:.9rem; }
+.kpi-currency{ font-size:1rem; font-weight:600; margin-left:4px; vertical-align:super; color:var(--brand-red-600); }
+.flash{ animation: flash-kpi 900ms ease-out; }
+@keyframes flash-kpi{ from{ background:#fff3cd; } to{ background:transparent; } }
+
+/* Estado LEAN */
+.lean-status-container{ display:flex; flex-direction:column; gap:8px; }
+.lean-status-item{ display:flex; justify-content:space-between; align-items:center; font-size:.9rem; }
+.status-tag{ font-size:.75rem; font-weight:700; padding:2px 8px; border-radius:12px; }
+.status-tag.status-ok{ color:#166534; background:#e3f9e5; }
+.status-tag.status-alert{ color:#991b1b; background:#ffe3e3; }
+
+/* Carga / Planificación */
+.table-scroll,
+.col-left, .col-middle, .col-right{
+-webkit-overflow-scrolling: touch;
+overscroll-behavior: contain;
+scroll-padding-bottom: 40px; /* evita que la barra/bottom-safe tape lo último */
+}
+#planif-table{ width:100%; border-collapse:collapse; font-size:.9rem; }
+#planif-table thead th{
+position:sticky; top:0; background:#fafafa; border-bottom:1px solid var(--border);
+text-align:left; padding:8px; z-index:1;
+}
+#planif-table tbody td{ padding:8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+/* iOS/iPadOS: evita zoom al enfocar inputs */
+@supports (-webkit-touch-callout: none) {
+input, select, textarea {
+font-size: 16px !important;
+}
+}
+/* sensaciones táctiles */
+* { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+button, .btn, .s5-pill, .ehs-btn, .presence-toggle label {
+touch-action: manipulation;
+}
+
+/* selects y botones en cabecera: que no se corten en iPad */
+.header-controls input,
+.header-controls .btn-primary {
+min-height: 44px;
+}
+/* asegura que sticky tome como contenedor la propia columna central */
+.col-middle { position: relative; }
+
+/* Fullscreen helpers */
+.widget, .card{ position:relative; }
+.fs-toggle{
+  position:absolute; top:10px; right:10px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.95);
+  border-radius:12px;
+  padding:10px;                 /* antes ~6px */
+  cursor:pointer; line-height:0; opacity:.8;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition: opacity .15s, transform .15s, box-shadow .15s;
+  box-shadow:0 4px 12px rgba(0,0,0,.10);
+  min-width:44px; min-height:44px;   /* objetivo táctil recomendado */
+}
+.fs-toggle:hover{ opacity:1; transform:scale(1.06); }
+.fs-toggle svg{ width:18px; height:18px; display:block; }  /* antes 14px */
+
+.widget:fullscreen, .card:fullscreen{ background:#fff; border-radius:0; box-shadow:none; padding:24px; }
+:fullscreen{ overflow:auto; }
+html.fs-zoom{ font-size:18px; }
+@media (min-width:1280px){ html.fs-zoom{ font-size:20px; } }
+
+/* ======= Split Kaizen + 5S/GW en la columna central ======= */
+.actions-split{
+display:grid;
+grid-template-columns: 1.2fr 1fr; /* Kaizen algo más ancho */
+gap:20px;
+align-items:start;
+}
+@media (max-width: 1100px){
+.actions-split{ grid-template-columns: 1fr; }
+}
+
+/* Responsive mínimo */
+@media (max-width: 1200px){
+.dashboard-3col{ grid-template-columns: 280px 1fr 320px; }
+}
+@media (max-width: 980px){
+.dashboard-3col{ grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; }
+.col-left,.col-right{ order: 2; }
+.col-middle{ order: 1; }
+}
+/* Objetivos táctiles cómodos */
+@media (hover:none) and (pointer:coarse){
+.btn-primary, .ehs-btn, .btn-compact, .delete-card-btn, .s5-pill { min-width:44px; min-height:44px; }
+.new-item-form input, .new-item-form select { padding:12px; }
+}
+
+/* Asa de arrastre */
+.card { gap:10px; }
+.drag-handle{
+align-self:stretch; display:flex; align-items:center; justify-content:center;
+padding:6px; border:1px solid var(--border); border-radius:10px; background:var(--bg-card);
+cursor:grab; opacity:.7;
+}
+.card:active .drag-handle{ cursor:grabbing; opacity:1; }
+.drag-handle svg{ width:14px; height:14px; }
+.dashboard{
+padding: clamp(12px, 2vw, 28px);
+padding-left:  max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+padding-right: max(clamp(12px, 2vw, 28px), env(safe-area-inset-right));
+padding-top:   max(clamp(12px, 2vw, 28px), env(safe-area-inset-top));
+padding-bottom:max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom));
+}
+
+/* === Cronómetro (más pequeño) === */
+.header-timer { min-height: 56px; }
+.header-timer .timer-face{ gap:8px; }
+.header-timer .timer-display{
+/* antes: clamp(2.2rem, 6.5vw, 6.5rem) */
+font-size: clamp(1.8rem, 5vw, 5rem);
+}
+.header-timer .timer-dot{
+width:10px; height:10px;
+}
+.header-timer .timer-reset{
+min-width:40px; min-height:40px; padding:6px 10px; font-weight:600;
+}
+
+/* En móviles, un pelín más compacto aún */
+@media (max-width:700px){
+.header-timer .timer-display{ font-size: clamp(1.4rem, 7.5vw, 2.6rem); }
+}
+
+/* === Briefing / Checklist === */
+#briefing-widget .grid{
+display:grid; gap:10px; grid-template-columns: repeat(12, minmax(0,1fr));
+}
+#briefing-widget .row{ display: contents; }
+#briefing-widget .field{ grid-column: span 12; display:flex; align-items:center; gap:8px; }
+#briefing-widget .field > label{ min-width:140px; color:var(--text-muted); font-size:.9rem; }
+
+#briefing-header .h-inline{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+#briefing-header input[type="text"], #briefing-header input[type="number"]{
+padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:#fff;
+}
+#briefing-header .chip{
+display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border);
+border-radius:999px; background:#fff; font-size:.85rem; cursor:pointer; user-select:none;
+}
+#briefing-header .chip input{ margin:0; }
+
+.br-section{ border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff; }
+.br-section h4{ margin:0 0 8px; font-size:1rem; }
+.br-status{ display:flex; gap:8px; margin:6px 0 10px; }
+.br-status .opt{
+border:1px solid var(--border); border-radius:999px; padding:4px 10px; font-weight:600; font-size:.85rem; cursor:pointer; user-select:none;
+}
+.br-status input{ display:none; }
+.br-status .opt[data-v="OK"].on{ background:#e3f9e5; color:#166534; border-color:#a7f3d0; }
+.br-status .opt[data-v="NO"].on{ background:#ffe3e3; color:#991b1b; border-color:#fecaca; }
+
+.br-criteria{ margin:6px 0 8px; padding-left:6px; }
+.br-criteria .checkbox-item{ margin:6px 0; }
+.br-notes{
+width:100%; min-height:56px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff; font-size:.9rem;
+}
+
+#briefing-result{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; padding:10px; border:1px dashed var(--border); border-radius:10px; background:#fafafa; }
+#briefing-result .big{ font-weight:800; font-size:1.2rem; color:var(--brand-red-600); }
+#briefing-save-hint{ color:var(--text-muted); font-size:.8rem; }
+/* === Checklist en cuadrícula (responsive) === */
+/* === Checklist compacto === */
+.check-grid{
+display:grid; gap:8px;
+grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+/* —— Ajuste vertical de tarjetas del checklist —— */
+.check-card{
+/* antes: row + space-between */
+display:flex;
+flex-direction:column;        /* título arriba, botones debajo */
+align-items:flex-start;
+justify-content:flex-start;
+gap:10px;                     /* separación título/botones */
+padding:14px 16px;            /* un poco más de aire */
+min-height:84px;              /* sube la “altura base” */
+}
+
+/* El título ahora envuelve líneas (nada de cortar con ellipsis) */
+.check-title{
+font-weight:600;
+font-size:.95rem;
+line-height:1.25;
+white-space:normal;
+overflow:visible;
+text-overflow:unset;
+word-break:break-word;
+}
+
+/* Botonera en una fila debajo del título (se puede partir en dos líneas si no cabe) */
+.check-actions{
+width:100%;
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+}
+
+/* Botones un poco más cómodos para tocar */
+.check-actions label{
+padding:6px 12px;             /* más alto */
+border-radius:999px;
+font-size:.78rem;
+}
+
+.check-actions input:checked + label{
+background:#ecfdf5; border-color:rgba(16,185,129,.6);
+box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+}
+.header-left{ display:flex; flex-direction:column; gap:2px; }
+#now-header{ font-size:.95rem; color:var(--text-muted); }
+
+
+.shift-chip{
+display:inline-flex; align-items:center; gap:6px;
+padding:4px 10px; border:1px solid var(--border);
+border-radius:999px; background:#fff; font-weight:600; font-size:.85rem;
+}
+/* === Spotlight Checklist === */
+#brief-check{
+position: sticky;           /* siempre visible al hacer scroll en la columna central */
+top: 0;
+z-index: 5;
+border: 2px solid rgba(239,68,68,.45);  /* brand red */
+box-shadow:
+0 14px 36px rgba(239,68,68,.18),
+0 2px 0 rgba(255,255,255,.9) inset;
+background:
+radial-gradient(1200px 200px at 50% -60px, rgba(239,68,68,.06), transparent),
+#fff;
+animation: brief-pop .25s ease-out;
+}
+#brief-check .widget-title{
+font-size: 1.25rem;
+color: var(--brand-red-700);
+}
+#brief-check .check-grid{
+grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); /* tarjetas un pelín más grandes */
+}
+#brief-check .check-card{
+border: 1px solid var(--border);
+box-shadow: 0 6px 16px rgba(17,24,39,.06);
+min-height: 96px;
+}
+@keyframes brief-pop { from { transform: scale(.985); opacity:.96; } to { transform: scale(1); opacity:1; } }
+
+/* Chip de turno con color semántico */
+#shift-badge{ border-color: rgba(0,0,0,.06); }
+#shift-badge[data-shift="Mañana"]{
+background:#ecfdf5; color:#065f46; border-color:#a7f3d0;
+}
+#shift-badge[data-shift="Tarde"]{
+background:#fff7ed; color:#9a3412; border-color:#fed7aa;
+}
+#shift-badge[data-shift="Noche"]{
+background:#eef2ff; color:#3730a3; border-color:#c7d2fe;
+}
+
+/* Suaviza el resto de widgets para que el ojo vaya al checklist */
+.col-middle .widget:not(#brief-check){
+filter: saturate(.92);
+opacity: .96;
+transition: filter .2s ease, opacity .2s ease, transform .2s ease;
+}
+.col-middle .widget:not(#brief-check):hover{
+filter: none;
+opacity: 1;
+}
+
+/* Bullets del título en Incidentes */
+#incidentes-widget .title-bullets{
+list-style:none; margin:0; padding:0;
+display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+}
+#incidentes-widget .title-chip{
+display:inline-flex; align-items:center;
+padding:4px 10px; border:1px solid var(--border);
+border-radius:999px; background:#fff; font-size:.8rem; font-weight:600;
+white-space:nowrap;
+}
+/* Compactar en pantallas muy pequeñas */
+@media (max-width: 520px){
+#incidentes-widget .title-bullets{ gap:6px; }
+#incidentes-widget .title-chip{ font-size:.75rem; padding:3px 8px; }
+}
+/* Banner de recordatorio dentro de Incidentes (Enablon) */
+#incidentes-widget .incident-remember{
+margin: 6px 0 10px;
+padding: 10px 12px;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color: #fff;
+border-radius: 10px;
+font-weight: 800;
+letter-spacing: .2px;
+}
+
+/* Bullets del título (rojo con texto blanco) */
+#incidentes-widget .title-bullets{
+list-style: none; margin: 0; padding: 0;
+display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+#incidentes-widget .title-chip{
+display: inline-flex; align-items: center;
+padding: 6px 12px;
+border-radius: 999px;
+font-size: .8rem; font-weight: 700;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color: #fff; border: none;
+box-shadow: 0 6px 14px rgba(220,38,38,.22);
+}
+#incidentes-widget .title-chip:hover{
+filter: saturate(110%);
+transform: translateY(-1px);
+}
+
+/* Compacto en pantallas pequeñas */
+@media (max-width: 520px){
+#incidentes-widget .title-chip{ font-size: .75rem; padding: 4px 10px; }
+#incidentes-widget .title-bullets{ gap: 6px; }
+}
+
+/* Banner RECORDAR en Incidentes */
+#incidentes-widget .incident-remember{
+margin: 6px 0 8px;
+padding: 10px 12px;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color: #fff;
+border-radius: 10px;
+font-weight: 800;
+letter-spacing: .2px;
+}
+
+/* Bullets rojos con texto blanco */
+#incidentes-widget .title-bullets{
+list-style: none; margin: 0 0 10px; padding: 0;
+display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+#incidentes-widget .title-chip{
+display: inline-flex; align-items: center;
+padding: 6px 12px;
+border-radius: 999px;
+font-size: .8rem; font-weight: 700;
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color: #fff; border: none;
+box-shadow: 0 6px 14px rgba(220,38,38,.22);
+}
+#incidentes-widget .title-chip:hover{
+filter: saturate(110%);
+transform: translateY(-1px);
+}
+@media (max-width: 520px){
+#incidentes-widget .title-chip{ font-size: .75rem; padding: 4px 10px; }
+#incidentes-widget .title-bullets{ gap: 6px; }
+}
+/* Selector de zona y chip visual */
+.team-right .zone-select{
+padding:6px 10px; border:1px solid var(--border);
+border-radius:8px; background:#fff; font-size:.85rem;
+}
+.chip-zone{
+display:inline-block; margin-left:6px; padding:2px 8px;
+border-radius:999px; font-size:.72rem; font-weight:700;
+color:#3730a3; background:#eef2ff; border:1px solid #c7d2fe;
+}
+/* —— Spotlight / Parpadeo guiado —— */
+.spotlight-blink{
+position: relative;
+border-color: rgba(239,68,68,.6) !important;      /* rojo marca */
+box-shadow:
+0 0 0 3px rgba(239,68,68,.20),
+0 14px 36px rgba(239,68,68,.12);
+animation: blink-glow 1.2s ease-in-out infinite;
+}
+@keyframes blink-glow{
+0%, 100% { box-shadow:
+0 0 0 2px rgba(239,68,68,.18),
+0 8px 22px rgba(239,68,68,.10);
+transform: translateZ(0) scale(1); }
+50%      { box-shadow:
+0 0 0 5px rgba(239,68,68,.28),
+0 18px 44px rgba(239,68,68,.18);
+transform: translateZ(0) scale(1.01); }
+}
+/* === Incidentes: estilo blanco + borde rojo + texto rojo === */
+#incidentes-widget .incident-remember{
+background:#fff !important;
+color: var(--brand-red-700) !important;
+border: 2px solid var(--brand-red-600) !important;
+border-radius: 12px;
+box-shadow: none !important;
+}
+
+#incidentes-widget .title-chip{
+background:#fff !important;
+color: var(--brand-red-700) !important;
+border: 2px solid var(--brand-red-600) !important;
+box-shadow: none !important;
+}
+
+/* Hover suave (opcional) */
+#incidentes-widget .title-chip:hover{
+transform: none;
+filter: none;
+box-shadow: 0 0 0 3px rgba(239,68,68,.12);
+}
+
+/* === Control de presencia con ✓ y ✕ === */
+.presence-toggle{
+display:inline-flex; align-items:center;
+border:1px solid var(--border); border-radius:10px; overflow:hidden;
+background:#fff;
+}
+.presence-toggle input{ display:none; }
+.presence-toggle label{
+padding:6px 10px; font-size:.82rem; font-weight:700; cursor:pointer; user-select:none;
+display:inline-flex; align-items:center; gap:6px;
+}
+.presence-toggle label + input + label{ border-left:1px solid var(--border); } /* separador */
+
+.presence-toggle .yes{ color:#166534; }   /* verde */
+.presence-toggle .no { color:#991b1b; }   /* rojo  */
+
+.presence-toggle input[value="yes"]:checked + label.yes{
+background:#e3f9e5; box-shadow: inset 0 0 0 2px rgba(16,185,129,.12);
+}
+.presence-toggle input[value="no"]:checked + label.no{
+background:#ffe3e3; box-shadow: inset 0 0 0 2px rgba(239,68,68,.12);
+}
+/* Base fluid */
+html, body { height: 100%; }
+body {
+margin: 0;
+/* tipografía que se adapta a tablet/TV */
+font-size: clamp(14px, 1.8vw, 18px);
+-webkit-text-size-adjust: 100%;
+}
+
+/* Contenedor general */
+.app, .container, main {
+max-width: 100vw;
+padding: 8px;
+overflow-x: hidden;   /* evita scroll horizontal accidental */
+}
+
+/* Layout de tarjetas y paneles en grid fluido */
+.cards, .panels, .grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 12px;
+}
+
+/* Tarjetas/paneles no rompan el grid */
+.card, .panel, .widget { min-width: 0; }
+
+/* Tablas: scroll horizontal elegante en pantallas pequeñas */
+.table-wrap { overflow-x: auto; max-width: 100%; }
+.table-wrap > table {
+width: 100%;
+border-collapse: collapse;
+}
+table th, table td { padding: .5rem; }
+
+/* Gráficas/canvas responsive */
+.chart, canvas, svg {
+display: block;
+width: 100%;
+max-width: 100%;
+height: auto;
+/* si tu librería necesita altura fija, usa aspect-ratio: */
+aspect-ratio: 16 / 9;
+}
+
+/* Imágenes */
+img, video { max-width: 100%; height: auto; }
+
+/* Cabecera y pie pegados sin “cortar” contenido en tablet */
+header, footer { position: relative; }
+
+/* Evita 100vh “roto” en móviles; usa *vh modernos */
+.fullscreen, .fill {
+min-height: 100svh; /* soportado en navegadores modernos */
+}
+
+/* Breakpoints suaves por si tienes columnas rígidas */
+@media (max-width: 1200px) {
+.only-desktop { display: none !important; }
+}
+@media (max-width: 1024px) {
+.sidebar { width: 280px; }       /* o colapsa si la tienes fija */
+}
+@media (max-width: 900px) {
+.cards, .panels, .grid { grid-template-columns: 1fr; }  /* una columna */
+}
+
+/* Botones y targets táctiles cómodos */
+button, .btn, .click {
+min-height: 44px;
+padding: .6rem .9rem;
+}
+/* === FIX TABLET: la checklist no tapa la columna central === */
+
+/* 1) Tablet y abajo: quitar sticky y pasar a 1 columna */
+@media (max-width:1100px){
+.dashboard-3col{
+grid-template-columns: 1fr;
+grid-template-rows: auto auto auto auto;
+}
+.col-left, .col-right{ order: 2; }
+.col-middle{ order: 1; }
+
+/* checklist normal (no pegajosa) */
+#brief-check{
+position: static !important;
+top: auto !important;
+max-height: none !important;
+}
+
+/* tarjetas del checklist un pelín más compactas */
+#brief-check .check-grid{ grid-template-columns: 1fr; }
+#brief-check .check-card{ min-height: auto; padding: 12px; }
+}
+
+/* 2) Escritorio: mantener sticky pero sin monopolizar la vista */
+@media (min-width:1101px){
+#brief-check{
+position: sticky;
+top: 0;
+max-height: 48vh;   /* deja ~medio alto para que se vean los demás widgets */
+overflow: auto;
+}
+}
+/* --- Tablet landscape (≈980–1366px): central más ancha, laterales con clamp --- */
+@media (min-width: 980px) and (max-width: 1366px){
+.dashboard-3col{
+/* IZQ        CENTRO                     DER */
+grid-template-columns:
+clamp(230px, 22vw, 280px)
+minmax(0, 1.7fr)
+clamp(220px, 24vw, 300px);
+gap: 16px;
+padding: 16px;
+}
+}
+
+/* --- Portátiles/“tablets grandes” (1367–1599px): derecha capada, centro manda --- */
+@media (min-width: 1367px) and (max-width: 1599px){
+.dashboard-3col{
+grid-template-columns:
+clamp(260px, 21vw, 300px)
+minmax(0, 1.6fr)
+clamp(240px, 23vw, 340px);
+}
+}
+
+/* Opcional: si quieres que el medio tenga siempre mínimo decente */
+.col-middle{ min-width: 0; } /* (ya lo tienes) */
+/* ===== iPad / tablets en horizontal: 2 columnas (der. abajo) ===== */
+@media (min-width: 980px) and (max-width: 1280px){
+.dashboard-3col{
+/* IZQ más contenida + CENTRO ancho */
+grid-template-columns: clamp(260px, 28vw, 320px) minmax(0, 1fr);
+grid-template-rows: auto 1fr auto;
+gap: 16px;
+padding: 16px;
+}
+
+/* Orden claro: izquierda | centro | derecha debajo a todo el ancho */
+.col-left   { order: 1; grid-column: 1; }
+.col-middle { order: 2; grid-column: 2; }
+.col-right  {
+order: 3;
+grid-column: 1 / -1;                 /* ocupa el ancho completo debajo */
+display: grid;                        /* dos tarjetitas si cabe */
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 16px;
+}
+}
+
+/* ===== Móvil / tablet estrecha: 1 columna (sube breakpoint) ===== */
+@media (max-width: 960px){
+.dashboard-3col{
+grid-template-columns: 1fr;
+grid-template-rows: auto auto auto auto;
+}
+.col-left,.col-right{ order: 2; }
+.col-middle{ order: 1; }
+}
+
+/* Tamaños de tipografía un pelín más contenidos en tablet */
+@media (min-width: 980px) and (max-width: 1280px){
+#kpi-costes .kpi-value.large{ font-size: clamp(1.6rem, 3.8vw, 2.6rem); }
+header h1{ font-size: clamp(1.4rem, 0.9vw + 1rem, 1.9rem); }
+}
+
+.dashboard-3col{
+padding:
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-top))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-right))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-bottom))
+max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
+gap: 16px;
+}
+/* iPad portrait ~768x1024 */
+@media (min-width: 768px) and (max-width: 979.98px){
+.dashboard-3col{
+grid-template-columns: 1fr;               /* 1 columna */
+grid-template-rows: auto auto auto;
+}
+#brief-check .check-grid{ grid-template-columns: 1fr; }
+header h1{ font-size: clamp(1.2rem, 1.6vw + 1rem, 1.6rem); }
+}
+
+/* iPad landscape ~1024x1366 */
+@media (min-width: 980px) and (max-width: 1366px){
+.dashboard-3col{
+grid-template-columns:
+clamp(240px, 26vw, 300px)  /* izq */
+minmax(0, 1fr);            /* centro */
+grid-template-rows: auto 1fr auto;
+}
+.col-right{
+grid-column: 1 / -1;         /* derecha debajo a todo el ancho */
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 16px;
+}
+}
+/* encabezados pegados por debajo de barra de Safari */
+#planif-table thead th, #incidentes-table thead th{
+position: sticky; top: 0;
+z-index: 2;
+}
+.table-scroll{ padding-bottom: 8px; } /* evita corte del último tr */
+/* evita subpixel shake al hacer zoom a UI scale */
+html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+/* títulos que no “salten” por el scale del kanban */
+.card-title{ transform: none; }
+/* Placeholder visual para la nota del turno anterior */
+.editable-note[contenteditable="true"]:empty:before{
+content: attr(data-placeholder);
+color: var(--text-muted);
+}
+
+/* Turno centrado dentro del checklist */
+#brief-check .shift-chip{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 600;
+  font-size: .9rem;
+  margin: 6px auto 10px;   /* <- lo centra horizontalmente */
+}
+
+/* Colores semánticos por turno (aplican a cualquier .shift-chip con data-shift) */
+.shift-chip[data-shift="Mañana"]{
+  background:#ecfdf5; color:#065f46; border-color:#a7f3d0;
+}
+.shift-chip[data-shift="Tarde"]{
+  background:#fff7ed; color:#9a3412; border-color:#fed7aa;
+}
+.shift-chip[data-shift="Noche"]{
+  background:#eef2ff; color:#3730a3; border-color:#c7d2fe;
+}
+@media (prefers-reduced-motion: reduce){
+  * { animation: none !important; transition: none !important; }
+}
+#brief-check { backdrop-filter: saturate(105%) blur(2px); }
+/* === KPIs centro === */
+.kpi-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap:12px;
+}
+.kpi-tile{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  padding:14px;
+  box-shadow:0 6px 18px rgba(17,24,39,.06);
+}
+.kpi-label{
+  font-weight:700;
+  font-size:.9rem;
+  color:var(--text-muted);
+  margin-bottom:4px;
+}
+.kpi-value{
+  font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+  font-weight:800;
+  font-size: clamp(1.6rem, 2.6vw + .4rem, 2.6rem);
+  line-height:1;
+  color:var(--brand-red-600);
+}
+.kpi-tile.flash{ animation: flash-kpi 900ms ease-out; }
+/* === FIX: Equipo/Turno – el botón "Subir Excel" se sale de la tarjeta === */
+#team-widget #roster-upload-form{
+  display: grid !important;          /* pisa el inline style="display:flex" */
+  grid-template-columns: 1fr auto;   /* input expansivo + botón al lado */
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+#team-widget #roster-file{
+  min-width: 0;          /* permite que el input encoja sin romper el grid */
+  width: 100%;
+  overflow: hidden;      /* evita que el texto largo desborde */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* separa el botón nativo del file input (Safari/Chrome/WebKit) */
+#team-widget #roster-file::-webkit-file-upload-button{ margin-right: 8px; }
+/* equivalente estándar si está disponible */
+@supports selector(::file-selector-button){
+  #team-widget #roster-file::file-selector-button{ margin-right: 8px; }
+}
+
+/* En móviles, apila: input arriba, botón debajo */
+@media (max-width: 520px){
+  #team-widget #roster-upload-form{
+    grid-template-columns: 1fr;
+  }
+}
+
+#brief-check .br-explain{
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fafafa;
+  font-size: .9rem;
+  min-height: 1.6em;            /* evita “saltos” de altura */
+}
+#brief-check .check-card:focus{
+  outline: 2px solid rgba(239,68,68,.35);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* Caja de explicación con alto contraste */
+#brief-check .br-explain{
+  display:flex; align-items:center; gap:8px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  background:#fff;                               /* fondo blanco para legibilidad */
+  color: var(--brand-red-700);                   /* texto rojo oscuro */
+  border: 2px solid var(--brand-red-600);        /* borde rojo marca */
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(239,68,68,.12);    /* leve sombra rojiza */
+  font-size: .95rem;
+  line-height: 1.35;
+  min-height: 44px;                              /* cómodo táctil */
+}
+
+/* Icono dentro de una píldora */
+#brief-check .br-explain-ico{
+  display:inline-flex; align-items:center; justify-content:center;
+  width: 26px; height: 26px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+  color:#fff;
+  box-shadow: 0 4px 10px rgba(239,68,68,.25);
+  flex: 0 0 26px;
+}
+
+#brief-check .br-explain-label{
+  font-weight: 800; letter-spacing:.2px;
+}
+
+#brief-check .br-explain-text{
+  font-weight: 600;
+}
+
+/* Mejoras de foco/teclado */
+#brief-check .check-card:focus,
+#brief-check .check-card:focus-visible{
+  outline: 2px solid rgba(239,68,68,.5);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* === Chips de categoría con color distinto === */
+#kanban-widget .cat-chip{ font-weight:800; }
+#kanban-widget .cat-chip.is-seguridad   { background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+#kanban-widget .cat-chip.is-incidencias { background:#fff1e6; color:#7a3800; border-color:#ffd7b5; }
+#kanban-widget .cat-chip.is-mantenimiento{background:#eaf8f0; color:#065f46; border-color:#b7f0d3; }
+#kanban-widget .cat-chip.is-calidad     { background:#fce7ff; color:#6b21a8; border-color:#f0abfc; }
+#kanban-widget .cat-chip.is-servicio    { background:#fef9c3; color:#854d0e; border-color:#fde68a; }
+
+/* (opcional) fondo completo por categoría ya existente, añade faltantes */
+#kanban-widget .card.cat-calidad  { background: var(--cat-cal); }
+#kanban-widget .card.cat-servicio { background: var(--cat-ser); }
+
+/* Compact buttons usados en tarjetas */
+.btn-compact{
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:4px 10px; border:1px solid var(--border);
+  border-radius:999px; background:#fff; font-size:.8rem; cursor:pointer;
+}
+.btn-compact:hover{ filter:saturate(108%); transform:translateY(-1px); }
+
+/* Base del cronómetro (si no está) */
+.header-timer{ display:flex; align-items:center; gap:10px; }
+.header-timer .timer-face{ display:flex; align-items:center; gap:10px; }
+.header-timer .timer-display{ font-family:"Space Grotesk", Inter, system-ui, sans-serif; font-weight:800; }
+.header-timer .timer-dot{ width:10px; height:10px; border-radius:50%; background: var(--brand-red-600); opacity:.75; }
+.header-timer .timer-reset{ border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
+
+/* Chips rojas en Incidentes (versión borde rojo + fondo blanco) — deja solo una */
+#incidentes-widget .incident-remember{
+  margin: 6px 0 8px; padding: 10px 12px;
+  background:#fff; color: var(--brand-red-700);
+  border: 2px solid var(--brand-red-600); border-radius: 12px; box-shadow:none;
+  font-weight:800; letter-spacing:.2px;
+}
+#incidentes-widget .title-bullets{
+  list-style:none; margin:0 0 10px; padding:0; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+}
+#incidentes-widget .title-chip{
+  display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px;
+  font-size:.8rem; font-weight:700; background:#fff; color: var(--brand-red-700);
+  border: 2px solid var(--brand-red-600); box-shadow:none;
+}
+#incidentes-widget .title-chip:hover{ box-shadow:0 0 0 3px rgba(239,68,68,.12); transform:none; filter:none; }
+
+/* ===== Actualizaciones Operativas + Seguridad & Protección ===== */
+.ops-list, .sec-list{
+  display:flex; flex-direction:column; gap:10px;
+}
+.ops-item, .sec-item{
+  border:1px solid var(--border); border-radius:10px; background:#fff; padding:10px 12px;
+  display:flex; flex-direction:column; gap:6px;
+}
+.meta-row{ color:var(--text-muted); font-size:.82rem; display:flex; gap:10px; flex-wrap:wrap; }
+.badge{
+  display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--border);
+  border-radius:999px; background:#fff; font-weight:700; font-size:.78rem;
+}
+
+/* Form compacto dentro de tarjeta */
+.inline-form{ display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; align-items:center; }
+.inline-form input, .inline-form select{ padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+@media (max-width:700px){
+  .inline-form{ grid-template-columns: 1fr; }
+}
+
+/* Píldoras de riesgo/estado en Seguridad */
+.risk-pill{
+  display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border);
+  border-radius:999px; background:#fff; font-size:.82rem; font-weight:700; cursor:pointer; user-select:none;
+}
+.risk-pill.on{ background:#ffe3e3; color:#991b1b; border-color:#fecaca; }
+
+/* Nota de seguridad */
+.sec-note{
+  width:100%; min-height:60px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff; font-size:.9rem;
+}
+
+/* —— Distribución checklist “como BCN”: 3 columnas en desktop —— */
+#brief-check .check-grid{
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+}
+@media (max-width:1100px){
+  #brief-check .check-grid{ grid-template-columns: 1fr; }
+}
+#incidentes-widget .incident-remember.filled{
+  background:#fff;
+  color: var(--brand-red-700);
+  border: 3px solid var(--brand-red-600);
+}
+/* === OPS: tarjetas ricas, prioridad, estados === */
+.ops-item{
+  border:1px solid var(--border); border-radius:12px; background:#fff;
+  padding:12px; display:flex; flex-direction:column; gap:8px;
+}
+.ops-head{ display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.ops-title{ font-weight:800; font-size:1rem; }
+.ops-flags{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+.ops-impact{ font-weight:800; font-size:.75rem; padding:4px 10px; border-radius:999px; border:2px solid transparent; }
+.ops-impact.Alto  { color:#991b1b; background:#ffe3e3; border-color:#fecaca; }
+.ops-impact.Medio { color:#854d0e; background:#fff7ed; border-color:#fed7aa; }
+.ops-impact.Bajo  { color:#065f46; background:#ecfdf5; border-color:#a7f3d0; }
+
+.ops-scope{ font-size:.75rem; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; }
+
+.ops-meta{ color:var(--text-muted); font-size:.82rem; display:flex; gap:10px; flex-wrap:wrap; }
+
+.ops-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+.ops-btn{
+  border:1px solid var(--border); background:#fff; border-radius:999px; padding:4px 10px; font-size:.8rem; cursor:pointer;
+}
+.ops-btn:hover{ filter:saturate(108%); transform:translateY(-1px); }
+.ops-pin.on{ background:#fffbea; border-color:#fde68a; }
+
+.ops-ack{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap; 
+  background:#fafafa; border:1px dashed var(--border); border-radius:10px; padding:8px;
+}
+.ops-ack-bar{ height:8px; background:#e5e7eb; border-radius:999px; overflow:hidden; width:160px; }
+.ops-ack-bar > span{ display:block; height:100%; width:0; background:linear-gradient(90deg,#34d399,#10b981); }
+
+.ops-stale{ opacity:.6; }
+.ops-expired{ opacity:.5; text-decoration:line-through; }
+#ops-updates-widget .ops-grid{
+  display:grid; gap:12px;
+  grid-template-columns: 1fr;   /* antes: 1fr 1fr */
+}
+@media (max-width:1100px){
+  #ops-updates-widget .ops-grid{ grid-template-columns: 1fr; }
+}
+.ops-impact.Alto  { color:#991b1b; background:#ffe3e3; border-color:#fecaca; }
+.ops-impact.Medio { color:#854d0e; background:#fff7ed; border-color:#fed7aa; }
+.ops-impact.Bajo  { color:#065f46; background:#ecfdf5; border-color:#a7f3d0; }
+
+  /* ===== Estética viva para OPS, Seguridad e Incidentes ===== */
+:root{
+  --vivid-pink:#ff4d8d; --vivid-orange:#ff7a18; --vivid-yellow:#ffd43b;
+  --vivid-green:#10b981; --vivid-blue:#3b82f6; --vivid-violet:#8b5cf6;
+  --vivid-red:#ef4444; --vivid-amber:#f59e0b;
+}
+
+/* Cabecera hero: gradiente con “badge” */
+.widget.vivid .widget-title.hero{
+  position: relative;
+  display:flex; align-items:center; gap:10px;
+  padding:12px 14px;
+  margin:-16px -16px 12px;                 /* ocupa ancho completo de la tarjeta */
+  border-radius:12px 12px 0 0;
+  color:#0b1220;
+  background:
+    radial-gradient(1200px 200px at 10% -140px, rgba(255,255,255,.7), transparent),
+    linear-gradient(135deg, #fff 0%, #ffe9f2 40%, #fff5e6 100%);
+  border-bottom: 2px solid rgba(0,0,0,.05);
+}
+.widget.vivid .hero-ico{ font-size:1.15rem; transform: translateY(1px); }
+.widget.vivid .hero-badge{
+  margin-left:auto;
+  font-size:.72rem; font-weight:900; letter-spacing:.3px;
+  padding:6px 10px; border-radius:999px;
+  background:linear-gradient(135deg, var(--vivid-blue), var(--vivid-violet));
+  color:#fff; box-shadow:0 6px 14px rgba(59,130,246,.25);
+}
+.widget.vivid .hero-badge.warn{
+  background:linear-gradient(135deg, var(--vivid-amber), var(--vivid-yellow));
+  color:#2b1800;
+  box-shadow:0 6px 14px rgba(245,158,11,.25);
+}
+.widget.vivid .hero-badge.danger{
+  background:linear-gradient(135deg, #ff8a8a, var(--vivid-red));
+  color:#fff;
+}
+
+/* Tarjeta base con borde vivo */
+.widget.vivid{
+  border:1.5px solid rgba(0,0,0,.06);
+  box-shadow: 0 10px 28px rgba(17,24,39,.10);
+  overflow:hidden;
+}
+
+/* ===== OPS: tarjetas con “ribbon” de prioridad y acción más visual ===== */
+#ops-updates-widget.vivid .ops-item{
+  position:relative;
+  border:1px solid rgba(0,0,0,.06);
+  background:#fff;
+  border-radius:14px;
+  padding:12px 12px 10px 12px;
+  box-shadow:0 8px 22px rgba(17,24,39,.08);
+  overflow:hidden;
+}
+#ops-updates-widget.vivid .ops-item::before{
+  content:"";
+  position:absolute; inset:0 0 0 auto; width:8px;
+  background: var(--ops-ribbon, linear-gradient(180deg, var(--vivid-blue), var(--vivid-violet)));
+  opacity:.85;
+}
+
+#ops-updates-widget.vivid .ops-item .ops-impact{
+  border:0; font-weight:900;
+  box-shadow:0 4px 10px rgba(0,0,0,.06);
+}
+#ops-updates-widget.vivid .ops-item .ops-impact.Alto{
+  background:linear-gradient(135deg,#ffb3b3, var(--vivid-red)); color:#611818;
+}
+#ops-updates-widget.vivid .ops-item .ops-impact.Medio{
+  background:linear-gradient(135deg,#ffe7b3, var(--vivid-amber)); color:#663a00;
+}
+#ops-updates-widget.vivid .ops-item .ops-impact.Bajo{
+  background:linear-gradient(135deg,#bff0da, var(--vivid-green)); color:#0b4a37;
+}
+#ops-updates-widget.vivid .ops-item .ops-scope{
+  background:#eef2ff; color:#1f2a73; border-color:#c7d2fe;
+  font-weight:800;
+}
+
+/* Botones estilo “sticker” */
+#ops-updates-widget.vivid .ops-btn{
+  border:0; font-weight:800;
+  background:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,.08);
+  border-radius:999px; padding:6px 12px;
+}
+#ops-updates-widget.vivid .ops-pin.on{
+  background:linear-gradient(135deg,#fff7cc,#ffe083); border:0;
+}
+
+/* Barra de acuses con rayas diagonales cuando <100% */
+#ops-updates-widget.vivid .ops-ack{
+  background:#fffdf5; border:1px dashed #ffe08a;
+}
+#ops-updates-widget.vivid .ops-ack-bar{
+  background:#f2f4f7;
+}
+#ops-updates-widget.vivid .ops-ack-bar > span{
+  background-image:
+    repeating-linear-gradient(45deg, rgba(16,185,129,.85) 0 10px, rgba(16,185,129,.55) 10px 20px);
+  transition:width .3s ease;
+}
+
+/* Estados caducado/antiguo más evidentes */
+#ops-updates-widget.vivid .ops-expired{ filter:grayscale(.3); opacity:.55; }
+#ops-updates-widget.vivid .ops-stale{  box-shadow:0 0 0 3px rgba(255,196,0,.18) inset; }
+
+/* ===== Seguridad: “chips” toggle con icono e indicadores claros ===== */
+#seguridad-widget.vivid .risk-pill{
+  border:0; font-weight:900;
+  background:#fff;
+  box-shadow:0 6px 16px rgba(17,24,39,.08);
+}
+#seguridad-widget.vivid .risk-pill[data-risk="EPIs"]{    background:linear-gradient(135deg,#e0fffb,#8be8ff); }
+#seguridad-widget.vivid .risk-pill[data-risk="Permisos"]{background:linear-gradient(135deg,#e9ffd8,#a8ff78); }
+#seguridad-widget.vivid .risk-pill[data-risk="Accesos"]{ background:linear-gradient(135deg,#ffe3ee,#ffc0cb); }
+#seguridad-widget.vivid .risk-pill[data-risk="Cargas"]{  background:linear-gradient(135deg,#fff0d1,#ffd43b); }
+#seguridad-widget.vivid .risk-pill[data-risk="Vehículos"]{background:linear-gradient(135deg,#e6e8ff,#b7c2ff); }
+
+#seguridad-widget.vivid .risk-pill.on{
+  outline: 3px solid rgba(0,0,0,.08);
+  transform: translateY(-1px);
+}
+
+#seguridad-widget.vivid .sec-note{
+  border:2px dashed rgba(0,0,0,.08);
+  background:
+    radial-gradient(800px 120px at 20% -80px, rgba(255,255,255,.8), transparent),
+    #fff;
+  box-shadow:0 8px 20px rgba(17,24,39,.06);
+}
+
+/* “Tips” del día con colorines */
+#seguridad-widget.vivid .sec-list .sec-item{
+  border:0; border-left:6px solid #a7f3d0;
+  background:#f6fffb; border-radius:12px; padding:10px 12px;
+}
+
+/* ===== Incidentes: table candy + chips rojas con relieve ===== */
+#incidentes-widget.vivid .incident-remember{
+  background:
+    linear-gradient(135deg,#fff,#ffe7ea 60%),
+    repeating-linear-gradient(45deg, rgba(239,68,68,.06) 0 8px, rgba(239,68,68,.12) 8px 16px);
+  border: 2px solid var(--brand-red-600);
+  color: var(--brand-red-700);
+  box-shadow:0 10px 24px rgba(239,68,68,.12);
+}
+
+#incidentes-widget.vivid .title-chip{
+  background:linear-gradient(135deg,#fff,#ffe6e6);
+  color:var(--brand-red-700);
+  border:2px solid var(--brand-red-600);
+  box-shadow:0 6px 14px rgba(239,68,68,.18);
+  font-weight:900;
+}
+
+/* Tabla con zebra + cabecera “sticky” con fondo cálido */
+#incidentes-widget.vivid .table-scroll table{
+  border:1px solid #ffe0e0; border-radius:12px; overflow:hidden;
+}
+#incidentes-widget.vivid table thead th{
+  background: linear-gradient(180deg,#fff1f1,#ffe5e5);
+  border-bottom:1px solid #ffd0d0;
+  font-weight:800;
+}
+#incidentes-widget.vivid table tbody tr:nth-child(odd){ background:#fffafa; }
+#incidentes-widget.vivid table tbody tr:hover{ background:#fff2f2; }
+
+/* Etiquetas de estado (si las pintas en celdas) */
+#incidentes-widget.vivid .tag-ok{
+  background:#e3f9e5; color:#166534; font-weight:800; padding:3px 8px; border-radius:999px;
+}
+#incidentes-widget.vivid .tag-warn{
+  background:#fff7ed; color:#9a3412; font-weight:800; padding:3px 8px; border-radius:999px;
+}
+#incidentes-widget.vivid .tag-danger{
+  background:#ffe3e3; color:#991b1b; font-weight:800; padding:3px 8px; border-radius:999px;
+}
+/* Estado de alerta del cronómetro */
+.header-timer .timer-display {
+  transition: color .2s ease, text-shadow .2s ease;
+}
+.header-timer .timer-display.is-red{
+  color: var(--brand-red-600);
+  text-shadow: 0 0 0 rgba(0,0,0,0); /* suave, opcional */
+}
+
+/* —— TOKENS VISUALES (sobrios, consistentes) —— */
+:root{
+  /* Neutros más calmados */
+  --bg-page:#F5F6F8;
+  --bg-card:#FFFFFF;
+  --border:#E5E7EB;
+  --text:#111827;
+  --text-muted:#6B7280;
+
+  /* Marca (un solo rojo protagonista) */
+  --brand:#EF4444;
+  --brand-600:#EF4444;
+  --brand-700:#DC2626;
+
+  /* Estados semánticos (suaves) */
+  --ok:#10B981; --warn:#F59E0B; --danger:#EF4444; --info:#3B82F6;
+
+  /* Elevaciones (3 niveles) */
+  --elev-1: 0 4px 12px rgba(17,24,39,.06);
+  --elev-2: 0 8px 20px rgba(17,24,39,.08);
+  --elev-3: 0 12px 28px rgba(17,24,39,.10);
+
+  /* Radios */
+  --radius:12px;
+  --radius-lg:16px;
+}
+.widget,.card{ border-radius: var(--radius); box-shadow: var(--elev-1); }
+.widget:hover{ box-shadow: var(--elev-2); }
+.btn-primary{
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-700));
+  border-radius: 10px; box-shadow: 0 6px 16px rgba(239,68,68,.22);
+}
+/* Header más limpio */
+header{
+  background:#fff; border:1px solid var(--border);
+  padding:14px 16px; border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+}
+header .header-left{ gap:6px; }
+header h1{ color:#0F172A; letter-spacing:.1px; }
+#now-header, #shift-badge-header{
+  font-size:.85rem; color:var(--text-muted);
+}
+.header-controls input, .header-controls .btn-primary{ height:40px; }
+/* Tarjeta con ribbon lateral (categoria) */
+#kanban-widget .card{
+  background:#fff; border:1px solid var(--border); position:relative;
+  padding-left:14px; /* deja sitio visual al ribbon */
+}
+#kanban-widget .card::before{
+  content:""; position:absolute; left:0; top:8px; bottom:8px; width:4px; border-radius:8px;
+  background:#E5E7EB; /* default */
+}
+/* Mapea categorías a ribbon */
+#kanban-widget .card.cat-seguridad::before   { background:#FCA5A5; }  /* rojo suave */
+#kanban-widget .card.cat-incidencias::before { background:#FCD34D; }  /* ámbar */
+#kanban-widget .card.cat-mantenimiento::before{background:#86EFAC;}  /* verde */
+#kanban-widget .card.cat-calidad::before     { background:#C4B5FD; }  /* violeta suave */
+#kanban-widget .card.cat-servicio::before    { background:#FDE68A; }  /* amarillo */
+#kanban-widget .cat-chip{ background:#F9FAFB; font-weight:700; }
+/* Títulos pegados y consistentes */
+#kanban-widget .kanban-column{ gap:8px; }
+#kanban-widget .column-title{
+  position: sticky; top: 0; z-index: 2;
+  background: #fff; border:1px solid var(--border);
+  padding:10px 12px; border-radius: 10px; box-shadow: var(--elev-1);
+}
+/* Contenido con padding uniforme */
+.cards-container{ padding: 6px 2px 8px 2px; }
+.card{ gap:10px; min-height:58px; }
+.card-title{ font-weight:700; font-size:.95rem; }
+.card-details, .card-assignee{ font-size:.8rem; color:var(--text-muted); }
+.kpi-grid{ gap:14px; }
+.kpi-tile{
+  border:1px solid var(--border); border-radius: var(--radius);
+  background:#fff; box-shadow: var(--elev-1); padding:16px;
+}
+.kpi-label{ color:#6B7280; font-weight:700; margin-bottom:4px; }
+.kpi-value{ color:#0F172A; font-weight:800; }
+.kpi-value .neg{ color:var(--danger); } .kpi-value .pos{ color:var(--ok); }
+.kpi-text{ color:#6B7280; }
+/* Solo una versión sobria */
+#incidentes-widget .incident-remember{
+  background:#fff; color: var(--brand-700);
+  border: 2px solid var(--brand-600); border-radius: 12px; box-shadow:none;
+  font-weight:800; letter-spacing:.2px; padding:10px 12px; margin:6px 0 8px;
+}
+#incidentes-widget .title-bullets{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
+#incidentes-widget .title-chip{
+  background:#fff; color: var(--brand-700);
+  border: 2px solid var(--brand-600); border-radius:999px; font-weight:800;
+  padding:6px 12px; box-shadow:none;
+}
+#incidentes-widget .table-scroll table{
+  border:1px solid #FEE2E2; border-radius:12px; overflow:hidden;
+}
+#incidentes-widget table thead th{
+  background:#FFF1F2; border-bottom:1px solid #FECACA; font-weight:800;
+}
+#incidentes-widget table tbody tr:nth-child(odd){ background:#FFF7F7; }
+#incidentes-widget table tbody tr:hover{ background:#FFEFEF; }
+:root{ --density: 1; } /* 1=por defecto, .9=compacto, 1.1=cómodo */
+:root{
+  --pad-1: calc(6px * var(--density));
+  --pad-2: calc(10px * var(--density));
+  --gap-1: calc(8px * var(--density));
+  --gap-2: calc(12px * var(--density));
+}
+.widget{ padding: var(--pad-2); }
+.cards-container{ padding-top: calc(4px * var(--density)); }
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg-page:#0B1220; --bg-card:#0F172A; --border:#1F2937;
+    --text:#E5E7EB; --text-muted:#9CA3AF;
+  }
+  .widget,.card{ box-shadow:none; }
+  .btn-primary{ box-shadow:0 8px 18px rgba(239,68,68,.18); }
+}
+
+
+  
+</style>
+</head>
+<body>
+<select id="scale-select" aria-label="Escala UI">
+<option value="1">100%</option>
+<option value="1.15" selected>115%</option>
+<option value="1.3">130%</option>
+<option value="1.5">150%</option>
+</select>
+<button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">Presentar</button>
+
+
+
+<div class="dashboard-3col">
+<!-- HEADER -->
+<header>
+<div class="header-left">
+<h1>Factory Floor Dashboard - VLC</h1> <!-- CAMBIO WFS1 -->
+<div id="now-header" role="status" aria-live="polite">—</div>
+<span id="shift-badge-header" class="shift-chip">—</span>
+</div>
+
+<div class="header-timer" id="timer-widget" aria-label="Cronómetro">
+<div class="timer-face" id="timer-face">
+<div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
+<span class="timer-dot" aria-hidden="true"></span>
+</div>
+<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+</div>
+
+<!-- Busca esto en tu header y reemplázalo o modifícalo -->
+<div class="header-controls">
+    <!-- El date-picker lo quitamos antes por JS, así que pon esto: -->
+    <input type="text" id="briefing-supervisor" placeholder="Supervisor" style="min-width: 140px; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+    <button class="btn-primary" type="button">Generar Resumen</button>
+</div>
+</header>
+
+
+<!-- IZQUIERDA: EQUIPO -->
+<section class="col-left">
+<div class="widget" id="team-widget">
+<h2 class="widget-title">1) Equipo / Turno</h2>
+<small class="kpi-text" id="team-meta">—</small>
+
+<form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+<input type="text" id="team-name" placeholder="Añadir persona…" required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
+<button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
+</form>
+
+<!-- 👇 Subida de Excel ahora dentro de la tarjeta del equipo -->
+<!-- 👇 Subida de Excel dentro de la tarjeta del equipo -->
+<form id="roster-upload-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+  <input type="file" id="roster-file" accept=".xlsx,.xls" required
+         style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+  <button class="btn-primary" type="submit">Subir Excel</button>
+</form>
+<small id="roster-upload-result" class="kpi-text">—</small>
+
+<!-- ☝️ mantiene los mismos IDs que usa tu JS -->
+
+<div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+</div>
+
+
+
+
+
+</section>
+
+<!-- CENTRO: ACCIONES -->
+<section class="col-middle">
+<!-- CHECKLIST DE BRIEFING -->
+<div class="widget" id="brief-check">
+  <div id="brief-check-explain" class="br-explain" aria-live="polite">
+  <span class="br-explain-ico" aria-hidden="true">
+    <!-- icono info -->
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+      <path d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+    </svg>
+  </span>
+  <strong class="br-explain-label">Guía</strong>
+  <span class="br-explain-text">Pasa el ratón por cada punto para ver una explicación.</span>
+</div>
+
+
+<h2 class="widget-title">
+<span>Checklist</span>
+</h2>
+<span id="shift-badge" class="shift-chip">—</span>
+  
+<div class="check-grid">
+  <!-- 1) Dotación y recursos (antes era el 3) -->
+  <div class="check-card" tabindex="0"
+       data-help="Dotación: presentes/ausentes, zonas asignadas y coberturas; pedir refuerzos si falta."
+       data-target="team-widget">
+    <span class="check-title">1) Dotación y recursos</span>
+    <div class="check-actions" role="group" aria-label="Bloque 1">
+      <input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 2) Actualizaciones operativas -->
+  <div class="check-card" tabindex="0"
+       data-help="Cambios operativos: revisar CQC o WWM"
+       data-target="ops-updates-widget">
+    <span class="check-title">2) Actualizaciones operativas</span>
+    <div class="check-actions" role="group" aria-label="Bloque 2">
+      <input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 3) Highlights del turno anterior (antes era el 1) -->
+  <div class="check-card" tabindex="0"
+       data-help="Repasa incidencias, bloqueos y aprendizajes clave del turno anterior del bloque de Información del turno anterior."
+       data-target="prev-shift-widget">
+    <span class="check-title">3) Highlights del turno anterior</span>
+    <div class="check-actions" role="group" aria-label="Bloque 3">
+      <input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 4) Seguridad y protección -->
+  <div class="check-card" tabindex="0"
+       data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad."
+       data-target="seguridad-widget">
+    <span class="check-title">4) Seguridad y protección</span>
+    <div class="check-actions" role="group" aria-label="Bloque 4">
+      <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 5) Preparación/reportes incidentes -->
+  <div class="check-card" tabindex="0"
+       data-help="Cómo reportar incidentes: canales, tiempos, responsables y material de emergencia."
+       data-target="incidentes-widget">
+    <span class="check-title">5) Preparación/reportes incidentes</span>
+    <div class="check-actions" role="group" aria-label="Bloque 5">
+      <input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 6) Revisión KPIs -->
+  <div class="check-card" tabindex="0"
+       data-help="KPIs del día: Ocupaciones de Uniwing, DG Autocheck, CargoMobile; revisar tendencia vs objetivo."
+       data-target="kpi-center">
+    <span class="check-title">6) Revisión Kpis</span>
+    <div class="check-actions" role="group" aria-label="Bloque 6">
+      <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 7) Feedback → Acciones -->
+  <div class="check-card" tabindex="0"
+       data-help="Recoge feedback del equipo y tradúcelo en acciones claras en el Kanban."
+       data-target="kanban-widget">
+    <span class="check-title">7) Feedback → Acciones</span>
+    <div class="check-actions" role="group" aria-label="Bloque 7">
+      <input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
+    </div>
+  </div>
+</div>
+
+
+<small class="kpi-text" id="brief-check-meta">—</small>
+</div>
+
+
+<!-- ACTUALIZACIONES OPERATIVAS (mejorado) -->
+<!-- ACTUALIZACIONES OPERATIVAS (sin lista rápida) -->
+<div class="widget vivid" id="ops-updates-widget">
+  <h2 class="widget-title hero">
+    <span class="hero-ico">🚧</span><span>2) Actualizaciones operativas</span>
+    <span class="hero-badge">EN VIVO</span>
+  </h2>
+
+  <!-- Toolbar mínima -->
+  <div class="ops-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+    <input id="ops-q" type="search" placeholder="Buscar…" 
+           style="flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+    <select id="ops-prio" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+      <option value="">Todas</option><option>Alto</option><option>Medio</option><option>Bajo</option>
+    </select>
+    <select id="ops-scope" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+      <option value="">Ámbito</option>
+      <option>General</option><option>Isla</option><option>Dorada</option>
+      <option>Muelle Imp</option><option>Muelle Exp</option><option>Import</option><option>Export</option>
+    </select>
+    <button type="button" class="btn-compact" id="ops-add" aria-label="Crear actualización operativa">+ Nueva</button>
+
+  </div>
+
+  <!-- Lista de tarjetas -->
+  <div id="ops-list" class="ops-list" role="list" aria-label="Actualizaciones"></div>
+
+  <!-- Diálogo alta/edición (simple) -->
+  <dialog id="ops-dialog" style="border:1px solid var(--border);border-radius:12px;padding:12px;max-width:520px;width:clamp(280px,90vw,520px);">
+    <form method="dialog" id="ops-form" style="display:grid;gap:8px;">
+      <h3 style="margin:0;">Actualizar</h3>
+      <input type="hidden" id="ops-id">
+      <label>Título
+        <input id="ops-title" type="text" required
+               style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+      </label>
+      <label>Prioridad
+        <select id="ops-impact" required
+                style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          <option>Alto</option><option>Medio</option><option>Bajo</option>
+        </select>
+      </label>
+      <label>Ámbito
+        <select id="ops-scope-field"
+                style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          <option>General</option><option>Isla</option><option>Dorada</option>
+          <option>Muelle Imp</option><option>Muelle Exp</option><option>Import</option><option>Export</option>
+        </select>
+      </label>
+      <label>Responsable (opcional)
+        <input id="ops-owner" type="text" placeholder="Ej.: @juan">
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <label>Desde <input id="ops-from" type="date"></label>
+        <label>Hasta  <input id="ops-to"   type="date"></label>
+      </div>
+      <menu style="display:flex;gap:8px;justify-content:flex-end;margin:0;padding-top:8px;">
+  <button type="button" class="btn-compact" value="cancel" formnovalidate>Cancelar</button>
+  <button type="submit"  class="btn-primary" id="ops-save" value="default">Guardar</button>
+</menu>
+
+    </form>
+  </dialog>
+</div>
+
+ 
+
+
+
+
+
+<!-- SEGURIDAD Y PROTECCIÓN (solo dinámicas + 2 frases aleatorias por turno) -->
+<div class="widget vivid" id="seguridad-widget">
+  <h2 class="widget-title hero">
+    <span class="hero-ico">🛡️</span><span>4) Seguridad y Protección</span>
+    <span class="hero-badge warn">PRIORIDAD</span>
+  </h2>
+
+  <!-- Alta de tarjeta dinámica -->
+  <form id="sec-form" class="inline-form" autocomplete="off" style="margin-bottom:8px;">
+    <input type="text" id="sec-title" placeholder="Añadir tarjeta de seguridad…" required>
+    <input type="text" id="sec-owner" placeholder="Responsable (opcional)">
+    <button type="submit" class="btn-primary">Añadir</button>
+  </form>
+
+  <!-- Lista de tarjetas -->
+  <div id="sec-cards" class="sec-list" role="list" aria-label="Tarjetas de seguridad"></div>
+  <small class="kpi-text" id="sec-meta">—</small>
+
+  <!-- Recordatorio aleatorio (2 frases) por turno -->
+  <div class="ops-item" id="sec-random-tips" style="margin-top:10px;">
+    <div class="ops-head">
+      <div class="ops-title">Recordatorio de seguridad (2 puntos del día)</div>
+      <span class="ops-scope" id="sec-random-scope">Turno —</span>
+    </div>
+    <ul id="sec-random-list" style="margin:6px 0 0 18px; padding:0; list-style:disc;"></ul>
+  </div>
+</div>
+
+
+
+  
+<!-- INCIDENTES (ENABLON) -->
+<div class="widget vivid" id="incidentes-widget">
+  <h2 class="widget-title hero">
+    <span class="hero-ico">⚠️</span><span>5) Incidentes</span>
+    <span class="hero-badge danger">ENABLON</span>
+  </h2>
+
+<!-- RECORDAR entre título y bullets -->
+<!-- PROTOCOLO DE INCIDENTES (editable) -->
+<form id="incidents-protocol-form" class="inline-form" autocomplete="off" 
+      style="display:grid;grid-template-columns:1fr;gap:8px;margin:10px 0 12px;">
+  <div class="ops-item">
+    <label for="ip-understanding-note" style="font-weight:700;">Asegurar comprensión del procedimiento (resumen explicado hoy)</label>
+    <textarea id="ip-understanding-note" rows="2" placeholder="Ej.: Procedimiento ‘Pulse/Enablon’ explicado a todo el personal del turno, con roles y tiempos…"
+              style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+  </div>
+
+  <div class="ops-item">
+    <label for="ip-what-to-do" style="font-weight:700;">Qué hacer si algo sale mal</label>
+    <textarea id="ip-what-to-do" rows="2" placeholder="Ej.: Parada segura, avisar a supervisor, acordonar zona, activar protocolo, registrar en Pulse/Enablon…"
+              style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+  </div>
+
+  <div class="ops-item">
+    <label for="ip-contacts" style="font-weight:700;">A quién informar / pedir apoyo inmediato</label>
+    <input id="ip-contacts" type="text" 
+           placeholder="Ej.: Supervisor (666 111 222), QHSSE (666 333 444), Emergencias 112…" 
+           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+  </div>
+
+  <div class="ops-item">
+    <label for="ip-tools-location" style="font-weight:700;">Dónde están las herramientas de emergencia</label>
+    <input id="ip-tools-location" type="text" 
+           placeholder="Ej.: Botón paro: muelle 3; extintores: pasillo central; botiquín: oficina Ops…"
+           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+  </div>
+
+  <div class="meta-row">
+    <button class="btn-primary" type="submit" style="justify-self:start;">Guardar protocolo</button>
+    <small id="incidents-protocol-status" class="kpi-text">—</small>
+  </div>
+</form>
+
+
+<!-- Subida de PDF (Incidentes) -->
+<form id="incidents-pdf-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+  <input type="file" id="incidents-pdf-file" accept="application/pdf" required
+         style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+  <button class="btn-primary" type="submit">Subir PDF</button>
+</form>
+<small id="incidents-pdf-status" class="kpi-text">—</small>
+
+<!-- Resultados del PDF -->
+<div class="table-scroll" id="incidentes-pdf-wrap" style="display:none; margin-top:6px;">
+  <table id="incidentes-pdf-table"></table>
+</div>
+<small class="kpi-text" id="incidentes-meta">—</small>
+<div class="table-scroll">
+<table id="incidentes-table"></table>
+</div>
+</div>
+
+
+
+<div class="widget kpi-widget" id="kpi-center">
+  <h2 class="widget-title">6) KPIs Operativos</h2>
+
+  <div class="kpi-grid">
+    <div class="kpi-tile">
+      <div class="kpi-label">Uniwin</div>
+      <div class="kpi-value" id="kpi-uph">—</div>
+      <small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">DG Autocheck</div>
+      <div class="kpi-value" id="kpi-otif">—</div>
+      <small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">CargoMobile</div>
+      <div class="kpi-value" id="kpi-backlog">—</div>
+      <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
+    </div>
+
+    <div class="widget kpi-widget" id="kpi-costes">
+<h3 class="widget-title">
+<span>Costes en daños a los equipos VLC</span> <!-- CAMBIO WFS1 -->
+<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
+</h3>
+<div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
+<small class="kpi-text" id="kpi-costes-meta"></small>
+</div>
+  </div>
+</div>
+
+ 
+<!-- KANBAN -->
+<div class="widget" id="kanban-widget">
+<h2 class="widget-title">7) Feedback directo</h2>
+<div class="board-container kanban">
+<div class="kanban-column">
+<h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Abiertas" data-status="Abiertas"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Curso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-En-Curso" data-status="En Curso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Cerradas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Cerradas" data-status="Cerradas"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Vencidas</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Vencidas" data-status="Vencidas"></div>
+</div>
+
+  
+</div>
+
+<form class="new-item-form" id="new-kanban-form" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:grid; grid-template-columns: 1fr 1fr auto 1fr auto; gap:8px; align-items:center;">
+<select id="problem-category" name="category" required>
+<option value="" disabled selected>Selecciona categoría…</option>
+<option value="seguridad">Seguridad</option>
+<option value="incidencias">Incidencias</option>
+<option value="mantenimiento">Mantenimiento</option>
+<option value="calidad">Calidad</option>
+<option value="servicio">Servicio</option>
+</select>
+<input type="text" name="title" placeholder="Tipo de problema" required>
+<input type="date" name="due_date" required>
+<select name="assigned_to" required title="Equipo de soporte">
+  <option value="" disabled selected>Equipo de soporte…</option>
+  <option>Mantenimiento</option>
+  <option>IT</option>
+  <option>Calidad</option>
+  <option>Compras</option>
+  <option>CI</option>
+  <option>QHSSE</option>
+  <option>Ops</option>
+</select>
+
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
+</div>
+
+
+<!-- Kaizen + 5S/GW compartido -->
+<div class="actions-split">
+<div class="widget" id="kaizen-widget">
+<h2 class="widget-title">KAIZEN (compacto)</h2>
+<form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+<input type="text" name="title" placeholder="Proyecto de mejora…" required>
+<input type="text" name="assigned_to" placeholder="Responsable…">
+<input type="date" name="due_date" aria-label="Fecha máxima">
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
+<div class="board-container kaizen compact" style="margin-top:12px;">
+<div class="kanban-column">
+<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+</div>
+</div>
+</div>
+
+<div class="widget" id="rotativas-widget">
+<h2 class="widget-title">5S & GW (Rápido)</h2>
+
+<!-- 5S gestionable -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+<strong>5S</strong>
+<div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
+<button type="button" class="s5-pill" data-key="seiri"      title="1S · Seiri (Clasificar)"><span class="s5-dot"></span>1S</button>
+<button type="button" class="s5-pill" data-key="seiton"     title="2S · Seiton (Ordenar)"><span class="s5-dot"></span>2S</button>
+<button type="button" class="s5-pill" data-key="seiso"      title="3S · Seiso (Limpiar)"><span class="s5-dot"></span>3S</button>
+<button type="button" class="s5-pill" data-key="seiketsu"   title="4S · Seiketsu (Estandarizar)"><span class="s5-dot"></span>4S</button>
+<button type="button" class="s5-pill" data-key="shitsuke"   title="5S · Shitsuke (Disciplina)"><span class="s5-dot"></span>5S</button>
+</div>
+<small id="s5-meta" class="kpi-text">—</small>
+
+</div>
+
+<strong style="margin-top: 12px; display:block;">GW</strong>
+
+<form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin:4px 0 6px;">
+  <input type="file" id="gw-file" accept=".xlsx,.xls"
+         style="flex:1; padding:6px; border:1px solid var(--border); border-radius:8px;">
+  <button class="btn-primary" type="submit" style="padding:6px 10px;">Subir GW Excel</button>
+</form>
+<small id="gw-upload-status" class="kpi-text">—</small>
+
+<div id="gw-tasks-dynamic-container"></div>
+
+
+</div>
+</div>
+
+
+
+</section>
+
+<!-- DERECHA: RESULTADOS -->
+<section class="col-right">
+
+
+  <div class="widget" id="prev-shift-widget">
+  <h2 class="widget-title">3) Información Turno Anterior</h2>
+<div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
+aria-label="Escribe la información del turno anterior" spellcheck="true"
+style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
+data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
+<small class="kpi-text" id="prev-shift-saved-hint"></small>
+  </div> 
+<div class="widget" id="ehs-widget">
+<h2 class="widget-title">Días sin incidentes</h2>
+<div class="ehs-month" id="ehs-month">—</div>
+<div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual"
+aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
+<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
+<div class="ehs-big" id="ehs-days">0</div>
+<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
+</div>
+</div>
+</section>
+</div>
+
+<script>
+  window.STATION_OVERRIDE = 'VLC';
+</script>
+
+  
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+<script>
+
+// Función de escape HTML (faltaba definición)
+function esc(s){ 
+return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); 
+}
+// Normaliza IDs que vengan como id | task_id | _id (string/number)
+// Si no hay ID (respuestas antiguas), genera uno prefijado "client-"
+function getTaskId(obj){
+  if(!obj) return null;
+  const raw = obj.id ?? obj.task_id ?? obj._id ?? null;
+  if (raw === null || raw === undefined || raw === '') {
+    // client-only id: permite editar/borrar en UI hasta que el backend asigne ID real
+    return `client-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+  }
+  return String(raw);
+}
+(function colorizeOpsRibbons(){
+  const host = document.getElementById('ops-updates-widget');
+  if(!host) return;
+  const colorMap = {
+    'Alto':  'linear-gradient(180deg,#ff8a8a,#ef4444)',
+    'Medio': 'linear-gradient(180deg,#ffd37a,#f59e0b)',
+    'Bajo':  'linear-gradient(180deg,#9ff0c9,#10b981)'
+  };
+  const paint = () => {
+    host.querySelectorAll('.ops-item').forEach(card=>{
+      const imp = card.querySelector('.ops-impact')?.textContent?.trim();
+      const v = colorMap[imp] || 'linear-gradient(180deg,#c7d2fe,#8b5cf6)';
+      card.style.setProperty('--ops-ribbon', v);
+      // usa la variable si prefieres:
+      card.style.setProperty('background-clip','padding-box');
+      card.style.setProperty('box-shadow','0 8px 22px rgba(17,24,39,.08)');
+      const before = card; // CSS ::before ya está definido
+      card.style.setProperty('--ops-ribbon', v);
+      // gracias al CSS: .ops-item::before usa un color por defecto;
+      // si quieres, cambia su background a var(--ops-ribbon) y aquí no haces nada más
+    });
+  };
+  const mo = new MutationObserver(paint);
+  mo.observe(host, {childList:true, subtree:true});
+  paint();
+})();
+
+
+(function initGwUpload(){
+  const form   = document.getElementById('gw-upload-form');
+  const input  = document.getElementById('gw-file');
+  const status = document.getElementById('gw-upload-status');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const f = input.files?.[0];
+    if (!f){
+      status.textContent = 'Selecciona un Excel de GW';
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('file', f);
+
+    status.textContent = 'Subiendo…';
+    try{
+      const res  = await fetch('/api/gw/import-xlsx', {
+        method: 'POST',
+        body: fd,
+        // si lo proteges con API_KEY:
+        // headers: { 'x-api-key': 'EstE-eS-mI_s3cr3t0-Sup3r-L4rg0-y-c0mpl3j0-p4r4-eL-d4shb04rd"' }
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al importar');
+
+      status.textContent = `OK: ${data.inserted || 0} Gemba Walks cargados`;
+      // recarga GW desde tareas
+      GW_MAP.clear();
+      await loadAllTasks();
+    }catch(err){
+      console.error(err);
+      status.textContent = `Error: ${err.message || err}`;
+    }finally{
+      input.value = '';
+    }
+  });
+})();
+
+
+// === PDF Incidentes: subida y render ===
+(function initIncidentsPdfUpload(){
+  const form   = document.getElementById('incidents-pdf-form');
+  const input  = document.getElementById('incidents-pdf-file');
+  const status = document.getElementById('incidents-pdf-status');
+  const wrap   = document.getElementById('incidentes-pdf-wrap');
+
+  if (!form) return;
+
+
+
+  // ⬇️ ESTE SUBMIT ES LO QUE FALTABA
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();                           // 👈 evita recargar la página
+    const f = input.files?.[0];
+    if (!f) { status.textContent = 'Selecciona un PDF'; return; }
+
+    const fd = new FormData();
+    fd.append('file', f);                          // 👈 el backend espera name="file"
+
+    status.textContent = 'Subiendo…';
+    try {
+      const res = await fetch('/api/incidents-table', { method:'POST', body: fd });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al subir');
+
+      status.textContent = `OK: ${Array.isArray(data.rows) ? data.rows.length : data.rows} filas`;
+      wrap.style.display = 'block';
+
+      // Si el backend devuelve {columns, rows}, reusa tu renderer de la tabla principal:
+      if (data.columns && data.rows) {
+        renderIncidentes(data);
+      }
+    } catch (err) {
+      status.textContent = `Error: ${err.message || err}`;
+      console.error(err);
+    } finally {
+      input.value = '';
+    }
+  });
+})(); 
+  
+
+
+(function initRosterUpload(){
+const form   = document.getElementById('roster-upload-form');
+const input  = document.getElementById('roster-file');
+const status = document.getElementById('roster-upload-result');
+if (!form) return;
+
+form.addEventListener('submit', async (e)=>{
+e.preventDefault();
+const f = input.files?.[0];
+if (!f) { status.textContent = 'Selecciona un .xlsx/.xls'; return; }
+
+const fd = new FormData();
+fd.append('file', f); // debe llamarse "file"
+
+status.textContent = 'Subiendo…';
+try {
+const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
+if (!res.ok) {
+const err = await res.json().catch(()=>({detail: res.statusText}));
+throw new Error(err.detail || 'Error al subir');
+}
+const data = await res.json();
+status.textContent =
+`OK: ${data.people_count} personas cargadas • Hoja: ${data.sheet_loaded || '—'} • Fecha hoja: ${data.sheet_date || '—'}`;
+
+// refresca la tarjeta de equipo inmediatamente
+try {
+const r   = await fetch('/api/roster/current', { cache:'no-store' });
+const cur = await r.json();
+const listEl = document.getElementById('team-list');
+renderRoster(listEl, cur.people || [], cur);
+} catch (e) {
+console.warn('No se pudo refrescar roster tras subir:', e);
+}
+
+} catch (err) {
+status.textContent = `Error: ${err.message || err}`;
+} finally {
+input.value = '';
+}
+});
+})();
+
+
+
+// === Contexto de estación (MAD por defecto; puedes pasar ?station=MAD/BCN en la URL) ===
+const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
+
+const STATION_CODE =
+  (window.STATION_OVERRIDE || new URLSearchParams(location.search).get('station') || '')
+    .toUpperCase()
+  || ((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || [,'MAD'])[1]).toUpperCase();
+
+
+function isForThisStation(obj){
+const st = (obj && obj.station ? String(obj.station) : '').toUpperCase();
+// si el objeto no trae estación, lo aceptamos; si trae, debe coincidir
+return !st || st === STATION_CODE;
+}
+
+// pinta la estación en el H1 si hace falta
+try {
+const h1 = document.querySelector('header h1');
+if (h1 && !h1.textContent.toUpperCase().includes(STATION_CODE)) {
+h1.textContent = h1.textContent.replace(/(MAD|BCN|VLC|SVQ)/i, STATION_CODE);
+}
+} catch {}
+
+
+
+// Función $$ ya existe, mantenerla
+function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
+/* ===== CRONÓMETRO EN HEADER ===== */
+/* ===== CRONÓMETRO EN HEADER ===== */
+(function(){
+  const KEY='header_big_timer_v1';
+  const RED_MS  = 8 * 60 * 1000;   // 8 minutos
+  const STOP_MS = 10 * 60 * 1000;  // 10 minutos (límite)
+
+  let running=false, startedAt=0, elapsed=0, tick=null;
+
+  const $ = (id)=>document.getElementById(id);
+  const host    = $('timer-widget');
+  const face    = $('timer-face');
+  const display = $('timer-display');
+  const resetBtn= $('timer-reset');
+
+  function fmt(ms){
+    const t = Math.floor(ms/1000);
+    const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function paint(){
+    const nowMs   = running ? (Date.now() - startedAt) : elapsed;
+    const clamped = Math.min(nowMs, STOP_MS);
+
+    display.textContent = fmt(clamped);
+    display.classList.toggle('is-red', clamped >= RED_MS);
+
+    // Auto-stop al llegar a 10:00
+    if (running && nowMs >= STOP_MS){
+      running = false;
+      elapsed = STOP_MS;
+      clearInterval(tick); tick=null;
+      setUI(); save();
+    }
+  }
+
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
+  function load(){
+    try{
+      const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(!s) return;
+      running   = !!s.running;
+      elapsed   = Number(s.elapsed)||0;
+      startedAt = Number(s.startedAt)||0;
+      if (running){
+        const now=Date.now();
+        elapsed   = Math.max(elapsed, now - startedAt);
+        startedAt = now - elapsed;
+      }
+      // Si ya estaba en el límite, asegurar estado parado
+      if (elapsed >= STOP_MS){ running=false; elapsed=STOP_MS; }
+    }catch{}
+  }
+
+  function setUI(){
+    host?.classList.toggle('timer-running', running);
+    resetBtn.disabled = (!running && elapsed===0);
+  }
+
+  function start(){
+    if (running) return;
+    if (elapsed >= STOP_MS) return;           // no arrancar si alcanzó el límite
+    running   = true;
+    startedAt = Date.now() - elapsed;
+    tick = setInterval(paint, 250);
+    setUI(); paint(); save();
+  }
+
+  function pause(){
+    if (!running) return;
+    running = false;
+    elapsed = Date.now() - startedAt;
+    clearInterval(tick); tick=null;
+    setUI(); paint(); save();
+  }
+
+  function reset(){
+    running=false; startedAt=0; elapsed=0;
+    clearInterval(tick); tick=null;
+    setUI(); paint(); save();
+    display.classList.remove('is-red');
+  }
+
+  // Interacciones
+  display?.addEventListener('click', ()=> (running ? pause() : start()));
+  resetBtn?.addEventListener('click', reset);
+
+  // Robustez al cambiar visibilidad
+  document.addEventListener('visibilitychange', ()=>{
+    if (!running) return;
+    startedAt = Date.now() - elapsed;
+    paint(); save();
+  });
+
+  // Init público
+  function initHeaderTimer(){
+    load(); paint(); setUI();
+    if (running && !tick) tick = setInterval(paint, 250);
+  }
+  window.initHeaderTimer = initHeaderTimer;
+})();
+
+const UI_SCALE_KEY='ui_scale_v1';
+function applyScale(v){ document.documentElement.style.setProperty('--ui-scale', v); }
+// REEMPLAZA la sección completa de escalado:
+(function initUIScaling(){
+const UI_SCALE_KEY='ui_scale_v1';
+
+function applyScale(v){ 
+document.documentElement.style.setProperty('--ui-scale', v); 
+}
+
+function initScale(){
+const sel = document.getElementById('scale-select');
+if (!sel) return;
+
+const saved = localStorage.getItem(UI_SCALE_KEY) || sel.value || '1.15';
+applyScale(saved);
+sel.value = saved;
+
+sel.addEventListener('change', e => {
+const v = e.target.value;
+localStorage.setItem(UI_SCALE_KEY, v);
+applyScale(v);
+});
+}
+
+// Ejecutar inmediatamente
+initScale();
+})();
+
+function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
+
+
+
+/* ===== GW: mostrar solo TOP-3 por última fecha ===== */
+/* ===== GW: mostrar solo TOP-3 por última fecha ===== */
+const GW_MAP = new Map();
+function gwGetDate(t){
+const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+const d = cand ? new Date(cand) : null;
+return (d && !isNaN(d)) ? d.getTime() : -Infinity;
+}
+
+
+
+
+function gwUrgency(t){
+  // 1) usar columna days_left del backend
+  if (t.ap1_days_left != null && !isNaN(t.ap1_days_left)) {
+    return Number(t.ap1_days_left);
+  }
+  if (t.days_left != null && !isNaN(t.days_left)) {
+    return Number(t.days_left);
+  }
+
+  // 2) si no, calcular desde gw_date / due_date
+  const cand = t.gw_date || t.due_date;
+  if (cand){
+    const d = new Date(cand);
+    if (!isNaN(d)) {
+      const diff = Math.round((d - new Date()) / 86400000);
+      return diff;
+    }
+  }
+
+  // sin info → lo mandamos al final
+  return 99999;
+}
+
+function renderGwTop3(){
+  const cont = document.getElementById('gw-tasks-dynamic-container');
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  const all = [...GW_MAP.values()].filter(isForThisStation);
+
+  // ordenar por urgencia (menos días restantes primero)
+  all.sort((a,b) => gwUrgency(a) - gwUrgency(b));
+
+  const top = all.slice(0, 3);   // si quieres más, cambia aquí
+
+  top.forEach(t => renderGwTask(t, `task-${t.id}`));
+}
+
+
+/* ===== 5S: estado, render y persistencia local ===== */
+
+
+/* Fullscreen helpers */
+const FS_ICONS = {
+on:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
+off: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>'
+};
+function ensureFullscreenBtn(host){
+if (!host || host.querySelector('.fs-toggle')) return;
+const btn = document.createElement('button');
+btn.className = 'fs-toggle'; btn.type = 'button';
+btn.setAttribute('aria-label','Ver a pantalla completa');
+btn.title = 'Pantalla completa'; btn.innerHTML = FS_ICONS.off;
+btn.addEventListener('mousedown', e => e.stopPropagation(), true);
+btn.addEventListener('click', async (e) => {
+e.preventDefault(); e.stopPropagation();
+try {
+if (document.fullscreenElement === host) { await document.exitFullscreen?.(); }
+else { await (host.requestFullscreen?.({ navigationUI:'hide' }) ?? host.requestFullscreen?.()); }
+} catch (err) { console.warn('Fullscreen error:', err); }
+});
+host.appendChild(btn);
+}
+function initFullscreenToggles(){
+document.querySelectorAll('.widget, .card').forEach(ensureFullscreenBtn);
+document.addEventListener('fullscreenchange', () => {
+const current = document.fullscreenElement;
+document.querySelectorAll('.fs-toggle').forEach(btn => {
+const owner = btn.closest('.widget, .card');
+const isOn  = current === owner;
+btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
+btn.setAttribute('aria-label', isOn ? 'Salir de pantalla completa' : 'Ver a pantalla completa');
+btn.title = isOn ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa';
+});
+document.documentElement.classList.toggle('fs-zoom', !!current);
+});
+document.getElementById('present-btn')?.addEventListener('click', async ()=>{
+  const host = document.querySelector('.dashboard-3col') || document.body;
+  try { await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.()); }
+  catch(e){ console.warn('Fullscreen fail', e); }
+});
+}
+
+function openWidgetFromChecklist(targetId){
+  if (!targetId) return;
+  const el = document.getElementById(targetId);
+  if (!el) {
+    console.warn('Checklist target no encontrado:', targetId);
+    return;
+  }
+
+  // Llevarlo a la vista
+  el.scrollIntoView({ behavior:'smooth', block:'center' });
+
+  // Asegurar botón de fullscreen (por consistencia visual)
+  try { ensureFullscreenBtn(el); } catch {}
+
+  // Intentar fullscreen real (depende del navegador)
+  if (el.requestFullscreen) {
+    el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
+      // Si falla por permisos, al menos se queda centrado.
+    });
+  }
+}
+
+
+  
+/* Formatos / KPI */
+function formatEuro(n){ if (n==null || Number.isNaN(n)) return '—'; return new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n); }
+function updateKpiTotalCost(value, ts){
+const v=document.getElementById('kpi-total-cost'); const m=document.getElementById('kpi-costes-meta'); const c=document.getElementById('kpi-costes');
+if(!v || !c) return; v.textContent = formatEuro(value); if(m){ const t=ts?new Date(ts).toLocaleString('es-ES'):''; m.textContent = t?`Actualizado: ${t}`:''; }
+c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
+}
+function hydrateKpiTotalCost(){
+try{ const cached = JSON.parse(localStorage.getItem('kpi_total_cost')||'null'); if(cached && Number.isFinite(cached.value)){ updateKpiTotalCost(cached.value, cached.timestamp); } }catch{}
+}
+
+/* EHS simple */
+function initEhsSimple(){
+const now=new Date(); const year=now.getFullYear(), month=now.getMonth();
+const daysInMonth=new Date(year,month+1,0).getDate();
+const monthEl=document.getElementById('ehs-month'); const daysEl=document.getElementById('ehs-days'); const spinEl=document.getElementById('ehs-spin');
+monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+const monthKey=`${year}-${month+1}`; const lastKey=localStorage.getItem('ehs_month_key'); let days=Number(localStorage.getItem('ehs_days_month'))||0; if(lastKey!==monthKey) days=0;
+function render(){ days=Math.max(0,Math.min(daysInMonth,Math.trunc(days))); daysEl.textContent=days; spinEl.setAttribute('aria-valuemin','0'); spinEl.setAttribute('aria-valuemax',String(daysInMonth)); spinEl.setAttribute('aria-valuenow',String(days));
+localStorage.setItem('ehs_days_month',String(days)); localStorage.setItem('ehs_month_key',monthKey); }
+const inc=()=>{ if(days<daysInMonth){ days+=1; render(); } }; const dec=()=>{ if(days>0){ days-=1; render(); } };
+spinEl.querySelectorAll('.ehs-btn').forEach(btn=>btn.addEventListener('click',()=> (btn.dataset.op==='inc'?inc():dec())));
+spinEl.addEventListener('keydown',(e)=>{ if(e.key==='ArrowUp'||e.key==='ArrowRight'){e.preventDefault();inc();} if(e.key==='ArrowDown'||e.key==='ArrowLeft'){e.preventDefault();dec();}
+if(e.key==='PageUp'){e.preventDefault();days=Math.min(daysInMonth,days+5);render();} if(e.key==='PageDown'){e.preventDefault();days=Math.max(0,days-5);render();}
+if(e.key==='Home'){e.preventDefault();days=0;render();} if(e.key==='End'){e.preventDefault();days=daysInMonth;render();} });
+render();
+}
+
+/* Equipo (roster) */
+let TEAM_STATE = null; // cache de estado actual {shift, sheet_date, window, people, attendance, ...}
+
+
+function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
+async function fetchTasksBootstrap(){
+  let items = await (await fetch('/api/tasks?fresh_only=true')).json();
+  if (!items || items.length === 0) {
+    // primer arranque o backend recién levantado
+    items = await (await fetch('/api/tasks')).json();
+  }
+  return items;
+}
+async function createCard(card) {
+  const res = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      // mínimos recomendados
+      task_type: card.task_type || 'kanban_rapida',
+      title: card.title,
+      status: card.status || 'todo',     // o columna inicial
+      assigned_to: card.assigned_to || null,
+      due_date: card.due_date || null,   // “14/11/2025” o ISO; se normaliza en backend
+      category: card.category || null
+    })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+async function editCard(id, partial) {
+  const res = await fetch(`/api/tasks/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(partial)   // p.ej. { title: 'Nuevo título', status: 'doing' }
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+async function moveCard(id, newStatus) {
+  return await editCard(id, { status: newStatus });
+}
+async function deleteCard(id) {
+  const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204) throw new Error(await res.text());
+  // el WS emitirá { id, action: 'delete', task_type }
+}
+
+function updateTeamMeta(state){
+const meta = document.getElementById('team-meta');
+if(!meta || !state) return;
+const total = (state.people||[]).length;
+const present = countPresent(state.attendance||{});
+const shift = state.shift || '—';
+const win = state.window ? `${state.window.from}–${state.window.to}` : '—';
+meta.textContent = `${shift} • ${win} • Presentes ${present}/${total}`;
+}
+
+async function updatePresenceOnServer(person, present){
+try{
+await fetch('/api/roster/presence', {
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body: JSON.stringify({
+person, present,
+date: TEAM_STATE?.sheet_date || null,
+shift: TEAM_STATE?.shift || null
+})
+});
+}catch(e){
+console.error('PUT /api/roster/presence falló', e);
+}
+}
+
+async function updateZoneOnServer(person, zone){
+try{
+await fetch('/api/roster/zone', {
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body: JSON.stringify({
+person, zone,
+date: TEAM_STATE?.sheet_date || null,
+shift: TEAM_STATE?.shift || null
+})
+});
+}catch(e){
+console.error('PUT /api/roster/zone falló', e);
+}
+}
+
+function renderRoster(listEl, people, state){
+if(!listEl) return;
+TEAM_STATE = state || TEAM_STATE || {};
+TEAM_STATE.people     = people || [];
+TEAM_STATE.attendance = (state && state.attendance) ? state.attendance : (TEAM_STATE.attendance || {});
+TEAM_STATE.zones      = (state && state.zones) ? state.zones : (TEAM_STATE.zones || {});  // ← zonas
+
+listEl.innerHTML = '';
+
+if(!TEAM_STATE.people.length){
+listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del informe actual.</div>';
+updateTeamMeta(TEAM_STATE);
+return;
+}
+
+const ZONES = ['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'];
+
+TEAM_STATE.people.forEach((p, idx)=>{
+const full   = p.nombre_completo || '—';
+const horario= p.horario || '';
+const obs    = p.observaciones || '';
+const presentVal = (TEAM_STATE.attendance||{})[full];
+const yesChecked = presentVal === true  ? 'checked' : '';
+const noChecked  = presentVal === false ? 'checked' : '';
+const zone   = (TEAM_STATE.zones||{})[full] || '';
+
+const row = document.createElement('div');
+row.className = 'team-row';
+row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px;gap:10px;';
+
+const left = document.createElement('div');
+left.className = 'team-left';
+left.innerHTML =
+`<span class="team-name" style="font-weight:600">${esc(full)}</span>` +
+(horario? ` <small class="meta">• ${esc(horario)}</small>`:'') +
+(obs?     ` <small class="meta">• ${esc(obs)}</small>`:'') +
+(zone?    ` <span class="chip-zone" data-zone-chip="${esc(full)}">${esc(zone)}</span>` : '');
+
+const right = document.createElement('div');
+right.className = 'team-right';
+right.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+right.innerHTML = `
+  <div class="presence-toggle" role="group" aria-label="Presencia">
+    <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+    <label for="att-${idx}-y" class="yes">✓ Presente</label>
+
+    <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+    <label for="att-${idx}-n" class="no">✕ Ausente</label>
+  </div>
+
+  <select class="zone-select" data-person="${esc(full)}" title="Zona">
+    <option value="" ${zone? '' : 'selected'} disabled>Zona…</option>
+    ${['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'].map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+  </select>
+`;
+
+row.appendChild(left);
+row.appendChild(right);
+listEl.appendChild(row);
+});
+
+
+// Eventos de presencia
+// Eventos de presencia (✓ / ✕)
+listEl.querySelectorAll('.att-radio').forEach(inp=>{
+inp.addEventListener('change', (e)=>{
+const person  = e.target.dataset.person;
+const present = e.target.value === 'yes';
+TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+TEAM_STATE.attendance[person] = present;
+updateTeamMeta(TEAM_STATE);
+updatePresenceOnServer(person, present);
+updateSpotlightRouting?.();  // refresca el flujo de parpadeo
+});
+});
+
+
+// Eventos de zona
+listEl.querySelectorAll('.zone-select').forEach(sel=>{
+sel.addEventListener('change', (e)=>{
+const person = e.target.dataset.person;
+const zone   = e.target.value || '';
+TEAM_STATE.zones = TEAM_STATE.zones || {};
+TEAM_STATE.zones[person] = zone;
+
+// Actualiza la chip de zona en la parte izquierda
+const chip = listEl.querySelector(`.chip-zone[data-zone-chip="${CSS.escape(person)}"]`);
+if (chip){
+chip.textContent = zone;
+}else if (zone){
+// si no existía, añádela
+const host = e.target.closest('.team-row')?.querySelector('.team-left');
+if (host) host.insertAdjacentHTML('beforeend', ` <span class="chip-zone" data-zone-chip="${esc(person)}">${esc(zone)}</span>`);
+}
+
+updateZoneOnServer(person, zone);
+updateTeamMeta(TEAM_STATE);
+});
+});
+
+updateTeamMeta(TEAM_STATE);
+}
+async function initTeamRoster(){
+    // 1. Bloqueamos la carga automática del servidor
+    /* 
+    const state = await fetchServerRoster();
+    if(state){ ... } 
+    */
+
+    // 2. Ponemos el mensaje de procedimiento manual
+    const list = document.getElementById('team-list');
+    if(list) {
+        list.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: var(--text-muted); background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;">
+                <strong>⚠️ Atención</strong><br>
+                Se tiene que seguir el procedimiento manual hasta ahora.
+            </div>
+        `;
+    }
+
+    // 3. Inicializamos el estado vacío para permitir altas manuales si se desea
+    window.TEAM_STATE = {
+        shift: null,
+        people: [],
+        attendance: {},
+        zones: {}
+    };
+    
+    // Actualizamos la meta-info (contador) a ceros
+    updateTeamMeta(window.TEAM_STATE);
+}
+
+/* === FIX 1: Eliminar el date-picker estático de cabecera === */
+(function removeHeaderStaticDate(){
+  document.querySelectorAll('.header-controls .date-picker').forEach(el => el.remove());
+})();
+
+/* === FIX 2: Checklist por turno (auto-reset al cambiar) === */
+(function checklistPerShift(){
+  const PREFIX = 'brief_check_v1';
+  const LASTKEY = 'brief_check_lastkey_v1';
+
+  // Descubre turno “actual” si el backend aún no lo envió
+  function guessShift(){
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Mañana';
+    if (h >= 14 && h < 22) return 'Tarde';
+    return 'Noche';
+  }
+
+  // Clave de versión: estación + fecha (YYYY-MM-DD) + turno
+  function currentKey(){
+    const station = (typeof STATION_CODE !== 'undefined' ? STATION_CODE : (window.STATION_OVERRIDE||'MAD')).toUpperCase();
+    const date = (window.TEAM_STATE?.sheet_date) || new Date().toISOString().slice(0,10);
+    const shift = (window.TEAM_STATE?.shift) || guessShift();
+    return `${PREFIX}:${station}:${date}:${shift}`;
+  }
+
+  const host = document.getElementById('brief-check');
+  if (!host) return;
+
+  const radios = Array.from(host.querySelectorAll('.check-actions input[type="radio"]'));
+  if (!radios.length) return;
+
+  function saveState(){
+    const key = currentKey();
+    const state = {};
+    // guardamos por “name” (c1, c2, …)
+    radios.forEach(r => { if (r.checked) state[r.name] = r.value; });
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(LASTKEY, key); } catch {}
+  }
+
+  function loadState(){
+    const key = currentKey();
+    let state = null;
+    try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
+    radios.forEach(r => r.checked = false);
+    if (state && typeof state === 'object'){
+      radios.forEach(r => {
+        if (state[r.name] && state[r.name] === r.value) r.checked = true;
+      });
+    }
+  }
+
+  function clearForNewKey(){
+    // limpiar checks visuales
+    radios.forEach(r => { r.checked = false; });
+    // no copiamos el estado del turno anterior; simplemente guardamos vacío para el nuevo
+    saveState();
+  }
+
+  // Enganche: cuando cambie el turno en TEAM_STATE, comparamos claves
+  function ensureFreshness(){
+    const key = currentKey();
+    const last = localStorage.getItem(LASTKEY);
+    if (last && last !== key){
+      clearForNewKey();
+    } else {
+      loadState();
+    }
+    try { localStorage.setItem(LASTKEY, key); } catch {}
+  }
+
+  // Guardar en cada cambio
+  radios.forEach(r => r.addEventListener('change', saveState));
+
+  // 1) Al cargar
+  ensureFreshness();
+
+  // 2) Tras cargar/actualizar roster (cuando llega shift/fecha del backend)
+  const _renderRoster = window.renderRoster;
+  window.renderRoster = function(listEl, people, state){
+    const res = _renderRoster ? _renderRoster(listEl, people, state) : undefined;
+    // TEAM_STATE ya actualizado en tu renderRoster → clave puede cambiar
+    ensureFreshness();
+    return res;
+  };
+
+  // 3) Por si llega un “roster_update” vía WS que cambie turno/fecha
+  const _processTaskUpdate = window.processTaskUpdate;
+  window.processTaskUpdate = function(data){
+    const out = _processTaskUpdate ? _processTaskUpdate(data) : undefined;
+    if (data && data.type === 'roster_update'){
+      ensureFreshness();
+    }
+    return out;
+  };
+
+  // 4) Seguridad extra: si cambia el día con la página abierta
+  //    (ej.: pasa medianoche), forzamos refresco de clave
+  setInterval(() => {
+    const key = currentKey();
+    const last = localStorage.getItem(LASTKEY);
+    if (last !== key) ensureFreshness();
+  }, 30 * 1000); // cada 30s es suficiente (barato)
+})();
+
+
+/* Kanban / Kaizen / GW */
+function makeColumnsSortable(){
+const common = {
+animation: 150,
+ghostClass: 'sortable-ghost',
+dragClass: 'sortable-drag',
+handle: '.drag-handle',
+forceFallback: true,         // ← iPad fiable
+delayOnTouchOnly: true,      // ← solo táctil
+delay: 120,
+fallbackTolerance: 6,// ← evita taps accidentales
+touchStartThreshold: 4
+};
+
+document.querySelectorAll('#kanban-widget .cards-container')
+.forEach(c => new Sortable(c, { group:'kanban-board', ...common, onEnd:handleDragEnd }));
+
+document.querySelectorAll('#kaizen-widget .cards-container')
+.forEach(c => new Sortable(c, { group:'kaizen-board', ...common, onEnd:handleDragEnd }));
+}
+async function handleDragEnd({item,to,from,oldIndex}){
+if(to===from){ updateAllColumnCounts(); return; }
+const id=item.id.replace('task-','');
+const st=to.dataset.status;
+try{
+await updateTaskOnServer(id,{status:st});
+// nada más; el DOM ya se movió
+}catch(e){
+// revierte
+from.insertBefore(item, from.children[oldIndex] || null);
+alert('No se pudo actualizar el estado en el servidor.');
+}finally{
+updateAllColumnCounts();
+}
+}
+
+/* ===== Equipo: alta manual segura ===== */
+(function initTeamManualAdd(){
+  const form = document.getElementById('team-form');
+  const input = document.getElementById('team-name');
+  const listEl = document.getElementById('team-list');
+  if (!form || !input || !listEl) return;
+
+  // PEQUEÑO FIX de tipografía en las zonas (había "Muele")
+  const ZONES_CANON = ['Isla','Dorada','Muelle Imp','Muelle Exp','Import','Export'];
+
+  function guessShift(){
+    // si el backend ya puso turno en TEAM_STATE, úsalo
+    if (window.TEAM_STATE && TEAM_STATE.shift) return TEAM_STATE.shift;
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Mañana';
+    if (h >= 14 && h < 22) return 'Tarde';
+    return 'Noche';
+  }
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const name = (input.value || '').trim();
+    if (!name) return;
+
+    // Inicializa TEAM_STATE si aún no existe (arranque “en frío”)
+    window.TEAM_STATE = window.TEAM_STATE || {
+      shift: guessShift(),
+      sheet_date: new Date().toISOString().slice(0,10),
+      window: null,
+      people: [],
+      attendance: {},
+      zones: {}
+    };
+
+    // Evita duplicados por nombre completo
+    const exists = (TEAM_STATE.people || []).some(p => (p.nombre_completo || '').toLowerCase() === name.toLowerCase());
+    if (exists){
+      alert('Esa persona ya está en la lista.');
+      input.value = '';
+      return;
+    }
+
+    // Alta optimista en UI
+    const newPerson = { nombre_completo: name, horario: '', observaciones: '' };
+    TEAM_STATE.people = Array.isArray(TEAM_STATE.people) ? TEAM_STATE.people.slice() : [];
+    TEAM_STATE.people.push(newPerson);
+
+    // Por defecto, al dar de alta la marcamos como ausente (puedes poner true si prefieres)
+    TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+    TEAM_STATE.attendance[name] = false;
+
+    // Render inmediato
+    try {
+      renderRoster(listEl, TEAM_STATE.people, TEAM_STATE);
+    } catch(err){
+      console.error('renderRoster falló tras alta manual:', err);
+    }
+    input.value = '';
+
+    // Intento de persistencia en servidor (si lo tienes)
+    try{
+      const res = await fetch('/api/roster/add', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          person: name,
+          date: TEAM_STATE.sheet_date || null,
+          shift: TEAM_STATE.shift || guessShift(),
+          station: (window.STATION_OVERRIDE || '').toUpperCase() || (typeof STATION_CODE!=='undefined'?STATION_CODE:'MAD')
+        })
+      });
+
+      if (!res.ok){
+        // Si tu backend aún no tiene /api/roster/add, no rompemos la UI
+        const err = await res.json().catch(()=>({detail: res.statusText}));
+        console.warn('POST /api/roster/add no disponible:', err.detail || res.statusText);
+      }else{
+        // Si el backend devuelve el roster normalizado, úsalo para refrescar
+        const serverState = await res.json().catch(()=>null);
+        if (serverState && serverState.people){
+          renderRoster(listEl, serverState.people, serverState);
+        }
+      }
+    }catch(err){
+      console.warn('No se pudo persistir el alta manual (se mantiene local):', err);
+    }
+  });
+
+  // (Opcional) corrige las etiquetas de zona en el render si venían con la errata
+  const _oldRender = window.renderRoster;
+  window.renderRoster = function(listEl, people, state){
+    // normaliza posibles "Muele" -> "Muelle"
+    if (state && state.zones){
+      const z = state.zones;
+      Object.keys(z).forEach(k=>{
+        if (z[k] === 'Muele Imp') z[k] = 'Muelle Imp';
+        if (z[k] === 'Muele Exp') z[k] = 'Muelle Exp';
+      });
+    }
+    return _oldRender(listEl, people, state);
+  };
+})();
+
+function setupEventListeners(){
+document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+document.addEventListener('click', handleDeleteClick);
+
+const rot=document.getElementById('rotativas-widget');
+// GW
+rot.addEventListener('change', handleGwTick);
+rot.addEventListener('keydown',(e)=>{
+  const note = e.target.closest('.gw-note') ? e.target : null;
+  if (!note) return;
+
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    const id = note.id.replace('gw-note-','');
+    updateTaskNote(id, note.value).catch(console.error);
+    note.blur();
+  }
+  if (e.key === 'Escape'){
+    e.preventDefault();
+    note.blur();
+  }
+});
+
+rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); } }, true);
+}
+
+async function handleKanbanSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+
+  const taskData = {
+    task_type: 'kanban_rapida',
+    status: 'Abiertas',
+    category: (f.elements.category?.value || '').trim().toLowerCase(),
+    title: (f.elements.title?.value || '').trim(),
+    due_date: f.elements.due_date?.value || null,
+    assigned_to: (f.elements.assigned_to?.value || '').trim() || null,
+    station: STATION_CODE
+  };
+
+  if (!taskData.category || !taskData.title || !taskData.due_date) return;
+
+  try {
+    await createTaskOnServer(taskData);
+    f.reset();
+    document.getElementById('problem-category').selectedIndex = 0;
+    updateAllColumnCounts();
+  } catch (err) {
+    console.error(err);
+    alert('Error: No se pudo crear la tarjeta.');
+  }
+}
+
+
+function handleDeleteClick(e){
+  const btn = e.target.closest('.ops-delete-btn, .delete-card-btn');
+  if (!btn) return;
+
+  // Prioriza tarjeta OPS o Kanban
+  const host = btn.closest('.ops-item, .card');
+  if (!host) return;
+
+  // 1. ID seguro desde dataset (lo que hemos añadido en el render)
+  let id = btn.dataset.id || host.dataset.id;
+
+  // 2. Si no hay dataset, intentamos limpiar el ID del DOM (task-XXXX -> XXXX)
+  if (!id && host.id){
+    id = host.id.replace(/^(task-|ops-|sec-|client-)/, ''); 
+  }
+
+  if (!id) return;
+
+  const ttype = host.dataset.taskType || btn.dataset.taskType ||
+                (host.classList.contains('ops-item') ? 'ops_update' :
+                 host.classList.contains('card') ? 'kanban_rapida' : 'ops_update');
+
+  if (!confirm('¿Seguro que quieres eliminar esta tarjeta?')) return;
+
+  // Efecto visual inmediato para mejor UX
+  host.style.opacity = '0.5';
+
+  deleteTaskOnServer(id, ttype)
+    .then(()=>{
+      host.remove();
+      updateAllColumnCounts?.();
+    })
+    .catch((err)=>{
+      host.style.opacity = '1'; // Restaurar si falla
+      console.error(err);
+      alert('Error: No se pudo eliminar la tarjeta.');
+    });
+}
+
+
+
+function handleGwTick(e){
+if(e.target.type==='checkbox' && e.target.closest('.gw-task-item')){
+const item=e.target.closest('.gw-task-item'); const id=item.id.replace('task-',''); const done=e.target.checked;
+const note=item.querySelector('.gw-note'); if(note) note.disabled=!done;
+updateTaskCompletion(id,done).catch(err=>{ console.error('tick fail',err); e.target.checked=!done; });
+item.classList.toggle('completed',done);
+}
+}
+async function handleKaizenSubmit(e){
+e.preventDefault();
+const f=e.target;
+const taskData={ task_type:'kaizen', status:'Proyectos', title:f.elements.title.value.trim(), assigned_to:f.elements.assigned_to.value.trim(), due_date:f.elements.due_date.value||null };
+if(!taskData.title) return;
+createTaskOnServer(taskData).then(()=>{ f.reset(); updateAllColumnCounts(); }).catch(()=> alert('No se pudo crear el KAIZEN.'));
+}
+
+/* Server I/O */
+async function fetchServerRoster(){
+try {
+const r = await fetch('/api/roster/current', { 
+cache: 'no-store',
+headers: {'Accept': 'application/json'}
+});
+
+if (!r.ok) {
+console.warn('Roster fetch failed:', r.status, r.statusText);
+return null;
+}
+
+const data = await r.json();
+console.log('Roster cargado:', data);
+return data;
+
+} catch (e) {
+console.error('Error fetching roster:', e);
+return null;
+}
+}
+async function createTaskOnServer(data){
+const r = await fetch('/api/tasks',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(data)
+});
+if(!r.ok) throw new Error('create failed');
+const task = await r.json();
+processTaskUpdate(task);            // pinta ya
+return task;
+}
+
+async function updateTaskOnServer(id, data){
+const r = await fetch(`/api/tasks/${id}`,{
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(data)
+});
+if(!r.ok) throw new Error('update failed');
+const task = await r.json();
+processTaskUpdate(task);            // re-render por si cambió categoría/fechas/etc.
+return task;
+}
+
+async function deleteTaskOnServer(id, taskType){
+const r = await fetch(`/api/tasks/${id}`,{ method:'DELETE' });
+if(!r.ok) throw new Error('delete failed');
+// elimina local sin esperar WS
+processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' });
+}
+
+
+async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
+async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
+
+/* Render tarjetas */
+function processTaskUpdate(data){
+if (!data) return;
+    
+    // --- CORRECCIÓN: Manejar borrado globalmente ---
+    if (data.action === 'delete') {
+        // Intentar borrar de cualquier lista posible por ID
+        const elOps = document.getElementById(`ops-${data.id}`);
+        if (elOps) elOps.remove();
+
+        const elTask = document.getElementById(`task-${data.id}`);
+        if (elTask) elTask.remove();
+        
+        // Actualizar contadores si es Kanban
+        if (updateAllColumnCounts) updateAllColumnCounts();
+        return; // <--- IMPORTANTE: Parar aquí
+    }
+    // -----------------------------------------------
+
+
+if (!isForThisStation(data)) return;      // DESPUÉS
+
+
+if (data && data.type==='presence_update'){
+// sólo si coincide con el turno/fecha que estoy viendo
+if (TEAM_STATE 
+&& TEAM_STATE.sheet_date === data.sheet_date
+&& TEAM_STATE.shift === data.shift){
+const yesSel = `.att-radio[data-person="${CSS.escape(data.person)}"][value="yes"]`;
+const noSel  = `.att-radio[data-person="${CSS.escape(data.person)}"][value="no"]`;
+const yesEl  = document.querySelector(yesSel);
+const noEl   = document.querySelector(noSel);
+if (yesEl && noEl){
+if (data.present) { yesEl.checked = true; } else { noEl.checked = true; }
+TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+TEAM_STATE.attendance[data.person] = !!data.present;
+updateTeamMeta(TEAM_STATE);
+updateSpotlightRouting?.();
+}
+}
+return;
+
+}
+if (data && data.type==='zone_update'){
+if (TEAM_STATE
+&& TEAM_STATE.sheet_date === data.sheet_date
+&& TEAM_STATE.shift === data.shift){
+TEAM_STATE.zones = TEAM_STATE.zones || {};
+TEAM_STATE.zones[data.person] = data.zone || '';
+// Re-render para reflejar cambio en select y chip
+renderRoster(document.getElementById('team-list'), TEAM_STATE.people||[], TEAM_STATE);
+}
+return;
+}
+
+
+// ping de incidentes (Enablon)
+if (data && (data.type==='table_ping'||data.type==='table_state') && data.table==='incidents'){
+loadIncidentes();
+return;
+}
+
+if(data && (data.type==='kpi_update'||data.type==='kpi_state'||(data.metric&&data.tab))){
+const metric=String(data.metric||'').trim().toLowerCase(); const tab=String(data.tab||'').trim();
+if(metric==='total cost' && (!tab || tab==='VLC')){
+let v=data.value;
+if(typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
+else if(Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
+else if(v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
+if(typeof v==='number' && Number.isFinite(v)){ updateKpiTotalCost(v, data.timestamp); try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{} }
+}
+return;
+}
+if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)){
+  const metric = String(data.metric||'').trim().toLowerCase();
+  const tab    = String(data.tab||'').trim();
+
+  // Coste total (ya lo tenías)
+  if (metric === 'total cost' && (!tab || tab === 'VLC')){
+    let v = data.value;
+    if (typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
+    else if (Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
+    else if (v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
+    if (typeof v==='number' && Number.isFinite(v)){
+      updateKpiTotalCost(v, data.timestamp);
+      try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{}
+    }
+    return;
+  }
+
+  // UPH
+  if (metric === 'uph' && (!tab || tab === 'VLC')){
+    const v = Number(data.value);
+    if (Number.isFinite(v)) setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
+    return;
+  }
+  // OTIF
+  if (metric === 'otif' && (!tab || tab === 'VLC')){
+    const v = Number(data.value);
+    if (Number.isFinite(v)) setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(v) + ' %');
+    return;
+  }
+  // Backlog
+  if (metric === 'backlog' && (!tab || tab === 'VLC')){
+    const v = Number(data.value);
+    if (Number.isFinite(v)) setKpiValue('kpi-backlog', 'kpi-backlog-meta', new Intl.NumberFormat('es-ES').format(v));
+    return;
+  }
+}
+
+const elementId = `task-${data.id}`;
+if (data.action === 'delete') {
+  // Kanban/Kaizen
+  const el1 = document.getElementById(`task-${data.id}`);
+  if (el1) el1.remove();
+
+  // OPS
+  const el2 =
+    document.getElementById(`ops-${data.id}`) ||
+    document.querySelector(`.ops-item[data-id="${CSS.escape(String(data.id))}"]`) ||
+    document.querySelector(`.ops-item [data-id="${CSS.escape(String(data.id))}"]`)?.closest('.ops-item');
+
+  if (el2) el2.remove();
+
+  updateAllColumnCounts && updateAllColumnCounts();
+
+  if (data.task_type === 'gw_task') {
+    GW_MAP.delete(data.id);
+    renderGwTop3();
+  }
+  return;
+}
+
+
+
+switch(data.task_type){
+case 'kanban_rapida': renderBoardCard(data, elementId); updateAllColumnCounts(); break;
+case 'kaizen':        renderKaizenCard(data, elementId); updateAllColumnCounts(); break;
+case 'gw_task':       GW_MAP.set(data.id, data); renderGwTop3(); break;
+case 'ops_update':    renderOpsCard(data);
+  break;
+
+default: console.warn('task_type desconocido:', data.task_type);
+}
+}
+const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
+
+/* ===== OPS: renderer + wiring diálogo ===== */
+function renderOpsCard(task){
+  const list = document.getElementById('ops-list');
+  if (!list) return;
+
+  const idStr = getTaskId(task);
+  // Asegura que el objeto queda con su ID normalizado para siguientes acciones
+  task.id = idStr;
+
+  let el = document.getElementById(`ops-${idStr}`);
+  if (!el){
+    el = document.createElement('div');
+    el.id = `ops-${idStr}`;
+    el.className = 'ops-item';
+    el.dataset.id = idStr;
+    el.dataset.taskType = 'ops_update';
+    list.prepend(el);
+  }else{
+    el.dataset.id = idStr;
+    el.dataset.taskType = 'ops_update';
+  }
+
+  const title   = task.title || '';
+  const impact  = task.impact || task.priority || 'Medio';
+  const scope   = task.scope  || task.area || 'General';
+  const owner   = task.owner  || task.assigned_to || '';
+  const fromISO = task.from   || task.valid_from  || task.start_date || '';
+  const toISO   = task.to     || task.valid_to    || task.end_date   || '';
+  const meta    = [
+    fromISO ? `Desde: ${new Date(fromISO).toLocaleDateString('es-ES')}` : null,
+    toISO   ? `Hasta: ${new Date(toISO).toLocaleDateString('es-ES')}`   : null,
+    task.station ? `Estación: ${task.station}` : null,
+  ].filter(Boolean).join(' • ');
+
+  el.innerHTML = `
+    <div class="ops-head">
+      <div class="ops-title">${esc(title)}</div>
+      <div class="ops-flags">
+        <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
+        <span class="ops-scope">${esc(scope)}</span>
+      </div>
+    </div>
+    <div class="ops-meta">${meta || '—'}</div>
+    <div class="ops-actions">
+      <button class="ops-btn ops-edit-btn" data-id="${idStr}" data-task-type="ops_update">Editar</button>
+      <button class="ops-btn ops-pin ${task.pinned ? 'on':''}" data-id="${idStr}" data-task-type="ops_update">Pin</button>
+      <button class="ops-btn ops-delete-btn" title="Eliminar" data-id="${idStr}" data-task-type="ops_update">Eliminar</button>
+    </div>
+    <div class="ops-ack">
+      <div class="ops-ack-bar"><span style="width:${Math.max(0, Math.min(100, Number(task.ack_pct||0)))}%"></span></div>
+      <small>Ack: ${Number(task.ack_pct||0)}%</small>
+    </div>
+  `;
+}
+
+(function wireOpsDialog(){
+  const btnAdd = document.getElementById('ops-add');
+  const dlg    = document.getElementById('ops-dialog');
+  const form   = document.getElementById('ops-form');
+  if (!dlg || !form) return;
+
+  function openEmpty(){
+    form.reset();
+    document.getElementById('ops-id').value = '';
+    dlg.showModal();
+  }
+  function openWith(task){
+    const idNorm = getTaskId(task || {});
+    document.getElementById('ops-id').value           = idNorm || '';
+    document.getElementById('ops-title').value        = (task?.title  || '');
+    document.getElementById('ops-impact').value       = (task?.impact || task?.priority || 'Medio');
+    document.getElementById('ops-scope-field').value  = (task?.scope  || task?.area || 'General');
+    document.getElementById('ops-owner').value        = (task?.owner  || task?.assigned_to || '');
+    document.getElementById('ops-from').value         = ((task?.from  || task?.valid_from  || task?.start_date || '').split('T')[0] || '');
+    document.getElementById('ops-to').value           = ((task?.to    || task?.valid_to    || task?.end_date   || '').split('T')[0] || '');
+    dlg.showModal();
+  }
+
+  btnAdd?.addEventListener('click', openEmpty);
+
+  // Editar (delegación en lista)
+  document.getElementById('ops-list')?.addEventListener('click', async (e)=>{
+    const b = e.target.closest('.ops-edit-btn');
+    if (!b) return;
+    const id = b.dataset.id;
+    try{
+      const r = await fetch(`/api/tasks/${id}`, { cache:'no-store' });
+      const t = await r.json();
+      openWith(t || { id });
+    }catch{
+      openWith({ id });
+    }
+  });
+
+  // Guardar
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const payload = {
+      task_type: 'ops_update',
+      title:  document.getElementById('ops-title').value.trim(),
+      impact: document.getElementById('ops-impact').value,
+      scope:  document.getElementById('ops-scope-field').value,
+      owner:  document.getElementById('ops-owner').value.trim() || null,
+      from:   document.getElementById('ops-from').value || null,
+      to:     document.getElementById('ops-to').value   || null,
+      station: (typeof STATION_CODE!=='undefined' ? STATION_CODE : (window.STATION_OVERRIDE||'MAD'))
+    };
+    if (!payload.title){ alert('Falta el título'); return; }
+
+    const id = document.getElementById('ops-id').value;
+    try{
+      if (id){
+        const up = await updateTaskOnServer(id, payload);
+        renderOpsCard(up);
+      }else{
+        const created = await createTaskOnServer(payload);
+        renderOpsCard(created);
+      }
+      dlg.close();
+    }catch(err){
+      alert('No se pudo guardar la actualización operativa.');
+      console.error(err);
+    }
+  });
+
+  // === FIX: Cerrar correctamente el diálogo ===
+  const cancelBtn = form.querySelector('button[value="cancel"]');
+  cancelBtn?.addEventListener('click', (e)=>{ e.preventDefault(); dlg.close(); });
+
+  // Cerrar con ESC
+  dlg.addEventListener('cancel', (e)=>{ e.preventDefault(); dlg.close(); });
+
+  // Cerrar clicando fuera del cuadro
+  dlg.addEventListener('click', (e)=>{
+    const box = form.getBoundingClientRect();
+    const inside = (
+      e.clientX >= box.left && e.clientX <= box.right &&
+      e.clientY >= box.top  && e.clientY <= box.bottom
+    );
+    if (!inside) dlg.close();
+  });
+})();
+
+
+  (function wireOpsFilters(){
+  const q     = document.getElementById('ops-q');
+  const prio  = document.getElementById('ops-prio');
+  const scope = document.getElementById('ops-scope');
+  const list  = document.getElementById('ops-list');
+  if (!list) return;
+
+  function apply(){
+    const qt = (q?.value || '').toLowerCase();
+    const pv = (prio?.value || '');
+    const sv = (scope?.value || '');
+
+    list.querySelectorAll('.ops-item').forEach(card=>{
+      const t  = card.querySelector('.ops-title')?.textContent?.toLowerCase() || '';
+      const ip = card.querySelector('.ops-impact')?.textContent?.trim() || '';
+      const sc = card.querySelector('.ops-scope')?.textContent?.trim() || '';
+      const okText  = !qt || t.includes(qt);
+      const okPrio  = !pv || ip === pv;
+      const okScope = !sv || sc === sv;
+      card.style.display = (okText && okPrio && okScope) ? '' : 'none';
+    });
+  }
+
+  q?.addEventListener('input', apply);
+  prio?.addEventListener('change', apply);
+  scope?.addEventListener('change', apply);
+})();
+
+  
+function renderBoardCard(task, elementId){
+  const safeStatus = (task.status || 'Abiertas').replace(/\s+/g,'-');
+  const columnId   = `${task.task_type}-${safeStatus}`;
+  const column     = document.getElementById(columnId);
+  if (!column) return;
+
+  // Fechas seguras
+  const createdAt   = task.created_at ? new Date(task.created_at) : null;
+  const creationDate= (createdAt && !isNaN(createdAt)) ? createdAt.toLocaleDateString('es-ES') : '—';
+  const dueISO      = task.due_date || null;
+  const dueDate     = dueISO ? new Date(dueISO) : null;
+  const dueHuman    = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES') : '';
+
+  // Elemento tarjeta
+  let card = document.getElementById(elementId);
+  if (!card){ 
+    card = document.createElement('div'); 
+    card.id = elementId; 
+  }
+  card.className = 'card';
+  
+  // --- CORRECCIÓN: Guardar ID explícito ---
+  card.dataset.id = task.id; 
+  // ----------------------------------------
+  
+  card.dataset.status = safeStatus;
+  card.dataset.taskType = 'kanban_rapida';
+
+  // Color por categoría + chip
+  const catKey = String(task.category || '').toLowerCase();
+  card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento','cat-calidad','cat-servicio');
+  if (['seguridad','incidencias','mantenimiento','calidad','servicio'].includes(catKey)){
+    card.classList.add(`cat-${catKey}`);
+  }
+  const CAT_LABELS = {
+    seguridad: 'Seguridad',
+    incidencias: 'Incidencias',
+    mantenimiento: 'Mantenimiento',
+    calidad: 'Calidad',
+    servicio: 'Servicio'
+  };
+  const catLabel = CAT_LABELS[catKey] || 'General';
+
+  card.innerHTML = `
+    ${GRIP}
+    <div class="card-content">
+      <div class="card-title" data-edit="title" title="Tocar para editar">${esc(task.title || '')}</div>
+      <div class="card-details">
+        Alta: ${creationDate} • Objetivo:
+        <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
+      </div>
+      <div class="card-assignee">Responsable:
+        <span class="assignee" data-edit="assigned_to" title="Tocar para editar">${esc(task.assigned_to || 'Sin asignar')}</span>
+      </div>
+      <div style="margin-top:6px;">
+        <button class="btn-compact" data-edit="category">${catLabel}</button>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Eliminar">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </svg>
+      </button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+
+  // Inserta en la columna si aún no está
+  if (card.parentElement !== column){
+    column.prepend(card);
+  }
+
+  // —— Edición rápida —— //
+  const id = task.id;
+
+  // Título
+  const titleEl = card.querySelector('[data-edit="title"]');
+  titleEl?.addEventListener('click', async ()=>{
+    const prev = titleEl.textContent.trim();
+    const next = (prompt('Nuevo título', prev) || '').trim();
+    if (next && next !== prev){
+      try { await updateTaskOnServer(id, { title: next }); } 
+      catch { alert('No se pudo actualizar el título'); }
+    }
+  });
+
+  // Responsable
+  const asgEl = card.querySelector('[data-edit="assigned_to"]');
+  asgEl?.addEventListener('click', async ()=>{
+    const prev = asgEl.textContent.trim();
+    const next = (prompt('Responsable', prev === 'Sin asignar' ? '' : prev) || '').trim();
+    if (next !== prev){
+      try { await updateTaskOnServer(id, { assigned_to: next || null }); }
+      catch { alert('No se pudo actualizar el responsable'); }
+    }
+  });
+
+  // Fecha objetivo
+  const dueBtn = card.querySelector('[data-edit="due"]');
+  dueBtn?.addEventListener('click', async ()=>{
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = dueISO || '';
+    input.style.position='fixed'; input.style.opacity='0';
+    document.body.appendChild(input);
+    input.addEventListener('change', async ()=>{
+      const newISO = input.value || null;
+      document.body.removeChild(input);
+      if ((newISO||'') !== (dueISO||'')){
+        try { await updateTaskOnServer(id, { due_date: newISO }); }
+        catch { alert('No se pudo actualizar la fecha'); }
+      }
+    }, { once:true });
+    input.click();
+  });
+
+  // Categoría (ciclo simple por prompt)
+  const catBtn = card.querySelector('[data-edit="category"]');
+  catBtn?.addEventListener('click', async ()=>{
+    const opts = ['Seguridad','Incidencias','Mantenimiento','Calidad','Servicio','General'];
+    const prev = catLabel;
+    const next = prompt(`Categoría (${opts.join(' / ')})`, prev) || prev;
+    const map = { Seguridad:'seguridad', Incidencias:'incidencias', Mantenimiento:'mantenimiento', Calidad:'calidad', Servicio:'servicio', General:'' };
+    const val = map[next] ?? map[prev];
+    if (val !== (task.category||'')){
+      try { await updateTaskOnServer(id, { category: val }); }
+      catch { alert('No se pudo actualizar la categoría'); }
+    }
+  });
+}
+
+
+
+function renderKaizenCard(task, elementId){
+  const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
+  const columnId=`kaizen-${safeStatus}`;
+  const column=document.getElementById(columnId); if(!column) return;
+
+  let card=document.getElementById(elementId);
+  if(!card){ card=document.createElement('div'); card.id=elementId; }
+  card.className='card'; 
+  
+  // --- CORRECCIÓN: Guardar ID explícito ---
+  card.dataset.id = task.id; 
+  // ----------------------------------------
+  
+  card.dataset.status=safeStatus;
+  card.dataset.taskType='kaizen';  
+  if(card.parentElement!==column) column.prepend(card);
+
+  let dueHuman=''; 
+  if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
+
+  card.innerHTML=`
+    ${GRIP}
+    <div class="card-content">
+      <div class="card-title" data-edit="title">${esc(task.title || '')}</div>
+      <div class="card-details">
+        ${task.assigned_to ? `Responsable: ${esc(task.assigned_to)}` : 'Responsable: —'}
+        ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Eliminar">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </svg>
+      </button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+
+  // Edición rápida
+  const id = task.id;
+  const titleEl = card.querySelector('[data-edit="title"]');
+  titleEl?.addEventListener('click', async ()=>{
+    const prev = titleEl.textContent.trim();
+    const next = (prompt('Nuevo título', prev) || '').trim();
+    if (next && next !== prev){
+      try { await updateTaskOnServer(id, { title: next }); } 
+      catch { alert('No se pudo actualizar el título'); }
+    }
+  });
+}
+
+
+ 
+  // Reloj/turno en cabecera
+  function guessShift(){
+    const h = new Date().getHours();
+    return (h>=6 && h<14) ? "Mañana" : (h>=14 && h<22) ? "Tarde" : "Noche";
+  }
+  function paintNowAndShift(){
+    const nowEl = document.getElementById("now-header");
+    const badge = document.getElementById("shift-badge-header");
+    if (nowEl)  nowEl.textContent = new Date().toLocaleString("es-ES",{dateStyle:"full", timeStyle:"short"});
+    const shift = (window.TEAM_STATE?.shift) || guessShift();
+    if (badge){ badge.textContent = shift; badge.dataset.shift = shift; }
+  }
+
+  // Ayuda contextual + salto a widget desde Checklist
+  function wireBriefExplain(){
+    const host = document.getElementById("brief-check");
+    const box  = document.getElementById("brief-check-explain");
+    if (!host || !box) return;
+    const txt = box.querySelector(".br-explain-text");
+    host.querySelectorAll(".check-card").forEach(card=>{
+      const help = card.dataset.help || "";
+      card.addEventListener("mouseenter", ()=> { if (txt) txt.textContent = help || "—"; });
+      card.addEventListener("focus",      ()=> { if (txt) txt.textContent = help || "—"; });
+      card.addEventListener("click",      ()=> {
+        const id = card.dataset.target;
+        if (!id) return;
+        const el = document.getElementById(id);
+        if (el){
+          el.scrollIntoView({behavior:"smooth", block:"center"});
+          el.requestFullscreen?.({navigationUI:"hide"}).catch(()=>{});
+        }
+      });
+    });
+  }
+
+  // WebSocket -> delega en processTaskUpdate de main
+  function startWS(){
+    const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+    const ws = new WebSocket(url);
+    ws.onmessage = (ev)=>{
+      try{ const msg = JSON.parse(ev.data); processTaskUpdate?.(msg); }catch{}
+    };
+    ws.onclose = ()=> setTimeout(startWS, 2000);
+  }
+
+  // Escalado UI persistente
+  (function initUIScale(){
+    const KEY = "ui_scale_v1";
+    const sel = document.getElementById("scale-select");
+    if (!sel) return;
+    const apply = v => document.documentElement.style.setProperty("--ui-scale", v);
+    const saved = localStorage.getItem(KEY) || sel.value || "1.15";
+    apply(saved); sel.value = saved;
+    sel.addEventListener("change", e=>{ localStorage.setItem(KEY, e.target.value); apply(e.target.value); });
+  })();
+
+  // Bootstrap
+  document.addEventListener("DOMContentLoaded", async ()=>{
+    window.STATION_OVERRIDE = (window.STATION_OVERRIDE || "MAD").toUpperCase();
+
+    initFullscreenToggles?.();
+    initHeaderTimer?.();
+    hydrateKpiTotalCost?.();
+    makeColumnsSortable?.();
+    setupEventListeners?.();
+    wireBriefExplain();
+    paintNowAndShift();
+    setInterval(paintNowAndShift, 30_000);
+
+    // primer volcado (tareas/KPIs/incidentes)
+    try{
+      const items = await fetchTasksBootstrap?.();
+      (items||[]).forEach(processTaskUpdate);
+    }catch(e){ console.warn("Bootstrap tasks failed", e); }
+
+    try{ await loadIncidentes?.(); }catch{}
+
+    // WS vivo
+    startWS();
+  });
+
+  // ============ UTILIDADES FALTANTES ============
+// % sin multiplicar (ya llega 0–100 del backend)
+function formatPercent(v){
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(n);
+}
+function setKpiValue(valId, metaId, txt){
+  const v = document.getElementById(valId);
+  const m = document.getElementById(metaId);
+  if (!v) return;
+  v.textContent = txt ?? '—';
+  if (m) m.textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES');
+  const host = v.closest('.kpi-tile,.kpi-widget') || v;
+  host.classList.remove('flash'); void host.offsetWidth; host.classList.add('flash');
+}
+function updateAllColumnCounts(){
+  document.querySelectorAll('#kanban-widget .kanban-column, #kaizen-widget .kanban-column')
+    .forEach(col=>{
+      const count = col.querySelectorAll('.cards-container > .card').length;
+      const badge = col.querySelector('.column-title .count');
+      if (badge) badge.textContent = `(${count})`;
+    });
+}
+// Incidentes (tabla genérica)
+function renderIncidentes(data){
+  const table = document.getElementById('incidentes-table');
+  if (!table) return;
+  table.innerHTML = '';
+  const cols = (data.columns && data.columns.length) ? data.columns
+                : (Array.isArray(data.rows) && data.rows[0] ? Object.keys(data.rows[0]) : []);
+  if (!cols.length) { table.innerHTML = '<thead><tr><th>—</th></tr></thead><tbody><tr><td>Sin datos</td></tr></tbody>'; return; }
+  const thead = `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${
+    (data.rows||[]).map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')
+  }</tbody>`;
+  table.innerHTML = thead + tbody;
+}
+// GW: tarjeta simple (tick + nota)
+function renderGwTask(t, domId){
+  const host = document.getElementById('gw-tasks-dynamic-container');
+  if (!host) return;
+  let el = document.getElementById(domId);
+  if (!el){ el = document.createElement('div'); el.id = domId; host.appendChild(el); }
+  el.className = 'gw-task-item' + (t.is_completed ? ' completed' : '');
+  const safeTitle = esc(t.title || t.name || 'Tarea');
+  const note = esc(t.note || '');
+  el.innerHTML = `
+    <input type="checkbox" ${t.is_completed?'checked':''} aria-label="Completar">
+    <label style="font-weight:600">${safeTitle}</label>
+    <textarea class="gw-note" id="gw-note-${t.id}" ${t.is_completed?'':'disabled'}
+      placeholder="Nota…">${note}</textarea>
+  `;
+}
+// Spotlight guía desde checklist → widget
+function updateSpotlightRouting(){
+  // Señal visual suave: nada intrusivo
+  document.querySelectorAll('.spotlight-blink').forEach(n=>n.classList.remove('spotlight-blink'));
+}
+// Ayudas del checklist (tooltip + click abre el widget)
+(function wireChecklistHints(){
+  const explain = document.getElementById('brief-check-explain');
+  document.querySelectorAll('#brief-check .check-card').forEach(card=>{
+    card.addEventListener('mouseenter', ()=>{
+      const txt = card.dataset.help || '';
+      if (explain){ explain.querySelector('.br-explain-text').textContent = txt || '—'; }
+    });
+    card.addEventListener('click', ()=>{
+      const target = card.dataset.target;
+      if (target) openWidgetFromChecklist(target);
+    });
+  });
+})();
+// Hora/turno header
+(function paintHeaderTick(){
+  const elNow = document.getElementById('now-header');
+  const elShiftTop = document.getElementById('shift-badge-header');
+  const elShiftChip = document.getElementById('shift-badge');
+  function guessShift(){
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Mañana';
+    if (h >= 14 && h < 22) return 'Tarde';
+    return 'Noche';
+  }
+  function paint(){
+    const now = new Date();
+    if (elNow) elNow.textContent = now.toLocaleString('es-ES', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const shift = window.TEAM_STATE?.shift || guessShift();
+    [elShiftTop, elShiftChip].forEach(chip=>{
+      if (!chip) return;
+      chip.textContent = shift;
+      chip.dataset.shift = shift;
+    });
+  }
+  paint(); setInterval(paint, 15_000);
+})();
+
+// ============ CARGA DE DATOS / API ============
+// Incidentes (tabla de backend en vivo)
+async function loadIncidentes(){
+  const meta = document.getElementById('incidentes-meta');
+  try{
+    // intenta endpoint estándar
+    let res = await fetch('/api/incidents', { cache:'no-store' });
+    if (res.status === 404) res = await fetch('/api/incidents-table?limit=200', { cache:'no-store' });
+    const data = await res.json();
+    renderIncidentes(data);
+    if (meta) meta.textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES');
+  }catch(err){
+    console.warn('Incidentes no disponibles:', err);
+    if (meta) meta.textContent = 'No disponible';
+  }
+}
+
+// Bootstrap de tareas (Kanban/Kaizen/OPS/GW)
+async function loadAllTasks(){
+  try{
+    const items = await fetchTasksBootstrap();
+    if (Array.isArray(items)){
+      items.forEach(it=>{
+        // Normaliza estación si procede
+        if (isForThisStation(it)) processTaskUpdate(it);
+        if (it.task_type === 'gw_task') GW_MAP.set(it.id, it);
+      });
+      renderGwTop3();
+      updateAllColumnCounts();
+    }
+  }catch(e){
+    console.warn('No se pudieron cargar tareas:', e);
+  }
+}
+
+// ============ WEBSOCKET EN TIEMPO REAL ============
+(function initWS(){
+  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  try{
+    const ws = new WebSocket(url);
+    ws.addEventListener('open', ()=>console.log('[WS] Conectado'));
+    ws.addEventListener('message', (ev)=>{
+      try{
+        const msg = JSON.parse(ev.data);
+        // admite lotes
+        const arr = Array.isArray(msg) ? msg : [msg];
+        arr.forEach(m => processTaskUpdate(m));
+      }catch(err){ console.warn('WS parse', err); }
+    });
+    ws.addEventListener('close', ()=>console.log('[WS] Cerrado'));
+    ws.addEventListener('error', ()=>console.log('[WS] Error'));
+    // reconexión simple
+    window.addEventListener('offline', ()=> ws.close());
+  }catch(e){ console.warn('WS no disponible', e); }
+})();
+
+// ============ INICIALIZACIÓN ============
+(async function init(){
+  try { initHeaderTimer?.(); } catch{};
+  try { initTeamRoster?.(); } catch{};
+  try { hydrateKpiTotalCost?.(); } catch{};
+  try { initFullscreenToggles?.(); } catch{};
+  try { makeColumnsSortable?.(); } catch{};
+  try { setupEventListeners?.(); } catch{};
+  await loadAllTasks();
+  await loadIncidentes();
+  updateAllColumnCounts();
+})();
+
+/* ===== Briefing: Generar Resumen con SUPERVISOR y KANBAN (CORREGIDO) ===== */
+(function wireBriefingGenerate(){
+  const btn = document.querySelector('header .header-controls .btn-primary');
+  if (!btn) return;
+
+  function buildPayload(){
+    // 1. Datos básicos
+    const team = (window.TEAM_STATE || {});
+    const supInput = document.getElementById('briefing-supervisor');
+    const supervisorVal = supInput ? supInput.value.trim() : "No especificado";
+
+    // 2. Equipo
+    const peopleList = team.people || [];
+    const attMap = team.attendance || {};
+    const rosterList = peopleList.map(p => {
+        const name = p.nombre_completo || "Sin Nombre";
+        const isPresent = attMap[name] === true;
+        return `${name} (${isPresent ? "✅" : "❌"})`;
+    });
+    const rosterString = rosterList.length > 0 ? rosterList.join(", ") : "Sin datos de equipo";
+
+    // 3. === RECOLECCIÓN KANBAN (MEJORADA) ===
+    let kanbanLines = [];
+    
+    // Buscamos todas las tarjetas dentro del widget Kanban
+    const kanbanWidget = document.getElementById('kanban-widget');
+    if (kanbanWidget) {
+        const cards = kanbanWidget.querySelectorAll('.card');
+        
+        cards.forEach(card => {
+            // Título
+            const title = card.querySelector('.card-title')?.textContent?.trim() || 'Sin título';
+            // Responsable
+            const resp = card.querySelector('.assignee')?.textContent?.trim();
+            // Estado (buscamos la columna padre)
+            const column = card.closest('.cards-container');
+            const status = column ? column.getAttribute('data-status') : 'Desconocido';
+            
+            // Formato: [Abiertas] Título (Responsable)
+            kanbanLines.push(`[${status}] ${title} ${resp && resp !== 'Sin asignar' ? '('+resp+')' : ''}`);
+        });
+    }
+
+    // Si está vacío, enviamos un texto explícito para probar
+    const kanbanString = kanbanLines.length > 0 ? kanbanLines.join(" | ") : "Sin feedback registrado";
+    // =========================================
+
+    return {
+      station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
+      date: new Date().toLocaleDateString('es-ES'),
+      shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
+      timer: document.getElementById('timer-display')?.textContent || '00:00:00',
+      supervisor: supervisorVal,
+      
+      roster_details: rosterString,
+      prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
+      
+      // CAMPO CLAVE
+      kanban_details: kanbanString, 
+
+      ops_updates: Array.from(document.querySelectorAll('#ops-list .ops-item')).map(c => ({
+          title: c.querySelector('.ops-title')?.textContent?.trim() || '',
+          impact: c.querySelector('.ops-impact')?.textContent?.trim() || ''
+      })),
+      
+      kpis: {
+        "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
+        "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
+      },
+      checklist: {}, kanban_counts: {}, roster_stats: "", present_names: []
+    };
+  }
+
+  btn.addEventListener('click', async ()=>{
+    const oldText = btn.textContent;
+    btn.textContent = 'Guardando...';
+    btn.disabled = true;
+    
+    try {
+      const payload = buildPayload();
+      
+      // --- DEBUG: ALERTA PARA VERIFICAR DATOS ---
+      // Si aquí sale "Sin tarjetas..." es que el JS no las ve.
+      // Si aquí salen las tareas, el problema es Power Automate.
+      console.log("Enviando Feedback:", payload.kanban_details);
+      // ------------------------------------------
+
+      const res = await fetch('/api/briefing/summary', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error('Error servidor');
+      alert("✅ Guardado.\nFeedback enviado: " + payload.kanban_details.substring(0, 100) + "...");
+      
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar.');
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>
