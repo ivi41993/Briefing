@@ -2065,7 +2065,12 @@ setUI(); paint(); save();
 }
 
 display?.addEventListener('click', ()=> (running ? pause() : start()));
-resetBtn?.addEventListener('click', reset);
+
+// 1. Comentamos esta línea para que no choque con el botón de abajo
+// resetBtn?.addEventListener('click', reset); 
+
+// 2. Exponemos la función reset para poder llamarla desde el otro script
+window.resetFactoryTimer = reset; 
 
 document.addEventListener('visibilitychange', ()=>{
 if (!running) return;
@@ -4084,17 +4089,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Botón Reiniciar (Cronómetro + Checks)
     const resetBtn = document.getElementById('timer-reset');
     if (resetBtn) {
-        // Clona para limpiar listeners viejos
-        const newBtn = resetBtn.cloneNode(true);
-        resetBtn.parentNode.replaceChild(newBtn, resetBtn);
+        // MODIFICACIÓN: No clonamos el botón para no perder la referencia del script del cronómetro
+        // const newBtn = resetBtn.cloneNode(true);
+        // resetBtn.parentNode.replaceChild(newBtn, resetBtn);
         
-        newBtn.addEventListener('click', () => {
+        // Usamos el botón original (resetBtn)
+        resetBtn.addEventListener('click', (e) => {
+            // Evitamos comportamientos duplicados
+            e.preventDefault();
+
             if (!confirm("¿Reiniciar turno BCN? Se borrarán los checks y el tiempo.")) return;
             
-            document.getElementById('timer-display').textContent = "00:00:00";
+            // MODIFICACIÓN: Llamamos a la función real del cronómetro
+            if (window.resetFactoryTimer) {
+                window.resetFactoryTimer();
+            } else {
+                // Fallback visual por si acaso
+                document.getElementById('timer-display').textContent = "00:00:00";
+            }
+            
             document.getElementById('timer-display').classList.remove('is-red');
 
             document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+            
+            // Resto del código de limpieza igual...
+            Object.keys(localStorage).forEach(k => {
+                if(k.includes('brief_check')) localStorage.removeItem(k);
+            });
+            
+            const meta = document.getElementById('brief-check-meta');
+            if(meta) meta.textContent = "Checklist reiniciado";
+            
+            if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+            console.log("♻️ Turno BCN reiniciado.");
+        });
+    }
             
             Object.keys(localStorage).forEach(k => {
                 if(k.includes('brief_check')) localStorage.removeItem(k);
