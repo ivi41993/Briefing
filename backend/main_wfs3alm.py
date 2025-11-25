@@ -236,7 +236,7 @@ manager = ConnectionManager()
 
 async def send_to_excel_online(data: BriefingSnapshot):
     # BUSCA LA VARIABLE ESPECÍFICA DE WFS3
-    url = os.getenv("EXCEL_WEBHOOK_URL_WFS3") 
+    url = os.getenv("EXCEL_WEBHOOK_URL_WFS3ALM") 
     
     if not url:
         print("⚠️ EXCEL_WEBHOOK_URL_WFS3 no definida.")
@@ -260,12 +260,12 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "origen": "WFS3"
     }
     
-    print(f"📤 Enviando a Excel WFS3: {json.dumps(payload)}")
+    print(f"📤 Enviando a Excel WFS3ALM: {json.dumps(payload)}")
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, json=payload, timeout=20.0)
             if resp.status_code < 300:
-                print("✅ Excel WFS3 actualizado.")
+                print("✅ Excel WFS3ALM actualizado.")
             else:
                 print(f"❌ Error Excel WFS3: {resp.status_code} {resp.text}")
     except Exception as e:
