@@ -441,7 +441,7 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
 # Webhook Excel VLC
 # -----------------------------------
 async def send_to_excel_online(data: BriefingSnapshot):
-    url = os.getenv("EXCEL_WEBHOOK_URL_VLC") or os.getenv("EXCEL_WEBHOOK_URL")
+    url = os.getenv("EXCEL_WEBHOOK_URL_VLCALM") or os.getenv("EXCEL_WEBHOOK_URL")
     if not url:
         print("⚠️ EXCEL_WEBHOOK_URL_VLC no configurada.")
         return
@@ -655,7 +655,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # -----------------------------------
 # Frontend VLC (Configurado para salir a la raíz)
 # -----------------------------------
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_vlc"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_vlcalm"
 
 print(f"🔍 DEBUG PATH VLC: {FRONTEND_DIR}")
 if not FRONTEND_DIR.exists():
