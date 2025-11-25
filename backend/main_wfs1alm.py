@@ -486,7 +486,7 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
 # -----------------------------------
 async def send_to_excel_online(data: BriefingSnapshot):
     # IMPORTANTE: Variable específica para WFS1
-    url = os.getenv("EXCEL_WEBHOOK_URL_WFS1") 
+    url = os.getenv("EXCEL_WEBHOOK_URL_WFS1ALM") 
     if not url:
         # Fallback si se desea, pero mejor aislar
         url = os.getenv("EXCEL_WEBHOOK_URL")
@@ -733,7 +733,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # Montaje Frontend (CON DIAGNÓSTICO)
 # -----------------------------------
 # Busca la carpeta 'frontend_wfs1' EN LA RAÍZ (subiendo 2 niveles desde backend/main_wfs1.py)
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_wfs1"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_wfs1alm"
 
 print(f"🔍 DEBUG PATH: Buscando frontend en: {FRONTEND_DIR}")
 
