@@ -3946,7 +3946,6 @@ window.navTo = function(targetId) {
         const el = document.getElementById(targetId);
         if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Intentar fullscreen nativo, si falla, usar CSS zoom
             if (el.requestFullscreen) {
                 el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
             } else {
@@ -4039,11 +4038,13 @@ window.closePostBriefingMode = function() {
 };
 
 
-// --- 2. INICIALIZACIÓN Y LOGICA DE BOTONES ---
+// =========================================================
+// INICIALIZACIÓN PRINCIPAL (DOM READY)
+// =========================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // A. Inyectar Navegación
-    // BCN usa IDs distintos, ajustamos el mapa:
+    
+    // 1. Inyectar Navegación Guiada
     const WIDGET_MAP = [
         { id: 'prev-shift-widget',  check: 'c1', label: '1. Turno Anterior' },
         { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
@@ -4080,30 +4081,25 @@ document.addEventListener('DOMContentLoaded', () => {
         widget.prepend(navBar);
     });
 
-    // B. Reset Cronómetro + Checks
+    // 2. Botón Reiniciar (Cronómetro + Checks)
     const resetBtn = document.getElementById('timer-reset');
     if (resetBtn) {
-        // Clona el botón para eliminar listeners anteriores (truco limpio)
+        // Clona para limpiar listeners viejos
         const newBtn = resetBtn.cloneNode(true);
         resetBtn.parentNode.replaceChild(newBtn, resetBtn);
         
         newBtn.addEventListener('click', () => {
             if (!confirm("¿Reiniciar turno BCN? Se borrarán los checks y el tiempo.")) return;
             
-            // Resetear cronómetro (lógica inline simple)
-            // (Asumimos que el timer tiene su propia lógica global, aquí solo UI)
             document.getElementById('timer-display').textContent = "00:00:00";
             document.getElementById('timer-display').classList.remove('is-red');
 
-            // Resetear Checks
             document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
             
-            // Borrar persistencia local
             Object.keys(localStorage).forEach(k => {
                 if(k.includes('brief_check')) localStorage.removeItem(k);
             });
             
-            // Resetear textos meta
             const meta = document.getElementById('brief-check-meta');
             if(meta) meta.textContent = "Checklist reiniciado";
             
@@ -4112,10 +4108,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // C. Botón Generar Resumen -> Envío -> Pantalla Info
+    // 3. Botón Generar Resumen
     const btnGen = document.querySelector('header .header-controls .btn-primary');
     if (btnGen) {
-        // Reemplazamos para controlar el flujo nosotros
         const newBtnGen = btnGen.cloneNode(true);
         btnGen.parentNode.replaceChild(newBtnGen, btnGen);
         
@@ -4124,7 +4119,6 @@ document.addEventListener('DOMContentLoaded', () => {
             newBtnGen.disabled = true;
 
             try {
-                // Reconstruimos el payload aquí para asegurar contexto
                 const team = window.TEAM_STATE || {};
                 const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
                 
@@ -4133,7 +4127,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
                 }).join(", ") || "Sin datos";
 
-                // Captura Kanban
                 const kanbanItems = [];
                 ['Abiertas','En-Curso','Cerradas','Vencidas'].forEach(st => {
                     const col = document.getElementById(`kanban_rapida-${st}`);
@@ -4155,10 +4148,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     roster_details: rosterList,
                     prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
                     kanban_details: kanbanItems.join(" | "),
-                    ops_updates: [] // se procesa en backend si hay items
+                    ops_updates: [] 
                 };
 
-                // Envío
                 const res = await fetch('/api/briefing/summary', {
                     method: 'POST', headers: {'Content-Type':'application/json'},
                     body: JSON.stringify(payload)
@@ -4166,7 +4158,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if(!res.ok) throw new Error('Error del servidor');
                 
-                // Éxito
                 alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
                 window.openPostBriefingMode();
 
@@ -4179,7 +4170,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // 4. Inicializadores heredados (try/catch para robustez)
+    try { initHeaderTimer(); } catch(e){}
+    try { initDateTimeAndShift(); } catch(e){}
+    try { initFullscreenToggles(); } catch(e){}
+    try { init5S(); } catch(e){}
+    try { initEhsSimple(); } catch(e){}
+    try { initTeamRoster(); } catch(e){}
+    try { setupEventListeners(); } catch(e){}
+    try { makeColumnsSortable(); } catch(e){}
+    try { hydrateKpiTotalCost(); } catch(e){}
+    try { loadBoardsInitial(); } catch(e){}
+    try { loadIncidentes(); } catch(e){}
+    try { connectWebSocket(); } catch(e){}
+    try { initOpsUpdates(); } catch(e){}
+    try { reorderChecklist(); } catch(e){}
+    try { initSafetyDailyWidget(); } catch(e){}
+    try { updateSpotlightRouting(); } catch(e){}
+    
+    console.log("Dashboard BCN inicializado correctamente.");
 });
 </script>
 </body>
 </html>
+
