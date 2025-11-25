@@ -1428,7 +1428,47 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
   .widget,.card{ box-shadow:none; }
   .btn-primary{ box-shadow:0 8px 18px rgba(239,68,68,.18); }
 }
+/* === Navegación dentro de Widgets (Fullscreen) === */
+.widget-nav-bar {
+    display: none; /* Oculto por defecto */
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+    margin: -16px -16px 16px -16px; /* Contrarresta el padding del widget */
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
 
+/* Mostrar solo cuando está en pantalla completa o zoomed */
+.widget:fullscreen .widget-nav-bar,
+.widget.widget--zoomed .widget-nav-bar {
+    display: flex;
+}
+
+.nav-group { display: flex; gap: 10px; }
+
+.btn-nav {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+}
+.btn-nav:hover { background: #e5e7eb; transform: translateY(-1px); }
+
+.btn-nav.home {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+}
+.btn-nav.home:hover { background: #fecaca; }
 
   
 </style>
@@ -6139,9 +6179,148 @@ async function loadAllTasks(){
     }
   });
 })();
+
+/* =========================================================
+   MEJORAS WFS: Reset Checklist + Navegación entre Widgets
+   ========================================================= */
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- 1. LOGICA DE RESET DEL CRONÓMETRO ---
+    const resetBtn = document.getElementById('timer-reset');
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (!confirm("¿Reiniciar cronómetro y limpiar checklist?")) return;
+
+            // A. Limpiar Radio Buttons visualmente
+            document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
+                r.checked = false;
+            });
+
+            // B. Limpiar memoria local (para que no vuelvan al recargar)
+            // Buscamos la clave que usa la función checklistPerShift
+            const prefix = 'brief_check_v1'; 
+            // Intentamos limpiar claves que empiecen por el prefijo o la clave simple antigua
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith(prefix) || key === 'brief_check_bcn_v1') {
+                    localStorage.removeItem(key);
+                }
+            });
+
+            // C. Recalcular el foco (Spotlight) para que vuelva al paso 1
+            if (window.updateSpotlightRouting) window.updateSpotlightRouting();
+            
+            // D. Actualizar texto de cobertura si existe
+            const meta = document.getElementById('brief-check-meta');
+            if(meta) meta.textContent = "Checklist reiniciado";
+            
+            console.log("♻️ Cronómetro y Checklist reiniciados.");
+        });
+    }
+
+
+    // --- 2. LÓGICA DE NAVEGACIÓN ENTRE WIDGETS ---
+
+    // Definimos el orden lógico del flujo (IDs de los widgets)
+    const WIDGET_FLOW = [
+        'team-widget',          // 1. Dotación
+        'ops-updates-widget',   // 2. Actualizaciones
+        'prev-shift-widget',    // 3. Turno Anterior
+        'seguridad-widget',     // 4. Seguridad
+        'incidentes-widget',    // 5. Incidentes
+        'kpi-center',           // 6. KPIs
+        'kanban-widget'         // 7. Feedback
+    ];
+
+    // Función para inyectar la barra de navegación en cada widget
+    function injectNavigation() {
+        WIDGET_FLOW.forEach((id, index) => {
+            const widget = document.getElementById(id);
+            if (!widget) return;
+
+            // Evitar doble inyección
+            if (widget.querySelector('.widget-nav-bar')) return;
+
+            // Crear barra
+            const navBar = document.createElement('div');
+            navBar.className = 'widget-nav-bar';
+
+            // Determinar IDs anterior y siguiente (cíclico o tope)
+            const prevId = index > 0 ? WIDGET_FLOW[index - 1] : null;
+            const nextId = index < WIDGET_FLOW.length - 1 ? WIDGET_FLOW[index + 1] : null;
+
+            navBar.innerHTML = `
+                <div class="nav-group">
+                    <button class="btn-nav" onclick="navToWidget('${prevId}')" ${!prevId ? 'disabled style="opacity:0.5"' : ''}>
+                        ⬅ Anterior
+                    </button>
+                </div>
+                <div class="nav-group">
+                    <span style="font-weight:bold; color:#666;">Paso ${index + 1} de ${WIDGET_FLOW.length}</span>
+                </div>
+                <div class="nav-group">
+                    <button class="btn-nav home" onclick="exitWidgetFlow()">
+                        Inicio ✖
+                    </button>
+                    <button class="btn-nav" onclick="navToWidget('${nextId}')" ${!nextId ? 'disabled style="opacity:0.5"' : ''}>
+                        Siguiente ➡
+                    </button>
+                </div>
+            `;
+
+            // Insertar al principio del widget
+            widget.prepend(navBar);
+        });
+    }
+
+    // Ejecutar inyección
+    injectNavigation();
+
+    // Funciones globales para los botones (tienen que ser window. para onclick html)
+    window.navToWidget = function(targetId) {
+        if (!targetId) return;
+        
+        // 1. Salir del fullscreen actual (si lo hay)
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        
+        // 2. Quitar clases de zoom de todos
+        document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+
+        // 3. Esperar un micro-tick y abrir el siguiente
+        setTimeout(() => {
+            const el = document.getElementById(targetId);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Intentar Fullscreen nativo
+                if (el.requestFullscreen) {
+                    el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
+                        el.classList.add('widget--zoomed'); // Fallback CSS
+                    });
+                } else {
+                    el.classList.add('widget--zoomed'); // Fallback CSS
+                }
+            }
+        }, 100);
+    };
+
+    window.exitWidgetFlow = function() {
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(e => console.log(e));
+        }
+        document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+    };
+
+    // Opcional: Detectar tecla ESC para limpiar clases zoomed
+    document.addEventListener('keydown', (e) => {
+        if (e.key === "Escape") window.exitWidgetFlow();
+    });
+});
 </script>
 </body>
 </html>
+
 
 
 
