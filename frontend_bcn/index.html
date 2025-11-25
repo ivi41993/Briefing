@@ -1075,7 +1075,6 @@ content: attr(data-placeholder);
 color: var(--text-muted);
 pointer-events: none;
 }
-
 /* === Navegación Guiada en Widgets === */
 .widget-nav-bar {
     display: none;
@@ -1192,11 +1191,13 @@ Modo presentación
 </div>
 
 <div class="header-controls">
+    <!-- Input para el Supervisor (ID necesario para que el script lo capture) -->
     <!-- Input del Supervisor con el ID que busca el script -->
-    <input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
+<input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
+           style="padding: 8px 12px; border: 1px solid #e6e8ec; border-radius: 8px; font-size: 0.9rem; min-width: 200px;">
            style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; min-width: 200px; background: #fff;">
-    
-    <button class="btn-primary" type="button">Generar Resumen</button>
+
+<button class="btn-primary" type="button">Generar Resumen</button>
 </div>
 </header>
 
@@ -1543,8 +1544,8 @@ stroke-linejoin="round">
 <!-- Alta Kanban BCN -->
 <form class="new-item-form" id="new-kanban-form"
 style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
-                 display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
-                 gap:8px; align-items:center;">
+                display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
+                gap:8px; align-items:center;">
 <select id="problem-category" name="category" required>
 <option value="" disabled selected>Selecciona categoría…</option>
 <option value="seguridad">Seguridad</option>
@@ -1575,7 +1576,7 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 <h2 class="widget-title">KAIZEN BCN</h2>
 <form class="new-item-form" id="new-kaizen-form" autocomplete="off"
 style="display:grid; grid-template-columns: 1fr 1fr auto auto;
-                   gap:8px; align-items:center;">
+                  gap:8px; align-items:center;">
 <input type="text" name="title" placeholder="Proyecto de mejora…" required>
 <input type="text" name="assigned_to" placeholder="Responsable…">
 <input type="date" name="due_date" aria-label="Fecha máxima">
@@ -1629,7 +1630,7 @@ role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior"
 spellcheck="true"
 style="min-height:96px; padding:10px 12px; border:1px solid var(--border);
-                border-radius:10px; background:#fff; line-height:1.4;"
+               border-radius:10px; background:#fff; line-height:1.4;"
 data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 <small class="kpi-text" id="prev-shift-saved-hint"></small>
 </div>
@@ -1690,6 +1691,7 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
         </div>
     </div>
 </div>
+    
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
@@ -1710,7 +1712,7 @@ const OPS_SECTIONS_KEY = opsKey('ops_updates_sections_v1');
 const OPS_LINES_KEY    = opsKey('ops_updates_lines_v1');
 
 /* ==========================
- Utilidades básicas
+Utilidades básicas
 ========================== */
 function esc(s){
 return String(s ?? '')
@@ -1723,7 +1725,7 @@ return String(s ?? '')
 function $$(sel){ return Array.from(document.querySelectorAll(sel)); }
 
 /* ==========================
- Seguridad y protección — diario + manual
+Seguridad y protección — diario + manual
 ========================== */
 const SAFETY_TIPS_KEY = 'safety_daily_tips_history_v1';
 const SAFETY_INC_KEY  = 'safety_manual_incidents_v1';
@@ -1922,13 +1924,13 @@ const card = document.createElement('div');
 card.className = 'incident-item';
 const ts = new Date(it.ts||Date.now());
 card.innerHTML = `
-    <div class="incident-head">
-      <span>${esc(it.title||'')}</span>
-      <span class="danger" data-del="${it.id}" title="Eliminar">🗑</span>
-    </div>
-    <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
-    <div>${esc(it.desc||'')}</div>
-  `;
+   <div class="incident-head">
+     <span>${esc(it.title||'')}</span>
+     <span class="danger" data-del="${it.id}" title="Eliminar">🗑</span>
+   </div>
+   <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
+   <div>${esc(it.desc||'')}</div>
+ `;
 listEl.appendChild(card);
 });
 if(meta){
@@ -1997,7 +1999,7 @@ h1.textContent = `Factory Floor Dashboard - ${STATION_CODE}`;
 })();
 
 /* ==========================
- Cronómetro Header
+Cronómetro Header
 ========================== */
 (function(){
 const KEY='header_big_timer_v1';
@@ -2078,7 +2080,7 @@ if (running && !tick) tick = setInterval(paint, 250);
 })();
 
 /* ==========================
- Escala UI
+Escala UI
 ========================== */
 (function initUIScaling(){
 const KEY='ui_scale_v1';
@@ -2098,7 +2100,7 @@ apply(v);
 })();
 
 /* ==========================
- Fullscreen helpers
+Fullscreen helpers
 ========================== */
 const FS_ICONS = {
 on:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
@@ -2148,7 +2150,7 @@ await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen
 }
 
 /* ==========================
- Fecha / hora / turno
+Fecha / hora / turno
 ========================== */
 function computeShift(d=new Date()){
 const m=d.getHours()*60+d.getMinutes();
@@ -2185,7 +2187,7 @@ setInterval(paintDateTimeAndShift, 60000);
 }
 
 /* ==========================
- EHS simple
+EHS simple
 ========================== */
 function initEhsSimple(){
 const now=new Date();
@@ -2225,7 +2227,7 @@ render();
 }
 
 /* ==========================
- 5S (localStorage)
+5S (localStorage)
 ========================== */
 const S5_STATE_KEY='s5_state_v1';
 function loadS5State(){
@@ -2278,7 +2280,7 @@ render5S();
 }
 
 /* ==========================
- Roster / Equipo
+Roster / Equipo
 ========================== */
 let TEAM_STATE = null;
 
@@ -2377,17 +2379,17 @@ const right = document.createElement('div');
 right.className='team-right';
 right.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
 right.innerHTML = `
-    <div class="presence-toggle" role="group" aria-label="Presencia">
-      <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
-      <label for="att-${idx}-y" class="yes">✓ Presente</label>
-      <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
-      <label for="att-${idx}-n" class="no">✕ Ausente</label>
-    </div>
-    <select class="zone-select" data-person="${esc(full)}" title="Zona">
-      <option value="" ${zone?'':'selected'} disabled>Zona…</option>
-      ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
-    </select>
-  `;
+   <div class="presence-toggle" role="group" aria-label="Presencia">
+     <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+     <label for="att-${idx}-y" class="yes">✓ Presente</label>
+     <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+     <label for="att-${idx}-n" class="no">✕ Ausente</label>
+   </div>
+   <select class="zone-select" data-person="${esc(full)}" title="Zona">
+     <option value="" ${zone?'':'selected'} disabled>Zona…</option>
+     ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+   </select>
+ `;
 
 row.appendChild(left);
 row.appendChild(right);
@@ -2433,37 +2435,37 @@ updateTeamMeta(TEAM_STATE);
 }
 
 async function initTeamRoster(){
-    const list = document.getElementById('team-list');
-    
-    // Mensaje de aviso de procedimiento manual
-    if(list) {
-        list.innerHTML = `
-            <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px;">
-                <strong>⚠️ Atención BCN</strong><br>Procedimiento manual activo.
-            </div>`;
-    }
+const list = document.getElementById('team-list');
 
-    // Inicializar estado vacío para permitir altas manuales
-    window.TEAM_STATE = { people: [], attendance: {} };
-    
-    // Lógica para el formulario de alta manual
-    const form = document.getElementById('team-form');
-    if(form) {
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            const nameInput = document.getElementById('team-name');
-            const name = nameInput.value.trim();
-            if(!name) return;
-            
-            // Añadir persona localmente
-            window.TEAM_STATE.people.push({ nombre_completo: name });
-            // Marcar como presente por defecto
-            window.TEAM_STATE.attendance[name] = true;
-            
-            renderLocalRoster();
-            nameInput.value = '';
-        };
-    }
+// Mensaje de aviso de procedimiento manual
+if(list) {
+list.innerHTML = `
+           <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px;">
+               <strong>⚠️ Atención BCN</strong><br>Procedimiento manual activo.
+           </div>`;
+}
+
+// Inicializar estado vacío para permitir altas manuales
+window.TEAM_STATE = { people: [], attendance: {} };
+
+// Lógica para el formulario de alta manual
+const form = document.getElementById('team-form');
+if(form) {
+form.onsubmit = (e) => {
+e.preventDefault();
+const nameInput = document.getElementById('team-name');
+const name = nameInput.value.trim();
+if(!name) return;
+
+// Añadir persona localmente
+window.TEAM_STATE.people.push({ nombre_completo: name });
+// Marcar como presente por defecto
+window.TEAM_STATE.attendance[name] = true;
+
+renderLocalRoster();
+nameInput.value = '';
+};
+}
 }
 
 /* Upload roster Excel */
@@ -2501,35 +2503,35 @@ const input = document.getElementById('team-name');
 const list  = document.getElementById('team-list');
 if (!form || !input || !list) return;
 function renderLocalRoster() {
-    const list = document.getElementById('team-list');
-    // Mantenemos el aviso (primer hijo)
-    const aviso = list.querySelector('div') ? list.querySelector('div').outerHTML : '';
-    
-    let html = aviso;
-    
-    // Generamos la lista de nombres con checkbox
-    window.TEAM_STATE.people.forEach((p) => {
-        const isPresent = window.TEAM_STATE.attendance[p.nombre_completo];
-        html += `
-            <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
-                <span>${p.nombre_completo}</span>
-                <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
-                    <input type="checkbox" ${isPresent ? 'checked' : ''} 
-                           onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
-                    Presente
-                </label>
-            </div>`;
-    });
-    list.innerHTML = html;
-    
-    // Actualizar contador si existe
-    const meta = document.getElementById('team-meta');
-    if(meta) meta.textContent = `${window.TEAM_STATE.people.length} personas`;
+const list = document.getElementById('team-list');
+// Mantenemos el aviso (primer hijo)
+const aviso = list.querySelector('div') ? list.querySelector('div').outerHTML : '';
+
+let html = aviso;
+
+// Generamos la lista de nombres con checkbox
+window.TEAM_STATE.people.forEach((p) => {
+const isPresent = window.TEAM_STATE.attendance[p.nombre_completo];
+html += `
+           <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+               <span>${p.nombre_completo}</span>
+               <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
+                   <input type="checkbox" ${isPresent ? 'checked' : ''} 
+                          onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
+                   Presente
+               </label>
+           </div>`;
+});
+list.innerHTML = html;
+
+// Actualizar contador si existe
+const meta = document.getElementById('team-meta');
+if(meta) meta.textContent = `${window.TEAM_STATE.people.length} personas`;
 }
 
 // Función global para el onchange del checkbox
 window.togglePresence = (name, checked) => {
-    window.TEAM_STATE.attendance[name] = checked;
+window.TEAM_STATE.attendance[name] = checked;
 };
 async function syncServerAdd(name){
 // Endpoint esperado en backend: POST /api/roster/add
@@ -2587,7 +2589,7 @@ updateSpotlightRouting?.();
 })();
 
 /* ==========================
- Prev shift note (local)
+Prev shift note (local)
 ========================== */
 (function(){
 const KEY='prev_shift_note_bcn_v1';
@@ -2619,7 +2621,7 @@ el.addEventListener('blur', save);
 })();
 
 /* ==========================
- GW Top-3
+GW Top-3
 ========================== */
 const GW_MAP = new Map();
 function gwGetDate(t){
@@ -2640,12 +2642,12 @@ container.prepend(el);
 }
 el.className='gw-task-item';
 el.innerHTML=`
-  <input type="checkbox" id="${chkId}" ${task.is_completed?'checked':''}>
-  <label for="${chkId}">${esc(task.title||'')}</label>
-  <input type="text" class="gw-note" id="${noteId}"
-         placeholder="Añadir nota (opcional)"
-         ${task.is_completed?'':'disabled'}
-         value="${task.note?esc(task.note):''}">
+ <input type="checkbox" id="${chkId}" ${task.is_completed?'checked':''}>
+ <label for="${chkId}">${esc(task.title||'')}</label>
+ <input type="text" class="gw-note" id="${noteId}"
+        placeholder="Añadir nota (opcional)"
+        ${task.is_completed?'':'disabled'}
+        value="${task.note?esc(task.note):''}">
 `;
 el.classList.toggle('completed', !!task.is_completed);
 el.classList.add('highlight-gw');
@@ -2679,7 +2681,7 @@ top3.slice().reverse().forEach(t=>renderGwTask(t, `task-${t.id}`));
 }
 
 /* ==========================
- Incidentes / PDF
+Incidentes / PDF
 ========================== */
 const INC_CACHE_KEY='incidents_cache_bcn_v1';
 function cacheIncidentes(state){
@@ -2819,7 +2821,7 @@ input.value='';
 })();
 
 /* ==========================
- Incidentes (edición local)
+Incidentes (edición local)
 ========================== */
 (function initIncidentEditableFields(){
 const FIELDS = [
@@ -2904,17 +2906,17 @@ cont.innerHTML = '';
 const el = document.createElement('div');
 el.className = 'ops-section';
 el.innerHTML = `
-    <div class="ops-section-title"
-         role="textbox" aria-label="Título de sección" contenteditable="true"
-         data-placeholder="Título de sección…">${esc(s.title||'')}</div>
-    <div class="ops-section-body"
-         role="textbox" aria-label="Contenido de sección" contenteditable="true"
-         data-placeholder="Escribe las actualizaciones (una por línea)…">${esc(s.body||'')}</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button type="button" class="btn-compact" data-act="addline">+ Línea</button>
-      <button type="button" class="btn-compact" data-act="delete">Eliminar sección</button>
-    </div>
-  `;
+   <div class="ops-section-title"
+        role="textbox" aria-label="Título de sección" contenteditable="true"
+        data-placeholder="Título de sección…">${esc(s.title||'')}</div>
+   <div class="ops-section-body"
+        role="textbox" aria-label="Contenido de sección" contenteditable="true"
+        data-placeholder="Escribe las actualizaciones (una por línea)…">${esc(s.body||'')}</div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;">
+     <button type="button" class="btn-compact" data-act="addline">+ Línea</button>
+     <button type="button" class="btn-compact" data-act="delete">Eliminar sección</button>
+   </div>
+ `;
 cont.appendChild(el);
 });
 
@@ -3038,22 +3040,22 @@ card.className='ops-line-card';
 card.setAttribute('role','listitem');
 card.dataset.priority = it.priority;
 card.innerHTML = `
-    <div class="ops-line-head">
-      <div class="ops-line-title">${esc(it.title)}</div>
-      <div class="ops-line-meta">
-        <span class="ops-badge ${it.priority==='Alta'?'prio-high':it.priority==='Media'?'prio-med':'prio-low'}">${esc(it.priority)}</span>
-        ${it.section ? `<span class="ops-badge">#${esc(it.section)}</span>` : ''}
-        ${it.assigned ? `<span>@${esc(it.assigned)}</span>` : ''}
-        ${it.due_date ? `<span>⏲ ${new Date(it.due_date).toLocaleDateString('es-ES')}</span>` : ''}
-        <span>${new Date(it.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
-      </div>
-    </div>
-    <div class="ops-line-actions">
-      <button class="ops-line-btn" data-act="kanban">Mandar al Kanban</button>
-      <button class="ops-line-btn" data-act="pin">${it.archived?'Quitar pin':'Pin/Archivar'}</button>
-      <button class="ops-line-btn" data-act="del">Eliminar</button>
-    </div>
-  `;
+   <div class="ops-line-head">
+     <div class="ops-line-title">${esc(it.title)}</div>
+     <div class="ops-line-meta">
+       <span class="ops-badge ${it.priority==='Alta'?'prio-high':it.priority==='Media'?'prio-med':'prio-low'}">${esc(it.priority)}</span>
+       ${it.section ? `<span class="ops-badge">#${esc(it.section)}</span>` : ''}
+       ${it.assigned ? `<span>@${esc(it.assigned)}</span>` : ''}
+       ${it.due_date ? `<span>⏲ ${new Date(it.due_date).toLocaleDateString('es-ES')}</span>` : ''}
+       <span>${new Date(it.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
+     </div>
+   </div>
+   <div class="ops-line-actions">
+     <button class="ops-line-btn" data-act="kanban">Mandar al Kanban</button>
+     <button class="ops-line-btn" data-act="pin">${it.archived?'Quitar pin':'Pin/Archivar'}</button>
+     <button class="ops-line-btn" data-act="del">Eliminar</button>
+   </div>
+ `;
 if (it.archived) card.classList.add('is-archived');
 host.appendChild(card);
 
@@ -3187,7 +3189,7 @@ alert('Resumen copiado al portapapeles.');
 }
 
 /* ==========================
- Reordenar checklist + renumerar
+Reordenar checklist + renumerar
 ========================== */
 function reorderChecklist(){
 const grid = document.querySelector('#brief-check .check-grid');
@@ -3213,7 +3215,7 @@ t.textContent = `${idx+1}) ${raw}`;
 
 
 /* ==========================
- KPI Costes
+KPI Costes
 ========================== */
 function formatEuro(n){
 if (n==null || Number.isNaN(n)) return '—';
@@ -3263,7 +3265,7 @@ if (tile) flash(tile);
 }
 
 /* ==========================
- Tasks API helpers
+Tasks API helpers
 ========================== */
 async function createTaskOnServer(data){
 const r=await fetch('/api/tasks',{
@@ -3310,7 +3312,7 @@ if (!r.ok) throw new Error('note failed');
 }
 
 /* ==========================
- Render tarjetas (Kanban, Kaizen, GW)
+Render tarjetas (Kanban, Kaizen, GW)
 ========================== */
 const GRIP =
 '<div class="drag-handle" aria-hidden="true" title="Arrastrar">'+
@@ -3356,29 +3358,29 @@ card.classList.add(`cat-${catKey}`);
 }
 
 card.innerHTML=`
-  ${GRIP}
-  <div class="card-content">
-    <div class="card-title" data-edit="title">${esc(task.title||'')}</div>
-    <div class="card-details">
-      Alta: ${creationDate} • Objetivo:
-      <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
-    </div>
-    <div class="card-assignee">
-      Responsable:
-      <span class="assignee" data-edit="assigned_to">${esc(task.assigned_to || 'Sin asignar')}</span>
-    </div>
-    <div style="margin-top:6px;">
-      <button class="btn-compact" data-edit="category">${catLabel}</button>
-    </div>
-  </div>
-  <div class="card-actions">
-    <button class="delete-card-btn" title="Eliminar">
-      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-      </svg>
-    </button>
-  </div>
+ ${GRIP}
+ <div class="card-content">
+   <div class="card-title" data-edit="title">${esc(task.title||'')}</div>
+   <div class="card-details">
+     Alta: ${creationDate} • Objetivo:
+     <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
+   </div>
+   <div class="card-assignee">
+     Responsable:
+     <span class="assignee" data-edit="assigned_to">${esc(task.assigned_to || 'Sin asignar')}</span>
+   </div>
+   <div style="margin-top:6px;">
+     <button class="btn-compact" data-edit="category">${catLabel}</button>
+   </div>
+ </div>
+ <div class="card-actions">
+   <button class="delete-card-btn" title="Eliminar">
+     <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+     </svg>
+   </button>
+ </div>
 `;
 // en renderBoardCard(), tras construir innerHTML:
 const content = card.querySelector('.card-content');
@@ -3462,29 +3464,29 @@ const dueDate = dueISO ? new Date(dueISO) : null;
 const dueHuman = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES'): '';
 
 card.innerHTML=`
-  ${GRIP}
-  <div class="card-content">
-    <div class="card-title">${esc(task.title||'')}</div>
-    <div class="card-details">
-      ${task.assigned_to ? 'Responsable: '+esc(task.assigned_to) : 'Responsable: —'}
-      ${dueHuman ? ' • Fecha máx: '+dueHuman : ''}
-    </div>
-  </div>
-  <div class="card-actions">
-    <button class="delete-card-btn" title="Eliminar">
-      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-      </svg>
-    </button>
-  </div>
+ ${GRIP}
+ <div class="card-content">
+   <div class="card-title">${esc(task.title||'')}</div>
+   <div class="card-details">
+     ${task.assigned_to ? 'Responsable: '+esc(task.assigned_to) : 'Responsable: —'}
+     ${dueHuman ? ' • Fecha máx: '+dueHuman : ''}
+   </div>
+ </div>
+ <div class="card-actions">
+   <button class="delete-card-btn" title="Eliminar">
+     <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+     </svg>
+   </button>
+ </div>
 `;
 ensureFullscreenBtn(card);
 if (card.parentElement !== col) col.prepend(card);
 }
 
 /* ==========================
- Column counts / Sortable
+Column counts / Sortable
 ========================== */
 function updateAllColumnCounts(){
 document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
@@ -3532,7 +3534,7 @@ updateAllColumnCounts();
 }
 
 /* ==========================
- Formularios Kanban/Kaizen
+Formularios Kanban/Kaizen
 ========================== */
 function setupEventListeners(){
 document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
@@ -3600,7 +3602,7 @@ deleteTaskOnServer(id, type).catch(()=>alert('No se pudo eliminar.'));
 }
 
 /* ==========================
- WebSocket + processTaskUpdate
+WebSocket + processTaskUpdate
 ========================== */
 function connectWebSocket(){
 const wsUrl = `${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
@@ -3722,7 +3724,7 @@ return;
 }
 
 /* ==========================
- Checklist compact (persist)
+Checklist compact (persist)
 ========================== */
 (function(){
 const host=document.getElementById('brief-check');
@@ -3772,7 +3774,7 @@ if (e.target.matches('.check-actions input')) bump();
 })();
 
 /* ==========================
- Spotlight routing
+Spotlight routing
 ========================== */
 function rosterComplete(){
 const total=(TEAM_STATE?.people||[]).length;
@@ -3897,7 +3899,7 @@ setText();
 
 
 /* ==========================
- Carga inicial
+Carga inicial
 ========================== */
 async function loadBoardsInitial(){
 try{
@@ -3929,30 +3931,6 @@ console.error('loadBoardsInitial', e);
 }
 }
 
-/* ==========================
- DOM Ready
-========================== */
-document.addEventListener('DOMContentLoaded', ()=>{
-console.log('Init BCN dashboard, estación:', STATION_CODE);
-try{ initHeaderTimer(); }catch(e){ console.error('Timer', e); }
-try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/turno', e); }
-try{ initFullscreenToggles(); }catch(e){ console.error('FS', e); }
-try{ init5S(); }catch(e){ console.error('5S', e); }
-try{ initEhsSimple(); }catch(e){ console.error('EHS', e); }
-try{ initTeamRoster(); }catch(e){ console.error('Roster', e); }
-try{ setupEventListeners(); }catch(e){ console.error('Listeners', e); }
-try{ makeColumnsSortable(); }catch(e){ console.error('Sortable', e); }
-try{ hydrateKpiTotalCost(); }catch(e){ console.error('KPI cost cache', e); }
-try{ loadBoardsInitial(); }catch(e){ console.error('Boards', e); }
-try{ loadIncidentes(); }catch(e){ console.error('Incidentes', e); }
-try{ connectWebSocket(); }catch(e){ console.error('WS', e); }
-try{ initOpsUpdates(); }catch(e){ console.error('Ops updates', e); }
-try{ reorderChecklist(); }catch(e){ console.error('Checklist reorder', e); }
-try{ initSafetyDailyWidget(); }catch(e){ console.error('Safety widget', e); }
-
-
-
-updateSpotlightRouting?.();
 /* =========================================================
    MEJORAS BCN: Navegación, Reset y Modo Info
    ========================================================= */
@@ -4193,7 +4171,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.openPostBriefingMode();
 
             } catch (e) {
-                // Solo un bloque catch
                 console.error(e);
                 alert("Error: " + e.message);
             } finally {
@@ -4202,7 +4179,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-}); // Cierre del DOMContentLoaded
+});
 </script>
 </body>
 </html>
