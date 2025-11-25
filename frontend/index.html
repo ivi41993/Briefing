@@ -1469,7 +1469,117 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
     border-color: #fca5a5;
 }
 .btn-nav.home:hover { background: #fecaca; }
+/* =============================================
+   PANTALLA MODO INFO (POST-BRIEFING)
+   ============================================= */
+#post-briefing-screen {
+    display: none; /* Oculto por defecto */
+    position: fixed;
+    inset: 0; /* Ocupa toda la pantalla */
+    background-color: #f8fafc;
+    z-index: 99999; /* Por encima de todo */
+    padding: 20px;
+    flex-direction: column;
+}
 
+#post-briefing-screen.active {
+    display: flex;
+}
+
+/* Cabecera del modo info */
+.pb-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.pb-title {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--brand-red-700);
+    font-family: "Space Grotesk", sans-serif;
+}
+
+.pb-close-btn {
+    background: #334155;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    transition: background 0.2s;
+}
+.pb-close-btn:hover { background: #1e293b; }
+
+/* Grid 2x2 para los contenidos */
+.pb-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden; /* Evita scroll global */
+}
+
+.pb-card {
+    background: white;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.pb-card-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 15px;
+    border-bottom: 4px solid var(--brand-red-500);
+    padding-bottom: 5px;
+    display: inline-block;
+    width: fit-content;
+}
+
+.pb-content {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 1.1rem; /* Texto más grande para leer de lejos */
+    line-height: 1.6;
+}
+
+/* Estilos específicos para listas clonadas */
+.pb-content ul { padding-left: 20px; margin: 0; }
+.pb-content li { margin-bottom: 8px; }
+.pb-kpi-box {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 100%;
+}
+.pb-kpi-item {
+    text-align: center;
+    padding: 20px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    min-width: 150px;
+}
+.pb-kpi-val { font-size: 3rem; font-weight: 800; color: var(--brand-red-600); display: block; }
+.pb-kpi-lbl { font-size: 1.2rem; color: #64748b; font-weight: 600; }
+
+/* Responsive para tablet vertical */
+@media (max-width: 1000px) {
+    .pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
+    #post-briefing-screen { overflow-y: auto; }
+}
   
 </style>
 </head>
@@ -1977,6 +2087,50 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 </section>
 </div>
 
+<!-- PANTALLA MODO INFO (Post-Briefing) -->
+<div id="post-briefing-screen">
+    <div class="pb-header">
+        <div class="pb-title">🚀 MODO OPERATIVO - INFORMACIÓN ACTIVA</div>
+        <button class="pb-close-btn" onclick="closePostBriefingMode()">✖ Volver al Dashboard (Edición)</button>
+    </div>
+
+    <div class="pb-grid">
+        <!-- 1. Highlights Turno Anterior -->
+        <div class="pb-card">
+            <div class="pb-card-title">↩️ Highlights Turno Anterior</div>
+            <div id="pb-prev-content" class="pb-content"></div>
+        </div>
+
+        <!-- 2. Actualizaciones Operativas -->
+        <div class="pb-card">
+            <div class="pb-card-title">🚧 Actualizaciones Operativas</div>
+            <div id="pb-ops-content" class="pb-content"></div>
+        </div>
+
+        <!-- 3. KPIs -->
+        <div class="pb-card">
+            <div class="pb-card-title">📊 KPIs del Turno</div>
+            <div id="pb-kpi-content" class="pb-content">
+                <div class="pb-kpi-box">
+                    <div class="pb-kpi-item">
+                        <span class="pb-kpi-lbl">UPH</span>
+                        <span id="pb-val-uph" class="pb-kpi-val">-</span>
+                    </div>
+                    <div class="pb-kpi-item">
+                        <span class="pb-kpi-lbl">Costes</span>
+                        <span id="pb-val-cost" class="pb-kpi-val">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Seguridad -->
+        <div class="pb-card">
+            <div class="pb-card-title">🛡️ Seguridad y Riesgos</div>
+            <div id="pb-sec-content" class="pb-content"></div>
+        </div>
+    </div>
+</div>
 <script>
   window.STATION_OVERRIDE = 'MAD';
 </script>
@@ -6169,6 +6323,8 @@ async function loadAllTasks(){
       const respData = await res.json();
       
       alert("✅ Resumen guardado con éxito.\nSupervisor: " + payload.supervisor);
+
+      openPostBriefingMode(); 
       
     } catch (err) {
       console.error(err);
@@ -6317,9 +6473,86 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === "Escape") window.exitWidgetFlow();
     });
 });
+
+/* =================================================
+   LÓGICA MODO PANTALLA INFO (POST-BRIEFING)
+   ================================================= */
+
+// Función para activar la pantalla
+function openPostBriefingMode() {
+    // 1. Copiar Turno Anterior
+    const prevNote = document.getElementById('prev-shift-note').innerText;
+    document.getElementById('pb-prev-content').innerHTML = 
+        prevNote ? `<p>${prevNote.replace(/\n/g, '<br>')}</p>` : '<p style="color:#94a3b8">Sin novedades registradas.</p>';
+
+    // 2. Copiar Actualizaciones Operativas (Clonar tarjetas visuales)
+    const opsContainer = document.getElementById('pb-ops-content');
+    opsContainer.innerHTML = ''; // Limpiar
+    const opsItems = document.querySelectorAll('#ops-list .ops-item');
+    if(opsItems.length > 0) {
+        opsItems.forEach(item => {
+            // Clonamos nodo para no afectar al original, pero limpiamos botones
+            const clone = item.cloneNode(true);
+            const actions = clone.querySelector('.ops-actions');
+            if(actions) actions.remove(); // Quitar botones de editar/borrar
+            clone.style.border = "1px solid #e2e8f0";
+            clone.style.marginBottom = "10px";
+            opsContainer.appendChild(clone);
+        });
+    } else {
+        opsContainer.innerHTML = '<p style="color:#94a3b8">No hay actualizaciones operativas activas.</p>';
+    }
+
+    // 3. Copiar KPIs
+    document.getElementById('pb-val-uph').textContent = document.getElementById('kpi-uph').textContent;
+    document.getElementById('pb-val-cost').textContent = document.getElementById('kpi-total-cost').textContent + ' €';
+
+    // 4. Copiar Seguridad (Tips + Tarjetas)
+    const secContainer = document.getElementById('pb-sec-content');
+    secContainer.innerHTML = '';
+    
+    // A. Tips aleatorios
+    const randomTips = document.getElementById('sec-random-list');
+    if(randomTips) {
+        const tipsClone = randomTips.cloneNode(true);
+        tipsClone.style.marginBottom = "20px";
+        tipsClone.style.paddingLeft = "20px";
+        secContainer.appendChild(tipsClone);
+    }
+
+    // B. Tarjetas de riesgo activas
+    const riskCards = document.querySelectorAll('#sec-cards .ops-item');
+    if(riskCards.length > 0) {
+        riskCards.forEach(rc => {
+            const rClone = rc.cloneNode(true);
+            const headBtn = rClone.querySelector('button'); 
+            if(headBtn) headBtn.remove(); // quitar botón borrar
+            rClone.style.borderLeft = "5px solid #ef4444"; // Resaltar riesgo
+            rClone.style.marginBottom = "10px";
+            secContainer.appendChild(rClone);
+        });
+    }
+
+    // Mostrar la capa
+    document.getElementById('post-briefing-screen').classList.add('active');
+    
+    // Opcional: Poner el navegador en pantalla completa real
+    if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(e => console.log(e));
+    }
+}
+
+// Función para cerrar
+function closePostBriefingMode() {
+    document.getElementById('post-briefing-screen').classList.remove('active');
+    if (document.exitFullscreen) {
+        document.exitFullscreen().catch(e => console.log(e));
+    }
+}
 </script>
 </body>
 </html>
+
 
 
 
