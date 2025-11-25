@@ -1076,6 +1076,82 @@ color: var(--text-muted);
 pointer-events: none;
 }
 
+/* === Navegación Guiada en Widgets === */
+.widget-nav-bar {
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border);
+    margin: -16px -16px 16px -16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+.widget:fullscreen .widget-nav-bar,
+.widget.widget--zoomed .widget-nav-bar { display: flex; }
+
+.nav-group { display: flex; gap: 10px; align-items: center; }
+
+.btn-nav {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid #d1d5db;
+    background: #f8fafc;
+    color: #334155;
+}
+.btn-nav:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.btn-nav:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-nav.home { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.btn-nav.next-ok { background: #dcfce7; color: #166534; border-color: #86efac; }
+.btn-nav.next-ok:hover { background: #bbf7d0; }
+
+/* === PANTALLA MODO INFO (POST-BRIEFING) === */
+#post-briefing-screen {
+    display: none; position: fixed; inset: 0;
+    background-color: #f8fafc; z-index: 99999;
+    padding: 20px; flex-direction: column;
+}
+#post-briefing-screen.active { display: flex; }
+
+.pb-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0;
+}
+.pb-title { font-size: 1.8rem; font-weight: 800; color: var(--brand-red-700); font-family: "Space Grotesk", sans-serif; }
+.pb-close-btn {
+    background: #334155; color: white; border: none; padding: 10px 20px;
+    border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem;
+}
+.pb-grid {
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: 20px; flex: 1; overflow: hidden;
+}
+.pb-card {
+    background: white; border: 1px solid #cbd5e1; border-radius: 16px;
+    padding: 20px; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+.pb-card-title {
+    font-size: 1.4rem; font-weight: 700; color: #475569; margin-bottom: 15px;
+    border-bottom: 4px solid var(--brand-red-500); padding-bottom: 5px; width: fit-content;
+}
+.pb-content { flex: 1; overflow-y: auto; font-size: 1.1rem; line-height: 1.6; }
+.pb-content ul { padding-left: 20px; margin: 0; }
+.pb-kpi-box { display: flex; justify-content: space-around; align-items: center; height: 100%; }
+.pb-kpi-item { text-align: center; padding: 20px; background: #f1f5f9; border-radius: 12px; min-width: 150px; }
+.pb-kpi-val { font-size: 3rem; font-weight: 800; color: var(--brand-red-600); display: block; }
+
+@media (max-width: 1000px) {
+    .pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
+    #post-briefing-screen { overflow-y: auto; }
+}
 </style>
 </head>
 <body>
@@ -1572,6 +1648,48 @@ aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
 </section>
 </div>
 
+
+<!-- PANTALLA MODO INFO (Post-Briefing) -->
+<div id="post-briefing-screen">
+    <div class="pb-header">
+        <div class="pb-title">🚀 MODO OPERATIVO - BCN INFORMACIÓN</div>
+        <button class="pb-close-btn" onclick="closePostBriefingMode()">✖ Volver al Dashboard</button>
+    </div>
+
+    <div class="pb-grid">
+        <!-- 1. Turno Anterior -->
+        <div class="pb-card">
+            <div class="pb-card-title">↩️ Highlights Turno Anterior</div>
+            <div id="pb-prev-content" class="pb-content"></div>
+        </div>
+        <!-- 2. Operativa -->
+        <div class="pb-card">
+            <div class="pb-card-title">🚧 Actualizaciones Operativas</div>
+            <div id="pb-ops-content" class="pb-content"></div>
+        </div>
+        <!-- 3. KPIs -->
+        <div class="pb-card">
+            <div class="pb-card-title">📊 KPIs del Turno</div>
+            <div id="pb-kpi-content" class="pb-content">
+                <div class="pb-kpi-box">
+                    <div class="pb-kpi-item">
+                        <span style="font-size:1.2rem;font-weight:600;color:#64748b">UPH</span>
+                        <span id="pb-val-uph" class="pb-kpi-val">-</span>
+                    </div>
+                    <div class="pb-kpi-item">
+                        <span style="font-size:1.2rem;font-weight:600;color:#64748b">Costes</span>
+                        <span id="pb-val-cost" class="pb-kpi-val">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 4. Seguridad -->
+        <div class="pb-card">
+            <div class="pb-card-title">🛡️ Seguridad y Riesgos</div>
+            <div id="pb-sec-content" class="pb-content"></div>
+        </div>
+    </div>
+</div>
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
@@ -3835,158 +3953,254 @@ try{ initSafetyDailyWidget(); }catch(e){ console.error('Safety widget', e); }
 
 
 updateSpotlightRouting?.();
-/* ===== Briefing: Generar Resumen BCN Completo ===== */
-(function wireBriefingGenerate(){
-const btn = document.querySelector('header .header-controls .btn-primary');
-if (!btn) return;
+/* =========================================================
+   MEJORAS BCN: Navegación, Reset y Modo Info
+   ========================================================= */
 
-// Crear pequeño estado visual
-const status = document.createElement('small');
-status.style.marginLeft = '8px';
-status.style.color = 'var(--text-muted)';
-btn.parentElement.appendChild(status);
+// --- 1. FUNCIONES GLOBALES DE NAVEGACIÓN Y PANTALLA INFO ---
 
-// --- 1. Recolectar TODOS los datos ---
-function buildPayload(){
-const station = (window.STATION_OVERRIDE || 'BCN').toUpperCase();
-const team = (window.TEAM_STATE || {});
-const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
-const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
+window.navTo = function(targetId) {
+    if (!targetId) return;
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
 
-// 1. CRONÓMETRO & SUPERVISOR
-const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
-const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
-
-// 2. INFO TURNO ANTERIOR
-const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
-
-// 3. CHECKLIST
-const checklist = {};
-document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
-.forEach(r => { checklist[r.name] = r.value; });
-
-// 4. EQUIPO (Lógica para Excel y GitHub)
-const peopleList = team.people || [];
-const attMap = team.attendance || {};
-
-// Lista para GitHub (Solo nombres presentes)
-const presentNames = peopleList
-.filter(p => attMap[p.nombre_completo] === true)
-.map(p => p.nombre_completo);
-
-// Texto detallado para Excel (Nombre + Icono estado)
-// Genera: "Juan (✅), Pepe (❌), Ana (✅)"
-const rosterDetailsArr = peopleList.map(p => {
-const name = p.nombre_completo || "Sin Nombre";
-const isPresent = attMap[name] === true;
-return `${name} (${isPresent ? "✅" : "❌"})`;
-});
-const rosterDetailsStr = rosterDetailsArr.length > 0 ? rosterDetailsArr.join(", ") : "Sin datos de equipo";
-
-const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
-
-// 5. KPIs y OPS
-// Nota: En BCN usas 'ops-lines-list' y tarjetas '.ops-line-card' en lugar de '.ops-item'
-// Adaptamos el selector para que funcione con tu HTML de BCN
-const opsCards = document.querySelectorAll('.ops-line-card, .ops-item'); 
-const ops = Array.from(opsCards).map(card => ({
-title: card.querySelector('.ops-line-title, .ops-title')?.textContent?.trim() || '',
-impact: card.dataset.priority || card.querySelector('.ops-impact')?.textContent?.trim() || '',
-scope: 'General' // En BCN parece que no usas scope explícito en tarjetas de líneas
-}));
-
-const kpis = {
-"UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
-"OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '-',
-"Backlog": document.getElementById('kpi-backlog')?.textContent?.trim() || '-',
-"Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
+    setTimeout(() => {
+        const el = document.getElementById(targetId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Intentar fullscreen nativo, si falla, usar CSS zoom
+            if (el.requestFullscreen) {
+                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
+            } else {
+                el.classList.add('widget--zoomed');
+            }
+        }
+    }, 100);
 };
 
-const kanbanCounts = {
-"Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
-"En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
-"Cerradas": document.querySelectorAll('#kanban_rapida-Cerradas .card').length
+window.exitFlow = function() {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
 };
 
-// Payload exacto para BriefingSnapshot en main_bcn.py
-return {
-station, date, shift, 
-timer: timerVal,
-supervisor: supVal,            
-prev_shift_note: prevShiftNote,
-checklist,
-
-// Datos de equipo
-roster_stats: rosterStats,
-present_names: presentNames,   // Para Markdown
-roster_details: rosterDetailsStr, // Para Excel (Texto largo)
-
-ops_updates: ops,
-kpis,
-kanban_counts: kanbanCounts
+window.markOkAndNext = function(checkName, nextId) {
+    // 1. Marcar OK
+    if (checkName) {
+        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
+        if (radio) {
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            radio.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+    // 2. Navegar
+    if (nextId) {
+        navTo(nextId);
+    } else {
+        exitFlow();
+        document.querySelector('header').scrollIntoView({behavior:'smooth'});
+        setTimeout(() => alert("🎉 Checklist completado. Puedes generar el resumen."), 300);
+    }
 };
-}
 
-// --- 2. Diálogo de Confirmación ---
-function showSummaryDialog(text, logMsg){
-let dlg = document.getElementById('briefing-summary-dialog');
-if (!dlg){
-dlg = document.createElement('dialog');
-dlg.id = 'briefing-summary-dialog';
-dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
-dlg.innerHTML = `
-       <form method="dialog" style="display:grid;gap:12px;">
-         <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado (BCN)</h3>
-         <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
-         <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
-         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
-           <button class="btn-compact" value="cancel">Cerrar</button>
-           <button type="button" id="btn-copy-summary" class="btn-primary">Copiar Texto</button>
-         </div>
-       </form>`;
-document.body.appendChild(dlg);
+window.openPostBriefingMode = function() {
+    const screen = document.getElementById('post-briefing-screen');
+    if (!screen) return;
 
-dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
-const txt = dlg.querySelector('#briefing-content').innerText;
-try { await navigator.clipboard.writeText(txt); alert('Copiado al portapapeles'); } 
-catch(e) { alert('Error copiando automática, selecciona y copia.'); }
-});
-}
+    // Rellenar datos
+    const prev = document.getElementById('prev-shift-note')?.innerText || "Sin novedades.";
+    document.getElementById('pb-prev-content').innerHTML = `<p>${prev.replace(/\n/g,'<br>')}</p>`;
 
-dlg.querySelector('#briefing-content').textContent = text;
-dlg.querySelector('#briefing-log').textContent = logMsg || "";
-try{ dlg.showModal(); }catch{ dlg.setAttribute('open',true); }
-}
+    // Ops (clonar lista visual)
+    const opsList = document.getElementById('ops-lines-list');
+    const opsDest = document.getElementById('pb-ops-content');
+    opsDest.innerHTML = '';
+    if(opsList && opsList.children.length > 0){
+        Array.from(opsList.children).forEach(c => {
+            const clone = c.cloneNode(true);
+            const actions = clone.querySelector('.ops-line-actions');
+            if(actions) actions.remove(); // quitar botones
+            clone.style.boxShadow = "none";
+            clone.style.border = "1px solid #e2e8f0";
+            clone.style.marginBottom = "10px";
+            opsDest.appendChild(clone);
+        });
+    } else {
+        opsDest.innerHTML = '<p style="color:#94a3b8">Sin actualizaciones operativas.</p>';
+    }
 
-// --- 3. Envío al Servidor ---
-btn.addEventListener('click', async ()=>{
-const oldText = btn.textContent;
-btn.textContent = 'Guardando...';
-btn.disabled = true;
+    // KPIs
+    const uph = document.getElementById('kpi-uph')?.innerText || "-";
+    const cost = document.getElementById('kpi-total-cost')?.innerText || "-";
+    document.getElementById('pb-val-uph').textContent = uph;
+    document.getElementById('pb-val-cost').textContent = cost + ' €';
 
-try {
-const payload = buildPayload();
-console.log("📤 Enviando BCN:", payload);
+    // Seguridad
+    const tips = document.getElementById('safety-tips')?.innerHTML || "";
+    const manualInc = document.getElementById('safety-list')?.innerHTML || "";
+    let secHtml = `<div style="margin-bottom:15px">${tips}</div>`;
+    if(manualInc.trim()){
+        secHtml += `<strong style="color:#b91c1c;display:block;margin-bottom:5px;">Incidentes Manuales:</strong>${manualInc}`;
+    }
+    const secDest = document.getElementById('pb-sec-content');
+    secDest.innerHTML = secHtml;
+    // Limpiar botones de borrado en la vista info
+    secDest.querySelectorAll('.danger').forEach(b => b.remove());
 
-const res = await fetch('/api/briefing/summary', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(payload)
-});
+    // Mostrar
+    screen.classList.add('active');
+    if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(()=>{});
+    }
+};
 
-if (!res.ok) throw new Error('Error en servidor');
-const respData = await res.json();
-showSummaryDialog(respData.summary, respData.log);
+window.closePostBriefingMode = function() {
+    document.getElementById('post-briefing-screen').classList.remove('active');
+    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+};
 
-} catch (err) {
-console.error(err);
-alert('Error al guardar resumen. Revisa la consola.');
-} finally {
-btn.textContent = oldText;
-btn.disabled = false;
-}
-});
-})();
+
+// --- 2. INICIALIZACIÓN Y LOGICA DE BOTONES ---
+
+document.addEventListener('DOMContentLoaded', () => {
+    // A. Inyectar Navegación
+    // BCN usa IDs distintos, ajustamos el mapa:
+    const WIDGET_MAP = [
+        { id: 'prev-shift-widget',  check: 'c1', label: '1. Turno Anterior' },
+        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+        { id: 'team-widget',        check: 'c3', label: '3. Equipo' },
+        { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
+        { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
+        { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
+        { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
+    ];
+
+    WIDGET_MAP.forEach((step, index) => {
+        const widget = document.getElementById(step.id);
+        if (!widget || widget.querySelector('.widget-nav-bar')) return;
+
+        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
+        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
+
+        const navBar = document.createElement('div');
+        navBar.className = 'widget-nav-bar';
+        navBar.innerHTML = `
+            <div class="nav-group">
+                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>⬅ Anterior</button>
+            </div>
+            <div class="nav-group" style="font-size:0.9rem;color:#64748b;">
+                ${step.label} (${index + 1}/${WIDGET_MAP.length})
+            </div>
+            <div class="nav-group">
+                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
+                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
+                    ✅ OK y Siguiente ➡
+                </button>
+            </div>
+        `;
+        widget.prepend(navBar);
+    });
+
+    // B. Reset Cronómetro + Checks
+    const resetBtn = document.getElementById('timer-reset');
+    if (resetBtn) {
+        // Clona el botón para eliminar listeners anteriores (truco limpio)
+        const newBtn = resetBtn.cloneNode(true);
+        resetBtn.parentNode.replaceChild(newBtn, resetBtn);
+        
+        newBtn.addEventListener('click', () => {
+            if (!confirm("¿Reiniciar turno BCN? Se borrarán los checks y el tiempo.")) return;
+            
+            // Resetear cronómetro (lógica inline simple)
+            // (Asumimos que el timer tiene su propia lógica global, aquí solo UI)
+            document.getElementById('timer-display').textContent = "00:00:00";
+            document.getElementById('timer-display').classList.remove('is-red');
+
+            // Resetear Checks
+            document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+            
+            // Borrar persistencia local
+            Object.keys(localStorage).forEach(k => {
+                if(k.includes('brief_check')) localStorage.removeItem(k);
+            });
+            
+            // Resetear textos meta
+            const meta = document.getElementById('brief-check-meta');
+            if(meta) meta.textContent = "Checklist reiniciado";
+            
+            if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+            console.log("♻️ Turno BCN reiniciado.");
+        });
+    }
+
+    // C. Botón Generar Resumen -> Envío -> Pantalla Info
+    const btnGen = document.querySelector('header .header-controls .btn-primary');
+    if (btnGen) {
+        // Reemplazamos para controlar el flujo nosotros
+        const newBtnGen = btnGen.cloneNode(true);
+        btnGen.parentNode.replaceChild(newBtnGen, btnGen);
+        
+        newBtnGen.addEventListener('click', async () => {
+            newBtnGen.textContent = 'Guardando...';
+            newBtnGen.disabled = true;
+
+            try {
+                // Reconstruimos el payload aquí para asegurar contexto
+                const team = window.TEAM_STATE || {};
+                const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
+                
+                const rosterList = (team.people||[]).map(p => {
+                    const isP = (team.attendance||{})[p.nombre_completo] === true;
+                    return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
+                }).join(", ") || "Sin datos";
+
+                // Captura Kanban
+                const kanbanItems = [];
+                ['Abiertas','En-Curso','Cerradas','Vencidas'].forEach(st => {
+                    const col = document.getElementById(`kanban_rapida-${st}`);
+                    if(col) col.querySelectorAll('.card').forEach(c => 
+                        kanbanItems.push(`[${st}] ${c.querySelector('.card-title')?.innerText}`));
+                });
+
+                const payload = {
+                    station: "BCN",
+                    date: new Date().toLocaleDateString('es-ES'),
+                    shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+                    timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+                    supervisor: supVal,
+                    checklist: {}, // opcional rellenar
+                    kpis: {
+                        "UPH": document.getElementById('kpi-uph')?.innerText,
+                        "Costes": document.getElementById('kpi-total-cost')?.innerText
+                    },
+                    roster_details: rosterList,
+                    prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
+                    kanban_details: kanbanItems.join(" | "),
+                    ops_updates: [] // se procesa en backend si hay items
+                };
+
+                // Envío
+                const res = await fetch('/api/briefing/summary', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                if(!res.ok) throw new Error('Error del servidor');
+                
+                // Éxito
+                alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
+                window.openPostBriefingMode();
+
+            } catch (e) {
+                console.error(e);
+                alert("Error: " + e.message);
+            } finally {
+                newBtnGen.textContent = "Generar Resumen";
+                newBtnGen.disabled = false;
+            }
+        });
+    }
 });
 </script>
 </body>
