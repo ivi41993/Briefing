@@ -4193,12 +4193,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.openPostBriefingMode();
 
             } catch (e) {
-                console.error(e);
-                // Éxito
-                alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
-                window.openPostBriefingMode();
-
-            } catch (e) {
+                // Solo un bloque catch
                 console.error(e);
                 alert("Error: " + e.message);
             } finally {
