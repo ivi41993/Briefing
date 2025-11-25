@@ -4194,6 +4194,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (e) {
                 console.error(e);
+                // Éxito
+                alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
+                window.openPostBriefingMode();
+
+            } catch (e) {
+                console.error(e);
                 alert("Error: " + e.message);
             } finally {
                 newBtnGen.textContent = "Generar Resumen";
@@ -4201,7 +4207,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-});
+}); // Cierre del DOMContentLoaded
 </script>
 </body>
 </html>
