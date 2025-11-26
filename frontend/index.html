@@ -1621,9 +1621,101 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 .btn-nav.home { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 .btn-nav.next-ok { background: #dcfce7; color: #166534; border-color: #86efac; }
 .btn-nav.next-ok:hover { background: #bbf7d0; }
+/* =========================================
+   ESTILOS PARA CAMBIO DE TURNO AUTOMÁTICO
+   ========================================= */
+
+/* Clase que se añade al widget de Checklist para forzar pantalla completa (Fake Fullscreen) */
+.widget.shift-focus {
+    position: fixed !important;
+    inset: 0 !important; /* Top, right, bottom, left: 0 */
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9990 !important; /* Muy alto, tapa todo */
+    margin: 0 !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    padding: 40px 20px 120px 20px !important; /* Padding inferior extra para el cronómetro */
+    display: block !important; /* Asegura que sea visible */
+    box-shadow: none !important;
+    animation: zoom-in-shift 0.4s ease-out forwards;
+}
+
+/* Animación de entrada */
+@keyframes zoom-in-shift {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Título más grande en modo cambio de turno */
+.widget.shift-focus .widget-title {
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--brand-red-700);
+}
+
+/* Tarjetas del checklist más grandes para facilitar el toque */
+.widget.shift-focus .check-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.widget.shift-focus .check-card {
+    padding: 20px;
+    border: 2px solid var(--border);
+}
+
+/* === CRONÓMETRO FLOTANTE === */
+/* Cuando el body tiene la clase 'shift-active', movemos el cronómetro */
+body.shift-active #timer-widget {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000; /* Por encima del checklist */
+    background: #fff;
+    padding: 15px 40px;
+    border-radius: 50px;
+    box-shadow: 0 10px 40px rgba(220, 38, 38, 0.25); /* Sombra roja suave */
+    border: 3px solid var(--brand-red-600);
+    display: flex !important;
+    gap: 20px;
+}
+
+body.shift-active .timer-display {
+    font-size: 3rem; /* Números gigantes */
+    font-variant-numeric: tabular-nums;
+}
+
+/* Botón para salir manualmente si es necesario */
+#exit-shift-mode-btn {
+    display: none; /* Oculto por defecto */
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10001;
+    padding: 10px 20px;
+    background: #334155;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+body.shift-active #exit-shift-mode-btn {
+    display: block;
+}
 </style>
 </head>
 <body>
+<body>
+
+<button id="exit-shift-mode-btn" onclick="exitShiftMode()">Cerrar Vista Turno ✖</button>
+
+
 <select id="scale-select" aria-label="Escala UI">
 <option value="1">100%</option>
 <option value="1.15" selected>115%</option>
@@ -6147,9 +6239,120 @@ window.closePostBriefingMode = function() {
     }
   });
 })();
+// =========================================================
+//  LÓGICA DE CAMBIO DE TURNO AUTOMÁTICO (14:00, 22:00, 06:00)
+// =========================================================
+
+(function initAutoShiftChange(){
+    let lastShift = null;
+
+    // Función auxiliar para obtener el nombre del turno basado en la hora
+    function getCurrentShiftName() {
+        const h = new Date().getHours();
+        if (h >= 6 && h < 14) return 'Mañana';
+        if (h >= 14 && h < 22) return 'Tarde';
+        return 'Noche';
+    }
+
+    function checkTime() {
+        const now = new Date();
+        const currentShift = getCurrentShiftName();
+
+        // Inicialización: primera vez que corre, guardamos el turno actual y no hacemos nada
+        if (lastShift === null) {
+            lastShift = currentShift;
+            return;
+        }
+
+        // DETECCIÓN DE CAMBIO: Si el turno calculado es diferente al guardado
+        if (currentShift !== lastShift) {
+            console.log(`🔄 Cambio de turno detectado: ${lastShift} -> ${currentShift}`);
+            lastShift = currentShift;
+            triggerShiftChangeUI(currentShift);
+        }
+    }
+
+    function triggerShiftChangeUI(newShiftName) {
+        // 1. Resetear el checklist (Limpia los checks visualmente y en memoria)
+        if(typeof resetBriefChecklistTo === 'function') {
+            resetBriefChecklistTo('NO'); 
+        } else {
+            // Fallback manual si la función no existe
+            document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+        }
+
+        // 2. Resetear el Cronómetro (Simulamos clic en reset)
+        const resetBtn = document.getElementById('timer-reset');
+        if(resetBtn) resetBtn.click();
+
+        // 3. Activar Modo "Shift Focus" (CSS)
+        document.body.classList.add('shift-active');
+        
+        const checklistWidget = document.getElementById('brief-check');
+        if(checklistWidget) {
+            checklistWidget.classList.add('shift-focus');
+            
+            // Modificar el título temporalmente para dar feedback
+            const titleEl = checklistWidget.querySelector('.widget-title');
+            if(titleEl) {
+                titleEl.setAttribute('data-original-text', titleEl.innerHTML);
+                titleEl.innerHTML = `🚀 INICIO DE TURNO: <span style="color:var(--brand-red-600)">${newShiftName.toUpperCase()}</span>`;
+            }
+        }
+
+        // 4. Sonido de notificación (Opcional - Beep suave)
+        try {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = context.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = 880; // A5
+            osc.connect(context.destination);
+            osc.start();
+            osc.stop(context.currentTime + 0.5);
+        } catch(e) {} // Ignorar si el navegador bloquea audio
+    }
+
+    // Comprobar cada segundo
+    setInterval(checkTime, 1000);
+})();
+
+// Función global para salir del modo pantalla completa
+window.exitShiftMode = function() {
+    document.body.classList.remove('shift-active');
+    
+    const checklistWidget = document.getElementById('brief-check');
+    if(checklistWidget) {
+        checklistWidget.classList.remove('shift-focus');
+        
+        // Restaurar título
+        const titleEl = checklistWidget.querySelector('.widget-title');
+        const original = titleEl?.getAttribute('data-original-text');
+        if(original) titleEl.innerHTML = original;
+    }
+};
+
+// Conectar el botón de "Generar Resumen" o terminar checklist para salir también
+// (Buscamos la función existente markOkAndNext o similar para inyectar la salida)
+const originalExitFlow = window.exitFlow;
+window.exitFlow = function() {
+    // Ejecutar la lógica original
+    if(originalExitFlow) originalExitFlow();
+    // Y además salir del modo turno automático
+    window.exitShiftMode();
+};
+
+// Si el usuario hace clic en "Generar Resumen", también salimos
+const generateBtn = document.querySelector('header .header-controls .btn-primary');
+if(generateBtn) {
+    generateBtn.addEventListener('click', () => {
+        // Esperar un poco a que se guarde y cerrar la vista
+        setTimeout(() => window.exitShiftMode(), 500);
+    });
+}
 </script>
 </body>
 </html>
+
 
 
 
