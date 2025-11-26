@@ -2070,6 +2070,48 @@ body.shift-mode #timer-widget {
 .widget.shift-focus {
     z-index: 10000 !important;
 }
+
+/* === CRONÓMETRO SUPREMO (Siempre visible abajo) === */
+/* AÑADIMOS "body.card-open #timer-widget" AL SELECTOR */
+body.shift-mode #timer-widget,
+body.card-open #timer-widget { 
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important; /* Encima de todo */
+    
+    display: flex !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* Texto grande */
+body.shift-mode #timer-display,
+body.card-open #timer-display {
+    font-size: 4rem !important;
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    line-height: 1 !important;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Botón reset */
+body.shift-mode #timer-reset,
+body.card-open #timer-reset {
+    width: 50px !important; height: 50px !important;
+    font-size: 20px !important;
+    border-radius: 50% !important;
+    background: #f3f4f6 !important;
+}
 </style>
 </head>
 <body>
@@ -6729,38 +6771,47 @@ window.testShiftMode = function() {
     setInterval(checkTime, 1000);
 })();
 
-// Reemplaza tu función window.navTo por esta:
-// REEMPLAZA TU FUNCIÓN window.navTo POR ESTA:
+// === NAVEGACIÓN QUE SIEMPRE ACTIVA EL CRONO ===
+
 window.navTo = function(targetId) {
     const el = document.getElementById(targetId);
     if (!el) return;
 
-    console.log("Navegando a:", targetId);
+    console.log("Abriendo tarjeta:", targetId);
 
-    // Detectar si estamos en modo turno (automático o manual)
+    // 1. Limpiar zooms previos
+    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    
+    // 2. Activar MODO TARJETA ABIERTA (Esto hace aparecer el crono gracias al CSS)
+    document.body.classList.add('card-open');
+
+    // 3. Aplicar clase de Zoom a la tarjeta (Z-Index 15000)
+    el.classList.add('widget--zoomed');
+    
+    // 4. Scroll al inicio de la tarjeta
+    el.scrollTop = 0;
+};
+
+window.exitFlow = function() {
+    // 1. Quitar zoom de la tarjeta
+    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    
+    // 2. Quitar estado de tarjeta abierta (El crono vuelve arriba si no estamos en shift-mode)
+    document.body.classList.remove('card-open');
+
+    // 3. Si estábamos en modo turno automático, volvemos al checklist base
     if (document.body.classList.contains('shift-mode')) {
-        
-        // 1. Si ya había otra tarjeta abierta, ciérrala (quita el zoom)
-        document.querySelectorAll('.widget--zoomed').forEach(w => {
-            w.classList.remove('widget--zoomed');
-        });
-
-        // 2. Aplica la clase de zoom a la nueva tarjeta
-        // Gracias al CSS de arriba, esta tarjeta tendrá z-index 20000
-        // y el cronómetro tendrá z-index 2147483647 (se verá encima).
-        el.classList.add('widget--zoomed');
-        
-        // 3. Sube el scroll al principio de la tarjeta
-        el.scrollTop = 0;
-
+        const checklist = document.getElementById('brief-check');
+        if(checklist) checklist.classList.add('shift-focus');
     } else {
-        // Modo normal (día a día): solo hace scroll suave
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Si es modo normal, limpieza total
+        document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
     }
 };
 </script>
 </body>
 </html>
+
 
 
 
