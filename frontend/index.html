@@ -2018,6 +2018,58 @@ body.shift-mode #timer-widget {
     margin: 0 !important;
     display: block !important;
 }
+
+/* =========================================================
+   CORRECCIÓN DEFINITIVA: CAPAS Z-INDEX
+   ========================================================= */
+
+/* 1. EL CRONÓMETRO (Capa Suprema) */
+body.shift-mode #timer-widget {
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    
+    /* El número más alto posible en CSS para asegurar que NADA lo tape */
+    z-index: 2147483647 !important; 
+    
+    display: flex !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* 2. TARJETA ABIERTA EN GRANDE (Capa Media) */
+.widget.widget--zoomed {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    
+    /* Z-index alto (20000), pero MENOR que el cronómetro */
+    z-index: 20000 !important; 
+    
+    background: #ffffff !important;
+    /* Padding inferior gigante (180px) para que el contenido no se esconda detrás del crono */
+    padding: 20px 20px 180px 20px !important; 
+    overflow-y: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: block !important;
+}
+
+/* 3. CHECKLIST DE FONDO (Capa Base) */
+.widget.shift-focus {
+    z-index: 10000 !important;
+}
 </style>
 </head>
 <body>
@@ -6678,29 +6730,38 @@ window.testShiftMode = function() {
 })();
 
 // Reemplaza tu función window.navTo por esta:
+// REEMPLAZA TU FUNCIÓN window.navTo POR ESTA:
 window.navTo = function(targetId) {
     const el = document.getElementById(targetId);
     if (!el) return;
 
-    // Si estamos en modo turno (automático o manual)
+    console.log("Navegando a:", targetId);
+
+    // Detectar si estamos en modo turno (automático o manual)
     if (document.body.classList.contains('shift-mode')) {
-        // 1. Limpiar zoom anterior si lo hubiera
-        document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
         
-        // 2. Aplicar clase CSS de zoom (Esto pone la tarjeta en z-index 20000)
-        // El cronómetro tiene z-index 2147483647, así que se verá encima.
+        // 1. Si ya había otra tarjeta abierta, ciérrala (quita el zoom)
+        document.querySelectorAll('.widget--zoomed').forEach(w => {
+            w.classList.remove('widget--zoomed');
+        });
+
+        // 2. Aplica la clase de zoom a la nueva tarjeta
+        // Gracias al CSS de arriba, esta tarjeta tendrá z-index 20000
+        // y el cronómetro tendrá z-index 2147483647 (se verá encima).
         el.classList.add('widget--zoomed');
         
-        // 3. Scroll al inicio
+        // 3. Sube el scroll al principio de la tarjeta
         el.scrollTop = 0;
+
     } else {
-        // Modo normal (scroll suave)
+        // Modo normal (día a día): solo hace scroll suave
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 };
 </script>
 </body>
 </html>
+
 
 
 
