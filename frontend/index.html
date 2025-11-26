@@ -1708,130 +1708,7 @@ body.shift-active .timer-display {
 body.shift-active #exit-shift-mode-btn {
     display: block;
 }
-/* =========================================================
-   MEJORA VISUAL: CHECKLIST GIGANTE (COLUMNA CENTRAL)
-   ========================================================= */
 
-/* 1. Contenedor del Widget más espacioso */
-#brief-check {
-    padding: 25px !important;
-    border: 2px solid rgba(220, 38, 38, 0.3); /* Borde rojo sutil de marca */
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important;
-}
-
-/* 2. Título del Widget ("Checklist") más grande */
-#brief-check .widget-title {
-    font-size: 1.6rem !important;
-    margin-bottom: 25px !important;
-    color: var(--brand-red-700);
-    border-bottom: 3px solid #f3f4f6;
-}
-
-/* 3. Rejilla: Tarjetas más anchas y separadas */
-#brief-check .check-grid {
-    /* Forzamos tarjetas de mínimo 300px de ancho */
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
-    gap: 18px !important;
-}
-
-/* 4. Estilo de la Tarjeta Individual */
-#brief-check .check-card {
-    padding: 20px 24px !important;    /* Mucho espacio interior */
-    min-height: 110px !important;     /* Altura mínima mayor */
-    border: 1px solid #e2e8f0;
-    background: #fff;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-#brief-check .check-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-    border-color: var(--brand-red-400);
-}
-
-/* 5. Texto de los puntos (Ej: "1. Dotación") */
-#brief-check .check-title {
-    font-size: 1.25rem !important;    /* Letra grande y legible */
-    font-weight: 700 !important;
-    color: #1e293b;
-    line-height: 1.3;
-    margin-bottom: 15px !important;
-}
-
-/* 6. Botones de Acción (Radio Buttons) más grandes */
-#brief-check .check-actions {
-    width: 100%;
-}
-
-#brief-check .check-actions label {
-    display: flex !important;
-    justify-content: center;
-    align-items: center;
-    width: 100% !important;           /* Botón ocupa todo el ancho de la tarjeta */
-    padding: 12px 0 !important;       /* Botón alto para dedo fácil */
-    font-size: 1.05rem !important;
-    font-weight: 600;
-    border-radius: 8px !important;
-    background-color: #f1f5f9;
-    border: 1px solid #cbd5e1;
-    color: #64748b;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-/* Estado Seleccionado (Verde Intenso) */
-#brief-check .check-actions input:checked + label {
-    background-color: #dcfce7 !important;
-    color: #15803d !important;
-    border-color: #22c55e !important;
-    box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.2);
-    font-weight: 800;
-}
-
-/* 7. Chip de Turno (el que dice "Mañana/Tarde") */
-#brief-check #shift-badge {
-    font-size: 1rem !important;
-    padding: 6px 15px !important;
-    margin-bottom: 20px !important;
-}
-
-/* =================================================
-   MODO CAMBIO DE TURNO: PANTALLA COMPLETA
-   ================================================= */
-
-/* 1. El Checklist ocupa toda la pantalla */
-.widget.shift-focus {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    z-index: 9990 !important; /* Capa alta */
-    background: #ffffff !important;
-    overflow-y: auto !important;
-    padding: 40px 20px 150px 20px !important; /* Padding inferior 150px para dejar sitio al crono */
-    border: none !important;
-    border-radius: 0 !important;
-    margin: 0 !important;
-}
-
-/* Título gigante en este modo */
-.widget.shift-focus .widget-title {
-    font-size: 2.5rem !important;
-    text-align: center;
-    color: #b91c1c;
-    margin-bottom: 40px !important;
-}
-
-/* Rejilla más grande */
-.widget.shift-focus .check-grid {
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)) !important;
-    max-width: 1200px;
-    margin: 0 auto;
-}
 
 /* =================================================
    CRONÓMETRO FLOTANTE (FIX)
@@ -1897,6 +1774,76 @@ body.shift-active #timer-reset {
 }
 body.shift-active #exit-shift-btn {
     display: block;
+}
+/* =========================================================
+   JERARQUÍA VISUAL PARA MODO CAMBIO DE TURNO
+   ========================================================= */
+
+/* 1. EL CRONÓMETRO: SIEMPRE ENCIMA DE TODO */
+body.shift-active #timer-widget {
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 20000 !important; /* Capa Suprema */
+    
+    /* Diseño Gigante y Claro */
+    display: flex !important;
+    background: #fff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.5) !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+body.shift-active #timer-display {
+    font-size: 3.5rem !important;
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 2. EL CHECKLIST (Pantalla Base del Modo Turno) */
+.widget.shift-focus {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 10000 !important; /* Capa Base */
+    background: #f8fafc !important;
+    padding-bottom: 140px !important; /* Espacio para el crono */
+    overflow-y: auto !important;
+    border: none !important;
+    margin: 0 !important;
+}
+
+/* 3. LAS TARJETAS INDIVIDUALES (Cuando navegas: Dotación, Ops, etc.) */
+body.shift-active .widget.widget--zoomed {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 15000 !important; /* Capa Media (Encima del checklist, debajo del crono) */
+    background: #ffffff !important;
+    padding: 20px 20px 140px 20px !important; /* Espacio inferior vital para el crono */
+    overflow-y: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: block !important;
+}
+
+/* Asegurar que la barra de navegación (Siguiente/Anterior) se vea bien arriba */
+body.shift-active .widget-nav-bar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 15001 !important; /* Encima del contenido de la tarjeta */
+    background: #f1f5f9 !important;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 15px !important;
+}
+
+/* Botones de navegación más grandes en este modo */
+body.shift-active .btn-nav {
+    padding: 12px 24px !important;
+    font-size: 1.1rem !important;
 }
 </style>
 </head>
@@ -6521,9 +6468,115 @@ if(genBtn) {
 window.testShiftMode = function() {
     triggerShiftMode("PRUEBA");
 }
+// =========================================================
+//  LÓGICA DE NAVEGACIÓN COMPATIBLE CON CRONÓMETRO
+// =========================================================
+
+// Sobrescribimos la función de navegación global
+window.navTo = function(targetId) {
+    if (!targetId) return;
+
+    const el = document.getElementById(targetId);
+    if (!el) return;
+
+    console.log("Navegando a:", targetId);
+
+    // 1. Si estamos en MODO CAMBIO DE TURNO (Automático)
+    if (document.body.classList.contains('shift-active')) {
+        
+        // Quitamos zoom de cualquier otro widget previo
+        document.querySelectorAll('.widget--zoomed').forEach(w => {
+            w.classList.remove('widget--zoomed');
+        });
+
+        // Aplicamos zoom CSS al nuevo objetivo (esto lo pone en z-index 15000)
+        // El cronómetro está en z-index 20000, así que seguirá visible
+        el.classList.add('widget--zoomed');
+        
+        // Scroll al top de la tarjeta
+        el.scrollTop = 0; 
+
+    } else {
+        // 2. MODO NORMAL (Día a día) - Mantenemos comportamiento original
+        // Intentar fullscreen nativo o scroll suave
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('widget--zoomed'); // Fallback visual
+        
+        // Intento de fullscreen nativo (opcional en modo normal)
+        if (el.requestFullscreen) {
+            el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+        }
+    }
+};
+
+// Función para salir de una tarjeta y volver al checklist principal
+window.exitFlow = function() {
+    // Quitar zoom de las tarjetas individuales
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+    
+    // Si estamos en modo nativo, salir
+    if (document.exitFullscreen && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+    }
+
+    // Si estamos en modo turno, el Checklist (#brief-check) ya está fijo debajo
+    // así que al quitar .widget--zoomed, "volvemos" a ver el checklist.
+    
+    // Actualizar el estado de los parpadeos
+    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+};
+
+// =========================================================
+//  AUTO-DETECCIÓN DE HORARIO (Script previo refinado)
+// =========================================================
+(function initAutoShiftChange(){
+    let lastShift = null;
+
+    function getCurrentShiftName() {
+        const h = new Date().getHours();
+        if (h >= 6 && h < 14) return 'Mañana';
+        if (h >= 14 && h < 22) return 'Tarde';
+        return 'Noche';
+    }
+
+    function checkTime() {
+        const currentShift = getCurrentShiftName();
+        if (lastShift === null) { lastShift = currentShift; return; }
+
+        if (currentShift !== lastShift) {
+            lastShift = currentShift;
+            startShiftMode(currentShift);
+        }
+    }
+
+    window.startShiftMode = function(shiftName) {
+        // Activar clases globales
+        document.body.classList.add('shift-active');
+        
+        const checklist = document.getElementById('brief-check');
+        if(checklist) checklist.classList.add('shift-focus');
+
+        // Resetear Timer
+        const resetBtn = document.getElementById('timer-reset');
+        if(resetBtn) resetBtn.click();
+
+        // Resetear Checks
+        if(typeof resetBriefChecklistTo === 'function') resetBriefChecklistTo('NO');
+    };
+
+    setInterval(checkTime, 1000);
+})();
+
+// Botón de salida manual (para emergencias)
+window.exitShiftMode = function() {
+    document.body.classList.remove('shift-active');
+    document.querySelectorAll('.shift-focus').forEach(e => e.classList.remove('shift-focus'));
+    document.querySelectorAll('.widget--zoomed').forEach(e => e.classList.remove('widget--zoomed'));
+};
 </script>
 </body>
 </html>
+
 
 
 
