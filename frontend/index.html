@@ -2023,7 +2023,28 @@ body.shift-mode #timer-widget {
    CORRECCIÓN DEFINITIVA: CAPAS Z-INDEX
    ========================================================= */
 
-
+/* 1. EL CRONÓMETRO (Capa Suprema) */
+body.shift-mode #timer-widget {
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    
+    /* El número más alto posible en CSS para asegurar que NADA lo tape */
+    z-index: 2147483647 !important; 
+    
+    display: flex !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
 
 /* 2. TARJETA ABIERTA EN GRANDE (Capa Media) */
 .widget.widget--zoomed {
@@ -2050,7 +2071,28 @@ body.shift-mode #timer-widget {
     z-index: 10000 !important;
 }
 
-
+/* === CRONÓMETRO SUPREMO (Siempre visible abajo) === */
+/* AÑADIMOS "body.card-open #timer-widget" AL SELECTOR */
+body.shift-mode #timer-widget,
+body.card-open #timer-widget { 
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important; /* Encima de todo */
+    
+    display: flex !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
 
 /* Texto grande */
 body.shift-mode #timer-display,
@@ -2069,81 +2111,6 @@ body.card-open #timer-reset {
     font-size: 20px !important;
     border-radius: 50% !important;
     background: #f3f4f6 !important;
-}
-
-/* =========================================================
-   Z-INDEX MASTER & CRONÓMETRO FLOTANTE
-   ========================================================= */
-
-/* 1. CLASE MAESTRA: Activa el modo flotante */
-body.timer-floating #timer-widget {
-    position: fixed !important;
-    bottom: 30px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    z-index: 2147483647 !important; /* MÁXIMO VALOR POSIBLE */
-    
-    /* Estética Gigante */
-    display: flex !important;
-    background: #ffffff !important;
-    padding: 10px 40px !important;
-    border-radius: 50px !important;
-    border: 4px solid #dc2626 !important;
-    box-shadow: 0 15px 50px rgba(0,0,0,0.5) !important;
-    width: auto !important;
-    height: auto !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-/* Textos grandes cuando flota */
-body.timer-floating #timer-display {
-    font-size: 4rem !important;
-    font-weight: 800 !important;
-    color: #1f2937 !important;
-    font-variant-numeric: tabular-nums;
-    line-height: 1 !important;
-}
-
-/* Botón reset grande cuando flota */
-body.timer-floating #timer-reset {
-    width: 60px !important; 
-    height: 60px !important;
-    font-size: 1.2rem !important;
-    border-radius: 50% !important;
-    background: #f3f4f6 !important;
-    cursor: pointer !important;
-}
-
-/* 2. CHECKLIST FONDO (Capa Base en Modo Turno) */
-.widget.shift-focus {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 10000 !important;
-    background: #f8fafc !important;
-    overflow-y: auto !important;
-    padding-bottom: 160px !important; /* Espacio para el crono */
-    margin: 0 !important;
-}
-
-/* 3. TARJETA ABIERTA/ZOOM (Capa Media) */
-.widget.widget--zoomed {
-    position: fixed !important;
-    top: 0 !important; left: 0 !important;
-    width: 100vw !important; height: 100vh !important;
-    z-index: 20000 !important; /* Mayor que checklist, menor que crono */
-    background: #ffffff !important;
-    overflow-y: auto !important;
-    padding: 20px 20px 160px 20px !important; /* Espacio vital inferior */
-    margin: 0 !important;
-    border-radius: 0 !important;
-    display: block !important;
-}
-
-/* Ajuste: Ocultar el timer original del header para que no se duplique visualmente si algo falla */
-body.timer-floating header #timer-widget {
-    /* El fixed !important de arriba ya lo saca del flujo, 
-       pero esto asegura que el hueco en el header no haga cosas raras */
 }
 </style>
 </head>
@@ -6502,35 +6469,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- FUNCIONES GLOBALES (Window) PARA LOS BOTONES ONCLICK ---
 
-// 1. NAVEGACIÓN: Al entrar en una tarjeta, el crono baja automáticamente
 window.navTo = function(targetId) {
-    const el = document.getElementById(targetId);
-    if (!el) return;
+    if (!targetId) return;
+    // Salir de pantalla completa anterior si la hay
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
 
-    // A. Activar modo flotante AUTOMÁTICAMENTE
-    document.body.classList.add('timer-floating');
-
-    // B. Preparar la tarjeta
-    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-    el.classList.add('widget--zoomed');
-    el.scrollTop = 0; // Ir al principio de la tarjeta
+    setTimeout(() => {
+        const el = document.getElementById(targetId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Intentar fullscreen nativo, si falla, usar CSS zoom
+            if (el.requestFullscreen) {
+                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
+            } else {
+                el.classList.add('widget--zoomed');
+            }
+        }
+    }, 100);
 };
 
-// 2. SALIDA: Al salir, decide si el crono se queda o se va
 window.exitFlow = function() {
-    // Quitar zoom de tarjeta
-    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-
-    // Si NO estamos en cambio de turno oficial, devolver crono al header
-    if (!document.body.classList.contains('shift-mode-active')) {
-        document.body.classList.remove('timer-floating');
-    }
-
-    // Si estamos en cambio de turno, volver a enfocar el checklist de fondo
-    if (document.body.classList.contains('shift-mode-active')) {
-        const checklist = document.getElementById('brief-check');
-        if(checklist) checklist.classList.add('shift-focus');
-    }
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
 };
 
 window.markOkAndNext = function(checkName, nextId) {
@@ -6684,7 +6646,99 @@ window.closePostBriefingMode = function() {
 // =========================================================
 //  LÓGICA DE CAMBIO DE TURNO AUTOMÁTICO
 // =========================================================
-// 3. DETECTOR DE HORARIO: Activa todo solo cuando cambia el turno
+
+(function initAutoShiftChange(){
+    let lastShift = null;
+
+    // Determina el turno actual según la hora
+    function getCurrentShiftName() {
+        const h = new Date().getHours();
+        if (h >= 6 && h < 14) return 'Mañana';
+        if (h >= 14 && h < 22) return 'Tarde';
+        return 'Noche';
+    }
+
+    // Loop de comprobación (cada segundo)
+    function checkTime() {
+        const currentShift = getCurrentShiftName();
+
+        // Primera carga: solo guardamos el estado
+        if (lastShift === null) {
+            lastShift = currentShift;
+            return;
+        }
+
+        // Si el turno cambia respecto al guardado -> DISPARAR
+        if (currentShift !== lastShift) {
+            console.log(`🔄 CAMBIO DE TURNO: ${lastShift} -> ${currentShift}`);
+            lastShift = currentShift;
+            triggerShiftMode(currentShift);
+        }
+    }
+
+    // Función que activa la UI
+    window.triggerShiftMode = function(shiftName) {
+        console.log("🚀 Activando Modo Cambio de Turno...");
+        
+        // 1. Activar clase en BODY (esto mueve el cronómetro)
+        document.body.classList.add('shift-active');
+
+        // 2. Activar clase en CHECKLIST (esto lo hace fullscreen)
+        const checklist = document.getElementById('brief-check') || document.getElementById('checklist-widget');
+        if(checklist) {
+            checklist.classList.add('shift-focus');
+            
+            // Cambiar título temporalmente
+            const title = checklist.querySelector('.widget-title');
+            if(title) {
+                if(!title.dataset.original) title.dataset.original = title.innerHTML;
+                title.innerHTML = `COMIENZO TURNO: <span style="color:#dc2626">${shiftName.toUpperCase()}</span>`;
+            }
+        }
+
+        // 3. Resetear cronómetro
+        const resetBtn = document.getElementById('timer-reset');
+        if(resetBtn) resetBtn.click();
+
+        // 4. Resetear checks
+        document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    };
+
+    // Intervalo de comprobación
+    setInterval(checkTime, 1000);
+})();
+
+// Función para salir del modo
+window.exitShiftMode = function() {
+    document.body.classList.remove('shift-active');
+    
+    const checklist = document.getElementById('brief-check') || document.getElementById('checklist-widget');
+    if(checklist) {
+        checklist.classList.remove('shift-focus');
+        // Restaurar título
+        const title = checklist.querySelector('.widget-title');
+        if(title && title.dataset.original) title.innerHTML = title.dataset.original;
+    }
+};
+
+// Enganche para salir al generar resumen
+const genBtn = document.getElementById('btn-generate') || document.querySelector('.header-controls .btn-primary');
+if(genBtn) {
+    genBtn.addEventListener('click', () => {
+        // Esperamos 1s a que guarde y salimos
+        setTimeout(exitShiftMode, 1000);
+    });
+}
+
+// PARA PROBARLO AHORA MISMO:
+// Escribe en la consola: testShiftMode()
+window.testShiftMode = function() {
+    triggerShiftMode("PRUEBA");
+}
+// =========================================================
+//  LÓGICA DE NAVEGACIÓN Y CAMBIO DE TURNO
+// =========================================================
+
 (function initAutoShiftChange(){
     let lastShift = null;
 
@@ -6694,78 +6748,66 @@ window.closePostBriefingMode = function() {
         if (h >= 6 && h < 14) currentShift = 'Mañana';
         if (h >= 14 && h < 22) currentShift = 'Tarde';
 
-        // Al cargar la página, solo memorizamos el turno actual
-        if (lastShift === null) { 
-            lastShift = currentShift; 
-            return; 
-        }
+        if (lastShift === null) { lastShift = currentShift; return; }
 
-        // SI EL TURNO CAMBIA (ej: son las 13:59 y pasa a las 14:00)
         if (currentShift !== lastShift) {
-            console.log(`⏰ CAMBIO DE TURNO DETECTADO: ${currentShift}`);
             lastShift = currentShift;
             
-            // --- AUTOMATIZACIÓN INICIA AQUÍ ---
+            // ACTIVAR MODO TURNO
+            document.body.classList.add('shift-mode'); // Activa el cronómetro flotante
             
-            // 1. Marca interna de que estamos en cambio de turno
-            document.body.classList.add('shift-mode-active');
+            // Resetear Timer
+            document.getElementById('timer-reset').click();
             
-            // 2. ¡EL CRONÓMETRO FLOTA Y CRECE!
-            document.body.classList.add('timer-floating');
-            
-            // 3. Reinicia el contador a 00:00:00
-            const resetBtn = document.getElementById('timer-reset');
-            if(resetBtn && !resetBtn.disabled) resetBtn.click();
-            
-            // 4. Limpia los checks del turno anterior
+            // Resetear Checks
             document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
             
-            // 5. Pone el Checklist en pantalla completa detrás del crono
+            // Enfocar Checklist (Nivel 1)
             document.querySelectorAll('.shift-focus').forEach(e => e.classList.remove('shift-focus'));
             const checklist = document.getElementById('brief-check');
             if(checklist) checklist.classList.add('shift-focus');
-            
-            // 6. Sonido o alerta opcional (visual)
-            alert(`COMIENZO DE TURNO: ${currentShift.toUpperCase()}.\nEl cronómetro se ha reiniciado.`);
         }
     }
-    
-    // Revisar la hora cada segundo
     setInterval(checkTime, 1000);
 })();
 
-// Función de emergencia para cerrar el modo turno manualmente si hace falta
-window.manualExitShift = function() {
-    document.body.classList.remove('shift-mode-active');
-    document.body.classList.remove('timer-floating');
-    document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
+// === NAVEGACIÓN QUE SIEMPRE ACTIVA EL CRONO ===
+
+window.navTo = function(targetId) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+
+    console.log("Abriendo tarjeta:", targetId);
+
+    // 1. Limpiar zooms previos
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-}
+    
+    // 2. Activar MODO TARJETA ABIERTA (Esto hace aparecer el crono gracias al CSS)
+    document.body.classList.add('card-open');
+
+    // 3. Aplicar clase de Zoom a la tarjeta (Z-Index 15000)
+    el.classList.add('widget--zoomed');
+    
+    // 4. Scroll al inicio de la tarjeta
+    el.scrollTop = 0;
+};
+
+window.exitFlow = function() {
+    // 1. Quitar zoom de la tarjeta
+    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    
+    // 2. Quitar estado de tarjeta abierta (El crono vuelve arriba si no estamos en shift-mode)
+    document.body.classList.remove('card-open');
+
+    // 3. Si estábamos en modo turno automático, volvemos al checklist base
+    if (document.body.classList.contains('shift-mode')) {
+        const checklist = document.getElementById('brief-check');
+        if(checklist) checklist.classList.add('shift-focus');
+    } else {
+        // Si es modo normal, limpieza total
+        document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
+    }
+};
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
