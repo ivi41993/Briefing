@@ -2112,6 +2112,53 @@ body.card-open #timer-reset {
     border-radius: 50% !important;
     background: #f3f4f6 !important;
 }
+  /* === FIX: Checklist Compacto Auto-adaptable (Sin Scroll) === */
+#brief-check {
+    position: relative; /* Ya no sticky para dejar fluir */
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important; /* Prohibido scroll interno */
+    padding-bottom: 10px;
+}
+
+#brief-check .check-grid {
+    display: grid;
+    /* Columnas dinámicas: mínimo 160px, caben 3 o 4 en pantallas normales */
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); 
+    gap: 8px; /* Hueco pequeño */
+}
+
+#brief-check .check-card {
+    /* Diseño súper compacto */
+    min-height: auto;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+#brief-check .check-title {
+    font-size: 0.85rem; /* Texto ajustado */
+    line-height: 1.2;
+    margin: 0;
+    white-space: normal;
+}
+
+#brief-check .check-actions {
+    margin-top: 0;
+    justify-content: flex-start;
+}
+
+#brief-check .check-actions label {
+    padding: 2px 8px; /* Botones más finos */
+    font-size: 0.75rem;
+}
+
+/* Ocultar la ayuda grande para ganar espacio */
+#brief-check .br-explain {
+    display: none;
+}
 </style>
 </head>
 <body>
@@ -6888,6 +6935,7 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
 
 
