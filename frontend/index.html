@@ -1444,9 +1444,7 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 
 /* Mostrar solo cuando está en pantalla completa o zoomed */
 .widget:fullscreen .widget-nav-bar,
-.widget.widget--zoomed .widget-nav-bar {
-    display: flex;
-}
+
 
 .nav-group { display: flex; gap: 10px; }
 
@@ -2348,6 +2346,29 @@ body.timer-floating #timer-reset {
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 #exit-shift-mode-btn:hover { background: #1e293b; }
+
+/* CLASE MAESTRA PARA PANTALLA COMPLETA */
+.widget.widget--zoomed {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    
+    /* Z-index muy alto para tapar todo, pero menor que el cronómetro (si es flotante) */
+    z-index: 20000 !important; 
+    
+    background: #ffffff !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important; /* Permite scroll si el contenido es largo */
+    
+    /* Padding inferior extra para que el contenido no se corte si hay crono flotante */
+    padding: 20px 20px 120px 20px !important; 
+    
+    /* IMPORTANTE: Esto asegura que se comporte como bloque visible */
+    display: block !important;
+}
 </style>
 </head>
 <body>
@@ -6793,41 +6814,75 @@ function injectNavigation() {
 
 // --- FUNCIONES GLOBALES (Window) PARA LOS BOTONES ONCLICK ---
 
-// Función para entrar en una tarjeta
+// =========================================================
+// 1. LÓGICA DE NAVEGACIÓN (SOLO CSS - SIN API NATIVA)
+// =========================================================
+
+// Función para entrar en una tarjeta (Zoom CSS)
 window.navTo = function(targetId) {
     const el = document.getElementById(targetId);
-    if (!el) return;
+    if (!el) return console.warn("Destino no encontrado:", targetId);
+
+    // 1. Activar cronómetro flotante si no es el modo turno
     document.body.classList.add('timer-floating');
+
+    // 2. Asegurar que no hay otros zooms activos
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+
+    // 3. Aplicar la clase de Zoom (Esto es lo que lo hace fullscreen visualmente)
     el.classList.add('widget--zoomed');
+
+    // 4. Scroll al inicio para ver la barra de navegación
     el.scrollTop = 0;
 };
 
-// Función para salir
+// Función para salir de la tarjeta
 window.exitFlow = function() {
+    // 1. Quitar la clase de Zoom
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+
+    // 2. Gestión del Cronómetro
+    // Si NO estamos en "modo cambio de turno" (el checklist general), quitamos el flotante
     const checklist = document.getElementById('brief-check');
-    // Solo quitar el cronómetro flotante si NO estamos en modo turno
-    if (!checklist || !checklist.classList.contains('shift-focus')) {
+    const isShiftMode = checklist && checklist.classList.contains('shift-focus');
+    
+    if (!isShiftMode) {
         document.body.classList.remove('timer-floating');
     }
 };
 
-// Función OK y Siguiente
+// Función del botón "OK y Siguiente"
 window.markOkAndNext = function(checkName, nextId) {
+    // 1. Marcar el Checkbox correspondiente como OK
     if (checkName) {
         const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
         if (radio) {
             radio.checked = true;
+            // Disparar eventos para guardar y actualizar spotlight
             radio.dispatchEvent(new Event('change', { bubbles: true }));
             radio.dispatchEvent(new Event('input', { bubbles: true }));
         }
     }
+
+    // 2. Navegar al siguiente o Salir
     if (nextId && document.getElementById(nextId)) {
         window.navTo(nextId);
     } else {
+        // Si no hay siguiente, hemos terminado
         window.exitFlow();
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        // Feedback visual en el botón principal
+        const btn = document.querySelector('.header-controls .btn-primary');
+        if(btn) {
+            const original = btn.textContent;
+            btn.textContent = "¡Listo para generar!";
+            btn.style.transform = "scale(1.1)";
+            setTimeout(() => {
+                btn.textContent = original;
+                btn.style.transform = "scale(1)";
+            }, 2000);
+        }
     }
 };
 
@@ -6947,3 +7002,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
