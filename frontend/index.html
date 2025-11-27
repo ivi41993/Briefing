@@ -3842,31 +3842,47 @@ updateAllColumnCounts();
   };
 })();
 
-function setupEventListeners(){
-document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
-document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
-document.addEventListener('click', handleDeleteClick);
+function setupEventListeners() {
+    // Formularios Kanban y Kaizen
+    document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+    document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+    
+    // Click global (para borrar tarjetas)
+    document.addEventListener('click', handleDeleteClick);
 
-const rot=document.getElementById('rotativas-widget');
-// GW
-rot.addEventListener('change', handleGwTick);
-rot.addEventListener('keydown',(e)=>{
-  const note = e.target.closest('.gw-note') ? e.target : null;
-  if (!note) return;
+    // --- CORRECCIÓN GW (Gemba Walk) ---
+    // Ya no dependemos de "rotativas-widget", escuchamos en el documento
+    
+    // 1. Checkbox de completado
+    document.addEventListener('change', (e) => {
+        // handleGwTick ya verifica internamente si el target es un checkbox válido
+        handleGwTick(e);
+    });
 
-  if (e.key === 'Enter'){
-    e.preventDefault();
-    const id = note.id.replace('gw-note-','');
-    updateTaskNote(id, note.value).catch(console.error);
-    note.blur();
-  }
-  if (e.key === 'Escape'){
-    e.preventDefault();
-    note.blur();
-  }
-});
+    // 2. Notas (Enter y Escape)
+    document.addEventListener('keydown', (e) => {
+        const note = e.target.closest('.gw-note') ? e.target : null;
+        if (!note) return;
 
-rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); } }, true);
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const id = note.id.replace('gw-note-', '');
+            updateTaskNote(id, note.value).catch(console.error);
+            note.blur();
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            note.blur();
+        }
+    });
+
+    // 3. Notas (Al perder el foco / Blur)
+    document.addEventListener('blur', (e) => {
+        if (e.target.classList && e.target.classList.contains('gw-note')) {
+            const id = e.target.id.replace('gw-note-', '');
+            updateTaskNote(id, e.target.value).catch(console.error);
+        }
+    }, true); // 'true' es importante para eventos de foco/blur
 }
 
 async function handleKanbanSubmit(e){
@@ -7044,133 +7060,90 @@ window.exitFlow = function() {
         if(checklist) checklist.classList.add('shift-focus');
     }
 };
+;(function initVoiceSystemFixed() { // <--- ESE PUNTO Y COMA AL INICIO ES CRÍTICO
+    console.log("🎤 Inicializando sistema de voz...");
 
-document.addEventListener('DOMContentLoaded', () => {
-    
-    // --- SISTEMA DE VOZ A TEXTO ROBUSTO ---
-    (function initVoiceSystem() {
-        // 1. Chequeo de Soporte y Seguridad
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
 
-        if (!SpeechRecognition) {
-            console.warn("API de voz no soportada.");
-            return; // Salimos silenciosamente si no hay soporte
+    // Validación inicial
+    if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
+    if (!isSecure) console.warn("⚠️ Micro requiere HTTPS o localhost.");
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    let activeBtn = null;
+    let activeTarget = null;
+
+    recognition.onstart = () => {
+        if (activeBtn) activeBtn.classList.add('listening');
+    };
+
+    recognition.onend = () => {
+        if (activeBtn) activeBtn.classList.remove('listening');
+        activeBtn = null;
+    };
+
+    recognition.onresult = (event) => {
+        if (!activeTarget) return;
+        const transcript = event.results[0][0].transcript;
+        console.log("🗣️ Voz reconocida:", transcript);
+
+        const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
+        let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+        currentText = currentText || "";
+
+        // Añadir espacio si no está vacío
+        const sep = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+        const finalText = sep + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+
+        if (isInput) activeTarget.value = currentText + finalText;
+        else activeTarget.innerText = currentText + finalText;
+
+        // Guardar cambios
+        activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Micro Error:", event.error);
+        if (activeBtn) activeBtn.classList.remove('listening');
+        if (event.error === 'not-allowed') alert("⚠️ Permiso de micro denegado. Revisa el candado 🔒 de la URL.");
+    };
+
+    // Listener global para botones de micro
+    document.body.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-mic');
+        if (!btn) return;
+        
+        e.preventDefault();
+        e.stopPropagation(); // Evita que se propague el click
+
+        if (btn.classList.contains('listening')) {
+            recognition.stop();
+            return;
         }
 
-        // Si no es HTTPS y no es localhost, avisamos (error común)
-        if (!isSecure) {
-            console.warn("⚠️ El micrófono requiere HTTPS para funcionar.");
+        const targetId = btn.getAttribute('data-target');
+        const targetEl = document.getElementById(targetId);
+
+        if (targetEl) {
+            activeBtn = btn;
+            activeTarget = targetEl;
+            try { recognition.start(); } catch (err) { recognition.stop(); }
+        } else {
+            console.error("Objetivo no encontrado:", targetId);
         }
+    });
+})();
 
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'es-ES';
-        recognition.continuous = false;
-        recognition.interimResults = false;
-
-        let activeBtn = null;
-        let activeTarget = null;
-
-        // Configurar eventos del reconocimiento
-        recognition.onstart = function() {
-            if (activeBtn) activeBtn.classList.add('listening');
-        };
-
-        recognition.onend = function() {
-            if (activeBtn) activeBtn.classList.remove('listening');
-            activeBtn = null;
-            activeTarget = null;
-        };
-
-        recognition.onresult = function(event) {
-            if (!activeTarget) return;
-            const transcript = event.results[0][0].transcript;
-            
-            // Determinar tipo de elemento
-            const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
-            
-            // Texto actual
-            let currentText = isInput ? activeTarget.value : activeTarget.innerText;
-            currentText = currentText || "";
-
-            // Añadir espacio si hace falta
-            const separator = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
-            
-            // Formatear texto (Primera letra mayúscula)
-            const finalText = separator + transcript.charAt(0).toUpperCase() + transcript.slice(1);
-
-            if (isInput) {
-                activeTarget.value = currentText + finalText;
-            } else {
-                activeTarget.innerText = currentText + finalText;
-            }
-
-            // Disparar evento para guardar cambios (localStorage)
-            activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
-        };
-
-        recognition.onerror = function(event) {
-            if (activeBtn) activeBtn.classList.remove('listening');
-            
-            if (event.error === 'not-allowed') {
-                alert("⚠️ Acceso al micrófono denegado.\nPor favor, pulsa el candado 🔒 en la barra de dirección y permite el micrófono.");
-            } else if (event.error === 'network') {
-                alert("⚠️ Error de conexión. El reconocimiento de voz necesita internet.");
-            } else if (event.error === 'no-speech') {
-                // No se escuchó nada, ignorar
-            } else {
-                console.error("Error de voz:", event.error);
-            }
-        };
-
-        // Delegación de eventos (más robusto que listener individual)
-        document.body.addEventListener('click', (e) => {
-            // Buscar el botón clickeado
-            const btn = e.target.closest('.btn-mic');
-            if (!btn) return;
-
-            e.preventDefault(); // Evitar comportamientos raros
-
-            // Verificar HTTPS al hacer click
-            if (!isSecure) {
-                alert("⚠️ El micrófono solo funciona en sitios seguros (HTTPS) o localhost.");
-                return;
-            }
-
-            const targetId = btn.getAttribute('data-target');
-            const targetEl = document.getElementById(targetId);
-
-            if (!targetEl) {
-                alert(`Error: No encuentro el campo destino (ID: ${targetId})`);
-                return;
-            }
-
-            // Si ya está escuchando, parar
-            if (btn.classList.contains('listening')) {
-                recognition.stop();
-                return;
-            }
-
-            // Iniciar
-            try {
-                activeBtn = btn;
-                activeTarget = targetEl;
-                recognition.start();
-            } catch (err) {
-                console.error("Error al iniciar:", err);
-                recognition.stop();
-            }
-        });
-
-        console.log("🎤 Sistema de voz listo");
-    })();
-
-});
 </script>
+
 </body>
 </html>
-</body>
-</html>
+
 
 
 
