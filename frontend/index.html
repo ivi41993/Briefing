@@ -2197,6 +2197,21 @@ body.timer-floating #timer-reset {
     padding: 15px 20px !important;
     display: flex !important; /* Asegurar que se ve */
 }
+
+/* Cronómetro dentro de la barra de navegación (Fullscreen) */
+.nav-timer-display {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    color: var(--brand-red-600);
+    background: #fff;
+    padding: 2px 12px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    margin: 0 15px;
+    font-variant-numeric: tabular-nums; /* Evita que los números salten */
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+}
 </style>
 </head>
 <body>
@@ -2984,21 +2999,39 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
 
-  function paint(){
+  // Dentro de tu (function(){ const KEY='header_big_timer_v1'... })();
+// Busca la función 'paint' y déjala así:
+
+function paint(){
     const nowMs   = running ? (Date.now() - startedAt) : elapsed;
     const clamped = Math.min(nowMs, STOP_MS);
+    const textFormatted = fmt(clamped); // Guardamos el texto formateado
 
-    display.textContent = fmt(clamped);
+    // 1. Actualizar el cronómetro PRINCIPAL (Header)
+    display.textContent = textFormatted;
     display.classList.toggle('is-red', clamped >= RED_MS);
+
+    // 2. Actualizar TODOS los cronómetros de las BARRAS DE NAVEGACIÓN (Nuevo)
+    document.querySelectorAll('.nav-timer-display').forEach(el => {
+        el.textContent = textFormatted;
+        // Opcional: ponerlos rojos también si pasa el tiempo
+        if (clamped >= RED_MS) {
+            el.style.color = '#b91c1c';
+            el.style.backgroundColor = '#fef2f2';
+        } else {
+            el.style.color = ''; // reset
+            el.style.backgroundColor = '';
+        }
+    });
 
     // Auto-stop al llegar a 10:00
     if (running && nowMs >= STOP_MS){
-      running = false;
-      elapsed = STOP_MS;
-      clearInterval(tick); tick=null;
-      setUI(); save();
+        running = false;
+        elapsed = STOP_MS;
+        clearInterval(tick); tick=null;
+        setUI(); save();
     }
-  }
+}
 
   function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
   function load(){
@@ -6495,35 +6528,49 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     // 2. INYECTAR BARRAS DE NAVEGACIÓN
-    function injectNavigation() {
-        WIDGET_MAP.forEach((step, index) => {
-            const widget = document.getElementById(step.id);
-            if (!widget || widget.querySelector('.widget-nav-bar')) return;
+    // Busca esta función y sustituye SU CONTENIDO por este actualizado:
+function injectNavigation() {
+    // (Asegúrate de tener definida WIDGET_MAP arriba como en tu código original)
+    
+    WIDGET_MAP.forEach((step, index) => {
+        const widget = document.getElementById(step.id);
+        if (!widget || widget.querySelector('.widget-nav-bar')) return;
 
-            const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
-            const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
-            
-            const navBar = document.createElement('div');
-            navBar.className = 'widget-nav-bar';
-            navBar.innerHTML = `
-                <div class="nav-group">
-                    <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
-                        ⬅ Anterior
-                    </button>
-                </div>
-                <div class="nav-group" style="font-size:0.9rem; color:#64748b;">
+        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
+        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
+        
+        const navBar = document.createElement('div');
+        navBar.className = 'widget-nav-bar';
+        
+        // --- AQUÍ ESTÁ EL CAMBIO EN EL HTML ---
+        navBar.innerHTML = `
+            <div class="nav-group">
+                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
+                    ⬅ Anterior
+                </button>
+            </div>
+
+            <!-- GRUPO CENTRAL: TÍTULO + CRONÓMETRO -->
+            <div class="nav-group" style="display:flex; align-items:center;">
+                <span style="font-size:0.9rem; color:#64748b; font-weight:600; margin-right:10px;">
                     ${step.label} (${index + 1}/${WIDGET_MAP.length})
-                </div>
-                <div class="nav-group">
-                    <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
-                    <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
-                        ✅ OK y Siguiente ➡
-                    </button>
-                </div>
-            `;
-            widget.prepend(navBar);
-        });
-    }
+                </span>
+                <!-- AQUÍ EL NUEVO CRONÓMETRO ESPEJO -->
+                <div class="nav-timer-display">00:00:00</div>
+            </div>
+
+            <div class="nav-group">
+                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
+                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
+                    ✅ OK y Siguiente ➡
+                </button>
+            </div>
+        `;
+        // ---------------------------------------
+
+        widget.prepend(navBar);
+    });
+}
     injectNavigation();
 
     // 3. LÓGICA DE RESET DEL CRONÓMETRO Y CHECKLIST
@@ -6904,4 +6951,5 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
