@@ -4894,18 +4894,7 @@ localStorage.setItem('brief_check_v1', JSON.stringify(data));
 
 // Recalcula el foco de parpadeo
 updateSpotlightRouting?.();
-/* 3. LAS TARJETAS INDIVIDUALES (Cuando navegas: Dotación, Ops, etc.) */
-body.shift-active .widget.widget--zoomed {
-position: fixed !important;
-inset: 0 !important;
-z-index: 15000 !important; /* Capa Media (Encima del checklist, debajo del crono) */
-background: #ffffff !important;
-padding: 20px 20px 140px 20px !important; /* Espacio inferior vital para el crono */
-overflow-y: auto !important;
-margin: 0 !important;
-border-radius: 0 !important;
-display: block !important;
-}
+
 
 function paintDateTimeAndShift(){
 const now = new Date();
@@ -6785,6 +6774,7 @@ document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift
 };
 </script>
 </body>
+
 
 
 
