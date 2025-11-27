@@ -1849,34 +1849,196 @@ body.shift-active .btn-nav {
    ESTILOS MODIFICADOS: MODO TURNO Y CRONÓMETRO
    ========================================================= */
 
-/* === REEMPLAZAR LA REGLA DEL CRONÓMETRO POR ESTA === */
-
-/* El cronómetro flota abajo si estamos en Modo Turno (shift-mode) 
-   O si hay una tarjeta abierta manualmente (card-open) */
-/* === CRONÓMETRO FLOTANTE (Visible en Modo Turno O Tarjeta Abierta) === */
-/* === CRONÓMETRO SIEMPRE VISIBLE (MODO TURNO O TARJETA ABIERTA) === */
-/* === CORRECCIÓN DEL CRONÓMETRO FLOTANTE === */
-/* Esta regla unificada maneja tanto el Modo Turno como la Tarjeta Abierta */
-body.shift-mode #timer-widget,
-body.card-open #timer-widget {
+/* --- 1. EL CRONÓMETRO FLOTANTE (Siempre encima de todo) --- */
+body.shift-mode #timer-widget {
     position: fixed !important;
-    bottom: 30px !important;  /* Margen inferior para no pegarse al borde */
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 20000 !important; /* Por encima de cualquier widget abierto */
+    
+    display: flex !important;
+    background: #fff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4) !important;
+    
+    /* Asegura que se vea si estaba oculto */
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+body.shift-mode #timer-display {
+    font-size: 4rem !important; /* Números muy grandes */
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    font-variant-numeric: tabular-nums;
+    line-height: 1 !important;
+}
+
+body.shift-mode #timer-reset {
+    width: 50px !important; height: 50px !important;
+    font-size: 20px !important;
+}
+
+/* --- 2. WIDGETS EN "FALSO FULLSCREEN" (Para que el crono se vea encima) --- */
+/* Esta clase se aplica al widget que estemos viendo en ese momento */
+.widget.shift-focus {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 10000 !important; /* Debajo del cronómetro */
+    
+    background: #f8fafc !important; /* Fondo gris muy suave */
+    overflow-y: auto !important;    /* Scroll interno si hace falta */
+    padding: 30px 30px 140px 30px !important; /* Padding inferior grande para el crono */
+    
+    border-radius: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* --- 3. ARREGLO DEL CHECKLIST (Contenedor grande, tarjetas normales) --- */
+
+/* Título en modo pantalla completa */
+.widget.shift-focus .widget-title {
+    font-size: 2rem !important;
+    text-align: center;
+    margin-bottom: 30px !important;
+    color: #b91c1c;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 10px;
+}
+
+/* Grid: Usamos más columnas para aprovechar el ancho de la pantalla */
+.widget.shift-focus .check-grid {
+    display: grid !important;
+    /* Mínimo 240px, caben 4 o 5 en una pantalla grande */
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important; 
+    gap: 15px !important;
+    max-width: 1400px; /* No estirar al infinito */
+    margin: 0 auto;
+}
+
+/* Tarjetas: Volvemos al diseño compacto y limpio */
+.widget.shift-focus .check-card {
+    padding: 15px !important;
+    min-height: auto !important; /* Altura automática según contenido */
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.widget.shift-focus .check-title {
+    font-size: 1.1rem !important;
+    font-weight: 700;
+    color: #334155;
+    margin: 0 !important;
+}
+
+/* Botones dentro de la tarjeta: tamaño normal pero cómodos */
+.widget.shift-focus .check-actions label {
+    padding: 8px 16px !important;
+    font-size: 0.95rem !important;
+    width: 100%;
+    text-align: center;
+    background: #f1f5f9;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.widget.shift-focus .check-actions input:checked + label {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+    font-weight: 700;
+}
+
+/* --- 4. BARRA DE NAVEGACIÓN (Siguiente/Anterior) --- */
+/* Asegurar que se pegue arriba cuando una tarjeta específica está abierta */
+.widget.shift-focus .widget-nav-bar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10001 !important;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    padding: 10px 20px;
+    margin: -30px -30px 20px -30px !important; /* Compensar padding del widget */
+}
+
+/* === CRONÓMETRO SUPREMO (Nivel más alto) === */
+body.shift-mode #timer-widget {
+    /* Posición fija respecto a la ventana, ignorando el header */
+    position: fixed !important;
+    bottom: 20px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     
-    /* Z-INDEX CRÍTICO: Debe ser mayor que el de la tarjeta (que es 15000) */
+    /* Z-INDEX MÁXIMO: Asegura que esté encima de cualquier tarjeta abierta */
     z-index: 2147483647 !important; 
-
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
     
-    /* Diseño visual */
+    /* Estilo visual */
+    display: flex !important;
+    visibility: visible !important;
     background: #ffffff !important;
-    padding: 10px 30px !important;
+    padding: 10px 40px !important;
     border-radius: 50px !important;
     border: 4px solid #dc2626 !important;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* === TARJETA EN PANTALLA COMPLETA (Nivel medio) === */
+/* Esta clase se aplica a la tarjeta (ej: Dotación) cuando pulsas en ella */
+.widget.widget--zoomed {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    
+    /* Z-INDEX MENOR QUE EL CRONÓMETRO (2147483647) pero mayor que el resto */
+    z-index: 20000 !important; 
+    
+    background: #ffffff !important;
+    /* Padding inferior de 180px OBLIGATORIO para que el crono no tape el contenido */
+    padding: 20px 20px 180px 20px !important; 
+    overflow-y: auto !important;
+    margin: 0 !important;
+    display: block !important;
+}
+
+/* =========================================================
+   CORRECCIÓN DEFINITIVA: CAPAS Z-INDEX
+   ========================================================= */
+
+/* 1. EL CRONÓMETRO (Capa Suprema) */
+body.shift-mode #timer-widget {
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    
+    /* El número más alto posible en CSS para asegurar que NADA lo tape */
+    z-index: 2147483647 !important; 
+    
+    display: flex !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
     
     visibility: visible !important;
     opacity: 1 !important;
@@ -1884,34 +2046,71 @@ body.card-open #timer-widget {
     height: auto !important;
 }
 
-/* Estilos para el texto del cronómetro cuando flota */
-body.shift-mode #timer-display,
-body.card-open #timer-display {
-    font-size: 3.5rem !important; /* Texto grande y legible */
-    font-weight: 800 !important;
-    color: #1f2937 !important;
-    margin: 0 15px !important;
+/* 2. TARJETA ABIERTA EN GRANDE (Capa Media) */
+.widget.widget--zoomed {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    
+    /* Z-index alto (20000), pero MENOR que el cronómetro */
+    z-index: 20000 !important; 
+    
+    background: #ffffff !important;
+    /* Padding inferior gigante (180px) para que el contenido no se esconda detrás del crono */
+    padding: 20px 20px 180px 20px !important; 
+    overflow-y: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: block !important;
 }
 
-/* Estilos para el botón reset cuando flota */
+/* 3. CHECKLIST DE FONDO (Capa Base) */
+.widget.shift-focus {
+    z-index: 10000 !important;
+}
+
+/* === CRONÓMETRO SUPREMO (Siempre visible abajo) === */
+/* AÑADIMOS "body.card-open #timer-widget" AL SELECTOR */
+body.shift-mode #timer-widget,
+body.card-open #timer-widget { 
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important; /* Encima de todo */
+    
+    display: flex !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* Texto grande */
+body.shift-mode #timer-display,
+body.card-open #timer-display {
+    font-size: 4rem !important;
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    line-height: 1 !important;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Botón reset */
 body.shift-mode #timer-reset,
 body.card-open #timer-reset {
-    width: 45px !important; 
-    height: 45px !important;
-    font-size: 0 !important; /* Oculta el texto 'Reiniciar' para dejar solo icono si usas */
-    background: #ef4444 !important; /* Rojo alerta */
+    width: 50px !important; height: 50px !important;
+    font-size: 20px !important;
     border-radius: 50% !important;
-    position: relative !important;
-}
-/* Agregamos una pseudo-clase para que el botón se vea como una 'X' o Reset visualmente */
-body.shift-mode #timer-reset::after,
-body.card-open #timer-reset::after {
-    content: "↺"; 
-    color: white;
-    font-size: 24px;
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
+    background: #f3f4f6 !important;
 }
 </style>
 </head>
@@ -4894,7 +5093,7 @@ localStorage.setItem('brief_check_v1', JSON.stringify(data));
 
 // Recalcula el foco de parpadeo
 updateSpotlightRouting?.();
-
+}
 
 function paintDateTimeAndShift(){
 const now = new Date();
@@ -4924,7 +5123,7 @@ paintBadge(document.getElementById('shift-badge-header'));  // header
     }
   } catch {}
 
-
+}
 
 
 function initDateTimeAndShift(){
@@ -4934,14 +5133,7 @@ paintDateTimeAndShift();
 const now = new Date();
 const msToNextMin = (60 - now.getSeconds())*1000 - now.getMilliseconds();
 setTimeout(()=>{ paintDateTimeAndShift(); setInterval(paintDateTimeAndShift, 60000); }, Math.max(0, msToNextMin));
-/* Botones de navegación más grandes en este modo */
-body.shift-active .btn-nav {
-padding: 12px 24px !important;
-font-size: 1.1rem !important;
 }
-/* =========================================================
-  ESTILOS MODIFICADOS: MODO TURNO Y CRONÓMETRO
-  ========================================================= */
 
 /* ===== Actualizaciones Operativas (v3, limpio y unificado) ===== */
 (function(){
@@ -5386,7 +5578,6 @@ const SECURITY_TIPS = [
   "No compartir procesos de seguridad del sector.",
   "La seguridad es tu responsabilidad."
 ];
-/* === REEMPLAZAR LA REGLA DEL CRONÓMETRO POR ESTA === */
 
 // hash determinista sencillo a partir de la fecha YYYY-MM-DD
 function hashDateSeed(dateStr){
@@ -5396,7 +5587,7 @@ function hashDateSeed(dateStr){
     h = (h * 16777619) >>> 0;
   }
   return h >>> 0;
-
+}
 
 // Selecciona N tips distintos de forma determinista por día
 function getDailySecurityTips(n=2, d=new Date()){
@@ -5412,16 +5603,6 @@ function getDailySecurityTips(n=2, d=new Date()){
 
   const picks = [SECURITY_TIPS[i1], SECURITY_TIPS[i2]];
   return picks.slice(0, Math.min(n, picks.length));
-/* Aumentar botón reset cuando flota */
-/* Botón reset grande */
-body.shift-mode #timer-reset,
-body.card-open #timer-reset {
-    width: 50px !important; 
-    height: 50px !important;
-    width: 50px !important; height: 50px !important;
-font-size: 20px !important;
-border-radius: 50% !important;
-background: #f3f4f6 !important;
 }
 
 function renderDailySecurityTips(){
@@ -5443,16 +5624,11 @@ function renderDailySecurityTips(){
   `;
 }
 
-</style>
-</head>
-<body>
-<body>
 
 /* ===== Seguridad y protección (estado rápido + notas) ===== */
 const SEC_KEY = 'seguridad_state_v1';
 function sec_load(){ try{ return JSON.parse(localStorage.getItem(SEC_KEY)||'{"risks":{}}'); }catch{ return {risks:{}}; } }
 function sec_save(s){ try{ localStorage.setItem(SEC_KEY, JSON.stringify(s)); }catch{} }
-<button id="exit-shift-mode-btn" onclick="exitShiftMode()">Cerrar Vista Turno ✖</button>
 
 function sec_render(){
   const state = sec_load();
@@ -5482,13 +5658,6 @@ function sec_render(){
     if(meta) meta.textContent = `Riesgos activos: ${active.length} • Actualizado: ${new Date().toLocaleString('es-ES')}`;
   }
 }
-<select id="scale-select" aria-label="Escala UI">
-<option value="1">100%</option>
-<option value="1.15" selected>115%</option>
-<option value="1.3">130%</option>
-<option value="1.5">150%</option>
-</select>
-<button id="present-btn" class="btn-primary" type="button" title="Pantalla completa">Presentar</button>
 
 (function initSeguridad(){
   const host = document.getElementById('seguridad-widget');
@@ -5523,24 +5692,9 @@ function sec_render(){
     st.ts = Date.now();
     sec_save(st);
   });
-<div class="dashboard-3col">
-<!-- HEADER -->
-<header>
-<div class="header-left">
-<h1>Factory Floor Dashboard - WFS4 MAD</h1>
-<div id="now-header" role="status" aria-live="polite">—</div>
-<span id="shift-badge-header" class="shift-chip">—</span>
-</div>
 
   sec_render();
 })();
-<div class="header-timer" id="timer-widget" aria-label="Cronómetro">
-<div class="timer-face" id="timer-face">
-<div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
-<span class="timer-dot" aria-hidden="true"></span>
-</div>
-<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
-</div>
 
 /* ===== Unión Checklist → Widgets (spotlight) ===== */
 function rosterComplete(){
@@ -5551,23 +5705,8 @@ const att = TEAM_STATE?.attendance || {};
 return TEAM_STATE.people.every(p => {
 const k = p.nombre_completo || '—';
 return att[k] === true || att[k] === false;
-<!-- Busca esto en tu header y reemplázalo o modifícalo -->
-<div class="header-controls">
-@@ -6215,111 +6214,87 @@
-               <div class="nav-group" style="font-size:0.9rem; color:#64748b;">
-                   ${step.label} (${index + 1}/${WIDGET_MAP.length})
-               </div>
-               <div class="nav-group">
-                   <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
-                   <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
-                       ✅ OK y Siguiente ➡
-                   </button>
-               </div>
-           `;
-widget.prepend(navBar);
 });
 }
-injectNavigation();
 
 function readC(name){
 const sel = document.querySelector(`#brief-check input[name="${name}"]:checked`);
@@ -5661,11 +5800,6 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 /* Init */
 document.addEventListener('DOMContentLoaded', ()=>{
 console.log('Inicializando dashboard...');
-// 3. LÓGICA DE RESET DEL CRONÓMETRO Y CHECKLIST
-const resetBtn = document.getElementById('timer-reset');
-if (resetBtn) {
-resetBtn.addEventListener('click', () => {
-if (!confirm("¿Reiniciar turno? Se borrarán los checks y el tiempo.")) return;
 
 try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/Hora:', e); }
 try{ initHeaderTimer(); }catch(e){ console.error('Timer:', e); }  // AÑADIR ESTA LÍNEA
@@ -5683,13 +5817,8 @@ init5S();
 }catch(e){ console.warn('Bootstrap parcial', e); }
 try{ initBriefing(); }catch(e){ console.error('initBriefing:', e); }
 updateSpotlightRouting?.();
-// A. Reset visual checkboxes
-document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
 
 console.log('Dashboard inicializado correctamente');
-// B. Borrar localStorage específico del checklist
-Object.keys(localStorage).forEach(k => {
-if(k.includes('brief_check')) localStorage.removeItem(k);
 });
 
 /* ===== Protocolo de Incidentes (editable) ===== */
@@ -5800,17 +5929,12 @@ if(k.includes('brief_check')) localStorage.removeItem(k);
     const cached = loadLocal();
     if (cached){ paint(cached); }
   })();
-// C. Recalcular spotlight (volver al paso 1)
-if(window.updateSpotlightRouting) window.updateSpotlightRouting();
 
   // Guardado manual (botón)
   form.addEventListener('submit', (e)=>{
     e.preventDefault();
     autosave();
   });
-// D. Reset texto meta
-const meta = document.getElementById('brief-check-meta');
-if(meta) meta.textContent = "—";
 
   // Guardado automático (cada cambio)
   [note, todo, cont, tools].forEach(el=>{
@@ -5869,7 +5993,6 @@ document.addEventListener('DOMContentLoaded', () => {
   try { initEhsSimple?.(); } catch(e){ console.warn('initEhsSimple', e); }
   try { init5S?.(); } catch(e){ console.warn('init5S', e); }
   try { loadIncidentes?.(); } catch(e){ console.warn('loadIncidentes', e); }
-console.log("♻️ Checklist reiniciado.");
 });
 
 // ===== Limpieza opcional =====
@@ -5880,7 +6003,6 @@ document.addEventListener('change', (e) => {
     if (val === 'Muele Imp') e.target.value = 'Muelle Imp';
     if (val === 'Muele Exp') e.target.value = 'Muelle Exp';
   }
-}
 });
 
 /* ========= OPS ultra-simple: CRUD local + render inmediato ========= */
@@ -6226,7 +6348,6 @@ document.addEventListener('change', (e) => {
     if (!btn) return;
     const card = btn.closest('.ops-item');
     const id = card.dataset.id;
-// --- FUNCIONES GLOBALES (Window) PARA LOS BOTONES ONCLICK ---
 
     if (btn.dataset.action === 'delete') {
         if(confirm('¿Borrar?')){
@@ -6238,23 +6359,8 @@ document.addEventListener('change', (e) => {
             } catch(err) {
                 card.style.opacity = '1';
                 alert('Error al borrar');
-window.navTo = function(targetId) {
-    if (!targetId) return;
-    // Salir de pantalla completa anterior si la hay
-    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
-
-    setTimeout(() => {
-        const el = document.getElementById(targetId);
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Intentar fullscreen nativo, si falla, usar CSS zoom
-            if (el.requestFullscreen) {
-                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
-            } else {
-                el.classList.add('widget--zoomed');
-}
-}
+            }
+        }
     } else if (btn.dataset.action === 'edit') {
         const title = card.querySelector('.ops-title').textContent;
         const impact = card.querySelector('.ops-impact').textContent;
@@ -6363,6 +6469,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- FUNCIONES GLOBALES (Window) PARA LOS BOTONES ONCLICK ---
 
+window.navTo = function(targetId) {
+    if (!targetId) return;
+    // Salir de pantalla completa anterior si la hay
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+
+    setTimeout(() => {
+        const el = document.getElementById(targetId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Intentar fullscreen nativo, si falla, usar CSS zoom
+            if (el.requestFullscreen) {
+                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
+            } else {
+                el.classList.add('widget--zoomed');
+            }
+        }
     }, 100);
 };
 
@@ -6395,51 +6518,21 @@ window.markOkAndNext = function(checkName, nextId) {
         // Pequeño feedback
         setTimeout(() => alert("🎉 Checklist completado. Ahora puedes generar el resumen."), 300);
     }
-// 1. Marcar OK
-if (checkName) {
-const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
-if (radio) {
-radio.checked = true;
-// Disparar eventos para persistencia y spotlight
-radio.dispatchEvent(new Event('change', { bubbles: true }));
-radio.dispatchEvent(new Event('input', { bubbles: true }));
-}
-}
-
-// 2. Navegar
-if (nextId) {
-navTo(nextId);
-} else {
-// Fin del flujo
-exitFlow();
-// Scroll suave al botón de generar
-document.querySelector('header').scrollIntoView({behavior:'smooth'});
-// Pequeño feedback
-setTimeout(() => alert("🎉 Checklist completado. Ahora puedes generar el resumen."), 300);
-}
 };
 
 
 /* =================================================
    PANTALLA MODO INFO (POST-BRIEFING)
    ================================================= */
-  PANTALLA MODO INFO (POST-BRIEFING)
-  ================================================= */
 
 window.openPostBriefingMode = function() {
     console.log("🚀 Activando Modo Info...");
     const screen = document.getElementById('post-briefing-screen');
     if (!screen) return console.error("Falta #post-briefing-screen en el HTML");
-console.log("🚀 Activando Modo Info...");
-const screen = document.getElementById('post-briefing-screen');
-if (!screen) return console.error("Falta #post-briefing-screen en el HTML");
 
     // 1. Rellenar datos
     const prev = document.getElementById('prev-shift-note')?.innerText || "Sin datos";
     document.getElementById('pb-prev-content').innerHTML = `<p style="font-size:1.1rem">${prev}</p>`;
-// 1. Rellenar datos
-const prev = document.getElementById('prev-shift-note')?.innerText || "Sin datos";
-document.getElementById('pb-prev-content').innerHTML = `<p style="font-size:1.1rem">${prev}</p>`;
 
     const ops = document.querySelectorAll('#ops-list .ops-item .ops-title');
     let opsHtml = '<ul style="padding-left:20px">';
@@ -6540,11 +6633,6 @@ window.closePostBriefingMode = function() {
         // ÉXITO
         alert("✅ Resumen guardado.\nSe abrirá la pantalla de información.");
         window.openPostBriefingMode(); // <--- AQUÍ SE ABRE LA PANTALLA FINAL
-const ops = document.querySelectorAll('#ops-list .ops-item .ops-title');
-let opsHtml = '<ul style="padding-left:20px">';
-if (ops.length === 0) opsHtml += "<li>Sin actualizaciones activas</li>";
-@@ -6517,115 +6492,114 @@
-}
 
     } catch (err) {
       console.error(err);
@@ -6555,14 +6643,8 @@ if (ops.length === 0) opsHtml += "<li>Sin actualizaciones activas</li>";
     }
   });
 })();
-// PARA PROBARLO AHORA MISMO:
-// Escribe en la consola: testShiftMode()
-window.testShiftMode = function() {
-triggerShiftMode("PRUEBA");
-}
 // =========================================================
 //  LÓGICA DE CAMBIO DE TURNO AUTOMÁTICO
-//  LÓGICA DE NAVEGACIÓN Y CAMBIO DE TURNO
 // =========================================================
 
 (function initAutoShiftChange(){
@@ -6585,7 +6667,6 @@ triggerShiftMode("PRUEBA");
             lastShift = currentShift;
             return;
         }
-let lastShift = null;
 
         // Si el turno cambia respecto al guardado -> DISPARAR
         if (currentShift !== lastShift) {
@@ -6601,11 +6682,6 @@ let lastShift = null;
         
         // 1. Activar clase en BODY (esto mueve el cronómetro)
         document.body.classList.add('shift-active');
-function checkTime() {
-const h = new Date().getHours();
-let currentShift = 'Noche';
-if (h >= 6 && h < 14) currentShift = 'Mañana';
-if (h >= 14 && h < 22) currentShift = 'Tarde';
 
         // 2. Activar clase en CHECKLIST (esto lo hace fullscreen)
         const checklist = document.getElementById('brief-check') || document.getElementById('checklist-widget');
@@ -6619,25 +6695,18 @@ if (h >= 14 && h < 22) currentShift = 'Tarde';
                 title.innerHTML = `COMIENZO TURNO: <span style="color:#dc2626">${shiftName.toUpperCase()}</span>`;
             }
         }
-if (lastShift === null) { lastShift = currentShift; return; }
 
         // 3. Resetear cronómetro
         const resetBtn = document.getElementById('timer-reset');
         if(resetBtn) resetBtn.click();
-if (currentShift !== lastShift) {
-lastShift = currentShift;
 
         // 4. Resetear checks
         document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
     };
-// ACTIVAR MODO TURNO
-document.body.classList.add('shift-mode'); // Activa el cronómetro flotante
 
     // Intervalo de comprobación
     setInterval(checkTime, 1000);
 })();
-// Resetear Timer
-document.getElementById('timer-reset').click();
 
 // Función para salir del modo
 window.exitShiftMode = function() {
@@ -6651,8 +6720,6 @@ window.exitShiftMode = function() {
         if(title && title.dataset.original) title.innerHTML = title.dataset.original;
     }
 };
-// Resetear Checks
-document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
 
 // Enganche para salir al generar resumen
 const genBtn = document.getElementById('btn-generate') || document.querySelector('.header-controls .btn-primary');
@@ -6661,10 +6728,6 @@ if(genBtn) {
         // Esperamos 1s a que guarde y salimos
         setTimeout(exitShiftMode, 1000);
     });
-// Enfocar Checklist (Nivel 1)
-document.querySelectorAll('.shift-focus').forEach(e => e.classList.remove('shift-focus'));
-const checklist = document.getElementById('brief-check');
-if(checklist) checklist.classList.add('shift-focus');
 }
 
 // PARA PROBARLO AHORA MISMO:
@@ -6678,19 +6741,14 @@ window.testShiftMode = function() {
 
 (function initAutoShiftChange(){
     let lastShift = null;
-setInterval(checkTime, 1000);
-})();
 
     function checkTime() {
         const h = new Date().getHours();
         let currentShift = 'Noche';
         if (h >= 6 && h < 14) currentShift = 'Mañana';
         if (h >= 14 && h < 22) currentShift = 'Tarde';
-// === NAVEGACIÓN QUE SIEMPRE ACTIVA EL CRONO ===
 
         if (lastShift === null) { lastShift = currentShift; return; }
-// === REEMPLAZAR LAS FUNCIONES navTo Y exitFlow POR ESTAS ===
-// === REEMPLAZA LAS FUNCIONES navTo Y exitFlow POR ESTAS ===
 
         if (currentShift !== lastShift) {
             lastShift = currentShift;
@@ -6712,39 +6770,33 @@ setInterval(checkTime, 1000);
     }
     setInterval(checkTime, 1000);
 })();
-// 1. Navegación: Abre tarjeta y activa el cronómetro flotante
-window.navTo = function(targetId) {
-const el = document.getElementById(targetId);
-if (!el) return;
 
-// === NAVEGACIÓN QUE ACTIVA EL CRONÓMETRO ===
-console.log("Abriendo tarjeta:", targetId);
+// === NAVEGACIÓN QUE SIEMPRE ACTIVA EL CRONO ===
 
-// 1. Navegación: Abre tarjeta y activa el cronómetro flotante
 window.navTo = function(targetId) {
     const el = document.getElementById(targetId);
     if (!el) return;
 
-    // A. Limpiar cualquier otra tarjeta que estuviera abierta
-    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    console.log("Abriendo tarjeta:", targetId);
 
-    // B. ACTIVAR MODO TARJETA (Esto dispara el CSS del cronómetro corregido arriba)
+    // 1. Limpiar zooms previos
+    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    
+    // 2. Activar MODO TARJETA ABIERTA (Esto hace aparecer el crono gracias al CSS)
     document.body.classList.add('card-open');
 
-    // C. Abrir la tarjeta actual
+    // 3. Aplicar clase de Zoom a la tarjeta (Z-Index 15000)
     el.classList.add('widget--zoomed');
     
-    // D. Scroll al inicio (importante para ver la barra de navegación superior)
+    // 4. Scroll al inicio de la tarjeta
     el.scrollTop = 0;
 };
 
-// 2. Salir: Cierra tarjeta y devuelve el cronómetro a su sitio (si aplica)
-// 2. Salir: Cierra tarjeta y devuelve el cronómetro a su sitio
 window.exitFlow = function() {
     // 1. Quitar zoom de la tarjeta
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
     
-    // 2. ¡IMPORTANTE! Quitar clase del body (el cronómetro vuelve a su sitio)
+    // 2. Quitar estado de tarjeta abierta (El crono vuelve arriba si no estamos en shift-mode)
     document.body.classList.remove('card-open');
 
     // 3. Si estábamos en modo turno automático, volvemos al checklist base
@@ -6755,25 +6807,24 @@ window.exitFlow = function() {
         // Si es modo normal, limpieza total
         document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
     }
-// A. Cerrar la tarjeta actual
-document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-
-    // B. DESACTIVAR MODO TARJETA (El crono sube, salvo que estemos en shift-mode)
-    // B. DESACTIVAR MODO TARJETA (Quitamos la clase, el crono sube)
-document.body.classList.remove('card-open');
-
-// C. Gestión de retorno
-// Si estamos en modo turno automático, volvemos al checklist base
-if (document.body.classList.contains('shift-mode')) {
-const checklist = document.getElementById('brief-check');
-if(checklist) checklist.classList.add('shift-focus');
-} else {
-// Si es modo manual normal, limpiamos todo
-document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
-}
 };
 </script>
 </body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
