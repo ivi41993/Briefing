@@ -2286,7 +2286,6 @@ body.timer-floating #timer-reset {
 }
 </style>
 </head>
-
 <body>
 
 <button id="exit-shift-mode-btn" onclick="exitShiftMode()">Cerrar Vista Turno ✖</button>
@@ -2937,7 +2936,7 @@ function getTaskId(obj){
     try{
       const res  = await fetch('/api/gw/import-xlsx', {
         method: 'POST',
-        body: fd,
+        : fd,
         // si lo proteges con API_KEY:
         // headers: { 'x-api-key': 'EstE-eS-mI_s3cr3t0-Sup3r-L4rg0-y-c0mpl3j0-p4r4-eL-d4shb04rd"' }
       });
@@ -2980,7 +2979,7 @@ function getTaskId(obj){
 
     status.textContent = 'Subiendo…';
     try {
-      const res = await fetch('/api/incidents-table', { method:'POST', body: fd });
+      const res = await fetch('/api/incidents-table', { method:'POST', : fd });
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al subir');
 
@@ -3018,7 +3017,7 @@ fd.append('file', f); // debe llamarse "file"
 
 status.textContent = 'Subiendo…';
 try {
-const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
+const res = await fetch('/api/roster/upload', { method:'POST', : fd });
 if (!res.ok) {
 const err = await res.json().catch(()=>({detail: res.statusText}));
 throw new Error(err.detail || 'Error al subir');
@@ -3316,7 +3315,7 @@ btn.title = isOn ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa';
 document.documentElement.classList.toggle('fs-zoom', !!current);
 });
 document.getElementById('present-btn')?.addEventListener('click', async ()=>{
-  const host = document.querySelector('.dashboard-3col') || document.body;
+  const host = document.querySelector('.dashboard-3col') || document.;
   try { await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.()); }
   catch(e){ console.warn('Fullscreen fail', e); }
 });
@@ -3391,7 +3390,7 @@ async function createCard(card) {
   const res = await fetch('/api/tasks', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
+    : JSON.stringify({
       // mínimos recomendados
       task_type: card.task_type || 'kanban_rapida',
       title: card.title,
@@ -3408,7 +3407,7 @@ async function editCard(id, partial) {
   const res = await fetch(`/api/tasks/${id}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(partial)   // p.ej. { title: 'Nuevo título', status: 'doing' }
+    : JSON.stringify(partial)   // p.ej. { title: 'Nuevo título', status: 'doing' }
   });
   if (!res.ok) throw new Error(await res.text());
   return await res.json();
@@ -3437,7 +3436,7 @@ try{
 await fetch('/api/roster/presence', {
 method:'PUT',
 headers:{'Content-Type':'application/json'},
-body: JSON.stringify({
+: JSON.stringify({
 person, present,
 date: TEAM_STATE?.sheet_date || null,
 shift: TEAM_STATE?.shift || null
@@ -3453,7 +3452,7 @@ try{
 await fetch('/api/roster/zone', {
 method:'PUT',
 headers:{'Content-Type':'application/json'},
-body: JSON.stringify({
+: JSON.stringify({
 person, zone,
 date: TEAM_STATE?.sheet_date || null,
 shift: TEAM_STATE?.shift || null
@@ -3803,7 +3802,7 @@ updateAllColumnCounts();
       const res = await fetch('/api/roster/add', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
+        : JSON.stringify({
           person: name,
           date: TEAM_STATE.sheet_date || null,
           shift: TEAM_STATE.shift || guessShift(),
@@ -3850,13 +3849,16 @@ function setupEventListeners() {
     // Click global (para borrar tarjetas)
     document.addEventListener('click', handleDeleteClick);
 
-    // --- CORRECCIÓN GW (Gemba Walk) ---
-    // Ya no dependemos de "rotativas-widget", escuchamos en el documento
+    // --- CORRECCIÓN CRÍTICA PARA GW (Gemba Walk) ---
+    // Ya no buscamos el ID 'rotativas-widget' porque lo borramos.
+    // Usamos delegación de eventos en el documento.
     
     // 1. Checkbox de completado
     document.addEventListener('change', (e) => {
-        // handleGwTick ya verifica internamente si el target es un checkbox válido
-        handleGwTick(e);
+        // La función handleGwTick ya verifica si es un checkbox válido
+        if (typeof handleGwTick === 'function') {
+            handleGwTick(e);
+        }
     });
 
     // 2. Notas (Enter y Escape)
@@ -3867,7 +3869,8 @@ function setupEventListeners() {
         if (e.key === 'Enter') {
             e.preventDefault();
             const id = note.id.replace('gw-note-', '');
-            updateTaskNote(id, note.value).catch(console.error);
+            // Verificamos que la función exista antes de llamar
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, note.value).catch(console.error);
             note.blur();
         }
         if (e.key === 'Escape') {
@@ -3880,11 +3883,10 @@ function setupEventListeners() {
     document.addEventListener('blur', (e) => {
         if (e.target.classList && e.target.classList.contains('gw-note')) {
             const id = e.target.id.replace('gw-note-', '');
-            updateTaskNote(id, e.target.value).catch(console.error);
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, e.target.value).catch(console.error);
         }
-    }, true); // 'true' es importante para eventos de foco/blur
+    }, true); 
 }
-
 async function handleKanbanSubmit(e){
   e.preventDefault();
   const f = e.target;
@@ -3996,7 +3998,7 @@ async function createTaskOnServer(data){
 const r = await fetch('/api/tasks',{
 method:'POST',
 headers:{'Content-Type':'application/json'},
-body:JSON.stringify(data)
+:JSON.stringify(data)
 });
 if(!r.ok) throw new Error('create failed');
 const task = await r.json();
@@ -4008,7 +4010,7 @@ async function updateTaskOnServer(id, data){
 const r = await fetch(`/api/tasks/${id}`,{
 method:'PUT',
 headers:{'Content-Type':'application/json'},
-body:JSON.stringify(data)
+:JSON.stringify(data)
 });
 if(!r.ok) throw new Error('update failed');
 const task = await r.json();
@@ -4024,8 +4026,8 @@ processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' 
 }
 
 
-async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
-async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
+async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
+async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
 
 /* Render tarjetas */
 function processTaskUpdate(data){
@@ -4450,10 +4452,10 @@ function renderBoardCard(task, elementId){
     input.type = 'date';
     input.value = dueISO || '';
     input.style.position='fixed'; input.style.opacity='0';
-    document.body.appendChild(input);
+    document..appendChild(input);
     input.addEventListener('change', async ()=>{
       const newISO = input.value || null;
-      document.body.removeChild(input);
+      document..removeChild(input);
       if ((newISO||'') !== (dueISO||'')){
         try { await updateTaskOnServer(id, { due_date: newISO }); }
         catch { alert('No se pudo actualizar la fecha'); }
@@ -4961,7 +4963,7 @@ function renderIncidentes(state){
   }
 
   if (selected.length === 0){
-    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
+    tbl.innerHTML = '<t><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
     if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
     return;
   }
@@ -7060,89 +7062,128 @@ window.exitFlow = function() {
         if(checklist) checklist.classList.add('shift-focus');
     }
 };
-;(function initVoiceSystemFixed() { // <--- ESE PUNTO Y COMA AL INICIO ES CRÍTICO
-    console.log("🎤 Inicializando sistema de voz...");
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- SISTEMA DE VOZ A TEXTO ---
+    (function initVoiceSystem() {
+        console.log("🎤 Inicializando sistema de voz...");
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-
-    // Validación inicial
-    if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
-    if (!isSecure) console.warn("⚠️ Micro requiere HTTPS o localhost.");
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'es-ES';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    let activeBtn = null;
-    let activeTarget = null;
-
-    recognition.onstart = () => {
-        if (activeBtn) activeBtn.classList.add('listening');
-    };
-
-    recognition.onend = () => {
-        if (activeBtn) activeBtn.classList.remove('listening');
-        activeBtn = null;
-    };
-
-    recognition.onresult = (event) => {
-        if (!activeTarget) return;
-        const transcript = event.results[0][0].transcript;
-        console.log("🗣️ Voz reconocida:", transcript);
-
-        const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
-        let currentText = isInput ? activeTarget.value : activeTarget.innerText;
-        currentText = currentText || "";
-
-        // Añadir espacio si no está vacío
-        const sep = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
-        const finalText = sep + transcript.charAt(0).toUpperCase() + transcript.slice(1);
-
-        if (isInput) activeTarget.value = currentText + finalText;
-        else activeTarget.innerText = currentText + finalText;
-
-        // Guardar cambios
-        activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
-    };
-
-    recognition.onerror = (event) => {
-        console.error("Micro Error:", event.error);
-        if (activeBtn) activeBtn.classList.remove('listening');
-        if (event.error === 'not-allowed') alert("⚠️ Permiso de micro denegado. Revisa el candado 🔒 de la URL.");
-    };
-
-    // Listener global para botones de micro
-    document.body.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-mic');
-        if (!btn) return;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         
-        e.preventDefault();
-        e.stopPropagation(); // Evita que se propague el click
+        // Verificación de seguridad (HTTPS o Localhost)
+        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
 
-        if (btn.classList.contains('listening')) {
-            recognition.stop();
+        if (!SpeechRecognition) {
+            console.warn("❌ Tu navegador no soporta API de voz.");
             return;
         }
 
-        const targetId = btn.getAttribute('data-target');
-        const targetEl = document.getElementById(targetId);
-
-        if (targetEl) {
-            activeBtn = btn;
-            activeTarget = targetEl;
-            try { recognition.start(); } catch (err) { recognition.stop(); }
-        } else {
-            console.error("Objetivo no encontrado:", targetId);
+        if (!isSecure) {
+            console.warn("⚠️ El micrófono requiere HTTPS.");
         }
-    });
-})();
 
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'es-ES';        // Español
+        recognition.continuous = false;    // Parar al terminar la frase
+        recognition.interimResults = false;
+
+        let activeBtn = null;
+        let activeTarget = null;
+
+        // Eventos del reconocimiento
+        recognition.onstart = () => {
+            if (activeBtn) activeBtn.classList.add('listening');
+        };
+
+        recognition.onend = () => {
+            if (activeBtn) activeBtn.classList.remove('listening');
+            activeBtn = null;
+            activeTarget = null;
+        };
+
+        recognition.onresult = (event) => {
+            if (!activeTarget) return;
+            
+            const transcript = event.results[0][0].transcript;
+            console.log("🗣️ Escuchado:", transcript);
+
+            const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
+            
+            // Obtener texto actual para no borrar lo anterior
+            let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+            currentText = currentText || "";
+
+            // Añadir espacio si no está vacío y no termina en espacio
+            const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+            
+            // Capitalizar primera letra
+            const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+
+            if (isInput) {
+                activeTarget.value = currentText + finalText;
+            } else {
+                activeTarget.innerText = currentText + finalText;
+            }
+
+            // Disparar evento para guardar (importante para localStorage)
+            activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+
+        recognition.onerror = (event) => {
+            if (activeBtn) activeBtn.classList.remove('listening');
+            console.error("Error micro:", event.error);
+            
+            if (event.error === 'not-allowed') {
+                alert("⚠️ Permiso denegado. Pulsa el candado 🔒 en la barra de dirección y permite el micrófono.");
+            }
+        };
+
+        // Listener Global para los botones
+        document.body.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-mic');
+            if (!btn) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Validación HTTPS al hacer click
+            if (!isSecure) {
+                alert("⚠️ Por seguridad del navegador, el micrófono solo funciona en HTTPS o Localhost.");
+                return;
+            }
+
+            // Si ya está escuchando este botón, paramos
+            if (btn.classList.contains('listening')) {
+                recognition.stop();
+                return;
+            }
+
+            const targetId = btn.getAttribute('data-target');
+            const targetEl = document.getElementById(targetId);
+
+            if (targetEl) {
+                activeBtn = btn;
+                activeTarget = targetEl;
+                try {
+                    recognition.start();
+                } catch (err) {
+                    recognition.stop();
+                    setTimeout(() => recognition.start(), 100);
+                }
+            } else {
+                alert("Error: No encuentro el campo de texto destino.");
+            }
+        });
+        
+        console.log("✅ Sistema de voz cargado correctamente.");
+    })();
+});
+</script>
 </script>
 
 </body>
 </html>
+
 
 
 
