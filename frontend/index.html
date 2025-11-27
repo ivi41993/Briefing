@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1626,7 +1625,48 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
    ESTILOS PARA CAMBIO DE TURNO AUTOMÁTICO
    ========================================= */
 
+/* Clase que se añade al widget de Checklist para forzar pantalla completa (Fake Fullscreen) */
+.widget.shift-focus {
+    position: fixed !important;
+    inset: 0 !important; /* Top, right, bottom, left: 0 */
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9990 !important; /* Muy alto, tapa todo */
+    margin: 0 !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    padding: 40px 20px 120px 20px !important; /* Padding inferior extra para el cronómetro */
+    display: block !important; /* Asegura que sea visible */
+    box-shadow: none !important;
+    animation: zoom-in-shift 0.4s ease-out forwards;
+}
 
+/* Animación de entrada */
+@keyframes zoom-in-shift {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Título más grande en modo cambio de turno */
+.widget.shift-focus .widget-title {
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--brand-red-700);
+}
+
+/* Tarjetas del checklist más grandes para facilitar el toque */
+.widget.shift-focus .check-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.widget.shift-focus .check-card {
+    padding: 20px;
+    border: 2px solid var(--border);
+}
 
 /* === CRONÓMETRO FLOTANTE === */
 /* Cuando el body tiene la clase 'shift-active', movemos el cronómetro */
@@ -1650,7 +1690,24 @@ body.shift-active .timer-display {
     font-variant-numeric: tabular-nums;
 }
 
-
+/* Botón para salir manualmente si es necesario */
+#exit-shift-mode-btn {
+    display: none; /* Oculto por defecto */
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10001;
+    padding: 10px 20px;
+    background: #334155;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+body.shift-active #exit-shift-mode-btn {
+    display: block;
+}
 
 
 /* =================================================
@@ -2055,302 +2112,9 @@ body.card-open #timer-reset {
     border-radius: 50% !important;
     background: #f3f4f6 !important;
 }
-
-/* =========================================================
-   SISTEMA DE CAPAS Y CRONÓMETRO FLOTANTE
-   ========================================================= */
-
-/* 1. CRONÓMETRO FLOTANTE (Capa Suprema) */
-/* Se activa cuando el body tiene la clase 'timer-floating' */
-body.timer-floating #timer-widget {
-    position: fixed !important;
-    bottom: 30px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    
-    /* CAPA MÁXIMA: Nada puede taparlo */
-    z-index: 2147483647 !important; 
-    
-    /* Estilo Visual Gigante */
-    display: flex !important;
-    gap: 15px !important;
-    background: #ffffff !important;
-    padding: 12px 40px !important;
-    border-radius: 50px !important;
-    border: 4px solid #dc2626 !important;
-    box-shadow: 0 15px 50px rgba(0,0,0,0.5) !important;
-    
-    /* Asegurar visibilidad */
-    width: auto !important;
-    height: auto !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: auto !important; /* Asegura que se pueda clicar reset */
-}
-
-/* Texto del crono grande */
-body.timer-floating #timer-display {
-    font-size: 3.5rem !important;
-    font-weight: 800 !important;
-    color: #1f2937 !important;
-    line-height: 1 !important;
-}
-
-/* Botón reset grande */
-body.timer-floating #timer-reset {
-    width: 55px !important;
-    height: 55px !important;
-    font-size: 1rem !important;
-    border-radius: 50% !important;
-    background: #f3f4f6 !important;
-    cursor: pointer !important;
-}
-
-/* 2. TARJETA EN PANTALLA COMPLETA (Capa Media) */
-.widget.widget--zoomed {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    
-    /* Z-INDEX ALTO, PERO MENOR QUE EL CRONO */
-    z-index: 20000 !important;
-    
-    background: #ffffff !important;
-    overflow-y: auto !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    display: block !important;
-    
-    /* CRUCIAL: Espacio extra abajo para que el crono no tape contenido al hacer scroll */
-    padding: 20px 20px 160px 20px !important; 
-}
-
-/* 3. BARRA DE NAVEGACIÓN (Siguiente/Anterior/Salir) */
-/* Debe estar pegada arriba y ser clicable */
-.widget.widget--zoomed .widget-nav-bar {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 20001 !important; /* Encima del contenido de la tarjeta */
-    background: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(5px);
-    border-bottom: 1px solid #e5e7eb;
-    margin: -20px -20px 20px -20px !important; /* Compensar padding */
-    padding: 15px 20px !important;
-    display: flex !important; /* Asegurar que se ve */
-}
-
-/* Cronómetro dentro de la barra de navegación (Fullscreen) */
-.nav-timer-display {
-    font-family: "Space Grotesk", sans-serif;
-    font-weight: 800;
-    font-size: 1.4rem;
-    color: var(--brand-red-600);
-    background: #fff;
-    padding: 2px 12px;
-    border-radius: 6px;
-    border: 1px solid #e2e8f0;
-    margin: 0 15px;
-    font-variant-numeric: tabular-nums; /* Evita que los números salten */
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
-}
-
-/* Botón de micrófono para dictado */
-.btn-mic {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 1.3rem;
-    padding: 0 8px;
-    line-height: 1;
-    color: var(--text-muted);
-    transition: all 0.2s ease;
-    display: inline-flex; align-items: center; justify-content: center;
-}
-.btn-mic:hover { color: var(--brand-red-600); transform: scale(1.1); }
-
-/* Animación cuando está escuchando */
-.btn-mic.listening {
-    color: #ef4444; /* Rojo vivo */
-    animation: mic-pulse 1.5s infinite;
-}
-@keyframes mic-pulse {
-    0% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.2); opacity: 0.6; }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-/* Ajuste para 5S dentro de tarjeta KPI */
-#kpi-center .s5-pill {
-    padding: 4px 8px;
-    font-size: 0.75rem;
-}
-#kpi-center .s5-dot {
-    width: 6px; 
-    height: 6px;
-}
-
-.btn-mic {
-    background: none; border: none; cursor: pointer; font-size: 1.4rem;
-    transition: transform 0.2s; vertical-align: middle;
-}
-.btn-mic:hover { transform: scale(1.1); }
-.btn-mic.listening {
-    animation: pulse-red 1s infinite;
-    opacity: 1 !important; /* Fuerza visibilidad */
-}
-@keyframes pulse-red {
-    0% { transform: scale(1); filter: grayscale(0); }
-    50% { transform: scale(1.2); filter: drop-shadow(0 0 5px red); }
-    100% { transform: scale(1); filter: grayscale(0); }
-}
-
-/* Corrección de Micro */
-.btn-mic {
-    cursor: pointer !important;
-    z-index: 50 !important; /* Asegura que esté por encima */
-    position: relative;
-    font-size: 1.5rem; /* Un poco más grande para el dedo */
-    background: none;
-    border: none;
-    padding: 5px;
-}
-.btn-mic.listening {
-    animation: mic-pulse 1s infinite;
-    color: #dc2626; /* Rojo vivo */
-    background-color: rgba(254, 226, 226, 0.5); /* Fondo rojizo suave */
-    border-radius: 50%;
-}
-@keyframes mic-pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); }
-}
-/* =========================================
-   FIX: CHECKLIST EXPANDIDO (SIN SCROLL)
-   ========================================= */
-
-/* 1. Contenedor principal: Quitar límites de altura */
-#brief-check {
-    max-height: none !important;   /* Crece lo que necesite */
-    overflow: visible !important;  /* Nunca muestra scroll interno */
-    position: relative !important; /* Dejamos de hacerlo 'sticky' para que no ocupe toda la pantalla al bajar */
-    height: auto !important;
-}
-
-/* 2. Rejilla: Forzar más columnas para verlo todo junto */
-#brief-check .check-grid {
-    display: grid !important;
-    /* Reducimos el ancho mínimo a 160px para que quepan 3 o 4 por fila */
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important; 
-    gap: 8px !important;
-}
-
-/* 3. Tarjetas: Diseño compacto */
-#brief-check .check-card {
-    min-height: auto !important;
-    padding: 8px 10px !important;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-
-/* Títulos más pequeños para ganar espacio */
-#brief-check .check-title {
-    font-size: 0.85rem !important;
-    margin-bottom: 4px !important;
-    line-height: 1.2 !important;
-}
-
-/* Botones más compactos */
-#brief-check .check-actions {
-    margin-top: auto !important;
-}
-#brief-check .check-actions label {
-    padding: 2px 8px !important;
-    font-size: 0.75rem !important;
-}
-
-/* Ocultar el texto de ayuda "Guía" para limpiar la vista (opcional, quita esto si lo quieres) */
-#brief-check .br-explain {
-    display: none !important;
-}
-
-
-#exit-shift-mode-btn { display: none; position: fixed; top: 20px; right: 20px; z-index: 10000; }
-
-   
-  
-   document.getElementById('exit-shift-mode-btn').style.display = 'block';
-
-   
-   document.getElementById('exit-shift-mode-btn').style.display = 'none';
-/* =========================================
-   ESTILOS PARA MODO CAMBIO DE TURNO (CHECKLIST FULLSCREEN)
-   ========================================= */
-
-/* El contenedor principal ocupa toda la pantalla */
-.widget.shift-focus {
-    position: fixed !important;
-    inset: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    z-index: 9990 !important;
-    background: #f8fafc !important;
-    padding: 20px !important;
-    overflow-y: auto !important; /* Scroll solo si es estrictamente necesario */
-    margin: 0 !important;
-    border-radius: 0 !important;
-    display: flex !important;
-    flex-direction: column;
-}
-
-/* El título centrado y grande */
-.widget.shift-focus .widget-title {
-    font-size: 2rem !important;
-    text-align: center;
-    margin-bottom: 20px !important;
-    flex: 0 0 auto;
-}
-
-/* La rejilla se expande para ocupar el espacio */
-.widget.shift-focus .check-grid {
-    display: grid !important;
-    /* Ajuste automático: columnas de mín 250px, caben muchas en pantalla grande */
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important; 
-    gap: 15px !important;
-    align-content: start;
-}
-
-/* Tarjetas más limpias */
-.widget.shift-focus .check-card {
-    background: #fff;
-    border: 1px solid #cbd5e1;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    padding: 15px !important;
-    min-height: auto !important;
-}
-
-/* Botón de cerrar (Aseguramos que se vea) */
-#exit-shift-mode-btn {
-    display: none; /* Se activa por JS */
-    position: fixed;
-    top: 20px;
-    right: 30px;
-    z-index: 10001;
-    background: #334155;
-    color: #fff;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-}
-#exit-shift-mode-btn:hover { background: #1e293b; }
 </style>
 </head>
+<body>
 <body>
 
 <button id="exit-shift-mode-btn" onclick="exitShiftMode()">Cerrar Vista Turno ✖</button>
@@ -2387,10 +2151,6 @@ body.timer-floating #timer-reset {
 <div class="header-controls">
     <!-- El date-picker lo quitamos antes por JS, así que pon esto: -->
     <input type="text" id="briefing-supervisor" placeholder="Supervisor" style="min-width: 140px; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
-     <!-- NUEVO: Botón Micro -->
-    <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar voz a texto">
-        🎙️
-    </button>
     <button class="btn-primary" type="button">Generar Resumen</button>
 </div>
 </header>
@@ -2691,11 +2451,9 @@ body.timer-floating #timer-reset {
 
 
 
-<!-- Busca esto en tu HTML -->
 <div class="widget kpi-widget" id="kpi-center">
-  <h2 class="widget-title">6) KPIs Operativos & Estándares</h2>
+  <h2 class="widget-title">6) KPIs Operativos</h2>
 
-  <!-- 1. Los KPIs numéricos de siempre (arriba) -->
   <div class="kpi-grid">
     <div class="kpi-tile">
       <div class="kpi-label">Uniwin</div>
@@ -2715,56 +2473,14 @@ body.timer-floating #timer-reset {
       <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
     </div>
 
-    <!-- Movemos Costes aquí dentro también para unificar -->
-    <div class="kpi-tile" id="kpi-costes">
-      <div class="kpi-label">Costes Daños</div>
-      <div class="kpi-value" style="color:var(--brand-red-600)">
-        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
-      </div>
-      <small class="kpi-text" id="kpi-costes-meta"></small>
-    </div>
-  </div>
-
-  <!-- Separador visual -->
-  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
-
-  <!-- 2. Nueva sección 5S y GW (Integrada aquí) -->
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-    
-    <!-- COLUMNA 5S -->
-    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <strong style="font-size:0.95rem;">Estado 5S</strong>
-        <small id="s5-meta" class="kpi-text">—</small>
-      </div>
-      
-      <!-- La tira de botones 5S (Mismos IDs para que funcione el JS) -->
-      <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S" style="justify-content: center;">
-        <button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
-        <button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
-        <button type="button" class="s5-pill" data-key="seiso" title="3S · Seiso"><span class="s5-dot"></span>3S</button>
-        <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu"><span class="s5-dot"></span>4S</button>
-        <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke"><span class="s5-dot"></span>5S</button>
-      </div>
-    </div>
-
-    <!-- COLUMNA GW -->
-    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
-      </div>
-
-      <!-- Formulario de subida (Mismos IDs) -->
-      <form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-        <input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
-        <button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Subir</button>
-      </form>
-      <small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
-
-      <!-- Contenedor de tareas GW -->
-      <div id="gw-tasks-dynamic-container"></div>
-    </div>
-
+    <div class="widget kpi-widget" id="kpi-costes">
+<h3 class="widget-title">
+<span>Costes en daños a los equipos WFS4 MAD</span>
+<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
+</h3>
+<div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
+<small class="kpi-text" id="kpi-costes-meta"></small>
+</div>
   </div>
 </div>
 
@@ -2820,35 +2536,63 @@ body.timer-floating #timer-reset {
 </div>
 
 
-<!-- KAIZEN (Ahora ocupa todo el ancho porque quitamos el split y rotativas) -->
-<div class="widget" id="kaizen-widget" style="margin-top: 20px;">
-  <h2 class="widget-title">KAIZEN (Proyectos de mejora)</h2>
-  
-  <form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
-    <input type="text" name="title" placeholder="Proyecto de mejora…" required>
-    <input type="text" name="assigned_to" placeholder="Responsable…">
-    <input type="date" name="due_date" aria-label="Fecha máxima">
-    <button type="submit" class="btn-primary">Añadir</button>
-  </form>
-
-  <!-- Le quitamos la clase 'compact' si quieres ver 3 columnas anchas, o la dejas si prefieres 2 -->
-  <div class="board-container kaizen" style="margin-top:12px;">
-    <div class="kanban-column">
-      <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
-      <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
-    </div>
-    <div class="kanban-column">
-      <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
-      <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
-    </div>
-    <div class="kanban-column">
-      <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
-      <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
-    </div>
-  </div>
+<!-- Kaizen + 5S/GW compartido -->
+<div class="actions-split">
+<div class="widget" id="kaizen-widget">
+<h2 class="widget-title">KAIZEN (compacto)</h2>
+<form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+<input type="text" name="title" placeholder="Proyecto de mejora…" required>
+<input type="text" name="assigned_to" placeholder="Responsable…">
+<input type="date" name="due_date" aria-label="Fecha máxima">
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
+<div class="board-container kaizen compact" style="margin-top:12px;">
+<div class="kanban-column">
+<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+</div>
+</div>
 </div>
 
+<div class="widget" id="rotativas-widget">
+<h2 class="widget-title">5S & GW (Rápido)</h2>
 
+<!-- 5S gestionable -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+<strong>5S</strong>
+<div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
+<button type="button" class="s5-pill" data-key="seiri"      title="1S · Seiri (Clasificar)"><span class="s5-dot"></span>1S</button>
+<button type="button" class="s5-pill" data-key="seiton"     title="2S · Seiton (Ordenar)"><span class="s5-dot"></span>2S</button>
+<button type="button" class="s5-pill" data-key="seiso"      title="3S · Seiso (Limpiar)"><span class="s5-dot"></span>3S</button>
+<button type="button" class="s5-pill" data-key="seiketsu"   title="4S · Seiketsu (Estandarizar)"><span class="s5-dot"></span>4S</button>
+<button type="button" class="s5-pill" data-key="shitsuke"   title="5S · Shitsuke (Disciplina)"><span class="s5-dot"></span>5S</button>
+</div>
+<small id="s5-meta" class="kpi-text">—</small>
+
+</div>
+
+<strong style="margin-top: 12px; display:block;">GW</strong>
+
+<form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin:4px 0 6px;">
+  <input type="file" id="gw-file" accept=".xlsx,.xls"
+         style="flex:1; padding:6px; border:1px solid var(--border); border-radius:8px;">
+  <button class="btn-primary" type="submit" style="padding:6px 10px;">Subir GW Excel</button>
+</form>
+<small id="gw-upload-status" class="kpi-text">—</small>
+
+<div id="gw-tasks-dynamic-container"></div>
+
+
+</div>
+</div>
 
 
 
@@ -2859,11 +2603,7 @@ body.timer-floating #timer-reset {
 
 
   <div class="widget" id="prev-shift-widget">
-  <h2 class="widget-title">3) Información Turno Anterior
-  <button type="button" class="btn-mic" data-target="prev-shift-note" title="Dictar nota">
-          🎙️
-      </button>
-  </h2>
+  <h2 class="widget-title">3) Información Turno Anterior</h2>
 <div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior" spellcheck="true"
 style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
@@ -2980,7 +2720,6 @@ function getTaskId(obj){
 })();
 
 
-// Busca la función initGwUpload y déjala así:
 (function initGwUpload(){
   const form   = document.getElementById('gw-upload-form');
   const input  = document.getElementById('gw-file');
@@ -3002,7 +2741,9 @@ function getTaskId(obj){
     try{
       const res  = await fetch('/api/gw/import-xlsx', {
         method: 'POST',
-        body: fd, // <--- CORREGIDO (Antes ponía solo ": fd")
+        body: fd,
+        // si lo proteges con API_KEY:
+        // headers: { 'x-api-key': 'EstE-eS-mI_s3cr3t0-Sup3r-L4rg0-y-c0mpl3j0-p4r4-eL-d4shb04rd"' }
       });
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al importar');
@@ -3033,22 +2774,17 @@ function getTaskId(obj){
 
 
   // ⬇️ ESTE SUBMIT ES LO QUE FALTABA
-  // Busca initIncidentsPdfUpload y corrige el fetch:
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();                           // 👈 evita recargar la página
     const f = input.files?.[0];
     if (!f) { status.textContent = 'Selecciona un PDF'; return; }
 
     const fd = new FormData();
-    fd.append('file', f);
+    fd.append('file', f);                          // 👈 el backend espera name="file"
 
     status.textContent = 'Subiendo…';
     try {
-      const res = await fetch('/api/incidents-table', { 
-          method:'POST', 
-          body: fd  // <--- CORREGIDO
-      });
-      // ... resto del código igual ...
+      const res = await fetch('/api/incidents-table', { method:'POST', body: fd });
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al subir');
 
@@ -3084,14 +2820,9 @@ if (!f) { status.textContent = 'Selecciona un .xlsx/.xls'; return; }
 const fd = new FormData();
 fd.append('file', f); // debe llamarse "file"
 
-// Busca initRosterUpload y corrige el fetch:
 status.textContent = 'Subiendo…';
 try {
-    const res = await fetch('/api/roster/upload', { 
-        method:'POST', 
-        body: fd // <--- CORREGIDO
-    });
-// ... resto del código igual ...
+const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
 if (!res.ok) {
 const err = await res.json().catch(()=>({detail: res.statusText}));
 throw new Error(err.detail || 'Error al subir');
@@ -3168,39 +2899,21 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
 
-  // Dentro de tu (function(){ const KEY='header_big_timer_v1'... })();
-// Busca la función 'paint' y déjala así:
-
-function paint(){
+  function paint(){
     const nowMs   = running ? (Date.now() - startedAt) : elapsed;
     const clamped = Math.min(nowMs, STOP_MS);
-    const textFormatted = fmt(clamped); // Guardamos el texto formateado
 
-    // 1. Actualizar el cronómetro PRINCIPAL (Header)
-    display.textContent = textFormatted;
+    display.textContent = fmt(clamped);
     display.classList.toggle('is-red', clamped >= RED_MS);
-
-    // 2. Actualizar TODOS los cronómetros de las BARRAS DE NAVEGACIÓN (Nuevo)
-    document.querySelectorAll('.nav-timer-display').forEach(el => {
-        el.textContent = textFormatted;
-        // Opcional: ponerlos rojos también si pasa el tiempo
-        if (clamped >= RED_MS) {
-            el.style.color = '#b91c1c';
-            el.style.backgroundColor = '#fef2f2';
-        } else {
-            el.style.color = ''; // reset
-            el.style.backgroundColor = '';
-        }
-    });
 
     // Auto-stop al llegar a 10:00
     if (running && nowMs >= STOP_MS){
-        running = false;
-        elapsed = STOP_MS;
-        clearInterval(tick); tick=null;
-        setUI(); save();
+      running = false;
+      elapsed = STOP_MS;
+      clearInterval(tick); tick=null;
+      setUI(); save();
     }
-}
+  }
 
   function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
   function load(){
@@ -3872,19 +3585,17 @@ updateAllColumnCounts();
     input.value = '';
 
     // Intento de persistencia en servidor (si lo tienes)
-    // Busca dentro de initTeamManualAdd el fetch('/api/roster/add') y corrígelo:
     try{
       const res = await fetch('/api/roster/add', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ // <--- CORREGIDO
+        body: JSON.stringify({
           person: name,
           date: TEAM_STATE.sheet_date || null,
           shift: TEAM_STATE.shift || guessShift(),
           station: (window.STATION_OVERRIDE || '').toUpperCase() || (typeof STATION_CODE!=='undefined'?STATION_CODE:'MAD')
         })
       });
-// ... resto del código igual ...
 
       if (!res.ok){
         // Si tu backend aún no tiene /api/roster/add, no rompemos la UI
@@ -3917,52 +3628,33 @@ updateAllColumnCounts();
   };
 })();
 
-function setupEventListeners() {
-    // Formularios Kanban y Kaizen
-    document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
-    document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
-    
-    // Click global (para borrar tarjetas)
-    document.addEventListener('click', handleDeleteClick);
+function setupEventListeners(){
+document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+document.addEventListener('click', handleDeleteClick);
 
-    // --- CORRECCIÓN CRÍTICA PARA GW (Gemba Walk) ---
-    // Ya no buscamos el ID 'rotativas-widget' porque lo borramos.
-    // Usamos delegación de eventos en el documento.
-    
-    // 1. Checkbox de completado
-    document.addEventListener('change', (e) => {
-        // La función handleGwTick ya verifica si es un checkbox válido
-        if (typeof handleGwTick === 'function') {
-            handleGwTick(e);
-        }
-    });
+const rot=document.getElementById('rotativas-widget');
+// GW
+rot.addEventListener('change', handleGwTick);
+rot.addEventListener('keydown',(e)=>{
+  const note = e.target.closest('.gw-note') ? e.target : null;
+  if (!note) return;
 
-    // 2. Notas (Enter y Escape)
-    document.addEventListener('keydown', (e) => {
-        const note = e.target.closest('.gw-note') ? e.target : null;
-        if (!note) return;
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    const id = note.id.replace('gw-note-','');
+    updateTaskNote(id, note.value).catch(console.error);
+    note.blur();
+  }
+  if (e.key === 'Escape'){
+    e.preventDefault();
+    note.blur();
+  }
+});
 
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const id = note.id.replace('gw-note-', '');
-            // Verificamos que la función exista antes de llamar
-            if(typeof updateTaskNote === 'function') updateTaskNote(id, note.value).catch(console.error);
-            note.blur();
-        }
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            note.blur();
-        }
-    });
-
-    // 3. Notas (Al perder el foco / Blur)
-    document.addEventListener('blur', (e) => {
-        if (e.target.classList && e.target.classList.contains('gw-note')) {
-            const id = e.target.id.replace('gw-note-', '');
-            if(typeof updateTaskNote === 'function') updateTaskNote(id, e.target.value).catch(console.error);
-        }
-    }, true); 
+rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); } }, true);
 }
+
 async function handleKanbanSubmit(e){
   e.preventDefault();
   const f = e.target;
@@ -4074,7 +3766,7 @@ async function createTaskOnServer(data){
 const r = await fetch('/api/tasks',{
 method:'POST',
 headers:{'Content-Type':'application/json'},
-body: JSON.stringify(data)
+body:JSON.stringify(data)
 });
 if(!r.ok) throw new Error('create failed');
 const task = await r.json();
@@ -4086,7 +3778,7 @@ async function updateTaskOnServer(id, data){
 const r = await fetch(`/api/tasks/${id}`,{
 method:'PUT',
 headers:{'Content-Type':'application/json'},
-body: JSON.stringify(data)
+body:JSON.stringify(data)
 });
 if(!r.ok) throw new Error('update failed');
 const task = await r.json();
@@ -4102,11 +3794,8 @@ processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' 
 }
 
 
-// Busca estas dos líneas y reemplázalas por estas corregidas (añadido 'body:'):
-
-async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'}, body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
-
-async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'}, body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
+async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
+async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
 
 /* Render tarjetas */
 function processTaskUpdate(data){
@@ -5042,7 +4731,7 @@ function renderIncidentes(state){
   }
 
   if (selected.length === 0){
-    tbl.innerHTML = '<t><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
+    tbl.innerHTML = '<tbody><tr><td>No se encontraron columnas para mostrar.</td></tr></tbody>';
     if (meta) meta.textContent = `Columnas: ${cols.length} • Filas: ${rows.length} • Actualizado: ${ts}`;
     return;
   }
@@ -6721,49 +6410,35 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     // 2. INYECTAR BARRAS DE NAVEGACIÓN
-    // Busca esta función y sustituye SU CONTENIDO por este actualizado:
-function injectNavigation() {
-    // (Asegúrate de tener definida WIDGET_MAP arriba como en tu código original)
-    
-    WIDGET_MAP.forEach((step, index) => {
-        const widget = document.getElementById(step.id);
-        if (!widget || widget.querySelector('.widget-nav-bar')) return;
+    function injectNavigation() {
+        WIDGET_MAP.forEach((step, index) => {
+            const widget = document.getElementById(step.id);
+            if (!widget || widget.querySelector('.widget-nav-bar')) return;
 
-        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
-        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
-        
-        const navBar = document.createElement('div');
-        navBar.className = 'widget-nav-bar';
-        
-        // --- AQUÍ ESTÁ EL CAMBIO EN EL HTML ---
-        navBar.innerHTML = `
-            <div class="nav-group">
-                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
-                    ⬅ Anterior
-                </button>
-            </div>
-
-            <!-- GRUPO CENTRAL: TÍTULO + CRONÓMETRO -->
-            <div class="nav-group" style="display:flex; align-items:center;">
-                <span style="font-size:0.9rem; color:#64748b; font-weight:600; margin-right:10px;">
+            const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
+            const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
+            
+            const navBar = document.createElement('div');
+            navBar.className = 'widget-nav-bar';
+            navBar.innerHTML = `
+                <div class="nav-group">
+                    <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
+                        ⬅ Anterior
+                    </button>
+                </div>
+                <div class="nav-group" style="font-size:0.9rem; color:#64748b;">
                     ${step.label} (${index + 1}/${WIDGET_MAP.length})
-                </span>
-                <!-- AQUÍ EL NUEVO CRONÓMETRO ESPEJO -->
-                <div class="nav-timer-display">00:00:00</div>
-            </div>
-
-            <div class="nav-group">
-                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
-                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
-                    ✅ OK y Siguiente ➡
-                </button>
-            </div>
-        `;
-        // ---------------------------------------
-
-        widget.prepend(navBar);
-    });
-}
+                </div>
+                <div class="nav-group">
+                    <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
+                    <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
+                        ✅ OK y Siguiente ➡
+                    </button>
+                </div>
+            `;
+            widget.prepend(navBar);
+        });
+    }
     injectNavigation();
 
     // 3. LÓGICA DE RESET DEL CRONÓMETRO Y CHECKLIST
@@ -6968,202 +6643,182 @@ window.closePostBriefingMode = function() {
     }
   });
 })();
-/* =========================================================
-   SISTEMA UNIFICADO: NAVEGACIÓN, BOTONES Y TURNO
-   ========================================================= */
+// =========================================================
+//  LÓGICA DE CAMBIO DE TURNO AUTOMÁTICO
+// =========================================================
 
-// 1. MAPA DE NAVEGACIÓN (Define el orden y la relación Checkbox <-> Widget)
-const WIDGET_MAP = [
-    { id: 'team-widget',        check: 'c1', label: '1. Dotación' },
-    { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
-    { id: 'prev-shift-widget',  check: 'c3', label: '3. Turno Anterior' },
-    { id: 'seguridad-widget',   check: 'c4', label: '4. Seguridad' },
-    { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
-    { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
-    { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
-];
+(function initAutoShiftChange(){
+    let lastShift = null;
 
-// 2. FUNCIONES GLOBALES (Disponibles para los botones onclick)
+    // Determina el turno actual según la hora
+    function getCurrentShiftName() {
+        const h = new Date().getHours();
+        if (h >= 6 && h < 14) return 'Mañana';
+        if (h >= 14 && h < 22) return 'Tarde';
+        return 'Noche';
+    }
 
-// --> Entrar en tarjeta (Zoom)
+    // Loop de comprobación (cada segundo)
+    function checkTime() {
+        const currentShift = getCurrentShiftName();
+
+        // Primera carga: solo guardamos el estado
+        if (lastShift === null) {
+            lastShift = currentShift;
+            return;
+        }
+
+        // Si el turno cambia respecto al guardado -> DISPARAR
+        if (currentShift !== lastShift) {
+            console.log(`🔄 CAMBIO DE TURNO: ${lastShift} -> ${currentShift}`);
+            lastShift = currentShift;
+            triggerShiftMode(currentShift);
+        }
+    }
+
+    // Función que activa la UI
+    window.triggerShiftMode = function(shiftName) {
+        console.log("🚀 Activando Modo Cambio de Turno...");
+        
+        // 1. Activar clase en BODY (esto mueve el cronómetro)
+        document.body.classList.add('shift-active');
+
+        // 2. Activar clase en CHECKLIST (esto lo hace fullscreen)
+        const checklist = document.getElementById('brief-check') || document.getElementById('checklist-widget');
+        if(checklist) {
+            checklist.classList.add('shift-focus');
+            
+            // Cambiar título temporalmente
+            const title = checklist.querySelector('.widget-title');
+            if(title) {
+                if(!title.dataset.original) title.dataset.original = title.innerHTML;
+                title.innerHTML = `COMIENZO TURNO: <span style="color:#dc2626">${shiftName.toUpperCase()}</span>`;
+            }
+        }
+
+        // 3. Resetear cronómetro
+        const resetBtn = document.getElementById('timer-reset');
+        if(resetBtn) resetBtn.click();
+
+        // 4. Resetear checks
+        document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    };
+
+    // Intervalo de comprobación
+    setInterval(checkTime, 1000);
+})();
+
+// Función para salir del modo
+window.exitShiftMode = function() {
+    document.body.classList.remove('shift-active');
+    
+    const checklist = document.getElementById('brief-check') || document.getElementById('checklist-widget');
+    if(checklist) {
+        checklist.classList.remove('shift-focus');
+        // Restaurar título
+        const title = checklist.querySelector('.widget-title');
+        if(title && title.dataset.original) title.innerHTML = title.dataset.original;
+    }
+};
+
+// Enganche para salir al generar resumen
+const genBtn = document.getElementById('btn-generate') || document.querySelector('.header-controls .btn-primary');
+if(genBtn) {
+    genBtn.addEventListener('click', () => {
+        // Esperamos 1s a que guarde y salimos
+        setTimeout(exitShiftMode, 1000);
+    });
+}
+
+// PARA PROBARLO AHORA MISMO:
+// Escribe en la consola: testShiftMode()
+window.testShiftMode = function() {
+    triggerShiftMode("PRUEBA");
+}
+// =========================================================
+//  LÓGICA DE NAVEGACIÓN Y CAMBIO DE TURNO
+// =========================================================
+
+(function initAutoShiftChange(){
+    let lastShift = null;
+
+    function checkTime() {
+        const h = new Date().getHours();
+        let currentShift = 'Noche';
+        if (h >= 6 && h < 14) currentShift = 'Mañana';
+        if (h >= 14 && h < 22) currentShift = 'Tarde';
+
+        if (lastShift === null) { lastShift = currentShift; return; }
+
+        if (currentShift !== lastShift) {
+            lastShift = currentShift;
+            
+            // ACTIVAR MODO TURNO
+            document.body.classList.add('shift-mode'); // Activa el cronómetro flotante
+            
+            // Resetear Timer
+            document.getElementById('timer-reset').click();
+            
+            // Resetear Checks
+            document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+            
+            // Enfocar Checklist (Nivel 1)
+            document.querySelectorAll('.shift-focus').forEach(e => e.classList.remove('shift-focus'));
+            const checklist = document.getElementById('brief-check');
+            if(checklist) checklist.classList.add('shift-focus');
+        }
+    }
+    setInterval(checkTime, 1000);
+})();
+
+// === NAVEGACIÓN QUE SIEMPRE ACTIVA EL CRONO ===
+
 window.navTo = function(targetId) {
     const el = document.getElementById(targetId);
-    if (!el) return console.warn("Destino no encontrado:", targetId);
+    if (!el) return;
 
-    // Activar modo cronómetro flotante si no estamos en modo turno
-    const isShiftMode = document.body.classList.contains('shift-mode') || 
-                        document.getElementById('brief-check').classList.contains('shift-focus');
-    
-    if (!isShiftMode) {
-        document.body.classList.add('timer-floating');
-    }
+    console.log("Abriendo tarjeta:", targetId);
 
-    // Limpiar otros zooms previos
+    // 1. Limpiar zooms previos
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    
+    // 2. Activar MODO TARJETA ABIERTA (Esto hace aparecer el crono gracias al CSS)
+    document.body.classList.add('card-open');
 
-    // Aplicar Zoom (con pequeño delay para asegurar renderizado)
-    setTimeout(() => {
-        el.classList.add('widget--zoomed');
-        el.scrollIntoView({ behavior: 'auto', block: 'start' });
-        el.scrollTop = 0;
-    }, 10);
+    // 3. Aplicar clase de Zoom a la tarjeta (Z-Index 15000)
+    el.classList.add('widget--zoomed');
+    
+    // 4. Scroll al inicio de la tarjeta
+    el.scrollTop = 0;
 };
 
-// --> Salir de tarjeta
 window.exitFlow = function() {
+    // 1. Quitar zoom de la tarjeta
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-
-    // Quitar cronómetro flotante si no es modo turno
-    const isShiftMode = document.getElementById('brief-check').classList.contains('shift-focus');
-    if (!isShiftMode) {
-        document.body.classList.remove('timer-floating');
-    }
     
-    // Volver suavemente al checklist
-    document.getElementById('brief-check')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-};
+    // 2. Quitar estado de tarjeta abierta (El crono vuelve arriba si no estamos en shift-mode)
+    document.body.classList.remove('card-open');
 
-// --> Botón "OK y Siguiente"
-window.markOkAndNext = function(checkName, nextId) {
-    // A. Marcar Checkbox
-    if (checkName) {
-        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
-        if (radio) {
-            radio.checked = true;
-            // Disparar eventos para guardar y actualizar colores
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
-            radio.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    }
-
-    // B. Navegar
-    if (nextId && document.getElementById(nextId)) {
-        window.navTo(nextId);
+    // 3. Si estábamos en modo turno automático, volvemos al checklist base
+    if (document.body.classList.contains('shift-mode')) {
+        const checklist = document.getElementById('brief-check');
+        if(checklist) checklist.classList.add('shift-focus');
     } else {
-        window.exitFlow();
-        // Feedback visual en botón principal
-        const btn = document.querySelector('header .btn-primary');
-        if(btn) {
-            const original = btn.textContent;
-            btn.textContent = "¡Listo para generar!";
-            setTimeout(() => btn.textContent = original, 2000);
-        }
-        alert("🎉 Checklist completado. Puedes generar el resumen.");
+        // Si es modo normal, limpieza total
+        document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
     }
 };
-
-// --> Funciones de Cambio de Turno (Pantalla Roja/Checklist Gigante)
-window.triggerShiftMode = function(shiftName) {
-    console.log("🔄 Cambio de turno detectado:", shiftName);
-    const checklist = document.getElementById('brief-check');
-    const closeBtn = document.getElementById('exit-shift-mode-btn');
-    const resetTimerBtn = document.getElementById('timer-reset');
-
-    if(checklist) {
-        checklist.classList.add('shift-focus'); // CSS hace el resto
-        checklist.scrollTop = 0;
-        // Resetear visualmente los radios
-        checklist.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
-    }
-    if(closeBtn) closeBtn.style.display = 'block';
-    
-    // Resetear cronómetro
-    if(resetTimerBtn && !resetTimerBtn.disabled) resetTimerBtn.click();
-    
-    document.body.classList.add('shift-mode');
-};
-
-window.exitShiftMode = function() {
-    const checklist = document.getElementById('brief-check');
-    const closeBtn = document.getElementById('exit-shift-mode-btn');
-    
-    if(checklist) checklist.classList.remove('shift-focus');
-    if(closeBtn) closeBtn.style.display = 'none';
-    document.body.classList.remove('shift-mode');
-};
-
-
-// 3. INICIALIZACIÓN AL CARGAR LA PÁGINA
-document.addEventListener('DOMContentLoaded', () => {
-
-    // --- A. INYECTAR EL HTML DE LOS BOTONES (Crucial) ---
-    (function injectNavigation() {
-        WIDGET_MAP.forEach((step, index) => {
-            const widget = document.getElementById(step.id);
-            if (!widget || widget.querySelector('.widget-nav-bar')) return;
-
-            const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
-            const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
-            
-            const navBar = document.createElement('div');
-            navBar.className = 'widget-nav-bar';
-            
-            navBar.innerHTML = `
-                <div class="nav-group">
-                    <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''} title="Ir al anterior">
-                        ⬅ Anterior
-                    </button>
-                </div>
-                <div class="nav-group" style="display:flex; align-items:center;">
-                    <span style="font-size:0.9rem; color:#64748b; font-weight:600; margin-right:10px;">
-                        ${step.label}
-                    </span>
-                    <div class="nav-timer-display">00:00:00</div>
-                </div>
-                <div class="nav-group">
-                    <button class="btn-nav home" onclick="exitFlow()" title="Cerrar vista">Salir ✖</button>
-                    <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')" title="Marcar OK y avanzar">
-                        ✅ OK y Siguiente ➡
-                    </button>
-                </div>
-            `;
-            widget.prepend(navBar);
-        });
-    })();
-
-    // --- B. HACER CLICKABLES LAS TARJETAS DEL CHECKLIST ---
-    document.querySelectorAll('#brief-check .check-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            // Si el usuario hace click en el radio button, no navegamos
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
-            
-            const targetId = card.getAttribute('data-target');
-            if (targetId) {
-                e.preventDefault();
-                navTo(targetId);
-            }
-        });
-    });
-
-    // --- C. DETECTOR DE CAMBIO DE TURNO ---
-    (function initAutoShiftChange(){
-        let lastShift = null;
-        function getCurrentShiftName() {
-            const h = new Date().getHours();
-            if (h >= 6 && h < 14) return 'Mañana';
-            if (h >= 14 && h < 22) return 'Tarde';
-            return 'Noche';
-        }
-        function checkTime() {
-            const currentShift = getCurrentShiftName();
-            if (lastShift === null) { lastShift = currentShift; return; }
-            if (currentShift !== lastShift) {
-                lastShift = currentShift;
-                triggerShiftMode(currentShift);
-            }
-        }
-        setInterval(checkTime, 1000);
-        
-        // Salir del modo turno al pulsar "Generar Resumen"
-        document.querySelector('.header-controls .btn-primary')?.addEventListener('click', () => {
-            setTimeout(() => window.exitShiftMode(), 500);
-        });
-    })();
-
-});
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
 
 
 
