@@ -3399,7 +3399,7 @@ async function createCard(card) {
   const res = await fetch('/api/tasks', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    : JSON.stringify({
+    body: JSON.stringify({
       // mínimos recomendados
       task_type: card.task_type || 'kanban_rapida',
       title: card.title,
@@ -3416,7 +3416,7 @@ async function editCard(id, partial) {
   const res = await fetch(`/api/tasks/${id}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
-    : JSON.stringify(partial)   // p.ej. { title: 'Nuevo título', status: 'doing' }
+    body: JSON.stringify(partial)   // p.ej. { title: 'Nuevo título', status: 'doing' }
   });
   if (!res.ok) throw new Error(await res.text());
   return await res.json();
@@ -3445,7 +3445,7 @@ try{
 await fetch('/api/roster/presence', {
 method:'PUT',
 headers:{'Content-Type':'application/json'},
-: JSON.stringify({
+body: JSON.stringify({
 person, present,
 date: TEAM_STATE?.sheet_date || null,
 shift: TEAM_STATE?.shift || null
@@ -3461,7 +3461,7 @@ try{
 await fetch('/api/roster/zone', {
 method:'PUT',
 headers:{'Content-Type':'application/json'},
-: JSON.stringify({
+body: JSON.stringify({
 person, zone,
 date: TEAM_STATE?.sheet_date || null,
 shift: TEAM_STATE?.shift || null
@@ -7177,6 +7177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
