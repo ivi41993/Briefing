@@ -2212,6 +2212,41 @@ body.timer-floating #timer-reset {
     font-variant-numeric: tabular-nums; /* Evita que los números salten */
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
 }
+
+/* Botón de micrófono para dictado */
+.btn-mic {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.3rem;
+    padding: 0 8px;
+    line-height: 1;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.btn-mic:hover { color: var(--brand-red-600); transform: scale(1.1); }
+
+/* Animación cuando está escuchando */
+.btn-mic.listening {
+    color: #ef4444; /* Rojo vivo */
+    animation: mic-pulse 1.5s infinite;
+}
+@keyframes mic-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.6; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Ajuste para 5S dentro de tarjeta KPI */
+#kpi-center .s5-pill {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+}
+#kpi-center .s5-dot {
+    width: 6px; 
+    height: 6px;
+}
 </style>
 </head>
 <body>
@@ -2251,6 +2286,10 @@ body.timer-floating #timer-reset {
 <div class="header-controls">
     <!-- El date-picker lo quitamos antes por JS, así que pon esto: -->
     <input type="text" id="briefing-supervisor" placeholder="Supervisor" style="min-width: 140px; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+     <!-- NUEVO: Botón Micro -->
+    <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar voz a texto">
+        🎙️
+    </button>
     <button class="btn-primary" type="button">Generar Resumen</button>
 </div>
 </header>
@@ -2551,9 +2590,11 @@ body.timer-floating #timer-reset {
 
 
 
+<!-- Busca esto en tu HTML -->
 <div class="widget kpi-widget" id="kpi-center">
-  <h2 class="widget-title">6) KPIs Operativos</h2>
+  <h2 class="widget-title">6) KPIs Operativos & Estándares</h2>
 
+  <!-- 1. Los KPIs numéricos de siempre (arriba) -->
   <div class="kpi-grid">
     <div class="kpi-tile">
       <div class="kpi-label">Uniwin</div>
@@ -2573,14 +2614,56 @@ body.timer-floating #timer-reset {
       <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
     </div>
 
-    <div class="widget kpi-widget" id="kpi-costes">
-<h3 class="widget-title">
-<span>Costes en daños a los equipos WFS4 MAD</span>
-<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
-</h3>
-<div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
-<small class="kpi-text" id="kpi-costes-meta"></small>
-</div>
+    <!-- Movemos Costes aquí dentro también para unificar -->
+    <div class="kpi-tile" id="kpi-costes">
+      <div class="kpi-label">Costes Daños</div>
+      <div class="kpi-value" style="color:var(--brand-red-600)">
+        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
+      </div>
+      <small class="kpi-text" id="kpi-costes-meta"></small>
+    </div>
+  </div>
+
+  <!-- Separador visual -->
+  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+
+  <!-- 2. Nueva sección 5S y GW (Integrada aquí) -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+    
+    <!-- COLUMNA 5S -->
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong style="font-size:0.95rem;">Estado 5S</strong>
+        <small id="s5-meta" class="kpi-text">—</small>
+      </div>
+      
+      <!-- La tira de botones 5S (Mismos IDs para que funcione el JS) -->
+      <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S" style="justify-content: center;">
+        <button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
+        <button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
+        <button type="button" class="s5-pill" data-key="seiso" title="3S · Seiso"><span class="s5-dot"></span>3S</button>
+        <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu"><span class="s5-dot"></span>4S</button>
+        <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke"><span class="s5-dot"></span>5S</button>
+      </div>
+    </div>
+
+    <!-- COLUMNA GW -->
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
+      </div>
+
+      <!-- Formulario de subida (Mismos IDs) -->
+      <form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
+        <button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Subir</button>
+      </form>
+      <small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
+
+      <!-- Contenedor de tareas GW -->
+      <div id="gw-tasks-dynamic-container"></div>
+    </div>
+
   </div>
 </div>
 
@@ -2636,30 +2719,32 @@ body.timer-floating #timer-reset {
 </div>
 
 
-<!-- Kaizen + 5S/GW compartido -->
-<div class="actions-split">
-<div class="widget" id="kaizen-widget">
-<h2 class="widget-title">KAIZEN (compacto)</h2>
-<form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
-<input type="text" name="title" placeholder="Proyecto de mejora…" required>
-<input type="text" name="assigned_to" placeholder="Responsable…">
-<input type="date" name="due_date" aria-label="Fecha máxima">
-<button type="submit" class="btn-primary">Añadir</button>
-</form>
-<div class="board-container kaizen compact" style="margin-top:12px;">
-<div class="kanban-column">
-<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
-</div>
-</div>
+<!-- KAIZEN (Ahora ocupa todo el ancho porque quitamos el split y rotativas) -->
+<div class="widget" id="kaizen-widget" style="margin-top: 20px;">
+  <h2 class="widget-title">KAIZEN (Proyectos de mejora)</h2>
+  
+  <form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+    <input type="text" name="title" placeholder="Proyecto de mejora…" required>
+    <input type="text" name="assigned_to" placeholder="Responsable…">
+    <input type="date" name="due_date" aria-label="Fecha máxima">
+    <button type="submit" class="btn-primary">Añadir</button>
+  </form>
+
+  <!-- Le quitamos la clase 'compact' si quieres ver 3 columnas anchas, o la dejas si prefieres 2 -->
+  <div class="board-container kaizen" style="margin-top:12px;">
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+    </div>
+  </div>
 </div>
 
 <div class="widget" id="rotativas-widget">
@@ -2703,7 +2788,11 @@ body.timer-floating #timer-reset {
 
 
   <div class="widget" id="prev-shift-widget">
-  <h2 class="widget-title">3) Información Turno Anterior</h2>
+  <h2 class="widget-title">3) Información Turno Anterior
+  <button type="button" class="btn-mic" data-target="prev-shift-note" title="Dictar nota">
+          🎙️
+      </button>
+  </h2>
 <div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior" spellcheck="true"
 style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
@@ -6948,8 +7037,88 @@ window.exitFlow = function() {
         if(checklist) checklist.classList.add('shift-focus');
     }
 };
+(function initVoiceToText() {
+    // Verificar soporte del navegador
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        console.warn("API de reconocimiento de voz no soportada en este navegador.");
+        // Ocultamos los micros si no hay soporte
+        document.querySelectorAll('.btn-mic').forEach(b => b.style.display = 'none');
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';        // Español de España
+    recognition.continuous = false;    // Se detiene al dejar de hablar
+    recognition.interimResults = false; // Solo resultados finales
+
+    let currentBtn = null;
+    let currentTarget = null;
+
+    // Manejo de eventos de reconocimiento
+    recognition.onstart = function() {
+        if (currentBtn) currentBtn.classList.add('listening');
+    };
+
+    recognition.onend = function() {
+        if (currentBtn) currentBtn.classList.remove('listening');
+        currentBtn = null;
+        currentTarget = null;
+    };
+
+    recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript;
+        if (!currentTarget) return;
+
+        // Lógica diferente para Input vs Div Editable
+        const isInput = currentTarget.tagName === 'INPUT' || currentTarget.tagName === 'TEXTAREA';
+        
+        // Añadir espacio si ya hay texto
+        const previousText = isInput ? currentTarget.value : currentTarget.innerText;
+        const separator = (previousText.length > 0 && !previousText.endsWith(' ')) ? ' ' : '';
+        const finalString = separator + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+
+        if (isInput) {
+            currentTarget.value += finalString;
+        } else {
+            // Para contenteditable (div)
+            currentTarget.innerText += finalString;
+        }
+
+        // Disparar evento 'input' para que se guarden los cambios (localStorage, etc.)
+        currentTarget.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    recognition.onerror = function(event) {
+        console.error("Error de voz:", event.error);
+        if (currentBtn) currentBtn.classList.remove('listening');
+    };
+
+    // Asignar evento click a todos los micros
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-mic');
+        if (!btn) return;
+
+        const targetId = btn.getAttribute('data-target');
+        const targetEl = document.getElementById(targetId);
+
+        if (!targetEl) return;
+
+        // Si ya está escuchando este botón, paramos
+        if (btn.classList.contains('listening')) {
+            recognition.stop();
+            return;
+        }
+
+        // Iniciar escucha
+        currentBtn = btn;
+        currentTarget = targetEl;
+        recognition.start();
+    });
+})();
 </script>
 </body>
 </html>
+
 
 
