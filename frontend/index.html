@@ -2333,6 +2333,19 @@ body.timer-floating #timer-reset {
 #brief-check .br-explain {
     display: none !important;
 }
+
+/* Mostrar botón de cerrar solo cuando el checklist está expandido */
+#exit-shift-mode-btn { display: none; position: fixed; top: 20px; right: 20px; z-index: 10000; }
+/* Usamos el selector de hermano general (~) o simplemente JS para mostrarlo, 
+   pero la forma más fácil es que el botón esté DENTRO del widget brief-check o controlado por JS.
+   
+   COMO ALTERNATIVA RÁPIDA, añade esto a la función triggerShiftMode arriba: */
+   
+   // Dentro de triggerShiftMode añadir:
+   document.getElementById('exit-shift-mode-btn').style.display = 'block';
+
+   // Dentro de exitShiftMode añadir:
+   document.getElementById('exit-shift-mode-btn').style.display = 'none';
 </style>
 </head>
 <body>
@@ -6956,10 +6969,13 @@ window.closePostBriefingMode = function() {
 //  LÓGICA DE CAMBIO DE TURNO AUTOMÁTICO
 // =========================================================
 
+// =========================================================
+//  LÓGICA DE CAMBIO DE TURNO (SOLO CHECKLIST FULLSCREEN)
+// =========================================================
+
 (function initAutoShiftChange(){
     let lastShift = null;
 
-    // Determina el turno actual según la hora
     function getCurrentShiftName() {
         const h = new Date().getHours();
         if (h >= 6 && h < 14) return 'Mañana';
@@ -6967,53 +6983,54 @@ window.closePostBriefingMode = function() {
         return 'Noche';
     }
 
-    // Loop de comprobación (cada segundo)
+    // Función que activa el modo turno (SOLO Checklist Pantalla Completa)
+    window.triggerShiftMode = function(shiftName) {
+        console.log("🔄 Ejecutando cambio de turno a:", shiftName);
+        
+        const checklist = document.getElementById('brief-check');
+        if(!checklist) return;
+
+        // 1. SOLO aplicamos la clase que expande el checklist (definida en tu CSS)
+        // No tocamos el body, así el cronómetro se queda en su sitio o en la barra de navegación
+        checklist.classList.add('shift-focus');
+
+        // 2. Resetear checks para el nuevo turno
+        document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+        
+        // 3. Resetear el cronómetro
+        const resetBtn = document.getElementById('timer-reset');
+        if(resetBtn && !resetBtn.disabled) resetBtn.click();
+
+        // 4. Scroll arriba para empezar limpios
+        checklist.scrollTop = 0;
+    };
+
+    // Función para salir (Botón Cerrar)
+    window.exitShiftMode = function() {
+        const checklist = document.getElementById('brief-check');
+        if(checklist) {
+            checklist.classList.remove('shift-focus');
+        }
+    };
+
+    // Loop de comprobación de hora
     function checkTime() {
         const currentShift = getCurrentShiftName();
 
-        // Primera carga: solo guardamos el estado
+        // Primera ejecución: solo guardamos el turno actual para comparar luego
         if (lastShift === null) {
             lastShift = currentShift;
             return;
         }
 
-        // Si el turno cambia respecto al guardado -> DISPARAR
+        // Si el turno ha cambiado
         if (currentShift !== lastShift) {
-            console.log(`🔄 CAMBIO DE TURNO: ${lastShift} -> ${currentShift}`);
             lastShift = currentShift;
             triggerShiftMode(currentShift);
         }
     }
 
-    // Función que activa la UI
-    window.triggerShiftMode = function(shiftName) {
-        console.log("🚀 Activando Modo Cambio de Turno...");
-        
-        // 1. Activar clase en BODY (esto mueve el cronómetro)
-        document.body.classList.add('shift-active');
-
-        // 2. Activar clase en CHECKLIST (esto lo hace fullscreen)
-        const checklist = document.getElementById('brief-check') || document.getElementById('checklist-widget');
-        if(checklist) {
-            checklist.classList.add('shift-focus');
-            
-            // Cambiar título temporalmente
-            const title = checklist.querySelector('.widget-title');
-            if(title) {
-                if(!title.dataset.original) title.dataset.original = title.innerHTML;
-                title.innerHTML = `COMIENZO TURNO: <span style="color:#dc2626">${shiftName.toUpperCase()}</span>`;
-            }
-        }
-
-        // 3. Resetear cronómetro
-        const resetBtn = document.getElementById('timer-reset');
-        if(resetBtn) resetBtn.click();
-
-        // 4. Resetear checks
-        document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
-    };
-
-    // Intervalo de comprobación
+    // Revisar cada segundo
     setInterval(checkTime, 1000);
 })();
 
@@ -7226,6 +7243,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
