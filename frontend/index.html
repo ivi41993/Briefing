@@ -7046,32 +7046,129 @@ window.closePostBriefingMode = function() {
     setInterval(checkTime, 1000);
 })();
 
-// === NAVEGACIÓN Y FULLSCREEN DE TARJETAS (NAVEGACIÓN) ===
+<script>
+// =========================================================
+// 1. LÓGICA DE NAVEGACIÓN (BOTONES ANTERIOR / SIGUIENTE / SALIR)
+// =========================================================
 
+// Función para entrar en una tarjeta (Zoom)
 window.navTo = function(targetId) {
     const el = document.getElementById(targetId);
-    if (!el) return;
-    // Activar modo cronómetro flotante (si quieres que el crono viaje contigo)
+    if (!el) return console.warn("Destino no encontrado:", targetId);
+
+    // 1. Activar modo Cronómetro Flotante
     document.body.classList.add('timer-floating');
-    // Limpiar otros zooms
+
+    // 2. Limpiar otros zooms previos
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-    // Zoom al target
+
+    // 3. Aplicar Zoom a la tarjeta objetivo
     el.classList.add('widget--zoomed');
+
+    // 4. Scroll al inicio para ver la barra
     el.scrollTop = 0;
 };
 
+// Función para salir de la tarjeta
 window.exitFlow = function() {
+    // 1. Quitar Zoom
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-    // Quitar cronómetro flotante si no estamos en modo turno
-    if (!document.getElementById('brief-check').classList.contains('shift-focus')) {
+
+    // 2. Gestión del Cronómetro: Si NO estamos en modo checklist turno, quitar el flotante
+    const checklist = document.getElementById('brief-check');
+    const isShiftMode = checklist && checklist.classList.contains('shift-focus');
+    
+    if (!isShiftMode) {
         document.body.classList.remove('timer-floating');
     }
 };
 
-</script>
+// Función del botón "OK y Siguiente"
+window.markOkAndNext = function(checkName, nextId) {
+    // 1. Marcar el Checkbox correspondiente como OK
+    if (checkName) {
+        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
+        if (radio) {
+            radio.checked = true;
+            // Disparar eventos para que se guarde y actualice el spotlight
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            radio.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
 
-<!-- SCRIPT DEL MICRÓFONO (SISTEMA ROBUSTO) -->
-<script>
+    // 2. Navegar al siguiente o Salir
+    if (nextId && document.getElementById(nextId)) {
+        window.navTo(nextId);
+    } else {
+        // Si no hay siguiente, hemos terminado
+        window.exitFlow();
+        // Scroll suave al inicio del dashboard
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        // Feedback visual pequeño
+        const btn = document.querySelector('.header-controls .btn-primary');
+        if(btn) {
+            const original = btn.textContent;
+            btn.textContent = "¡Listo para generar!";
+            btn.style.transform = "scale(1.1)";
+            setTimeout(() => {
+                btn.textContent = original;
+                btn.style.transform = "scale(1)";
+            }, 2000);
+        }
+    }
+};
+
+// =========================================================
+// 2. LÓGICA DE CAMBIO DE TURNO AUTOMÁTICO
+// =========================================================
+(function initAutoShiftChange(){
+    let lastShift = null;
+
+    function getCurrentShiftName() {
+        const h = new Date().getHours();
+        if (h >= 6 && h < 14) return 'Mañana';
+        if (h >= 14 && h < 22) return 'Tarde';
+        return 'Noche';
+    }
+
+    window.triggerShiftMode = function(shiftName) {
+        console.log("🔄 Cambio de turno detectado:", shiftName);
+        const checklist = document.getElementById('brief-check');
+        const resetTimerBtn = document.getElementById('timer-reset');
+        const closeBtn = document.getElementById('exit-shift-mode-btn');
+
+        if(checklist) {
+            checklist.classList.add('shift-focus');
+            checklist.scrollTop = 0;
+            // Reset checks visual
+            checklist.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+        }
+        if(closeBtn) closeBtn.style.display = 'block';
+        if(resetTimerBtn && !resetTimerBtn.disabled) resetTimerBtn.click();
+    };
+
+    window.exitShiftMode = function() {
+        const checklist = document.getElementById('brief-check');
+        const closeBtn = document.getElementById('exit-shift-mode-btn');
+        if(checklist) checklist.classList.remove('shift-focus');
+        if(closeBtn) closeBtn.style.display = 'none';
+    };
+
+    function checkTime() {
+        const currentShift = getCurrentShiftName();
+        if (lastShift === null) { lastShift = currentShift; return; }
+        if (currentShift !== lastShift) {
+            lastShift = currentShift;
+            triggerShiftMode(currentShift);
+        }
+    }
+    setInterval(checkTime, 1000);
+})();
+
+// =========================================================
+// 3. SISTEMA DE MICRÓFONO (VOZ A TEXTO)
+// =========================================================
 document.addEventListener('DOMContentLoaded', () => {
     (function initVoiceSystem() {
         console.log("🎤 Inicializando sistema de voz...");
@@ -7111,7 +7208,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         recognition.onerror = (event) => {
             if (activeBtn) activeBtn.classList.remove('listening');
-            if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la barra de dirección.");
+            if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
         };
 
         document.body.addEventListener('click', (e) => {
@@ -7128,29 +7225,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (targetEl) {
                 activeBtn = btn;
                 activeTarget = targetEl;
-                try { recognition.start(); } catch (err) { recognition.stop(); setTimeout(() => recognition.start(), 100); }
+                try { recognition.start(); } catch (err) { recognition.stop(); }
             } else {
-                console.error("No encuentro el campo destino ID:", targetId);
+                alert("Error: No encuentro el campo destino.");
             }
         });
-        console.log("✅ Voz lista.");
     })();
 });
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
