@@ -4883,11 +4883,6 @@ if (target){
 target.checked = true;
 // Dispara 'change' para que se guarde y refresque meta/spotlight
 target.dispatchEvent(new Event('change', { bubbles:true }));
-background: #f8fafc !important;
-padding-bottom: 140px !important; /* Espacio para el crono */
-overflow-y: auto !important;
-border: none !important;
-margin: 0 !important;
 }
 });
 
@@ -4940,15 +4935,7 @@ paintBadge(document.getElementById('shift-badge-header'));  // header
     }
   } catch {}
 
-/* Asegurar que la barra de navegación (Siguiente/Anterior) se vea bien arriba */
-body.shift-active .widget-nav-bar {
-position: sticky !important;
-top: 0 !important;
-z-index: 15001 !important; /* Encima del contenido de la tarjeta */
-background: #f1f5f9 !important;
-border-bottom: 2px solid #e2e8f0;
-padding: 15px !important;
-}
+
 
 
 function initDateTimeAndShift(){
@@ -5420,47 +5407,7 @@ function hashDateSeed(dateStr){
     h = (h * 16777619) >>> 0;
   }
   return h >>> 0;
-/* El cronómetro flota abajo si estamos en Modo Turno (shift-mode) 
-  O si hay una tarjeta abierta manualmente (card-open) */
-body.shift-mode #timer-widget,
-body.card-open #timer-widget {
-/* === CRONÓMETRO FLOTANTE (Visible en Modo Turno O Tarjeta Abierta) === */
-body.shift-mode #timer-widget, 
-body.card-open #timer-widget { /* <--- ESTO ES LO NUEVO */
-position: fixed !important;
-bottom: 20px !important;
-left: 50% !important;
-transform: translateX(-50%) !important;
 
-    /* Z-INDEX MÁXIMO: Para estar encima de la tarjeta abierta */
-    /* Z-INDEX 2147483647: Asegura estar ENCIMA de la tarjeta abierta */
-z-index: 2147483647 !important; 
-
-    /* Estética del cronómetro flotante */
-display: flex !important;
-    align-items: center !important;
-background: #ffffff !important;
-padding: 10px 40px !important;
-border-radius: 50px !important;
-border: 4px solid #dc2626 !important;
-box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
-
-visibility: visible !important;
-opacity: 1 !important;
-width: auto !important;
-height: auto !important;
-}
-
-/* Aumentar texto del cronómetro cuando flota */
-/* Texto grande */
-body.shift-mode #timer-display,
-body.card-open #timer-display {
-font-size: 4rem !important;
-font-weight: 800 !important;
-color: #1f2937 !important;
-line-height: 1 !important;
-    font-variant-numeric: tabular-nums;
-}
 
 // Selecciona N tips distintos de forma determinista por día
 function getDailySecurityTips(n=2, d=new Date()){
@@ -6838,6 +6785,7 @@ document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift
 };
 </script>
 </body>
+
 
 
 
