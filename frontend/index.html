@@ -6793,333 +6793,46 @@ function injectNavigation() {
 
 // --- FUNCIONES GLOBALES (Window) PARA LOS BOTONES ONCLICK ---
 
-window.navTo = function(targetId) {
-    if (!targetId) return;
-    // Salir de pantalla completa anterior si la hay
-    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
-
-    setTimeout(() => {
-        const el = document.getElementById(targetId);
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Intentar fullscreen nativo, si falla, usar CSS zoom
-            if (el.requestFullscreen) {
-                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
-            } else {
-                el.classList.add('widget--zoomed');
-            }
-        }
-    }, 100);
-};
-
-window.exitFlow = function() {
-    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
-    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
-};
-
-window.markOkAndNext = function(checkName, nextId) {
-    // 1. Marcar OK
-    if (checkName) {
-        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
-        if (radio) {
-            radio.checked = true;
-            // Disparar eventos para persistencia y spotlight
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
-            radio.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    }
-
-    // 2. Navegar
-    if (nextId) {
-        navTo(nextId);
-    } else {
-        // Fin del flujo
-        exitFlow();
-        // Scroll suave al botón de generar
-        document.querySelector('header').scrollIntoView({behavior:'smooth'});
-        // Pequeño feedback
-        setTimeout(() => alert("🎉 Checklist completado. Ahora puedes generar el resumen."), 300);
-    }
-};
-
-
-/* =================================================
-   PANTALLA MODO INFO (POST-BRIEFING)
-   ================================================= */
-
-window.openPostBriefingMode = function() {
-    console.log("🚀 Activando Modo Info...");
-    const screen = document.getElementById('post-briefing-screen');
-    if (!screen) return console.error("Falta #post-briefing-screen en el HTML");
-
-    // 1. Rellenar datos
-    const prev = document.getElementById('prev-shift-note')?.innerText || "Sin datos";
-    document.getElementById('pb-prev-content').innerHTML = `<p style="font-size:1.1rem">${prev}</p>`;
-
-    const ops = document.querySelectorAll('#ops-list .ops-item .ops-title');
-    let opsHtml = '<ul style="padding-left:20px">';
-    if (ops.length === 0) opsHtml += "<li>Sin actualizaciones activas</li>";
-    ops.forEach(el => opsHtml += `<li style="margin-bottom:8px">${el.innerText}</li>`);
-    opsHtml += "</ul>";
-    document.getElementById('pb-ops-content').innerHTML = opsHtml;
-
-    const uph = document.getElementById('kpi-uph')?.innerText || "-";
-    const cost = document.getElementById('kpi-total-cost')?.innerText || "-";
-    document.getElementById('pb-val-uph').textContent = uph;
-    document.getElementById('pb-val-cost').textContent = cost;
-
-    const tips = document.getElementById('sec-random-list')?.innerHTML || "";
-    const risks = document.querySelectorAll('#sec-cards .ops-item .ops-title');
-    let secHtml = `<ul style="padding-left:20px; margin-bottom:15px">${tips}</ul>`;
-    if(risks.length > 0){
-        secHtml += `<strong style="color:#b91c1c">Riesgos activos:</strong><ul style="padding-left:20px">`;
-        risks.forEach(r => secHtml += `<li>${r.innerText}</li>`);
-        secHtml += "</ul>";
-    }
-    document.getElementById('pb-sec-content').innerHTML = secHtml;
-
-    // 2. Mostrar
-    screen.style.display = 'flex';
-    if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(e => console.log(e));
-    }
-};
-
-window.closePostBriefingMode = function() {
-    document.getElementById('post-briefing-screen').style.display = 'none';
-    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
-};
-
-/* ===== TRIGGER: Generar Resumen (CORREGIDO) ===== */
-(function wireBriefingGenerate(){
-  const btn = document.querySelector('header .header-controls .btn-primary');
-  if (!btn) return;
-
-  btn.addEventListener('click', async ()=>{
-    const oldText = btn.textContent;
-    btn.textContent = 'Guardando...';
-    btn.disabled = true;
-    
-    try {
-        // Recopilación de datos (simplificada para el ejemplo, usa tu buildPayload original si tienes lógica extra)
-        // NOTA: Aquí asumimos que buildPayload existe dentro de tu código anterior o lo has integrado.
-        // Si no, asegúrate de que la función buildPayload esté accesible. 
-        // Para asegurar que funcione con lo que tienes, copia la lógica de recolección aquí:
-        
-        const team = window.TEAM_STATE || {};
-        const supInput = document.getElementById('briefing-supervisor');
-        
-        const peopleList = team.people || [];
-        const attMap = team.attendance || {};
-        const rosterList = peopleList.map(p => {
-            const name = p.nombre_completo || "Sin Nombre";
-            const isPresent = attMap[name] === true;
-            return `${name} (${isPresent ? "Presente" : "Ausente"})`;
-        });
-        
-        const kanbanItems = [];
-        ['Abiertas', 'En-Curso', 'Cerradas', 'Vencidas'].forEach(status => {
-            const col = document.getElementById(`kanban_rapida-${status}`);
-            if(col) {
-                col.querySelectorAll('.card').forEach(card => {
-                    kanbanItems.push(`[${status}] ${card.querySelector('.card-title')?.textContent?.trim()}`);
-                });
-            }
-        });
-
-        const payload = {
-            station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
-            date: new Date().toLocaleDateString('es-ES'),
-            shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
-            timer: document.getElementById('timer-display')?.textContent || '00:00:00',
-            supervisor: supInput ? supInput.value.trim() : "No especificado",
-            roster_details: rosterList.join(", "),
-            prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
-            kanban_details: kanbanItems.join(" | "),
-            ops_updates: [], // Simplificado
-            kpis: {
-                "UPH": document.getElementById('kpi-uph')?.textContent?.trim(),
-                "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim()
-            },
-            checklist: {}, kanban_counts: {}, roster_stats: "", present_names: []
-        };
-
-        console.log("📤 Enviando...", payload);
-
-        const res = await fetch('/api/briefing/summary', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) throw new Error('Error servidor');
-        
-        // ÉXITO
-        alert("✅ Resumen guardado.\nSe abrirá la pantalla de información.");
-        window.openPostBriefingMode(); // <--- AQUÍ SE ABRE LA PANTALLA FINAL
-
-    } catch (err) {
-      console.error(err);
-      alert('Error al guardar: ' + err.message);
-    } finally {
-      btn.textContent = oldText;
-      btn.disabled = false;
-    }
-  });
-})();
-// =========================================================
-//  LÓGICA DE CAMBIO DE TURNO Y NAVEGACIÓN
-// =========================================================
-
-(function initAutoShiftChange(){
-    let lastShift = null;
-
-    function getCurrentShiftName() {
-        const h = new Date().getHours();
-        if (h >= 6 && h < 14) return 'Mañana';
-        if (h >= 14 && h < 22) return 'Tarde';
-        return 'Noche';
-    }
-
-    // Activa el modo Checkist Pantalla Completa
-    window.triggerShiftMode = function(shiftName) {
-        console.log("🔄 Cambio de turno detectado:", shiftName);
-        
-        const checklist = document.getElementById('brief-check');
-        const closeBtn = document.getElementById('exit-shift-mode-btn');
-        const resetTimerBtn = document.getElementById('timer-reset');
-
-        if(checklist) {
-            // 1. Poner checklist en pantalla completa
-            checklist.classList.add('shift-focus');
-            
-            // 2. Resetear checks visualmente
-            checklist.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
-            
-            // 3. Scroll arriba
-            checklist.scrollTop = 0;
-        }
-
-        // 4. Mostrar botón de cerrar
-        if(closeBtn) closeBtn.style.display = 'block';
-
-        // 5. Resetear cronómetro si existe
-        if(resetTimerBtn && !resetTimerBtn.disabled) resetTimerBtn.click();
-    };
-
-    // Salir del modo turno
-    window.exitShiftMode = function() {
-        const checklist = document.getElementById('brief-check');
-        const closeBtn = document.getElementById('exit-shift-mode-btn');
-        
-        if(checklist) checklist.classList.remove('shift-focus');
-        if(closeBtn) closeBtn.style.display = 'none';
-    };
-
-    // Comprobación periódica
-    function checkTime() {
-        const currentShift = getCurrentShiftName();
-
-        // Primera carga: guardar estado inicial
-        if (lastShift === null) {
-            lastShift = currentShift;
-            return;
-        }
-
-        // Si cambia el turno, disparar la UI
-        if (currentShift !== lastShift) {
-            lastShift = currentShift;
-            triggerShiftMode(currentShift);
-        }
-    }
-    
-    // Enganche manual para el botón "Generar Resumen" (para salir del modo turno al guardar)
-    const genBtn = document.querySelector('.header-controls .btn-primary');
-    if(genBtn) {
-        genBtn.addEventListener('click', () => {
-            // Esperar un poco y salir del modo pantalla completa
-            setTimeout(window.exitShiftMode, 500);
-        });
-    }
-
-    // Revisar cada segundo
-    setInterval(checkTime, 1000);
-})();
-
-// =========================================================
-// 1. LÓGICA DE NAVEGACIÓN (BOTONES ANTERIOR / SIGUIENTE / SALIR)
-// =========================================================
-
-// Función para entrar en una tarjeta (Zoom)
+// Función para entrar en una tarjeta
 window.navTo = function(targetId) {
     const el = document.getElementById(targetId);
-    if (!el) return console.warn("Destino no encontrado:", targetId);
-
-    // 1. Activar modo Cronómetro Flotante
+    if (!el) return;
     document.body.classList.add('timer-floating');
-
-    // 2. Limpiar otros zooms previos
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-
-    // 3. Aplicar Zoom a la tarjeta objetivo
     el.classList.add('widget--zoomed');
-
-    // 4. Scroll al inicio para ver la barra
     el.scrollTop = 0;
 };
 
-// Función para salir de la tarjeta
+// Función para salir
 window.exitFlow = function() {
-    // 1. Quitar Zoom
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-
-    // 2. Gestión del Cronómetro: Si NO estamos en modo checklist turno, quitar el flotante
     const checklist = document.getElementById('brief-check');
-    const isShiftMode = checklist && checklist.classList.contains('shift-focus');
-    
-    if (!isShiftMode) {
+    // Solo quitar el cronómetro flotante si NO estamos en modo turno
+    if (!checklist || !checklist.classList.contains('shift-focus')) {
         document.body.classList.remove('timer-floating');
     }
 };
 
-// Función del botón "OK y Siguiente"
+// Función OK y Siguiente
 window.markOkAndNext = function(checkName, nextId) {
-    // 1. Marcar el Checkbox correspondiente como OK
     if (checkName) {
         const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
         if (radio) {
             radio.checked = true;
-            // Disparar eventos para que se guarde y actualice el spotlight
             radio.dispatchEvent(new Event('change', { bubbles: true }));
             radio.dispatchEvent(new Event('input', { bubbles: true }));
         }
     }
-
-    // 2. Navegar al siguiente o Salir
     if (nextId && document.getElementById(nextId)) {
         window.navTo(nextId);
     } else {
-        // Si no hay siguiente, hemos terminado
         window.exitFlow();
-        // Scroll suave al inicio del dashboard
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        
-        // Feedback visual pequeño
-        const btn = document.querySelector('.header-controls .btn-primary');
-        if(btn) {
-            const original = btn.textContent;
-            btn.textContent = "¡Listo para generar!";
-            btn.style.transform = "scale(1.1)";
-            setTimeout(() => {
-                btn.textContent = original;
-                btn.style.transform = "scale(1)";
-            }, 2000);
-        }
     }
 };
 
 // =========================================================
-// 2. LÓGICA DE CAMBIO DE TURNO AUTOMÁTICO
+//  LÓGICA DE CAMBIO DE TURNO
 // =========================================================
 (function initAutoShiftChange(){
     let lastShift = null;
@@ -7132,15 +6845,14 @@ window.markOkAndNext = function(checkName, nextId) {
     }
 
     window.triggerShiftMode = function(shiftName) {
-        console.log("🔄 Cambio de turno detectado:", shiftName);
+        console.log("🔄 Cambio de turno:", shiftName);
         const checklist = document.getElementById('brief-check');
         const resetTimerBtn = document.getElementById('timer-reset');
         const closeBtn = document.getElementById('exit-shift-mode-btn');
 
         if(checklist) {
-            checklist.classList.add('shift-focus');
+            checklist.classList.add('shift-focus'); // Activa CSS fullscreen
             checklist.scrollTop = 0;
-            // Reset checks visual
             checklist.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
         }
         if(closeBtn) closeBtn.style.display = 'block';
@@ -7165,18 +6877,19 @@ window.markOkAndNext = function(checkName, nextId) {
     setInterval(checkTime, 1000);
 })();
 
-// =========================================================
-// 3. SISTEMA DE MICRÓFONO (VOZ A TEXTO)
-// =========================================================
+</script> <!-- AQUÍ CERRAMOS EL SCRIPT PRINCIPAL CORRECTAMENTE -->
+
+<!-- SCRIPT DEL MICRÓFONO (SEPARADO PARA EVITAR ERRORES) -->
+<script>
 document.addEventListener('DOMContentLoaded', () => {
     (function initVoiceSystem() {
         console.log("🎤 Inicializando sistema de voz...");
-
+        
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
 
-        if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
-        if (!isSecure) console.warn("⚠️ El micrófono requiere HTTPS.");
+        if (!SpeechRecognition) return console.warn("❌ Voz no soportada.");
+        if (!isSecure) console.warn("⚠️ Voz requiere HTTPS.");
 
         const recognition = new SpeechRecognition();
         recognition.lang = 'es-ES';
@@ -7186,8 +6899,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let activeBtn = null;
         let activeTarget = null;
 
-        recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
-        recognition.onend = () => { if (activeBtn) activeBtn.classList.remove('listening'); activeBtn = null; activeTarget = null; };
+        recognition.onstart = () => { if(activeBtn) activeBtn.classList.add('listening'); };
+        recognition.onend = () => { if(activeBtn) activeBtn.classList.remove('listening'); activeBtn=null; };
 
         recognition.onresult = (event) => {
             if (!activeTarget) return;
@@ -7206,8 +6919,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         recognition.onerror = (event) => {
-            if (activeBtn) activeBtn.classList.remove('listening');
-            if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
+            if(activeBtn) activeBtn.classList.remove('listening');
+            if(event.error === 'not-allowed') alert("⚠️ Permiso de micro denegado.");
         };
 
         document.body.addEventListener('click', (e) => {
@@ -7226,7 +6939,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeTarget = targetEl;
                 try { recognition.start(); } catch (err) { recognition.stop(); }
             } else {
-                alert("Error: No encuentro el campo destino.");
+                console.error("Objetivo no encontrado:", targetId);
             }
         });
     })();
@@ -7234,4 +6947,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
