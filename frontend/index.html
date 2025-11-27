@@ -3324,7 +3324,7 @@ btn.title = isOn ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa';
 document.documentElement.classList.toggle('fs-zoom', !!current);
 });
 document.getElementById('present-btn')?.addEventListener('click', async ()=>{
-  const host = document.querySelector('.dashboard-3col') || document.;
+  const host = document.querySelector('.dashboard-3col') || document.body;
   try { await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.()); }
   catch(e){ console.warn('Fullscreen fail', e); }
 });
@@ -4041,7 +4041,7 @@ processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' 
 
 async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'}, body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
 
-async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'}, body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }}
+async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'}, body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
 
 /* Render tarjetas */
 function processTaskUpdate(data){
@@ -4466,10 +4466,10 @@ function renderBoardCard(task, elementId){
     input.type = 'date';
     input.value = dueISO || '';
     input.style.position='fixed'; input.style.opacity='0';
-    document..appendChild(input);
+    document.body.appendChild(input);
     input.addEventListener('change', async ()=>{
       const newISO = input.value || null;
-      document..removeChild(input);
+      document.body.removeChild(input);
       if ((newISO||'') !== (dueISO||'')){
         try { await updateTaskOnServer(id, { due_date: newISO }); }
         catch { alert('No se pudo actualizar la fecha'); }
@@ -7177,6 +7177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
