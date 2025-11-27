@@ -2284,6 +2284,55 @@ body.timer-floating #timer-reset {
     50% { transform: scale(1.2); }
     100% { transform: scale(1); }
 }
+/* =========================================
+   FIX: CHECKLIST EXPANDIDO (SIN SCROLL)
+   ========================================= */
+
+/* 1. Contenedor principal: Quitar límites de altura */
+#brief-check {
+    max-height: none !important;   /* Crece lo que necesite */
+    overflow: visible !important;  /* Nunca muestra scroll interno */
+    position: relative !important; /* Dejamos de hacerlo 'sticky' para que no ocupe toda la pantalla al bajar */
+    height: auto !important;
+}
+
+/* 2. Rejilla: Forzar más columnas para verlo todo junto */
+#brief-check .check-grid {
+    display: grid !important;
+    /* Reducimos el ancho mínimo a 160px para que quepan 3 o 4 por fila */
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important; 
+    gap: 8px !important;
+}
+
+/* 3. Tarjetas: Diseño compacto */
+#brief-check .check-card {
+    min-height: auto !important;
+    padding: 8px 10px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* Títulos más pequeños para ganar espacio */
+#brief-check .check-title {
+    font-size: 0.85rem !important;
+    margin-bottom: 4px !important;
+    line-height: 1.2 !important;
+}
+
+/* Botones más compactos */
+#brief-check .check-actions {
+    margin-top: auto !important;
+}
+#brief-check .check-actions label {
+    padding: 2px 8px !important;
+    font-size: 0.75rem !important;
+}
+
+/* Ocultar el texto de ayuda "Guía" para limpiar la vista (opcional, quita esto si lo quieres) */
+#brief-check .br-explain {
+    display: none !important;
+}
 </style>
 </head>
 <body>
@@ -7177,6 +7226,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
