@@ -2262,10 +2262,31 @@ body.timer-floating #timer-reset {
     50% { transform: scale(1.2); filter: drop-shadow(0 0 5px red); }
     100% { transform: scale(1); filter: grayscale(0); }
 }
-  
+
+/* Corrección de Micro */
+.btn-mic {
+    cursor: pointer !important;
+    z-index: 50 !important; /* Asegura que esté por encima */
+    position: relative;
+    font-size: 1.5rem; /* Un poco más grande para el dedo */
+    background: none;
+    border: none;
+    padding: 5px;
+}
+.btn-mic.listening {
+    animation: mic-pulse 1s infinite;
+    color: #dc2626; /* Rojo vivo */
+    background-color: rgba(254, 226, 226, 0.5); /* Fondo rojizo suave */
+    border-radius: 50%;
+}
+@keyframes mic-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
 </style>
 </head>
-<body>
+
 <body>
 
 <button id="exit-shift-mode-btn" onclick="exitShiftMode()">Cerrar Vista Turno ✖</button>
@@ -7023,124 +7044,134 @@ window.exitFlow = function() {
         if(checklist) checklist.classList.add('shift-focus');
     }
 };
-(function initRobustVoice() {
-    // 1. Verificar soporte
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-        console.warn("⚠️ Tu navegador no soporta reconocimiento de voz. Usa Chrome o Edge.");
-        document.querySelectorAll('.btn-mic').forEach(b => {
-            b.style.opacity = '0.3';
-            b.title = "Navegador no soportado";
-            b.style.cursor = "not-allowed";
-        });
-        return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'es-ES';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    let activeBtn = null;
-    let activeTarget = null;
-
-    // --- EVENTOS DEL RECONOCIMIENTO ---
-
-    recognition.onstart = function() {
-        console.log("🎤 Escuchando...");
-        if (activeBtn) activeBtn.classList.add('listening');
-    };
-
-    recognition.onend = function() {
-        console.log("🛑 Fin de escucha.");
-        if (activeBtn) activeBtn.classList.remove('listening');
-        activeBtn = null;
-    };
-
-    recognition.onresult = function(event) {
-        if (!activeTarget) return;
-        
-        const transcript = event.results[0][0].transcript;
-        console.log("✅ Texto detectado:", transcript);
-
-        // Lógica para Input vs Div Editable
-        const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
-        
-        // Obtener texto actual para añadir espacio si hace falta
-        let currentText = isInput ? activeTarget.value : activeTarget.innerText;
-        currentText = currentText || ""; // Asegurar que no sea null/undefined
-        
-        const separator = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
-        
-        // Capitalizar primera letra
-        const textToAdd = separator + transcript.charAt(0).toUpperCase() + transcript.slice(1);
-
-        if (isInput) {
-            activeTarget.value = currentText + textToAdd;
-        } else {
-            activeTarget.innerText = currentText + textToAdd;
-        }
-
-        // Disparar evento para que se guarde (localStorage, etc.)
-        activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
-        activeTarget.focus(); // Devolver foco para seguir escribiendo si se quiere
-    };
-
-    recognition.onerror = function(event) {
-        console.error("❌ Error de voz:", event.error);
-        if (activeBtn) activeBtn.classList.remove('listening');
-        
-        let msg = "Error al escuchar.";
-        if (event.error === 'not-allowed') {
-            msg = "⚠️ Permiso de micrófono denegado. Revisa la configuración del navegador (candado en la URL).";
-        } else if (event.error === 'no-speech') {
-            msg = "⚠️ No se escuchó nada.";
-        } else if (event.error === 'network') {
-            msg = "⚠️ Error de red (necesario para voz).";
-        }
-        
-        alert(msg);
-    };
-
-    // --- LISTENER DE BOTONES ---
+document.addEventListener('DOMContentLoaded', () => {
     
-    document.addEventListener('click', (e) => {
-        // Buscar el botón más cercano (por si se pulsa en el emoji)
-        const btn = e.target.closest('.btn-mic');
-        if (!btn) return;
+    // --- SISTEMA DE VOZ A TEXTO ROBUSTO ---
+    (function initVoiceSystem() {
+        // 1. Chequeo de Soporte y Seguridad
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
 
-        // Evitar doble clic
-        if (btn.classList.contains('listening')) {
-            recognition.stop();
-            return;
+        if (!SpeechRecognition) {
+            console.warn("API de voz no soportada.");
+            return; // Salimos silenciosamente si no hay soporte
         }
 
-        const targetId = btn.getAttribute('data-target');
-        const targetEl = document.getElementById(targetId);
-
-        if (!targetEl) {
-            console.error("Objetivo no encontrado:", targetId);
-            alert("Error: No encuentro el campo donde escribir.");
-            return;
+        // Si no es HTTPS y no es localhost, avisamos (error común)
+        if (!isSecure) {
+            console.warn("⚠️ El micrófono requiere HTTPS para funcionar.");
         }
 
-        activeBtn = btn;
-        activeTarget = targetEl;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'es-ES';
+        recognition.continuous = false;
+        recognition.interimResults = false;
 
-        try {
-            recognition.start();
-        } catch (err) {
-            console.error("Error al iniciar:", err);
-            // A veces falla si ya estaba corriendo, lo reiniciamos
-            recognition.stop();
-        }
-    });
+        let activeBtn = null;
+        let activeTarget = null;
 
-})();
+        // Configurar eventos del reconocimiento
+        recognition.onstart = function() {
+            if (activeBtn) activeBtn.classList.add('listening');
+        };
+
+        recognition.onend = function() {
+            if (activeBtn) activeBtn.classList.remove('listening');
+            activeBtn = null;
+            activeTarget = null;
+        };
+
+        recognition.onresult = function(event) {
+            if (!activeTarget) return;
+            const transcript = event.results[0][0].transcript;
+            
+            // Determinar tipo de elemento
+            const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
+            
+            // Texto actual
+            let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+            currentText = currentText || "";
+
+            // Añadir espacio si hace falta
+            const separator = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+            
+            // Formatear texto (Primera letra mayúscula)
+            const finalText = separator + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+
+            if (isInput) {
+                activeTarget.value = currentText + finalText;
+            } else {
+                activeTarget.innerText = currentText + finalText;
+            }
+
+            // Disparar evento para guardar cambios (localStorage)
+            activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+
+        recognition.onerror = function(event) {
+            if (activeBtn) activeBtn.classList.remove('listening');
+            
+            if (event.error === 'not-allowed') {
+                alert("⚠️ Acceso al micrófono denegado.\nPor favor, pulsa el candado 🔒 en la barra de dirección y permite el micrófono.");
+            } else if (event.error === 'network') {
+                alert("⚠️ Error de conexión. El reconocimiento de voz necesita internet.");
+            } else if (event.error === 'no-speech') {
+                // No se escuchó nada, ignorar
+            } else {
+                console.error("Error de voz:", event.error);
+            }
+        };
+
+        // Delegación de eventos (más robusto que listener individual)
+        document.body.addEventListener('click', (e) => {
+            // Buscar el botón clickeado
+            const btn = e.target.closest('.btn-mic');
+            if (!btn) return;
+
+            e.preventDefault(); // Evitar comportamientos raros
+
+            // Verificar HTTPS al hacer click
+            if (!isSecure) {
+                alert("⚠️ El micrófono solo funciona en sitios seguros (HTTPS) o localhost.");
+                return;
+            }
+
+            const targetId = btn.getAttribute('data-target');
+            const targetEl = document.getElementById(targetId);
+
+            if (!targetEl) {
+                alert(`Error: No encuentro el campo destino (ID: ${targetId})`);
+                return;
+            }
+
+            // Si ya está escuchando, parar
+            if (btn.classList.contains('listening')) {
+                recognition.stop();
+                return;
+            }
+
+            // Iniciar
+            try {
+                activeBtn = btn;
+                activeTarget = targetEl;
+                recognition.start();
+            } catch (err) {
+                console.error("Error al iniciar:", err);
+                recognition.stop();
+            }
+        });
+
+        console.log("🎤 Sistema de voz listo");
+    })();
+
+});
 </script>
 </body>
 </html>
+</body>
+</html>
+
 
 
 
