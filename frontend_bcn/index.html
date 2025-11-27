@@ -1195,6 +1195,9 @@ Modo presentación
     <!-- Input del Supervisor con el ID que busca el script -->
 <input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
            style="padding: 8px 12px; border: 1px solid #e6e8ec; border-radius: 8px; font-size: 0.9rem; min-width: 200px;">
+     <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar nombre">
+        🎙️
+    </button>
 
 
 <button class="btn-primary" type="button">Generar Resumen</button>
@@ -1624,7 +1627,11 @@ style="display:grid; grid-template-columns: 1fr 1fr auto auto;
 <!-- DERECHA -->
 <section class="col-right">
 <div class="widget" id="prev-shift-widget">
-<h2 class="widget-title">2) Información Turno Anterior BCN</h2>
+<h2 class="widget-title">2) Información Turno Anterior BCN
+ <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar nombre">
+        🎙️
+    </button>
+</h2>
 <div id="prev-shift-note" class="editable-note" contenteditable="true"
 role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior"
@@ -3935,7 +3942,76 @@ updateAllColumnCounts();
 console.error('loadBoardsInitial', e);
 }
 }
+ // 4. SISTEMA DE VOZ (MICRÓFONO)
+    (function initVoiceSystem() {
+        console.log("🎤 Inicializando sistema de voz...");
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        // Comprobaciones de seguridad y soporte
+        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+        if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
+        
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'es-ES';
+        recognition.continuous = false;
+        recognition.interimResults = false;
 
+        let activeBtn = null;
+        let activeTarget = null;
+
+        recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
+        recognition.onend = () => { 
+            if (activeBtn) activeBtn.classList.remove('listening'); 
+            activeBtn = null; 
+            activeTarget = null; 
+        };
+
+        recognition.onresult = (event) => {
+            if (!activeTarget) return;
+            const transcript = event.results[0][0].transcript;
+            const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
+            
+            // Obtener texto actual para no borrar lo anterior
+            let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+            currentText = currentText || "";
+            
+            // Añadir espacio si ya hay texto
+            const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+            const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+
+            if (isInput) activeTarget.value = currentText + finalText;
+            else activeTarget.innerText = currentText + finalText;
+
+            // Disparar evento para que se guarde automáticamente
+            activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+
+        recognition.onerror = (event) => {
+            if (activeBtn) activeBtn.classList.remove('listening');
+            if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
+        };
+
+        // Delegación de eventos para los botones .btn-mic
+        document.body.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-mic');
+            if (!btn) return;
+            e.preventDefault(); e.stopPropagation();
+
+            if (!isSecure) { alert("⚠️ El micrófono requiere HTTPS."); return; }
+            if (btn.classList.contains('listening')) { recognition.stop(); return; }
+
+            const targetId = btn.getAttribute('data-target');
+            const targetEl = document.getElementById(targetId);
+
+            if (targetEl) {
+                activeBtn = btn;
+                activeTarget = targetEl;
+                try { recognition.start(); } catch (err) { recognition.stop(); }
+            } else {
+                alert("Error: No encuentro el campo de texto destino.");
+            }
+        });
+    })();
 /* =========================================================
    MEJORAS BCN: Navegación, Reset y Modo Info
    ========================================================= */
