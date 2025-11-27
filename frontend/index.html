@@ -2915,6 +2915,7 @@ function getTaskId(obj){
 })();
 
 
+// Busca la función initGwUpload y déjala así:
 (function initGwUpload(){
   const form   = document.getElementById('gw-upload-form');
   const input  = document.getElementById('gw-file');
@@ -2936,9 +2937,7 @@ function getTaskId(obj){
     try{
       const res  = await fetch('/api/gw/import-xlsx', {
         method: 'POST',
-         fd,
-        // si lo proteges con API_KEY:
-        // headers: { 'x-api-key': 'EstE-eS-mI_s3cr3t0-Sup3r-L4rg0-y-c0mpl3j0-p4r4-eL-d4shb04rd"' }
+        body: fd, // <--- CORREGIDO (Antes ponía solo ": fd")
       });
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al importar');
@@ -2969,17 +2968,22 @@ function getTaskId(obj){
 
 
   // ⬇️ ESTE SUBMIT ES LO QUE FALTABA
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();                           // 👈 evita recargar la página
+  // Busca initIncidentsPdfUpload y corrige el fetch:
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
     const f = input.files?.[0];
     if (!f) { status.textContent = 'Selecciona un PDF'; return; }
 
     const fd = new FormData();
-    fd.append('file', f);                          // 👈 el backend espera name="file"
+    fd.append('file', f);
 
     status.textContent = 'Subiendo…';
     try {
-      const res = await fetch('/api/incidents-table', { method:'POST', : fd });
+      const res = await fetch('/api/incidents-table', { 
+          method:'POST', 
+          body: fd  // <--- CORREGIDO
+      });
+      // ... resto del código igual ...
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al subir');
 
@@ -3015,9 +3019,14 @@ if (!f) { status.textContent = 'Selecciona un .xlsx/.xls'; return; }
 const fd = new FormData();
 fd.append('file', f); // debe llamarse "file"
 
+// Busca initRosterUpload y corrige el fetch:
 status.textContent = 'Subiendo…';
 try {
-const res = await fetch('/api/roster/upload', { method:'POST', : fd });
+    const res = await fetch('/api/roster/upload', { 
+        method:'POST', 
+        body: fd // <--- CORREGIDO
+    });
+// ... resto del código igual ...
 if (!res.ok) {
 const err = await res.json().catch(()=>({detail: res.statusText}));
 throw new Error(err.detail || 'Error al subir');
@@ -3798,17 +3807,19 @@ updateAllColumnCounts();
     input.value = '';
 
     // Intento de persistencia en servidor (si lo tienes)
+    // Busca dentro de initTeamManualAdd el fetch('/api/roster/add') y corrígelo:
     try{
       const res = await fetch('/api/roster/add', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        : JSON.stringify({
+        body: JSON.stringify({ // <--- CORREGIDO
           person: name,
           date: TEAM_STATE.sheet_date || null,
           shift: TEAM_STATE.shift || guessShift(),
           station: (window.STATION_OVERRIDE || '').toUpperCase() || (typeof STATION_CODE!=='undefined'?STATION_CODE:'MAD')
         })
       });
+// ... resto del código igual ...
 
       if (!res.ok){
         // Si tu backend aún no tiene /api/roster/add, no rompemos la UI
@@ -3998,7 +4009,7 @@ async function createTaskOnServer(data){
 const r = await fetch('/api/tasks',{
 method:'POST',
 headers:{'Content-Type':'application/json'},
-:JSON.stringify(data)
+body: JSON.stringify(data)
 });
 if(!r.ok) throw new Error('create failed');
 const task = await r.json();
@@ -4010,7 +4021,7 @@ async function updateTaskOnServer(id, data){
 const r = await fetch(`/api/tasks/${id}`,{
 method:'PUT',
 headers:{'Content-Type':'application/json'},
-:JSON.stringify(data)
+body: JSON.stringify(data)
 });
 if(!r.ok) throw new Error('update failed');
 const task = await r.json();
@@ -4026,8 +4037,11 @@ processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' 
 }
 
 
-async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
-async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
+// Busca estas dos líneas y reemplázalas por estas corregidas (añadido 'body:'):
+
+async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'}, body:JSON.stringify({is_completed:done})}); if(!r.ok) throw new Error('tick failed'); }
+
+async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'}, body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }}
 
 /* Render tarjetas */
 function processTaskUpdate(data){
@@ -7163,6 +7177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
