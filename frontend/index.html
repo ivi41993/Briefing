@@ -2747,37 +2747,7 @@ body.timer-floating #timer-reset {
   </div>
 </div>
 
-<div class="widget" id="rotativas-widget">
-<h2 class="widget-title">5S & GW (Rápido)</h2>
 
-<!-- 5S gestionable -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-<strong>5S</strong>
-<div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
-<button type="button" class="s5-pill" data-key="seiri"      title="1S · Seiri (Clasificar)"><span class="s5-dot"></span>1S</button>
-<button type="button" class="s5-pill" data-key="seiton"     title="2S · Seiton (Ordenar)"><span class="s5-dot"></span>2S</button>
-<button type="button" class="s5-pill" data-key="seiso"      title="3S · Seiso (Limpiar)"><span class="s5-dot"></span>3S</button>
-<button type="button" class="s5-pill" data-key="seiketsu"   title="4S · Seiketsu (Estandarizar)"><span class="s5-dot"></span>4S</button>
-<button type="button" class="s5-pill" data-key="shitsuke"   title="5S · Shitsuke (Disciplina)"><span class="s5-dot"></span>5S</button>
-</div>
-<small id="s5-meta" class="kpi-text">—</small>
-
-</div>
-
-<strong style="margin-top: 12px; display:block;">GW</strong>
-
-<form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin:4px 0 6px;">
-  <input type="file" id="gw-file" accept=".xlsx,.xls"
-         style="flex:1; padding:6px; border:1px solid var(--border); border-radius:8px;">
-  <button class="btn-primary" type="submit" style="padding:6px 10px;">Subir GW Excel</button>
-</form>
-<small id="gw-upload-status" class="kpi-text">—</small>
-
-<div id="gw-tasks-dynamic-container"></div>
-
-
-</div>
-</div>
 
 
 
@@ -7119,6 +7089,7 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
 
 
