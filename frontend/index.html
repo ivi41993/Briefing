@@ -2247,6 +2247,22 @@ body.timer-floating #timer-reset {
     width: 6px; 
     height: 6px;
 }
+
+.btn-mic {
+    background: none; border: none; cursor: pointer; font-size: 1.4rem;
+    transition: transform 0.2s; vertical-align: middle;
+}
+.btn-mic:hover { transform: scale(1.1); }
+.btn-mic.listening {
+    animation: pulse-red 1s infinite;
+    opacity: 1 !important; /* Fuerza visibilidad */
+}
+@keyframes pulse-red {
+    0% { transform: scale(1); filter: grayscale(0); }
+    50% { transform: scale(1.2); filter: drop-shadow(0 0 5px red); }
+    100% { transform: scale(1); filter: grayscale(0); }
+}
+  
 </style>
 </head>
 <body>
@@ -7007,88 +7023,126 @@ window.exitFlow = function() {
         if(checklist) checklist.classList.add('shift-focus');
     }
 };
-(function initVoiceToText() {
-    // Verificar soporte del navegador
+(function initRobustVoice() {
+    // 1. Verificar soporte
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
     if (!SpeechRecognition) {
-        console.warn("API de reconocimiento de voz no soportada en este navegador.");
-        // Ocultamos los micros si no hay soporte
-        document.querySelectorAll('.btn-mic').forEach(b => b.style.display = 'none');
+        console.warn("⚠️ Tu navegador no soporta reconocimiento de voz. Usa Chrome o Edge.");
+        document.querySelectorAll('.btn-mic').forEach(b => {
+            b.style.opacity = '0.3';
+            b.title = "Navegador no soportado";
+            b.style.cursor = "not-allowed";
+        });
         return;
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'es-ES';        // Español de España
-    recognition.continuous = false;    // Se detiene al dejar de hablar
-    recognition.interimResults = false; // Solo resultados finales
+    recognition.lang = 'es-ES';
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-    let currentBtn = null;
-    let currentTarget = null;
+    let activeBtn = null;
+    let activeTarget = null;
 
-    // Manejo de eventos de reconocimiento
+    // --- EVENTOS DEL RECONOCIMIENTO ---
+
     recognition.onstart = function() {
-        if (currentBtn) currentBtn.classList.add('listening');
+        console.log("🎤 Escuchando...");
+        if (activeBtn) activeBtn.classList.add('listening');
     };
 
     recognition.onend = function() {
-        if (currentBtn) currentBtn.classList.remove('listening');
-        currentBtn = null;
-        currentTarget = null;
+        console.log("🛑 Fin de escucha.");
+        if (activeBtn) activeBtn.classList.remove('listening');
+        activeBtn = null;
     };
 
     recognition.onresult = function(event) {
-        const transcript = event.results[0][0].transcript;
-        if (!currentTarget) return;
-
-        // Lógica diferente para Input vs Div Editable
-        const isInput = currentTarget.tagName === 'INPUT' || currentTarget.tagName === 'TEXTAREA';
+        if (!activeTarget) return;
         
-        // Añadir espacio si ya hay texto
-        const previousText = isInput ? currentTarget.value : currentTarget.innerText;
-        const separator = (previousText.length > 0 && !previousText.endsWith(' ')) ? ' ' : '';
-        const finalString = separator + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+        const transcript = event.results[0][0].transcript;
+        console.log("✅ Texto detectado:", transcript);
+
+        // Lógica para Input vs Div Editable
+        const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
+        
+        // Obtener texto actual para añadir espacio si hace falta
+        let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+        currentText = currentText || ""; // Asegurar que no sea null/undefined
+        
+        const separator = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+        
+        // Capitalizar primera letra
+        const textToAdd = separator + transcript.charAt(0).toUpperCase() + transcript.slice(1);
 
         if (isInput) {
-            currentTarget.value += finalString;
+            activeTarget.value = currentText + textToAdd;
         } else {
-            // Para contenteditable (div)
-            currentTarget.innerText += finalString;
+            activeTarget.innerText = currentText + textToAdd;
         }
 
-        // Disparar evento 'input' para que se guarden los cambios (localStorage, etc.)
-        currentTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        // Disparar evento para que se guarde (localStorage, etc.)
+        activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        activeTarget.focus(); // Devolver foco para seguir escribiendo si se quiere
     };
 
     recognition.onerror = function(event) {
-        console.error("Error de voz:", event.error);
-        if (currentBtn) currentBtn.classList.remove('listening');
+        console.error("❌ Error de voz:", event.error);
+        if (activeBtn) activeBtn.classList.remove('listening');
+        
+        let msg = "Error al escuchar.";
+        if (event.error === 'not-allowed') {
+            msg = "⚠️ Permiso de micrófono denegado. Revisa la configuración del navegador (candado en la URL).";
+        } else if (event.error === 'no-speech') {
+            msg = "⚠️ No se escuchó nada.";
+        } else if (event.error === 'network') {
+            msg = "⚠️ Error de red (necesario para voz).";
+        }
+        
+        alert(msg);
     };
 
-    // Asignar evento click a todos los micros
+    // --- LISTENER DE BOTONES ---
+    
     document.addEventListener('click', (e) => {
+        // Buscar el botón más cercano (por si se pulsa en el emoji)
         const btn = e.target.closest('.btn-mic');
         if (!btn) return;
 
-        const targetId = btn.getAttribute('data-target');
-        const targetEl = document.getElementById(targetId);
-
-        if (!targetEl) return;
-
-        // Si ya está escuchando este botón, paramos
+        // Evitar doble clic
         if (btn.classList.contains('listening')) {
             recognition.stop();
             return;
         }
 
-        // Iniciar escucha
-        currentBtn = btn;
-        currentTarget = targetEl;
-        recognition.start();
+        const targetId = btn.getAttribute('data-target');
+        const targetEl = document.getElementById(targetId);
+
+        if (!targetEl) {
+            console.error("Objetivo no encontrado:", targetId);
+            alert("Error: No encuentro el campo donde escribir.");
+            return;
+        }
+
+        activeBtn = btn;
+        activeTarget = targetEl;
+
+        try {
+            recognition.start();
+        } catch (err) {
+            console.error("Error al iniciar:", err);
+            // A veces falla si ya estaba corriendo, lo reiniciamos
+            recognition.stop();
+        }
     });
+
+})();
 })();
 </script>
 </body>
 </html>
+
 
 
 
