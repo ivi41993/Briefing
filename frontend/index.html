@@ -37,60 +37,63 @@ font-size: 1.1rem !important;
   ESTILOS MODIFICADOS: MODO TURNO Y CRONÓMETRO
   ========================================================= */
 
-/* === REEMPLAZAR LA REGLA DEL CRONÓMETRO POR ESTA === */
-
-/* El cronómetro flota abajo si estamos en Modo Turno (shift-mode) 
-  O si hay una tarjeta abierta manualmente (card-open) */
+/* === CORRECCIÓN DEL CRONÓMETRO FLOTANTE === */
+/* Esta regla unificada maneja tanto el Modo Turno como la Tarjeta Abierta */
 body.shift-mode #timer-widget,
 body.card-open #timer-widget {
-/* === CRONÓMETRO FLOTANTE (Visible en Modo Turno O Tarjeta Abierta) === */
-body.shift-mode #timer-widget, 
-body.card-open #timer-widget { /* <--- ESTO ES LO NUEVO */
-position: fixed !important;
-bottom: 20px !important;
-left: 50% !important;
-transform: translateX(-50%) !important;
+    position: fixed !important;
+    bottom: 30px !important;  /* Margen inferior para no pegarse al borde */
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    
+    /* Z-INDEX CRÍTICO: Debe ser mayor que el de la tarjeta (que es 15000) */
+    z-index: 2147483647 !important; 
 
-    /* Z-INDEX MÁXIMO: Para estar encima de la tarjeta abierta */
-    /* Z-INDEX 2147483647: Asegura estar ENCIMA de la tarjeta abierta */
-z-index: 2147483647 !important; 
-
-    /* Estética del cronómetro flotante */
-display: flex !important;
+    display: flex !important;
     align-items: center !important;
-background: #ffffff !important;
-padding: 10px 40px !important;
-border-radius: 50px !important;
-border: 4px solid #dc2626 !important;
-box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
-
-visibility: visible !important;
-opacity: 1 !important;
-width: auto !important;
-height: auto !important;
+    justify-content: center !important;
+    
+    /* Diseño visual */
+    background: #ffffff !important;
+    padding: 10px 30px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
+    
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
 }
 
-/* Aumentar texto del cronómetro cuando flota */
-/* Texto grande */
+/* Estilos para el texto del cronómetro cuando flota */
 body.shift-mode #timer-display,
 body.card-open #timer-display {
-font-size: 4rem !important;
-font-weight: 800 !important;
-color: #1f2937 !important;
-line-height: 1 !important;
-    font-variant-numeric: tabular-nums;
+    font-size: 3.5rem !important; /* Texto grande y legible */
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    margin: 0 15px !important;
 }
 
-/* Aumentar botón reset cuando flota */
-/* Botón reset grande */
+/* Estilos para el botón reset cuando flota */
 body.shift-mode #timer-reset,
 body.card-open #timer-reset {
-    width: 50px !important; 
-    height: 50px !important;
-    width: 50px !important; height: 50px !important;
-font-size: 20px !important;
-border-radius: 50% !important;
-background: #f3f4f6 !important;
+    width: 45px !important; 
+    height: 45px !important;
+    font-size: 0 !important; /* Oculta el texto 'Reiniciar' para dejar solo icono si usas */
+    background: #ef4444 !important; /* Rojo alerta */
+    border-radius: 50% !important;
+    position: relative !important;
+}
+/* Agregamos una pseudo-clase para que el botón se vea como una 'X' o Reset visualmente */
+body.shift-mode #timer-reset::after,
+body.card-open #timer-reset::after {
+    content: "↺"; 
+    color: white;
+    font-size: 24px;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 
@@ -294,49 +297,25 @@ setInterval(checkTime, 1000);
 
 // 1. Navegación: Abre tarjeta y activa el cronómetro flotante
 window.navTo = function(targetId) {
-const el = document.getElementById(targetId);
-if (!el) return;
+    const el = document.getElementById(targetId);
+    if (!el) return;
 
-console.log("Abriendo tarjeta:", targetId);
+    // A. Limpiar cualquier otra tarjeta que estuviera abierta
+    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
 
-// A. Limpiar cualquier otra tarjeta que estuviera abierta
-document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    // B. ACTIVAR MODO TARJETA (Esto dispara el CSS del cronómetro corregido arriba)
+    document.body.classList.add('card-open');
 
-    // B. ACTIVAR EL CRONÓMETRO FLOTANTE (Clase mágica)
-    // B. ACTIVAR EL CRONÓMETRO FLOTANTE (Añadimos la clase clave)
-document.body.classList.add('card-open');
-
-// C. Abrir la tarjeta en pantalla completa (Falso Fullscreen CSS)
-// Z-index 15000 (debajo del crono que es 2147483647)
-el.classList.add('widget--zoomed');
-
-// D. Scroll al inicio
-el.scrollTop = 0;
-};
-
-// 2. Salir: Cierra tarjeta y devuelve el cronómetro a su sitio (si aplica)
-// 2. Salir: Cierra tarjeta y devuelve el cronómetro a su sitio
-window.exitFlow = function() {
-// A. Cerrar la tarjeta actual
-document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-
-    // B. DESACTIVAR MODO TARJETA (El crono sube, salvo que estemos en shift-mode)
-    // B. DESACTIVAR MODO TARJETA (Quitamos la clase, el crono sube)
-document.body.classList.remove('card-open');
-
-// C. Gestión de retorno
-// Si estamos en modo turno automático, volvemos al checklist base
-if (document.body.classList.contains('shift-mode')) {
-const checklist = document.getElementById('brief-check');
-if(checklist) checklist.classList.add('shift-focus');
-} else {
-// Si es modo manual normal, limpiamos todo
-document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
-}
+    // C. Abrir la tarjeta actual
+    el.classList.add('widget--zoomed');
+    
+    // D. Scroll al inicio (importante para ver la barra de navegación superior)
+    el.scrollTop = 0;
 };
 </script>
 </body>
 </html>
+
 
 
 
