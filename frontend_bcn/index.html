@@ -1483,43 +1483,79 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 </div>
 
 <!-- KPIs CENTRO -->
+<!-- 6) KPIs Operativos & Estándares (AHORA CON 5S Y GW INTEGRADO) -->
 <div class="widget kpi-widget" id="kpi-center">
-<h2 class="widget-title">6) KPIs Operativos BCN</h2>
-<div class="kpi-grid">
-<div class="kpi-tile">
-<div class="kpi-label">Productividad</div>
-<div class="kpi-value" id="kpi-uph">—</div>
-<small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
-</div>
-<div class="kpi-tile">
-<div class="kpi-label">Servicio</div>
-<div class="kpi-value" id="kpi-otif">—</div>
-<small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
-</div>
-<div class="kpi-tile">
-<div class="kpi-label">Backlog</div>
-<div class="kpi-value" id="kpi-backlog">—</div>
-<small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
-</div>
+  <h2 class="widget-title">6) KPIs Operativos & Estándares</h2>
 
-<!-- KPI Costes BCN -->
-<div class="kpi-tile" id="kpi-costes">
-<h3 class="widget-title" style="margin-bottom:4px;">
-<span>Costes Mantenimiento BCN</span>
-<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none"
-stroke="currentColor" stroke-width="2" stroke-linecap="round"
-stroke-linejoin="round">
-<polyline points="23 4 23 10 17 10"></polyline>
-<polyline points="1 20 1 14 7 14"></polyline>
-<path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path>
-</svg>
-</h3>
-<div class="kpi-value large">
-<span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
-</div>
-<small class="kpi-text" id="kpi-costes-meta"></small>
-</div>
-</div>
+  <!-- PARTE SUPERIOR: KPIs Numéricos -->
+  <div class="kpi-grid">
+    <div class="kpi-tile">
+      <div class="kpi-label">Uniwin</div>
+      <div class="kpi-value" id="kpi-uph">—</div>
+      <small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">DG Autocheck</div>
+      <div class="kpi-value" id="kpi-otif">—</div>
+      <small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">CargoMobile</div>
+      <div class="kpi-value" id="kpi-backlog">—</div>
+      <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile" id="kpi-costes">
+      <div class="kpi-label">Costes Daños</div>
+      <div class="kpi-value" style="color:var(--brand-red-600)">
+        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
+      </div>
+      <small class="kpi-text" id="kpi-costes-meta"></small>
+    </div>
+  </div>
+
+  <!-- SEPARADOR -->
+  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+
+  <!-- PARTE INFERIOR: 5S y GW -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+    
+    <!-- COLUMNA 5S -->
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong style="font-size:0.95rem;">Estado 5S</strong>
+        <small id="s5-meta" class="kpi-text">—</small>
+      </div>
+      
+      <!-- Botones 5S -->
+      <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S" style="justify-content: center;">
+        <button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
+        <button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
+        <button type="button" class="s5-pill" data-key="seiso" title="3S · Seiso"><span class="s5-dot"></span>3S</button>
+        <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu"><span class="s5-dot"></span>4S</button>
+        <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke"><span class="s5-dot"></span>5S</button>
+      </div>
+    </div>
+
+    <!-- COLUMNA GW -->
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
+      </div>
+
+      <!-- Formulario GW -->
+      <form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
+        <button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Subir</button>
+      </form>
+      <small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
+
+      <!-- Lista GW -->
+      <div id="gw-tasks-dynamic-container"></div>
+    </div>
+  </div>
 </div>
 
 <!-- KANBAN FEEDBACK DIRECTO -->
@@ -1573,55 +1609,35 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 </form>
 </div>
 
-<!-- KAIZEN + 5S/GW -->
-<div class="actions-split">
-<div class="widget" id="kaizen-widget">
-<h2 class="widget-title">KAIZEN BCN</h2>
-<form class="new-item-form" id="new-kaizen-form" autocomplete="off"
-style="display:grid; grid-template-columns: 1fr 1fr auto auto;
-                  gap:8px; align-items:center;">
-<input type="text" name="title" placeholder="Proyecto de mejora…" required>
-<input type="text" name="assigned_to" placeholder="Responsable…">
-<input type="date" name="due_date" aria-label="Fecha máxima">
-<button type="submit" class="btn-primary">Añadir</button>
-</form>
-<div class="board-container kaizen compact" style="margin-top:12px;">
-<div class="kanban-column">
-<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
-</div>
-</div>
+<!-- KAIZEN (Ahora fuera del split, ocupa todo el ancho) -->
+<div class="widget" id="kaizen-widget" style="margin-top: 20px;">
+  <h2 class="widget-title">KAIZEN (Proyectos de mejora)</h2>
+  
+  <form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+    <input type="text" name="title" placeholder="Proyecto de mejora…" required>
+    <input type="text" name="assigned_to" placeholder="Responsable…">
+    <input type="date" name="due_date" aria-label="Fecha máxima">
+    <button type="submit" class="btn-primary">Añadir</button>
+  </form>
+
+  <!-- Le quitamos la clase 'compact' si quieres ver 3 columnas anchas -->
+  <div class="board-container kaizen" style="margin-top:12px;">
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+    </div>
+  </div>
 </div>
 
-<div class="widget" id="rotativas-widget">
-<h2 class="widget-title">5S & GW (Rápido)</h2>
 
-<!-- 5S -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-<strong>5S</strong>
-<div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
-<button type="button" class="s5-pill" data-key="seiri"><span class="s5-dot"></span>1S</button>
-<button type="button" class="s5-pill" data-key="seiton"><span class="s5-dot"></span>2S</button>
-<button type="button" class="s5-pill" data-key="seiso"><span class="s5-dot"></span>3S</button>
-<button type="button" class="s5-pill" data-key="seiketsu"><span class="s5-dot"></span>4S</button>
-<button type="button" class="s5-pill" data-key="shitsuke"><span class="s5-dot"></span>5S</button>
-</div>
-</div>
-<small id="s5-meta" class="kpi-text">—</small>
-
-<!-- GW -->
-<strong style="margin-top:12px; display:block;">GW</strong>
-<div id="gw-tasks-dynamic-container"></div>
-</div>
-</div>
 </section>
 
 <!-- DERECHA -->
@@ -3548,10 +3564,52 @@ updateAllColumnCounts();
 /* ==========================
 Formularios Kanban/Kaizen
 ========================== */
-function setupEventListeners(){
-document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
-document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
-document.addEventListener('click', handleDeleteClick);
+function setupEventListeners() {
+    // Formularios Kanban y Kaizen
+    document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+    document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+    
+    // Click global (para borrar tarjetas)
+    document.addEventListener('click', handleDeleteClick);
+
+    // --- CORRECCIÓN CRÍTICA PARA GW (Gemba Walk) ---
+    // Ya no buscamos el ID 'rotativas-widget' porque lo borramos.
+    // Usamos delegación de eventos en el documento.
+    
+    // 1. Checkbox de completado
+    document.addEventListener('change', (e) => {
+        // La función handleGwTick ya verifica si es un checkbox válido
+        if (typeof handleGwTick === 'function') {
+            handleGwTick(e);
+        }
+    });
+
+    // 2. Notas (Enter y Escape)
+    document.addEventListener('keydown', (e) => {
+        const note = e.target.closest('.gw-note') ? e.target : null;
+        if (!note) return;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const id = note.id.replace('gw-note-', '');
+            // Verificamos que la función exista antes de llamar
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, note.value).catch(console.error);
+            note.blur();
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            note.blur();
+        }
+    });
+
+    // 3. Notas (Al perder el foco / Blur)
+    document.addEventListener('blur', (e) => {
+        if (e.target.classList && e.target.classList.contains('gw-note')) {
+            const id = e.target.id.replace('gw-note-', '');
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, e.target.value).catch(console.error);
+        }
+    }, true); 
+}
 
 const gwContainer=document.getElementById('gw-tasks-dynamic-container');
 gwContainer?.addEventListener('change', e=>{
