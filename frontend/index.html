@@ -1853,19 +1853,18 @@ body.shift-active .btn-nav {
 
 /* El cronómetro flota abajo si estamos en Modo Turno (shift-mode) 
    O si hay una tarjeta abierta manualmente (card-open) */
-body.shift-mode #timer-widget,
-body.card-open #timer-widget {
+/* === CRONÓMETRO FLOTANTE (Visible en Modo Turno O Tarjeta Abierta) === */
+body.shift-mode #timer-widget, 
+body.card-open #timer-widget { /* <--- ESTO ES LO NUEVO */
     position: fixed !important;
     bottom: 20px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     
-    /* Z-INDEX MÁXIMO: Para estar encima de la tarjeta abierta */
+    /* Z-INDEX 2147483647: Asegura estar ENCIMA de la tarjeta abierta */
     z-index: 2147483647 !important; 
     
-    /* Estética del cronómetro flotante */
     display: flex !important;
-    align-items: center !important;
     background: #ffffff !important;
     padding: 10px 40px !important;
     border-radius: 50px !important;
@@ -1878,20 +1877,20 @@ body.card-open #timer-widget {
     height: auto !important;
 }
 
-/* Aumentar texto del cronómetro cuando flota */
+/* Texto grande */
 body.shift-mode #timer-display,
 body.card-open #timer-display {
     font-size: 4rem !important;
     font-weight: 800 !important;
     color: #1f2937 !important;
     line-height: 1 !important;
+    font-variant-numeric: tabular-nums;
 }
 
-/* Aumentar botón reset cuando flota */
+/* Botón reset grande */
 body.shift-mode #timer-reset,
 body.card-open #timer-reset {
-    width: 50px !important; 
-    height: 50px !important;
+    width: 50px !important; height: 50px !important;
     font-size: 20px !important;
     border-radius: 50% !important;
     background: #f3f4f6 !important;
@@ -6255,31 +6254,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- FUNCIONES GLOBALES (Window) PARA LOS BOTONES ONCLICK ---
 
-window.navTo = function(targetId) {
-    if (!targetId) return;
-    // Salir de pantalla completa anterior si la hay
-    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
 
-    setTimeout(() => {
-        const el = document.getElementById(targetId);
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Intentar fullscreen nativo, si falla, usar CSS zoom
-            if (el.requestFullscreen) {
-                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
-            } else {
-                el.classList.add('widget--zoomed');
-            }
-        }
-    }, 100);
-};
-
-window.exitFlow = function() {
-    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
-    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
-};
 
 window.markOkAndNext = function(checkName, nextId) {
     // 1. Marcar OK
@@ -6557,9 +6532,7 @@ window.testShiftMode = function() {
     setInterval(checkTime, 1000);
 })();
 
-// === NAVEGACIÓN QUE SIEMPRE ACTIVA EL CRONO ===
-
-// === REEMPLAZAR LAS FUNCIONES navTo Y exitFlow POR ESTAS ===
+// === REEMPLAZA LAS FUNCIONES navTo Y exitFlow POR ESTAS ===
 
 // 1. Navegación: Abre tarjeta y activa el cronómetro flotante
 window.navTo = function(targetId) {
@@ -6571,7 +6544,7 @@ window.navTo = function(targetId) {
     // A. Limpiar cualquier otra tarjeta que estuviera abierta
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
     
-    // B. ACTIVAR EL CRONÓMETRO FLOTANTE (Clase mágica)
+    // B. ACTIVAR EL CRONÓMETRO FLOTANTE (Añadimos la clase clave)
     document.body.classList.add('card-open');
 
     // C. Abrir la tarjeta en pantalla completa (Falso Fullscreen CSS)
@@ -6582,12 +6555,12 @@ window.navTo = function(targetId) {
     el.scrollTop = 0;
 };
 
-// 2. Salir: Cierra tarjeta y devuelve el cronómetro a su sitio (si aplica)
+// 2. Salir: Cierra tarjeta y devuelve el cronómetro a su sitio
 window.exitFlow = function() {
     // A. Cerrar la tarjeta actual
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
     
-    // B. DESACTIVAR MODO TARJETA (El crono sube, salvo que estemos en shift-mode)
+    // B. DESACTIVAR MODO TARJETA (Quitamos la clase, el crono sube)
     document.body.classList.remove('card-open');
 
     // C. Gestión de retorno
@@ -6603,6 +6576,7 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
 
 
