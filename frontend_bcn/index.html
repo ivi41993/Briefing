@@ -1397,12 +1397,19 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 <div class="safety-card">
 <strong>Alta manual de incidentes</strong>
 <form id="safety-form" class="incident-form" autocomplete="off">
-<input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
-<textarea id="safety-desc" rows="4" placeholder="Descripción breve, lugar, personas implicadas…" required></textarea>
-<div class="controls">
-<button type="submit" class="btn">Guardar incidente</button>
-<button type="button" class="btn" id="safety-clear">Vaciar lista</button>
-</div>
+    <input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
+    <textarea id="safety-desc" rows="3" placeholder="Descripción breve..." required></textarea>
+    
+    <!-- AÑADIR ESTO: Input de fecha -->
+    <label style="font-size:0.85rem; color:var(--text-muted); display:flex; align-items:center; gap:8px; margin:5px 0;">
+        Vigente hasta:
+        <input type="date" id="safety-valid-until" style="padding:6px; border:1px solid var(--border); border-radius:8px;">
+    </label>
+
+    <div class="controls">
+        <button type="submit" class="btn">Guardar incidente</button>
+        <button type="button" class="btn" id="safety-clear">Vaciar lista</button>
+    </div>
 </form>
 <div id="safety-list" class="incident-list" aria-live="polite"></div>
 <small class="kpi-text" id="safety-inc-meta">—</small>
@@ -1642,8 +1649,15 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 
 <!-- DERECHA -->
 <section class="col-right">
+<!-- Busca esto y añade el botón dentro del H2 -->
 <div class="widget" id="prev-shift-widget">
-<h2 class="widget-title">2) Información Turno Anterior BCN</h2>
+  <h2 class="widget-title">
+      2) Información Turno Anterior BCN
+      <!-- AÑADIR ESTE BOTÓN -->
+      <button type="button" class="btn-mic" data-target="prev-shift-note" title="Dictar nota">
+          🎙️
+      </button>
+  </h2>
 <div id="prev-shift-note" class="editable-note" contenteditable="true"
 role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior"
@@ -1655,15 +1669,14 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 </div>
 
 <div class="widget" id="ehs-widget">
-<h2 class="widget-title">Días sin incidentes</h2>
-<div class="ehs-month" id="ehs-month">—</div>
-<div id="ehs-spin" class="ehs-controls" role="spinbutton"
-aria-label="Días sin incidentes del mes actual"
-aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-<div class="ehs-big" id="ehs-days">0</div>
-<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
-</div>
+  <h2 class="widget-title">Días sin incidentes</h2>
+  <div class="ehs-month" id="ehs-month">—</div>
+  
+  <!-- REEMPLAZAR todo el div class="ehs-controls" por esto: -->
+  <div id="ehs-spin" class="ehs-controls" role="spinbutton" style="justify-content: center;">
+      <!-- Solo el número, sin botones. Doble clic para resetear -->
+      <div class="ehs-big" id="ehs-days" title="Doble clic para reiniciar a 0 si hubo incidente" style="cursor:pointer;">0</div>
+  </div>
 </div>
 </section>
 </div>
@@ -1933,63 +1946,88 @@ function loadIncidents(){ return loadJson(SAFETY_INC_KEY, []); }
 function saveIncidents(list){ saveJson(SAFETY_INC_KEY, list); }
 
 function renderIncidents(){
-const listEl = document.getElementById('safety-list');
-const meta = document.getElementById('safety-inc-meta');
-if(!listEl) return;
-const data = loadIncidents();
-listEl.innerHTML = '';
-data.slice().reverse().forEach((it, idx)=>{
-const card = document.createElement('div');
-card.className = 'incident-item';
-const ts = new Date(it.ts||Date.now());
-card.innerHTML = `
-   <div class="incident-head">
-     <span>${esc(it.title||'')}</span>
-     <span class="danger" data-del="${it.id}" title="Eliminar">🗑</span>
-   </div>
-   <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
-   <div>${esc(it.desc||'')}</div>
- `;
-listEl.appendChild(card);
-});
-if(meta){
-meta.textContent = `Incidentes guardados: ${data.length}`;
-}
+    const listEl = document.getElementById('safety-list');
+    const meta = document.getElementById('safety-inc-meta');
+    if(!listEl) return;
+    const data = loadIncidents();
+    listEl.innerHTML = '';
+    
+    data.slice().reverse().forEach((it)=>{
+        const card = document.createElement('div');
+        card.className = 'incident-item';
+        const ts = new Date(it.ts||Date.now());
+        
+        // AÑADIDO: Mostrar fecha de vigencia si existe
+        const validHtml = it.valid_until ? 
+            `<div style="color:#d97706; font-weight:700; font-size:0.85rem; margin-top:4px;">📅 Vigente hasta: ${new Date(it.valid_until).toLocaleDateString('es-ES')}</div>` 
+            : '';
 
-listEl.querySelectorAll('[data-del]').forEach(btn=>{
-btn.addEventListener('click', ()=>{
-const id = btn.getAttribute('data-del');
-const cur = loadIncidents().filter(x=>String(x.id)!==String(id));
-saveIncidents(cur);
-renderIncidents();
-});
-});
+        card.innerHTML = `
+           <div class="incident-head">
+             <span>${esc(it.title||'')}</span>
+             <span class="danger" data-del="${it.id}" title="Eliminar" style="cursor:pointer">🗑</span>
+           </div>
+           <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
+           ${validHtml}
+           <div style="margin-top:4px;">${esc(it.desc||'')}</div>
+         `;
+        listEl.appendChild(card);
+    });
+    
+    if(meta) meta.textContent = `Incidentes guardados: ${data.length}`;
+
+    listEl.querySelectorAll('[data-del]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+            const id = btn.getAttribute('data-del');
+            const cur = loadIncidents().filter(x=>String(x.id)!==String(id));
+            saveIncidents(cur);
+            renderIncidents();
+        });
+    });
 }
 
 function setupSafetyIncidents(){
-const form = document.getElementById('safety-form');
-const title = document.getElementById('safety-title');
-const desc  = document.getElementById('safety-desc');
-const clear = document.getElementById('safety-clear');
+    const form = document.getElementById('safety-form');
+    const title = document.getElementById('safety-title');
+    const desc  = document.getElementById('safety-desc');
+    const validDate = document.getElementById('safety-valid-until'); // Referencia al nuevo input
+    const clear = document.getElementById('safety-clear');
 
-renderIncidents();
+    renderIncidents();
 
-form?.addEventListener('submit', (e)=>{
-e.preventDefault();
-const t = (title?.value||'').trim();
-const d = (desc?.value||'').trim();
-if(!t || !d) return;
-const cur = loadIncidents();
-cur.push({ id: Date.now(), title: t, desc: d, ts: Date.now(), station: STATION_CODE });
-saveIncidents(cur);
-title.value=''; desc.value='';
-renderIncidents();
-});
+    form?.addEventListener('submit', (e)=>{
+        e.preventDefault();
+        const t = (title?.value||'').trim();
+        const d = (desc?.value||'').trim();
+        const v = validDate?.value || null; // Capturar valor fecha
 
-clear?.addEventListener('click', ()=>{
-if(!confirm('¿Vaciar todos los incidentes guardados?')) return;
-saveIncidents([]); renderIncidents();
-});
+        if(!t || !d) return;
+        
+        const cur = loadIncidents();
+        // Guardamos 'valid_until' en el objeto
+        cur.push({ 
+            id: Date.now(), 
+            title: t, 
+            desc: d, 
+            valid_until: v, 
+            ts: Date.now(), 
+            station: STATION_CODE 
+        });
+        
+        saveIncidents(cur);
+        
+        // Limpiar campos
+        title.value=''; 
+        desc.value=''; 
+        if(validDate) validDate.value=''; 
+        
+        renderIncidents();
+    });
+
+    clear?.addEventListener('click', ()=>{
+        if(!confirm('¿Vaciar todos los incidentes guardados?')) return;
+        saveIncidents([]); renderIncidents();
+    });
 }
 
 function initSafetyDailyWidget(){
@@ -2214,40 +2252,49 @@ setInterval(paintDateTimeAndShift, 60000);
 EHS simple
 ========================== */
 function initEhsSimple(){
-const now=new Date();
-const year=now.getFullYear();
-const month=now.getMonth();
-const daysInMonth=new Date(year,month+1,0).getDate();
-const monthEl=document.getElementById('ehs-month');
-const daysEl=document.getElementById('ehs-days');
-const spin=document.getElementById('ehs-spin');
-if (!monthEl || !daysEl || !spin) return;
-monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-const keyMonth=`${year}-${month+1}`;
-const lastKey=localStorage.getItem('ehs_month_key');
-let days=Number(localStorage.getItem('ehs_days_month'))||0;
-if (lastKey!==keyMonth) days=0;
-function render(){
-days=Math.max(0,Math.min(daysInMonth,Math.trunc(days)));
-daysEl.textContent = days;
-spin.setAttribute('aria-valuemin','0');
-spin.setAttribute('aria-valuemax',String(daysInMonth));
-spin.setAttribute('aria-valuenow',String(days));
-localStorage.setItem('ehs_days_month',String(days));
-localStorage.setItem('ehs_month_key',keyMonth);
-}
-const inc=()=>{ if(days<daysInMonth){ days++; render(); } };
-const dec=()=>{ if(days>0){ days--; render(); } };
-spin.querySelectorAll('.ehs-btn').forEach(btn=>{
-btn.addEventListener('click', ()=>{
-(btn.dataset.op==='inc'?inc:dec)();
-});
-});
-spin.addEventListener('keydown', e=>{
-if(e.key==='ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
-if(e.key==='ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
-});
-render();
+    const daysEl = document.getElementById('ehs-days');
+    const monthEl = document.getElementById('ehs-month');
+    if (!daysEl) return;
+    
+    // Mes actual
+    const now = new Date();
+    if(monthEl) monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_bcn_v1';
+
+    function render() {
+        const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
+        // Si no hay fecha guardada, asumimos hoy (0 días)
+        let lastDate = lastDateStr ? new Date(lastDateStr) : new Date();
+        
+        // Resetear horas para comparar solo días naturales
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        lastDate.setHours(0,0,0,0);
+
+        // Diferencia en milisegundos a días
+        const diffTime = today - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        daysEl.textContent = Math.max(0, diffDays);
+    }
+
+    // Doble clic para reportar un incidente hoy (Reinicia a 0)
+    daysEl.addEventListener('dblclick', () => {
+        if(confirm("¿Reportar incidente hoy? El contador se reiniciará a 0.")) {
+            localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+            render();
+        }
+    });
+
+    // Inicializar fecha si es la primera vez que se usa
+    if(!localStorage.getItem(KEY_LAST_INCIDENT)){
+        localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+    }
+
+    render();
+    // Revisar cada hora si ha cambiado el día sin recargar
+    setInterval(render, 3600000);
 }
 
 /* ==========================
