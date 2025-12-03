@@ -710,6 +710,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note or "Sin notas"),
         "actualizaciones_ops": str(ops_text),
+        "feedback_kanban": str(data.kanban_details or "Sin feedback"),
         
         # ESTE ES EL CAMPO NUEVO QUE POWER AUTOMATE DEBE RECIBIR
         "incidentes_seguridad": str(safety_text)
@@ -1981,6 +1982,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
