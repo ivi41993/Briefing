@@ -1208,7 +1208,7 @@ Modo presentación
 <div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
 <span class="timer-dot" aria-hidden="true"></span>
 </div>
-<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+<button type="button" class="timer-reset" id="timer-reset">Reiniciar</button>
 </div>
 
 <div class="header-controls">
@@ -4399,6 +4399,17 @@ document.addEventListener('DOMContentLoaded', () => {
         btnGen.parentNode.replaceChild(newBtnGen, btnGen);
         
         newBtnGen.addEventListener('click', async () => {
+            const supInput = document.getElementById('briefing-supervisor');
+            const supVal = supInput?.value.trim();
+
+            if (!supVal) {
+                alert("⚠️ El campo 'Supervisor' es obligatorio.\nPor favor, escribe tu nombre o usa el micrófono.");
+                supInput?.focus(); // Pone el cursor en el campo para que escribas
+                // Hacemos parpadear el input en rojo para que se vea claro
+                supInput.style.borderColor = "red";
+                setTimeout(() => supInput.style.borderColor = "", 2000);
+                return; // DETIENE LA EJECUCIÓN AQUÍ
+            }
             newBtnGen.textContent = 'Guardando...';
             newBtnGen.disabled = true;
 
