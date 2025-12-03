@@ -507,7 +507,8 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
-        "feedback_kanban": str(data.kanban_details or "Sin feedback")
+        "feedback_kanban": str(data.kanban_details or "Sin feedback"),
+        "incidentes_seguridad": str(safety_text) # <--- Campo nuevo
     }
     
     print(f"📤 [WFS2] Enviando a Excel: {json.dumps(payload)}")
