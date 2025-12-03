@@ -1429,7 +1429,43 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
   .btn-primary{ box-shadow:0 8px 18px rgba(239,68,68,.18); }
 }
 
+/* =========================================================
+   FIX: CHECKLIST SIN SCROLL Y ADAPTABLE
+   ========================================================= */
 
+/* 1. Eliminar restricciones de altura y scroll en el contenedor principal */
+#brief-check {
+    max-height: none !important;  /* Permite que crezca lo que necesite */
+    overflow: visible !important; /* Elimina la barra de desplazamiento */
+    height: auto !important;      /* Altura automática según contenido */
+    position: relative !important; /* Quitamos sticky si molesta, o lo dejamos pero sin límites */
+}
+
+/* 2. Rejilla interna: Distribución automática */
+#brief-check .check-grid {
+    display: grid !important;
+    /* Las tarjetas tendrán un ancho mínimo de 160px pero se estirarán para llenar la fila */
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+    gap: 8px !important;
+    padding-bottom: 0 !important;
+}
+
+/* 3. Tarjetas: Se adaptan al hueco de la rejilla */
+#brief-check .check-card {
+    min-height: auto !important;
+    height: 100% !important; /* Hace que todas las tarjetas de una fila tengan la misma altura */
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important; /* Distribuye espacio entre título y botones */
+}
+
+/* 4. Aseguramos que la columna central permita crecer al widget */
+.col-middle {
+    overflow: visible !important;
+    height: auto !important;
+    flex: 1 1 auto !important;
+}
   
 </style>
 </head>
