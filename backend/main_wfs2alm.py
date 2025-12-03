@@ -82,7 +82,7 @@ ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 # Modelos de Datos
 # -----------------------------------
 class BriefingSnapshot(BaseModel):
-    station: Optional[str] = "WFS2"  # <--- IDENTIDAD WFS1
+    station: Optional[str] = STATION_CODE  # Usa la variable dinámica
     date: str
     shift: str
     timer: str
@@ -93,8 +93,13 @@ class BriefingSnapshot(BaseModel):
     prev_shift_note: str = ""
     present_names: List[str] = []
     ops_updates: List[Dict[str, Any]] = []
+    
+    # --- AÑADIR ESTO ---
+    safety_incidents: List[Dict[str, Any]] = [] 
+    # -------------------
+    
     kanban_counts: Dict[str, int] = {}
-    kanban_details: str = ""         # <--- Feedback Kanban
+    kanban_details: str = ""
     roster_stats: str = ""
 
     class Config: extra = "allow"
@@ -507,7 +512,8 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
-        "feedback_kanban": str(data.kanban_details or "Sin feedback")
+        "feedback_kanban": str(data.kanban_details or "Sin feedback"),
+        "incidentes_seguridad": str(safety_text) # <--- Campo nuevo
     }
     
     print(f"📤 [WFS2] Enviando a Excel: {json.dumps(payload)}")
