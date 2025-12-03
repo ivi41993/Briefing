@@ -1004,10 +1004,28 @@ display:flex; align-items:center; gap:10px;
 border:1px solid var(--border); border-radius:12px; background:#fff; padding:8px 10px;
 }
 .timer-face{ position:relative; display:flex; align-items:center; gap:8px; }
-.timer-display{
-font-family:"Space Grotesk", Inter, system-ui, sans-serif;
-font-weight:800; letter-spacing:.5px;
-font-variant-numeric:tabular-nums; cursor:pointer; user-select:none;
+/* CSS CRONÓMETRO GRANDE Y PARPADEANTE */
+.header-timer .timer-display {
+    /* Tamaño mucho más grande */
+    font-size: clamp(2.5rem, 4vw, 5rem); 
+    font-weight: 800;
+    line-height: 1;
+    color: var(--brand-red-900); /* Color base más oscuro */
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.3s;
+}
+
+/* Clase para parpadeo rojo intenso (Alerta > 4min) */
+.timer-display.alert-mode {
+    color: #dc2626; /* Rojo vivo */
+    animation: timer-blink 1s infinite;
+}
+
+@keyframes timer-blink {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.02); color: #ef4444; }
 }
 .timer-dot{
 width:8px; height:8px; border-radius:50%; background:#d1d5db;
@@ -1331,21 +1349,46 @@ data-target="kanban-widget">
 <small class="kpi-text" id="brief-check-meta">—</small>
 </div>
 
-<!-- ACTUALIZACIONES OPERATIVAS -->
-<div class="widget" id="ops-updates-widget">
-<h2 class="widget-title">3) Actualizaciones operativas</h2>
-<div class="ops-toolbar" aria-label="Filtros actualizaciones operativas">
-<input id="ops-search" class="ops-search" type="search" placeholder="Buscar (#etiqueta, @persona, texto)…">
-<select id="ops-filter-prio" class="ops-filter" title="Filtrar prioridad">
-<option value="">Todas las prioridades</option>
-<option value="Alta">Alta (!!)</option>
-<option value="Media">Media (!)</option>
-<option value="Baja">Baja</option>
-</select>
-<button type="button" class="btn" id="ops-export">Copiar resumen</button>
-<div id="ops-lines-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
+<!-- Diálogo alta/edición (CORREGIDO) -->
+<dialog id="ops-dialog" style="border:1px solid var(--border);border-radius:12px;padding:15px;max-width:520px;width:clamp(280px,90vw,520px);">
+    <form method="dialog" id="ops-form" style="display:grid;gap:12px;">
+        <h3 style="margin:0; color:var(--brand-red-700);">Actualizar Operativa</h3>
+        <input type="hidden" id="ops-id">
+        
+        <label>Título
+            <input id="ops-title" type="text" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+        </label>
 
-</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <label>Prioridad
+                <select id="ops-impact" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+                    <option>Alto</option><option>Medio</option><option>Bajo</option>
+                </select>
+            </label>
+            <label>Ámbito
+                <select id="ops-scope-field" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+                    <option>General</option><option>Isla</option><option>Dorada</option>
+                    <option>Muelle Imp</option><option>Muelle Exp</option><option>Import</option><option>Export</option>
+                </select>
+            </label>
+        </div>
+
+        <label>Responsable (opcional)
+            <input id="ops-owner" type="text" placeholder="Ej.: @juan" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+        </label>
+
+        <!-- NUEVO CAMPO DE FECHA -->
+        <label style="font-weight:600;color:var(--text-muted);">
+            Vigente hasta:
+            <input id="ops-to" type="date" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;margin-top:4px;">
+        </label>
+
+        <menu style="display:flex;gap:10px;justify-content:flex-end;margin:0;padding-top:10px;">
+            <button type="button" class="btn-compact" value="cancel" onclick="document.getElementById('ops-dialog').close()">Cancelar</button>
+            <button type="submit" class="btn-primary" id="ops-save">Guardar</button>
+        </menu>
+    </form>
+</dialog>
 
 
 <div class="ops-actions">
@@ -2074,9 +2117,31 @@ const m = Math.floor((t%3600)/60);
 const s = t%60;
 return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
-function paint(){
-display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
-}
+// MODIFICACIÓN EN LA LÓGICA DEL CRONÓMETRO
+  function paint(){
+    const nowMs = running ? (Date.now() - startedAt) : elapsed;
+    const clamped = Math.min(nowMs, STOP_MS);
+    const textFormatted = fmt(clamped);
+
+    // Actualizar texto
+    display.textContent = textFormatted;
+
+    // Lógica de ALERTA (> 4 minutos = 240000 ms)
+    // Si pasa de 4 minutos, añade la clase 'alert-mode'
+    if (clamped >= 4 * 60 * 1000) {
+        display.classList.add('alert-mode');
+    } else {
+        display.classList.remove('alert-mode');
+    }
+
+    // Auto-stop al límite (10 min)
+    if (running && nowMs >= STOP_MS){
+      running = false;
+      elapsed = STOP_MS;
+      clearInterval(tick); tick=null;
+      setUI(); save();
+    }
+  }
 function save(){
 try{
 localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
