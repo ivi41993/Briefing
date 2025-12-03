@@ -2678,14 +2678,15 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 <small class="kpi-text" id="prev-shift-saved-hint"></small>
   </div> 
 <div class="widget" id="ehs-widget">
-<h2 class="widget-title">Días sin incidentes</h2>
-<div class="ehs-month" id="ehs-month">—</div>
-<div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual"
-aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-<div class="ehs-big" id="ehs-days">0</div>
-<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
-</div>
+  <h2 class="widget-title">Días sin incidentes</h2>
+  <div class="ehs-month" id="ehs-month">—</div>
+  
+  <!-- CAMBIO: Eliminados botones manuales, añadido title explicativo -->
+  <div id="ehs-spin" class="ehs-controls" role="spinbutton" 
+       style="justify-content: center; cursor: pointer;" 
+       title="Doble clic para reportar incidente (Reset a 0)">
+      <div class="ehs-big" id="ehs-days">0</div>
+  </div>
 </div>
 </section>
 </div>
@@ -3211,20 +3212,52 @@ try{ const cached = JSON.parse(localStorage.getItem('kpi_total_cost')||'null'); 
 }
 
 /* EHS simple */
+/* EHS Automático (Días desde último incidente) */
 function initEhsSimple(){
-const now=new Date(); const year=now.getFullYear(), month=now.getMonth();
-const daysInMonth=new Date(year,month+1,0).getDate();
-const monthEl=document.getElementById('ehs-month'); const daysEl=document.getElementById('ehs-days'); const spinEl=document.getElementById('ehs-spin');
-monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-const monthKey=`${year}-${month+1}`; const lastKey=localStorage.getItem('ehs_month_key'); let days=Number(localStorage.getItem('ehs_days_month'))||0; if(lastKey!==monthKey) days=0;
-function render(){ days=Math.max(0,Math.min(daysInMonth,Math.trunc(days))); daysEl.textContent=days; spinEl.setAttribute('aria-valuemin','0'); spinEl.setAttribute('aria-valuemax',String(daysInMonth)); spinEl.setAttribute('aria-valuenow',String(days));
-localStorage.setItem('ehs_days_month',String(days)); localStorage.setItem('ehs_month_key',monthKey); }
-const inc=()=>{ if(days<daysInMonth){ days+=1; render(); } }; const dec=()=>{ if(days>0){ days-=1; render(); } };
-spinEl.querySelectorAll('.ehs-btn').forEach(btn=>btn.addEventListener('click',()=> (btn.dataset.op==='inc'?inc():dec())));
-spinEl.addEventListener('keydown',(e)=>{ if(e.key==='ArrowUp'||e.key==='ArrowRight'){e.preventDefault();inc();} if(e.key==='ArrowDown'||e.key==='ArrowLeft'){e.preventDefault();dec();}
-if(e.key==='PageUp'){e.preventDefault();days=Math.min(daysInMonth,days+5);render();} if(e.key==='PageDown'){e.preventDefault();days=Math.max(0,days-5);render();}
-if(e.key==='Home'){e.preventDefault();days=0;render();} if(e.key==='End'){e.preventDefault();days=daysInMonth;render();} });
-render();
+    const daysEl = document.getElementById('ehs-days');
+    const monthEl = document.getElementById('ehs-month');
+    const container = document.getElementById('ehs-spin');
+    
+    if (!daysEl) return;
+    
+    // Mes actual visual
+    const now = new Date();
+    if(monthEl) monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+
+    // Clave única para MAD
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_mad_v1';
+
+    function render() {
+        const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
+        // Si no hay fecha guardada, asumimos hoy (0 días)
+        let lastDate = lastDateStr ? new Date(lastDateStr) : new Date();
+        
+        // Resetear horas para comparar solo días naturales
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        lastDate.setHours(0,0,0,0);
+
+        // Diferencia en milisegundos a días
+        const diffTime = today - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        daysEl.textContent = Math.max(0, diffDays);
+    }
+
+    // Doble clic para reportar un incidente hoy (Reinicia a 0)
+    container.addEventListener('dblclick', () => {
+        if(confirm("¿Reportar incidente en MAD hoy? El contador se reiniciará a 0.")) {
+            localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+            render();
+        }
+    });
+
+    // Inicializar fecha si es la primera vez que se usa
+    if(!localStorage.getItem(KEY_LAST_INCIDENT)){
+        localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+    }
+
+    render();
 }
 
 /* Equipo (roster) */
@@ -6656,57 +6689,98 @@ window.closePostBriefingMode = function() {
 };
 
 /* ===== TRIGGER: Generar Resumen (CORREGIDO) ===== */
+/* ===== TRIGGER: Generar Resumen (CON SEGURIDAD) ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
 
   btn.addEventListener('click', async ()=>{
     const oldText = btn.textContent;
+    
+    // Validación Supervisor
+    const supInput = document.getElementById('briefing-supervisor');
+    if (!supInput || !supInput.value.trim()) {
+        alert("⚠️ El campo 'Supervisor' es obligatorio.");
+        supInput?.focus();
+        return;
+    }
+
     btn.textContent = 'Guardando...';
     btn.disabled = true;
     
     try {
-        // Recopilación de datos (simplificada para el ejemplo, usa tu buildPayload original si tienes lógica extra)
-        // NOTA: Aquí asumimos que buildPayload existe dentro de tu código anterior o lo has integrado.
-        // Si no, asegúrate de que la función buildPayload esté accesible. 
-        // Para asegurar que funcione con lo que tienes, copia la lógica de recolección aquí:
-        
         const team = window.TEAM_STATE || {};
-        const supInput = document.getElementById('briefing-supervisor');
         
+        // 1. Roster Texto
         const peopleList = team.people || [];
         const attMap = team.attendance || {};
         const rosterList = peopleList.map(p => {
             const name = p.nombre_completo || "Sin Nombre";
             const isPresent = attMap[name] === true;
-            return `${name} (${isPresent ? "Presente" : "Ausente"})`;
+            return `${name} (${isPresent ? "✅" : "❌"})`;
         });
         
+        // 2. Kanban Texto
         const kanbanItems = [];
         ['Abiertas', 'En-Curso', 'Cerradas', 'Vencidas'].forEach(status => {
             const col = document.getElementById(`kanban_rapida-${status}`);
             if(col) {
                 col.querySelectorAll('.card').forEach(card => {
-                    kanbanItems.push(`[${status}] ${card.querySelector('.card-title')?.textContent?.trim()}`);
+                    kanbanItems.push(`[${status}] ${card.querySelector('.card-title')?.innerText?.trim()}`);
                 });
             }
         });
 
+        // 3. Ops Texto
+        let opsData = [];
+        try {
+             // Tu función OPS ya tiene un método window.OPS.list(), pero por si acaso leemos del DOM
+             const opsItems = document.querySelectorAll('#ops-list .ops-item');
+             opsItems.forEach(item => {
+                 opsData.push({
+                     title: item.querySelector('.ops-title')?.innerText || '',
+                     impact: item.querySelector('.ops-impact')?.innerText || ''
+                 });
+             });
+        } catch(e){}
+
+        // 4. SEGURIDAD (NUEVO) - Recoger de localStorage
+        let securityPayload = [];
+        try {
+            const rawSec = localStorage.getItem('sec_cards_v1') || '[]'; // Clave usada en tu initSeguridadModule
+            const parsedSec = JSON.parse(rawSec);
+            // Mapeamos al formato que espera el backend (title, desc)
+            securityPayload = parsedSec.map(c => ({
+                title: c.title || "Aviso",
+                desc: c.owner ? `Responsable: ${c.owner}` : "",
+                valid_until: null // En MAD no usas fecha de caducidad en estas tarjetas
+            }));
+        } catch (e) {
+            console.warn("Error leyendo seguridad", e);
+        }
+
         const payload = {
             station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
             date: new Date().toLocaleDateString('es-ES'),
-            shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
-            timer: document.getElementById('timer-display')?.textContent || '00:00:00',
-            supervisor: supInput ? supInput.value.trim() : "No especificado",
+            shift: document.getElementById('shift-badge-header')?.innerText || 'General', 
+            timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+            supervisor: supInput.value.trim(),
             roster_details: rosterList.join(", "),
             prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
             kanban_details: kanbanItems.join(" | "),
-            ops_updates: [], // Simplificado
+            ops_updates: opsData,
+            
+            // AÑADIDO: Enviamos las tarjetas de seguridad
+            safety_incidents: securityPayload,
+            
             kpis: {
-                "UPH": document.getElementById('kpi-uph')?.textContent?.trim(),
-                "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim()
+                "UPH": document.getElementById('kpi-uph')?.innerText,
+                "Costes": document.getElementById('kpi-total-cost')?.innerText
             },
-            checklist: {}, kanban_counts: {}, roster_stats: "", present_names: []
+            checklist: {}, 
+            kanban_counts: {}, 
+            roster_stats: "", 
+            present_names: []
         };
 
         console.log("📤 Enviando...", payload);
@@ -6717,9 +6791,8 @@ window.closePostBriefingMode = function() {
 
         if (!res.ok) throw new Error('Error servidor');
         
-        // ÉXITO
-        alert("✅ Resumen guardado.\nSe abrirá la pantalla de información.");
-        window.openPostBriefingMode(); // <--- AQUÍ SE ABRE LA PANTALLA FINAL
+        alert("✅ Resumen MAD guardado.\nSe abrirá la pantalla de información.");
+        window.openPostBriefingMode();
 
     } catch (err) {
       console.error(err);
@@ -6968,6 +7041,7 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
 
 
