@@ -4393,12 +4393,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 3. Botón Generar Resumen
    // 3. Botón Generar Resumen
-    const btnGen = document.querySelector('header .header-controls .btn-primary');
+     const btnGen = document.querySelector('header .header-controls .btn-primary');
     if (btnGen) {
         const newBtnGen = btnGen.cloneNode(true);
         btnGen.parentNode.replaceChild(newBtnGen, btnGen);
         
         newBtnGen.addEventListener('click', async () => {
+            // --- VALIDACIÓN DE SUPERVISOR (NUEVO) ---
             const supInput = document.getElementById('briefing-supervisor');
             const supVal = supInput?.value.trim();
 
@@ -4410,12 +4411,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => supInput.style.borderColor = "", 2000);
                 return; // DETIENE LA EJECUCIÓN AQUÍ
             }
+            // ----------------------------------------
+
             newBtnGen.textContent = 'Guardando...';
             newBtnGen.disabled = true;
 
             try {
                 const team = window.TEAM_STATE || {};
-                const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
                 
                 // Roster
                 const rosterList = (team.people||[]).map(p => {
@@ -4431,10 +4433,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         kanbanItems.push(`[${st}] ${c.querySelector('.card-title')?.innerText}`));
                 });
 
-                // Ops (Recuperamos las operativas reales para enviarlas también)
+                // Ops
                 let opsData = [];
                 try {
-                     // Función helper existente en tu código para leer las tarjetas
                     const opsContainer = document.getElementById('ops-lines-list');
                     if(opsContainer) {
                         Array.from(opsContainer.children).forEach(card => {
@@ -4446,9 +4447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch(e) { console.warn("Error leyendo ops", e); }
 
-                // =======================================================
-                // CORRECCIÓN AQUÍ: Definir la variable ANTES del payload
-                // =======================================================
+                // Incidentes Seguridad
                 let safetyIncidentsPayload = []; 
                 try {
                     const rawSafety = localStorage.getItem('safety_manual_incidents_v1') || '[]';
@@ -4456,14 +4455,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     console.warn("Error leyendo incidentes de seguridad", e);
                 }
-                // =======================================================
 
                 const payload = {
                     station: "BCN",
                     date: new Date().toLocaleDateString('es-ES'),
                     shift: document.getElementById('shift-badge-header')?.innerText || 'General',
                     timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-                    supervisor: supVal,
+                    supervisor: supVal, // Usamos el valor validado
                     checklist: {}, 
                     kpis: {
                         "UPH": document.getElementById('kpi-uph')?.innerText,
@@ -4473,8 +4471,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
                     kanban_details: kanbanItems.join(" | "),
                     ops_updates: opsData,
-                    
-                    // Aquí usamos la variable que acabamos de definir arriba
                     safety_incidents: safetyIncidentsPayload
                 };
 
