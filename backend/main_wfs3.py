@@ -343,7 +343,7 @@ class TaskNoteUpdate(BaseModel):
     note: str | None = None
 
 class BriefingSnapshot(BaseModel):
-    station: Optional[str] = STATION_CODE  # Usa la variable dinámica
+    station: Optional[str] = STATION_NAME  # Usa la variable dinámica
     date: str
     shift: str
     timer: str
