@@ -632,6 +632,7 @@ class BriefingSnapshot(BaseModel):
     prev_shift_note: str = ""
     present_names: List[str] = []
     ops_updates: List[Dict[str, Any]] = []
+    safety_incidents: List[Dict[str, Any]] = [] 
     kanban_counts: Dict[str, int] = {}
     roster_stats: str = ""
 
@@ -683,6 +684,18 @@ async def send_to_excel_online(data: BriefingSnapshot):
         ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
         ops_text = " | ".join(ops_lines)
 
+    safety_text = "Sin incidentes reportados"
+    if data.safety_incidents:
+        safe_lines = []
+        for inc in data.safety_incidents:
+            # Formato: [TÍTULO] Descripción (Vence: Fecha)
+            titulo = inc.get('title', 'Sin título')
+            desc = inc.get('desc', '')
+            valid = f" (Vence: {inc.get('valid_until')})" if inc.get('valid_until') else ""
+            safe_lines.append(f"[{titulo}] {desc}{valid}")
+        safety_text = " | ".join(safe_lines)
+    # -------------------------------------------------------
+
     # Payload que coincide con el esquema JSON de Power Automate
     payload = {
         "fecha": str(data.date),
@@ -693,7 +706,11 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
-        "actualizaciones_ops": str(ops_text)
+        "actualizaciones_ops": str(ops_text),
+        
+        # --- AÑADIR ESTA CLAVE AL DICCIONARIO ---
+        "incidentes_seguridad": str(safety_text)
+        # ----------------------------------------
     }
     
     print(f"📤 Enviando a Excel BCN: {json.dumps(payload)}")
@@ -1961,6 +1978,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
