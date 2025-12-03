@@ -1559,15 +1559,14 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 </div>
 
 <div class="widget" id="ehs-widget">
-<h2 class="widget-title">Días sin incidentes</h2>
-<div class="ehs-month" id="ehs-month">—</div>
-<div id="ehs-spin" class="ehs-controls" role="spinbutton"
-aria-label="Días sin incidentes del mes actual"
-aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-<div class="ehs-big" id="ehs-days">0</div>
-<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
-</div>
+  <h2 class="widget-title">Días sin incidentes</h2>
+  <div class="ehs-month" id="ehs-month">—</div>
+  <!-- CAMBIO: Sin botones +/-, solo el número con evento de doble clic -->
+  <div id="ehs-spin" class="ehs-controls" role="spinbutton" 
+       style="justify-content: center; cursor: pointer;" 
+       title="Doble clic para reportar incidente (Reset a 0)">
+      <div class="ehs-big" id="ehs-days">0</div>
+  </div>
 </div>
 </section>
 </div>
@@ -2065,28 +2064,54 @@ setInterval(paintDateTimeAndShift, 60000);
 /* ==========================
  EHS simple
 ========================== */
+/* EHS Automático (WFS1 MAD) */
 function initEhsSimple(){
-const now=new Date();
-const year=now.getFullYear();
-const month=now.getMonth();
-const daysInMonth=new Date(year,month+1,0).getDate();
-const monthEl=document.getElementById('ehs-month');
-const daysEl=document.getElementById('ehs-days');
-const spin=document.getElementById('ehs-spin');
-if (!monthEl || !daysEl || !spin) return;
-monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-const keyMonth=`${year}-${month+1}`;
-const lastKey=localStorage.getItem('ehs_month_key');
-let days=Number(localStorage.getItem('ehs_days_month'))||0;
-if (lastKey!==keyMonth) days=0;
-function render(){
-days=Math.max(0,Math.min(daysInMonth,Math.trunc(days)));
-daysEl.textContent = days;
-spin.setAttribute('aria-valuemin','0');
-spin.setAttribute('aria-valuemax',String(daysInMonth));
-spin.setAttribute('aria-valuenow',String(days));
-localStorage.setItem('ehs_days_month',String(days));
-localStorage.setItem('ehs_month_key',keyMonth);
+    const daysEl = document.getElementById('ehs-days');
+    const monthEl = document.getElementById('ehs-month');
+    const container = document.getElementById('ehs-spin');
+    
+    if (!daysEl) return;
+    
+    // Mes actual visual
+    const now = new Date();
+    if(monthEl) monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+
+    // Clave única para esta estación
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_wfs1_mad_v1';
+
+    function render() {
+        const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
+        // Si no hay fecha guardada, asumimos hoy (0 días)
+        let lastDate = lastDateStr ? new Date(lastDateStr) : new Date();
+        
+        // Resetear horas para comparar solo días naturales
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        lastDate.setHours(0,0,0,0);
+
+        // Diferencia en milisegundos a días
+        const diffTime = today - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        daysEl.textContent = Math.max(0, diffDays);
+    }
+
+    // Doble clic para reportar un incidente hoy (Reinicia a 0)
+    if(container) {
+        container.addEventListener('dblclick', () => {
+            if(confirm("¿Reportar incidente en WFS1 MAD hoy? El contador se reiniciará a 0.")) {
+                localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+                render();
+            }
+        });
+    }
+
+    // Inicializar fecha si es la primera vez que se usa
+    if(!localStorage.getItem(KEY_LAST_INCIDENT)){
+        localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+    }
+
+    render();
 }
 const inc=()=>{ if(days<daysInMonth){ days++; render(); } };
 const dec=()=>{ if(days>0){ days--; render(); } };
@@ -3833,156 +3858,122 @@ try{ initSafetyDailyWidget(); }catch(e){ console.error('Safety widget', e); }
 
 updateSpotlightRouting?.();
 /* ===== Briefing: Generar Resumen BCN Completo ===== */
+/* ===== Briefing: Generar Resumen con SUPERVISOR, KANBAN y SEGURIDAD ===== */
 (function wireBriefingGenerate(){
-const btn = document.querySelector('header .header-controls .btn-primary');
-if (!btn) return;
+  const btn = document.querySelector('header .header-controls .btn-primary');
+  if (!btn) return;
 
-// Crear pequeño estado visual
-const status = document.createElement('small');
-status.style.marginLeft = '8px';
-status.style.color = 'var(--text-muted)';
-btn.parentElement.appendChild(status);
+  function buildPayload(){
+    const station = (window.STATION_OVERRIDE || 'WFS1').toUpperCase();
 
-// --- 1. Recolectar TODOS los datos ---
-function buildPayload(){
-const station = (window.STATION_OVERRIDE || 'WFS3').toUpperCase();
-const team = (window.TEAM_STATE || {});
-const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
-const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
+    // 1. Datos básicos
+    const team = (window.TEAM_STATE || {});
+    const supInput = document.getElementById('briefing-supervisor');
+    const supervisorVal = supInput ? supInput.value.trim() : "No especificado";
 
-// 1. CRONÓMETRO & SUPERVISOR
-const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
-const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
+    // 2. Equipo
+    const peopleList = team.people || [];
+    const attMap = team.attendance || {};
+    const rosterList = peopleList.map(p => {
+        const name = p.nombre_completo || "Sin Nombre";
+        const isPresent = attMap[name] === true;
+        return `${name} (${isPresent ? "✅" : "❌"})`;
+    });
+    const rosterString = rosterList.length > 0 ? rosterList.join(", ") : "Sin datos de equipo";
 
-// 2. INFO TURNO ANTERIOR
-const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
+    // 3. Kanban
+    let kanbanLines = [];
+    const kanbanWidget = document.getElementById('kanban-widget');
+    if (kanbanWidget) {
+        const cards = kanbanWidget.querySelectorAll('.card');
+        cards.forEach(card => {
+            const title = card.querySelector('.card-title')?.textContent?.trim() || 'Sin título';
+            const resp = card.querySelector('.assignee')?.textContent?.trim();
+            const column = card.closest('.cards-container');
+            const status = column ? column.getAttribute('data-status') : 'Desconocido';
+            kanbanLines.push(`[${status}] ${title} ${resp && resp !== 'Sin asignar' ? '('+resp+')' : ''}`);
+        });
+    }
+    const kanbanString = kanbanLines.length > 0 ? kanbanLines.join(" | ") : "Sin feedback registrado";
 
-// 3. CHECKLIST
-const checklist = {};
-document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
-.forEach(r => { checklist[r.name] = r.value; });
+    // 4. SEGURIDAD (NUEVO: Recuperar tarjetas del localStorage)
+    let securityPayload = [];
+    try {
+        // Usamos la misma clave que defines en initSeguridadModule: `sec_cards_${station}_v1`
+        const secKey = `sec_cards_${station}_v1`; 
+        const rawSec = localStorage.getItem(secKey) || '[]';
+        const parsedSec = JSON.parse(rawSec);
+        
+        securityPayload = parsedSec.map(c => ({
+            title: c.title || "Aviso Seguridad",
+            desc: c.owner ? `Responsable: ${c.owner}` : ""
+        }));
+    } catch (e) {
+        console.warn("Error recuperando tarjetas de seguridad", e);
+    }
 
-// 4. EQUIPO (Lógica para Excel y GitHub)
-const peopleList = team.people || [];
-const attMap = team.attendance || {};
+    return {
+      station: station,
+      date: new Date().toLocaleDateString('es-ES'),
+      shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
+      timer: document.getElementById('timer-display')?.textContent || '00:00:00',
+      supervisor: supervisorVal,
+      
+      roster_details: rosterString,
+      prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
+      
+      kanban_details: kanbanString, 
 
-// Lista para GitHub (Solo nombres presentes)
-const presentNames = peopleList
-.filter(p => attMap[p.nombre_completo] === true)
-.map(p => p.nombre_completo);
+      // Tarjetas de OPS (del DOM)
+      ops_updates: Array.from(document.querySelectorAll('#ops-list .ops-item')).map(c => ({
+          title: c.querySelector('.ops-title')?.textContent?.trim() || '',
+          impact: c.querySelector('.ops-impact')?.textContent?.trim() || ''
+      })),
+      
+      // Tarjetas de Seguridad (del LocalStorage) -> Backend lo convertirá a texto
+      safety_incidents: securityPayload,
 
-// Texto detallado para Excel (Nombre + Icono estado)
-// Genera: "Juan (✅), Pepe (❌), Ana (✅)"
-const rosterDetailsArr = peopleList.map(p => {
-const name = p.nombre_completo || "Sin Nombre";
-const isPresent = attMap[name] === true;
-return `${name} (${isPresent ? "✅" : "❌"})`;
-});
-const rosterDetailsStr = rosterDetailsArr.length > 0 ? rosterDetailsArr.join(", ") : "Sin datos de equipo";
+      kpis: {
+        "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
+        "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
+      },
+      checklist: {}, kanban_counts: {}, roster_stats: "", present_names: []
+    };
+  }
 
-const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
+  btn.addEventListener('click', async ()=>{
+    const supInput = document.getElementById('briefing-supervisor');
+    if (!supInput || !supInput.value.trim()) {
+        alert("⚠️ El campo 'Supervisor' es obligatorio.");
+        supInput?.focus();
+        return;
+    }
 
-// 5. KPIs y OPS
-// Nota: En BCN usas 'ops-lines-list' y tarjetas '.ops-line-card' en lugar de '.ops-item'
-// Adaptamos el selector para que funcione con tu HTML de BCN
-const opsCards = document.querySelectorAll('.ops-line-card, .ops-item'); 
-const ops = Array.from(opsCards).map(card => ({
-title: card.querySelector('.ops-line-title, .ops-title')?.textContent?.trim() || '',
-impact: card.dataset.priority || card.querySelector('.ops-impact')?.textContent?.trim() || '',
-scope: 'General' // En BCN parece que no usas scope explícito en tarjetas de líneas
-}));
+    const oldText = btn.textContent;
+    btn.textContent = 'Guardando...';
+    btn.disabled = true;
+    
+    try {
+      const payload = buildPayload();
+      console.log("Enviando Resumen WFS1:", payload);
 
-const kpis = {
-"UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
-"OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '-',
-"Backlog": document.getElementById('kpi-backlog')?.textContent?.trim() || '-',
-"Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
-};
+      const res = await fetch('/api/briefing/summary', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
 
-const kanbanCounts = {
-"Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
-"En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
-"Cerradas": document.querySelectorAll('#kanban_rapida-Cerradas .card').length
-};
-
-// Payload exacto para BriefingSnapshot en main_bcn.py
-return {
-station, date, shift, 
-timer: timerVal,
-supervisor: supVal,            
-prev_shift_note: prevShiftNote,
-checklist,
-
-// Datos de equipo
-roster_stats: rosterStats,
-present_names: presentNames,   // Para Markdown
-roster_details: rosterDetailsStr, // Para Excel (Texto largo)
-
-ops_updates: ops,
-kpis,
-kanban_counts: kanbanCounts
-};
-}
-
-// --- 2. Diálogo de Confirmación ---
-function showSummaryDialog(text, logMsg){
-let dlg = document.getElementById('briefing-summary-dialog');
-if (!dlg){
-dlg = document.createElement('dialog');
-dlg.id = 'briefing-summary-dialog';
-dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
-dlg.innerHTML = `
-       <form method="dialog" style="display:grid;gap:12px;">
-         <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado (WFS3)</h3>
-         <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
-         <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
-         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
-           <button class="btn-compact" value="cancel">Cerrar</button>
-           <button type="button" id="btn-copy-summary" class="btn-primary">Copiar Texto</button>
-         </div>
-       </form>`;
-document.body.appendChild(dlg);
-
-dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
-const txt = dlg.querySelector('#briefing-content').innerText;
-try { await navigator.clipboard.writeText(txt); alert('Copiado al portapapeles'); } 
-catch(e) { alert('Error copiando automática, selecciona y copia.'); }
-});
-}
-
-dlg.querySelector('#briefing-content').textContent = text;
-dlg.querySelector('#briefing-log').textContent = logMsg || "";
-try{ dlg.showModal(); }catch{ dlg.setAttribute('open',true); }
-}
-
-// --- 3. Envío al Servidor ---
-btn.addEventListener('click', async ()=>{
-const oldText = btn.textContent;
-btn.textContent = 'Guardando...';
-btn.disabled = true;
-
-try {
-const payload = buildPayload();
-console.log("📤 Enviando WFS3:", payload);
-
-const res = await fetch('/api/briefing/summary', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(payload)
-});
-
-if (!res.ok) throw new Error('Error en servidor');
-const respData = await res.json();
-showSummaryDialog(respData.summary, respData.log);
-
-} catch (err) {
-console.error(err);
-alert('Error al guardar resumen. Revisa la consola.');
-} finally {
-btn.textContent = oldText;
-btn.disabled = false;
-}
-});
+      if (!res.ok) throw new Error('Error servidor');
+      
+      alert("✅ Resumen WFS1 guardado.\nSe abrirá la pantalla de información.");
+      window.openPostBriefingMode();
+      
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar.');
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+    }
+  });
 })();
 });
 </script>
