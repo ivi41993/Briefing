@@ -669,7 +669,7 @@ async def save_briefing_summary(data: BriefingSnapshot):
     lines.append(f"\n**👥 Equipo:**\n{data.roster_details}")
     lines.append(f"\n**↩️ Turno Anterior:**\n{data.prev_shift_note}")
     lines.append(f"\n**📊 KPIs:** UPH: {data.kpis.get('UPH')} | Costes: {data.kpis.get('Costes')}")
-    lines.append(f"\n**🗣️ Feedback:**\n{data.kanban_details}")
+    lines.append(f"\n**🗣️ Feedback info:**\n{data.kanban_details}")
     
     final_markdown = "\n".join(lines)
 
