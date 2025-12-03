@@ -4392,6 +4392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
 
     // 3. Botón Generar Resumen
+   // 3. Botón Generar Resumen
     const btnGen = document.querySelector('header .header-controls .btn-primary');
     if (btnGen) {
         const newBtnGen = btnGen.cloneNode(true);
@@ -4405,11 +4406,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const team = window.TEAM_STATE || {};
                 const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
                 
+                // Roster
                 const rosterList = (team.people||[]).map(p => {
                     const isP = (team.attendance||{})[p.nombre_completo] === true;
                     return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
                 }).join(", ") || "Sin datos";
 
+                // Kanban
                 const kanbanItems = [];
                 ['Abiertas','En-Curso','Cerradas','Vencidas'].forEach(st => {
                     const col = document.getElementById(`kanban_rapida-${st}`);
@@ -4417,13 +4420,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         kanbanItems.push(`[${st}] ${c.querySelector('.card-title')?.innerText}`));
                 });
 
+                // Ops (Recuperamos las operativas reales para enviarlas también)
+                let opsData = [];
+                try {
+                     // Función helper existente en tu código para leer las tarjetas
+                    const opsContainer = document.getElementById('ops-lines-list');
+                    if(opsContainer) {
+                        Array.from(opsContainer.children).forEach(card => {
+                            opsData.push({
+                                title: card.querySelector('.ops-line-title')?.innerText || '',
+                                impact: card.querySelector('.ops-badge')?.innerText || 'General'
+                            });
+                        });
+                    }
+                } catch(e) { console.warn("Error leyendo ops", e); }
+
+                // =======================================================
+                // CORRECCIÓN AQUÍ: Definir la variable ANTES del payload
+                // =======================================================
+                let safetyIncidentsPayload = []; 
+                try {
+                    const rawSafety = localStorage.getItem('safety_manual_incidents_v1') || '[]';
+                    safetyIncidentsPayload = JSON.parse(rawSafety);
+                } catch (e) {
+                    console.warn("Error leyendo incidentes de seguridad", e);
+                }
+                // =======================================================
+
                 const payload = {
                     station: "BCN",
                     date: new Date().toLocaleDateString('es-ES'),
                     shift: document.getElementById('shift-badge-header')?.innerText || 'General',
                     timer: document.getElementById('timer-display')?.innerText || '00:00:00',
                     supervisor: supVal,
-                    checklist: {}, // opcional rellenar
+                    checklist: {}, 
                     kpis: {
                         "UPH": document.getElementById('kpi-uph')?.innerText,
                         "Costes": document.getElementById('kpi-total-cost')?.innerText
@@ -4431,7 +4461,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     roster_details: rosterList,
                     prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
                     kanban_details: kanbanItems.join(" | "),
-                    ops_updates: [],
+                    ops_updates: opsData,
+                    
+                    // Aquí usamos la variable que acabamos de definir arriba
                     safety_incidents: safetyIncidentsPayload
                 };
 
