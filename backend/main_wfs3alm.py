@@ -28,10 +28,10 @@ load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
 # Configuración específica WFS3
-STATION_NAME = "WFS3 MAD"
+STATION_NAME = "WFS3 MAD ALM"
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
-TASKS_DB = os.getenv("TASKS_DB_WFS3", "./data/tasks_wfs3.json")
-PERSONS_DB = os.getenv("PERSONS_DB_WFS3", "./data/roster_persons_wfs3.json")
+TASKS_DB = os.getenv("TASKS_DB_WFS3ALM", "./data/tasks_wfs3alm.json")
+PERSONS_DB = os.getenv("PERSONS_DB_WFS3ALM", "./data/roster_persons_wfs3alm.json")
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx") # Puede ser compartido o único
 
 # Configuración GitHub (Reutilizable o específica según variable de entorno)
@@ -133,7 +133,7 @@ class TaskNoteUpdate(BaseModel):
     note: str | None = None
 
 class BriefingSnapshot(BaseModel):
-    station: Optional[str] = "WFS3"  # Ajustado para WFS3
+    station: Optional[str] = "WFS3ALM"  # Ajustado para WFS3
     date: str
     shift: str
     timer: str        # Requerido
@@ -157,7 +157,7 @@ manual_persons_store: Dict[str, Any] = {}
 def _atomic_write_json(path: str, data: Any):
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_wfs3_", suffix=".json")
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".tmp_wfs3alm_", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False)
@@ -173,7 +173,7 @@ def save_tasks_to_disk():
         payload = [t for t in tasks_in_memory_store.values()]
         _atomic_write_json(TASKS_DB, payload)
     except Exception as e:
-        print("⚠️ Error guardando tareas WFS3:", repr(e))
+        print("⚠️ Error guardando tareas WFS3ALM:", repr(e))
 
 def load_tasks_from_disk():
     try:
@@ -184,16 +184,16 @@ def load_tasks_from_disk():
         tasks_in_memory_store.clear()
         for t in arr or []:
             if t.get("id"): tasks_in_memory_store[t["id"]] = t
-        print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas WFS3")
+        print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas WFS3ALM")
     except Exception as e:
-        print("⚠️ Error leyendo tareas WFS3:", repr(e))
+        print("⚠️ Error leyendo tareas WFS3ALM:", repr(e))
 
 def save_persons_to_disk():
     try:
         payload = list(manual_persons_store.values())
         _atomic_write_json(PERSONS_DB, payload)
     except Exception as e:
-        print("⚠️ Error guardando personas WFS3:", repr(e))
+        print("⚠️ Error guardando personas WFS3ALM:", repr(e))
 
 def load_persons_from_disk():
     try:
@@ -257,7 +257,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
-        "origen": "WFS3"
+        "origen": "WFS3ALM"
     }
     
     print(f"📤 Enviando a Excel WFS3ALM: {json.dumps(payload)}")
@@ -296,7 +296,7 @@ async def save_briefing_summary(data: BriefingSnapshot):
     # 2. Guardar con Timestamp y Sufijo WFS3
     safe_date = data.date.replace("/", "-")
     timestamp = datetime.now().strftime("%H-%M-%S")
-    filename = f"{safe_date}_{data.shift}_{timestamp}_Briefing_WFS3.md"
+    filename = f"{safe_date}_{data.shift}_{timestamp}_Briefing_WFS3alm.md"
     store_path = f"summaries_wfs3/{filename}" # Carpeta separada opcional, o prefijo en nombre
 
     try:
@@ -392,7 +392,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def startup():
     load_tasks_from_disk()
     load_persons_from_disk()
-    print("🚀 WFS3 MAD Backend Iniciado")
+    print("🚀 WFS3 ALM MAD Backend Iniciado")
 
 # Servir Frontend WFS3
 # Asumimos que index_wfs3.html estará en una carpeta llamada 'frontend_wfs3alm'
@@ -404,4 +404,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     # PUERTO LOCAL 8002 COMO SOLICITADO
-    uvicorn.run("main_wfs3alm:app", host="0.0.0.0", port=10010, reload=True)
+    uvicorn.run("main_wfs3alm:app", host="0.0.0.0", port=10090, reload=True)
