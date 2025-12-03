@@ -1925,14 +1925,14 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 <small class="kpi-text" id="prev-shift-saved-hint"></small>
   </div> 
 <div class="widget" id="ehs-widget">
-<h2 class="widget-title">Días sin incidentes</h2>
-<div class="ehs-month" id="ehs-month">—</div>
-<div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual"
-aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-<div class="ehs-big" id="ehs-days">0</div>
-<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
-</div>
+  <h2 class="widget-title">Días sin incidentes</h2>
+  <div class="ehs-month" id="ehs-month">—</div>
+  <!-- CAMBIO: Sin botones +/-, solo el número con evento de doble clic -->
+  <div id="ehs-spin" class="ehs-controls" role="spinbutton" 
+       style="justify-content: center; cursor: pointer;" 
+       title="Doble clic para reportar incidente (Reset a 0)">
+      <div class="ehs-big" id="ehs-days">0</div>
+  </div>
 </div>
 </section>
 </div>
@@ -2625,20 +2625,54 @@ try{ const cached = JSON.parse(localStorage.getItem('kpi_total_cost')||'null'); 
 }
 
 /* EHS simple */
+/* EHS Automático (WFS1 MAD) */
 function initEhsSimple(){
-const now=new Date(); const year=now.getFullYear(), month=now.getMonth();
-const daysInMonth=new Date(year,month+1,0).getDate();
-const monthEl=document.getElementById('ehs-month'); const daysEl=document.getElementById('ehs-days'); const spinEl=document.getElementById('ehs-spin');
-monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-const monthKey=`${year}-${month+1}`; const lastKey=localStorage.getItem('ehs_month_key'); let days=Number(localStorage.getItem('ehs_days_month'))||0; if(lastKey!==monthKey) days=0;
-function render(){ days=Math.max(0,Math.min(daysInMonth,Math.trunc(days))); daysEl.textContent=days; spinEl.setAttribute('aria-valuemin','0'); spinEl.setAttribute('aria-valuemax',String(daysInMonth)); spinEl.setAttribute('aria-valuenow',String(days));
-localStorage.setItem('ehs_days_month',String(days)); localStorage.setItem('ehs_month_key',monthKey); }
-const inc=()=>{ if(days<daysInMonth){ days+=1; render(); } }; const dec=()=>{ if(days>0){ days-=1; render(); } };
-spinEl.querySelectorAll('.ehs-btn').forEach(btn=>btn.addEventListener('click',()=> (btn.dataset.op==='inc'?inc():dec())));
-spinEl.addEventListener('keydown',(e)=>{ if(e.key==='ArrowUp'||e.key==='ArrowRight'){e.preventDefault();inc();} if(e.key==='ArrowDown'||e.key==='ArrowLeft'){e.preventDefault();dec();}
-if(e.key==='PageUp'){e.preventDefault();days=Math.min(daysInMonth,days+5);render();} if(e.key==='PageDown'){e.preventDefault();days=Math.max(0,days-5);render();}
-if(e.key==='Home'){e.preventDefault();days=0;render();} if(e.key==='End'){e.preventDefault();days=daysInMonth;render();} });
-render();
+    const daysEl = document.getElementById('ehs-days');
+    const monthEl = document.getElementById('ehs-month');
+    const container = document.getElementById('ehs-spin');
+    
+    if (!daysEl) return;
+    
+    // Mes actual visual
+    const now = new Date();
+    if(monthEl) monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+
+    // Clave única para esta estación
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_wfs1_mad_v1';
+
+    function render() {
+        const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
+        // Si no hay fecha guardada, asumimos hoy (0 días)
+        let lastDate = lastDateStr ? new Date(lastDateStr) : new Date();
+        
+        // Resetear horas para comparar solo días naturales
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        lastDate.setHours(0,0,0,0);
+
+        // Diferencia en milisegundos a días
+        const diffTime = today - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        daysEl.textContent = Math.max(0, diffDays);
+    }
+
+    // Doble clic para reportar un incidente hoy (Reinicia a 0)
+    if(container) {
+        container.addEventListener('dblclick', () => {
+            if(confirm("¿Reportar incidente en WFS1 MAD hoy? El contador se reiniciará a 0.")) {
+                localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+                render();
+            }
+        });
+    }
+
+    // Inicializar fecha si es la primera vez que se usa
+    if(!localStorage.getItem(KEY_LAST_INCIDENT)){
+        localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+    }
+
+    render();
 }
 
 /* Equipo (roster) */
@@ -4036,11 +4070,14 @@ async function loadAllTasks(){
 })();
 
 /* ===== Briefing: Generar Resumen con SUPERVISOR y KANBAN (CORREGIDO) ===== */
+/* ===== Briefing: Generar Resumen con SUPERVISOR, KANBAN y SEGURIDAD ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
 
   function buildPayload(){
+    const station = (window.STATION_OVERRIDE || 'WFS2').toUpperCase();
+
     // 1. Datos básicos
     const team = (window.TEAM_STATE || {});
     const supInput = document.getElementById('briefing-supervisor');
@@ -4056,34 +4093,39 @@ async function loadAllTasks(){
     });
     const rosterString = rosterList.length > 0 ? rosterList.join(", ") : "Sin datos de equipo";
 
-    // 3. === RECOLECCIÓN KANBAN (MEJORADA) ===
+    // 3. Kanban
     let kanbanLines = [];
-    
-    // Buscamos todas las tarjetas dentro del widget Kanban
     const kanbanWidget = document.getElementById('kanban-widget');
     if (kanbanWidget) {
         const cards = kanbanWidget.querySelectorAll('.card');
-        
         cards.forEach(card => {
-            // Título
             const title = card.querySelector('.card-title')?.textContent?.trim() || 'Sin título';
-            // Responsable
             const resp = card.querySelector('.assignee')?.textContent?.trim();
-            // Estado (buscamos la columna padre)
             const column = card.closest('.cards-container');
             const status = column ? column.getAttribute('data-status') : 'Desconocido';
-            
-            // Formato: [Abiertas] Título (Responsable)
             kanbanLines.push(`[${status}] ${title} ${resp && resp !== 'Sin asignar' ? '('+resp+')' : ''}`);
         });
     }
-
-    // Si está vacío, enviamos un texto explícito para probar
     const kanbanString = kanbanLines.length > 0 ? kanbanLines.join(" | ") : "Sin feedback registrado";
-    // =========================================
+
+    // 4. SEGURIDAD (NUEVO: Recuperar tarjetas del localStorage)
+    let securityPayload = [];
+    try {
+        // Usamos la misma clave que defines en initSeguridadModule: `sec_cards_${station}_v1`
+        const secKey = `sec_cards_${station}_v1`; 
+        const rawSec = localStorage.getItem(secKey) || '[]';
+        const parsedSec = JSON.parse(rawSec);
+        
+        securityPayload = parsedSec.map(c => ({
+            title: c.title || "Aviso Seguridad",
+            desc: c.owner ? `Responsable: ${c.owner}` : ""
+        }));
+    } catch (e) {
+        console.warn("Error recuperando tarjetas de seguridad", e);
+    }
 
     return {
-      station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
+      station: station,
       date: new Date().toLocaleDateString('es-ES'),
       shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
       timer: document.getElementById('timer-display')?.textContent || '00:00:00',
@@ -4092,14 +4134,17 @@ async function loadAllTasks(){
       roster_details: rosterString,
       prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
       
-      // CAMPO CLAVE
       kanban_details: kanbanString, 
 
+      // Tarjetas de OPS (del DOM)
       ops_updates: Array.from(document.querySelectorAll('#ops-list .ops-item')).map(c => ({
           title: c.querySelector('.ops-title')?.textContent?.trim() || '',
           impact: c.querySelector('.ops-impact')?.textContent?.trim() || ''
       })),
       
+      // Tarjetas de Seguridad (del LocalStorage) -> Backend lo convertirá a texto
+      safety_incidents: securityPayload,
+
       kpis: {
         "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
         "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
@@ -4109,25 +4154,29 @@ async function loadAllTasks(){
   }
 
   btn.addEventListener('click', async ()=>{
+    const supInput = document.getElementById('briefing-supervisor');
+    if (!supInput || !supInput.value.trim()) {
+        alert("⚠️ El campo 'Supervisor' es obligatorio.");
+        supInput?.focus();
+        return;
+    }
+
     const oldText = btn.textContent;
     btn.textContent = 'Guardando...';
     btn.disabled = true;
     
     try {
       const payload = buildPayload();
-      
-      // --- DEBUG: ALERTA PARA VERIFICAR DATOS ---
-      // Si aquí sale "Sin tarjetas..." es que el JS no las ve.
-      // Si aquí salen las tareas, el problema es Power Automate.
-      console.log("Enviando Feedback:", payload.kanban_details);
-      // ------------------------------------------
+      console.log("Enviando Resumen WFS2:", payload);
 
       const res = await fetch('/api/briefing/summary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
 
       if (!res.ok) throw new Error('Error servidor');
-      alert("✅ Guardado.\nFeedback enviado: " + payload.kanban_details.substring(0, 100) + "...");
+      
+      alert("✅ Resumen WFS2 guardado.\nSe abrirá la pantalla de información.");
+      window.openPostBriefingMode();
       
     } catch (err) {
       console.error(err);
