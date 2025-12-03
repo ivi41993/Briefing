@@ -2079,109 +2079,111 @@ h1.textContent = `Factory Floor Dashboard - ${STATION_CODE}`;
 /* ==========================
 Cronómetro Header
 ========================== */
+/* ==========================
+   Cronómetro Header (CORREGIDO)
+   ========================== */
 (function(){
-const KEY='header_big_timer_v1';
-let running=false, startedAt=0, elapsed=0, tick=null;
+    const KEY='header_big_timer_v1';
+    // 4 minutos en milisegundos para la alerta roja
+    const ALERT_MS = 4 * 60 * 1000; 
+    let running=false, startedAt=0, elapsed=0, tick=null;
 
-const $ = id => document.getElementById(id);
-const host = $('timer-widget');
-const display = $('timer-display');
-const resetBtn = $('timer-reset');
+    // Referencias tardías (se buscan al iniciar initHeaderTimer)
+    let display, resetBtn, host;
 
-function fmt(ms){
-const t = Math.floor(ms/1000);
-const h = Math.floor(t/3600);
-const m = Math.floor((t%3600)/60);
-const s = t%60;
-return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-}
-// DENTRO DEL MÓDULO DEL CRONÓMETRO
-  function paint(){
-    const nowMs = running ? (Date.now() - startedAt) : elapsed;
-    const clamped = Math.min(nowMs, STOP_MS);
-    
-    // Actualizar texto
-    display.textContent = fmt(clamped);
-
-    // ALERTA: Si pasa de 4 minutos (240.000 ms), activar modo rojo
-    const ALERT_THRESHOLD = 4 * 60 * 1000; 
-    
-    if (clamped >= ALERT_THRESHOLD) {
-        display.classList.add('alert-mode');
-    } else {
-        display.classList.remove('alert-mode');
+    function fmt(ms){
+        const t = Math.floor(ms/1000);
+        const h = Math.floor(t/3600);
+        const m = Math.floor((t%3600)/60);
+        const s = t%60;
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
 
-    // Auto-stop al límite (10 min)
-    if (running && nowMs >= STOP_MS){
-      running = false;
-      elapsed = STOP_MS;
-      clearInterval(tick); tick=null;
-      setUI(); save();
+    function paint(){
+        if(!display) return;
+        const nowMs = running ? (Date.now() - startedAt) : elapsed;
+        
+        // 1. Pintar tiempo
+        display.textContent = fmt(nowMs);
+
+        // 2. Alerta Roja si pasa de 4 minutos
+        if (nowMs >= ALERT_MS) {
+            display.classList.add('alert-mode'); // Requiere CSS de alerta
+            display.style.color = '#dc2626';     // Fallback directo
+        } else {
+            display.classList.remove('alert-mode');
+            display.style.color = '';
+        }
     }
-  }
-function save(){
-try{
-localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
-}catch(e){}
-}
-function load(){
-try{
-const s = JSON.parse(localStorage.getItem(KEY)||'null');
-if(!s) return;
-running = !!s.running;
-elapsed = Number(s.elapsed)||0;
-startedAt = Number(s.startedAt)||0;
-if (running){
-const now=Date.now();
-elapsed = Math.max(elapsed, now-startedAt);
-startedAt = now - elapsed;
-}
-}catch(e){}
-}
-function setUI(){
-if (!host) return;
-host.classList.toggle('timer-running', running);
-if (resetBtn) resetBtn.disabled = (!running && elapsed===0);
-}
-function start(){
-if (running) return;
-running = true;
-startedAt = Date.now() - elapsed;
-tick = setInterval(paint, 250);
-setUI(); paint(); save();
-}
-function pause(){
-if (!running) return;
-running = false;
-elapsed = Date.now() - startedAt;
-clearInterval(tick); tick=null;
-setUI(); paint(); save();
-}
-function reset(){
-running = false; startedAt = 0; elapsed = 0;
-clearInterval(tick); tick=null;
-setUI(); paint(); save();
-}
 
-display?.addEventListener('click', ()=> (running ? pause() : start()));
+    function save(){
+        try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch(e){}
+    }
 
-// 1. Comentamos esta línea para que no choque con el botón de abajo
-// resetBtn?.addEventListener('click', reset); 
+    function load(){
+        try{
+            const s = JSON.parse(localStorage.getItem(KEY)||'null');
+            if(!s) return;
+            running = !!s.running;
+            elapsed = Number(s.elapsed)||0;
+            startedAt = Number(s.startedAt)||0;
+            if (running){
+                const now=Date.now();
+                elapsed = Math.max(elapsed, now-startedAt);
+                startedAt = now - elapsed;
+            }
+        }catch(e){}
+    }
 
-// 2. Exponemos la función reset para poder llamarla desde el otro script
-window.resetFactoryTimer = reset; 
+    function start(){
+        if (running) return;
+        running = true;
+        startedAt = Date.now() - elapsed;
+        if(!tick) tick = setInterval(paint, 250);
+        paint(); save();
+    }
 
-document.addEventListener('visibilitychange', ()=>{
-if (!running) return;
-startedAt = Date.now() - elapsed;
-paint(); save();
-});
+    function pause(){
+        if (!running) return;
+        running = false;
+        elapsed = Date.now() - startedAt;
+        clearInterval(tick); tick=null;
+        paint(); save();
+    }
 
-window.initHeaderTimer = function(){
-load(); paint(); setUI();
-if (running && !tick) tick = setInterval(paint, 250);
-};
+    function reset(){
+        running = false; startedAt = 0; elapsed = 0;
+        clearInterval(tick); tick=null;
+        paint(); save();
+        if(display) display.style.color = ''; // Quitar rojo
+    }
+
+    // Inicializador público seguro
+    window.initHeaderTimer = function(){
+        host = document.getElementById('timer-widget');
+        display = document.getElementById('timer-display');
+        resetBtn = document.getElementById('timer-reset');
+
+        if(display) {
+            // Limpiamos eventos previos para no duplicar
+            const newDisplay = display.cloneNode(true);
+            display.parentNode.replaceChild(newDisplay, display);
+            display = newDisplay;
+
+            // Asignar click para iniciar/pausar
+            display.addEventListener('click', () => {
+                running ? pause() : start();
+            });
+            display.style.cursor = 'pointer';
+        }
+
+        // Exponer reset globalmente para el botón de reinicio de turno
+        window.resetFactoryTimer = reset;
+
+        load(); 
+        paint();
+        if (running) tick = setInterval(paint, 250);
+    };
 })();
 
 /* ==========================
