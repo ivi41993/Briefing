@@ -1004,28 +1004,10 @@ display:flex; align-items:center; gap:10px;
 border:1px solid var(--border); border-radius:12px; background:#fff; padding:8px 10px;
 }
 .timer-face{ position:relative; display:flex; align-items:center; gap:8px; }
-/* CSS CRONÓMETRO GRANDE Y PARPADEANTE */
-.header-timer .timer-display {
-    /* Tamaño mucho más grande */
-    font-size: clamp(2.5rem, 4vw, 5rem); 
-    font-weight: 800;
-    line-height: 1;
-    color: var(--brand-red-900); /* Color base más oscuro */
-    font-variant-numeric: tabular-nums;
-    cursor: pointer;
-    user-select: none;
-    transition: color 0.3s;
-}
-
-/* Clase para parpadeo rojo intenso (Alerta > 4min) */
-.timer-display.alert-mode {
-    color: #dc2626; /* Rojo vivo */
-    animation: timer-blink 1s infinite;
-}
-
-@keyframes timer-blink {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.02); color: #ef4444; }
+.timer-display{
+font-family:"Space Grotesk", Inter, system-ui, sans-serif;
+font-weight:800; letter-spacing:.5px;
+font-variant-numeric:tabular-nums; cursor:pointer; user-select:none;
 }
 .timer-dot{
 width:8px; height:8px; border-radius:50%; background:#d1d5db;
@@ -1095,17 +1077,17 @@ pointer-events: none;
 }
 /* === Navegación Guiada en Widgets === */
 .widget-nav-bar {
-    display: none;
-    justify-content: space-between;
-    align-items: center;
-    background: #fff;
-    padding: 10px 15px;
-    border-bottom: 1px solid var(--border);
-    margin: -16px -16px 16px -16px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+display: none;
+justify-content: space-between;
+align-items: center;
+background: #fff;
+padding: 10px 15px;
+border-bottom: 1px solid var(--border);
+margin: -16px -16px 16px -16px;
+position: sticky;
+top: 0;
+z-index: 100;
+box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
 .widget:fullscreen .widget-nav-bar,
 .widget.widget--zoomed .widget-nav-bar { display: flex; }
@@ -1113,15 +1095,15 @@ pointer-events: none;
 .nav-group { display: flex; gap: 10px; align-items: center; }
 
 .btn-nav {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid #d1d5db;
-    background: #f8fafc;
-    color: #334155;
+display: inline-flex; align-items: center; gap: 6px;
+padding: 8px 16px;
+border-radius: 8px;
+font-weight: 700;
+cursor: pointer;
+transition: all 0.2s;
+border: 1px solid #d1d5db;
+background: #f8fafc;
+color: #334155;
 }
 .btn-nav:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 .btn-nav:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
@@ -1131,33 +1113,33 @@ pointer-events: none;
 
 /* === PANTALLA MODO INFO (POST-BRIEFING) === */
 #post-briefing-screen {
-    display: none; position: fixed; inset: 0;
-    background-color: #f8fafc; z-index: 99999;
-    padding: 20px; flex-direction: column;
+display: none; position: fixed; inset: 0;
+background-color: #f8fafc; z-index: 99999;
+padding: 20px; flex-direction: column;
 }
 #post-briefing-screen.active { display: flex; }
 
 .pb-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0;
+display: flex; justify-content: space-between; align-items: center;
+margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0;
 }
 .pb-title { font-size: 1.8rem; font-weight: 800; color: var(--brand-red-700); font-family: "Space Grotesk", sans-serif; }
 .pb-close-btn {
-    background: #334155; color: white; border: none; padding: 10px 20px;
-    border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem;
+background: #334155; color: white; border: none; padding: 10px 20px;
+border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem;
 }
 .pb-grid {
-    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
-    gap: 20px; flex: 1; overflow: hidden;
+display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+gap: 20px; flex: 1; overflow: hidden;
 }
 .pb-card {
-    background: white; border: 1px solid #cbd5e1; border-radius: 16px;
-    padding: 20px; display: flex; flex-direction: column; overflow: hidden;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+background: white; border: 1px solid #cbd5e1; border-radius: 16px;
+padding: 20px; display: flex; flex-direction: column; overflow: hidden;
+box-shadow: 0 10px 25px rgba(0,0,0,0.05);
 }
 .pb-card-title {
-    font-size: 1.4rem; font-weight: 700; color: #475569; margin-bottom: 15px;
-    border-bottom: 4px solid var(--brand-red-500); padding-bottom: 5px; width: fit-content;
+font-size: 1.4rem; font-weight: 700; color: #475569; margin-bottom: 15px;
+border-bottom: 4px solid var(--brand-red-500); padding-bottom: 5px; width: fit-content;
 }
 .pb-content { flex: 1; overflow-y: auto; font-size: 1.1rem; line-height: 1.6; }
 .pb-content ul { padding-left: 20px; margin: 0; }
@@ -1166,8 +1148,8 @@ pointer-events: none;
 .pb-kpi-val { font-size: 3rem; font-weight: 800; color: var(--brand-red-600); display: block; }
 
 @media (max-width: 1000px) {
-    .pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
-    #post-briefing-screen { overflow-y: auto; }
+.pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
+#post-briefing-screen { overflow-y: auto; }
 }
 </style>
 </head>
@@ -1209,13 +1191,13 @@ Modo presentación
 </div>
 
 <div class="header-controls">
-    <!-- Input para el Supervisor (ID necesario para que el script lo capture) -->
-    <!-- Input del Supervisor con el ID que busca el script -->
+<!-- Input para el Supervisor (ID necesario para que el script lo capture) -->
+<!-- Input del Supervisor con el ID que busca el script -->
 <input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
-           style="padding: 8px 12px; border: 1px solid #e6e8ec; border-radius: 8px; font-size: 0.9rem; min-width: 200px;">
-     <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar nombre">
-        🎙️
-    </button>
+style="padding: 8px 12px; border: 1px solid #e6e8ec; border-radius: 8px; font-size: 0.9rem; min-width: 200px;">
+<button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar nombre">
+🎙️
+</button>
 
 
 <button class="btn-primary" type="button">Generar Resumen</button>
@@ -1349,46 +1331,21 @@ data-target="kanban-widget">
 <small class="kpi-text" id="brief-check-meta">—</small>
 </div>
 
-<!-- Diálogo alta/edición (CORREGIDO) -->
-<dialog id="ops-dialog" style="border:1px solid var(--border);border-radius:12px;padding:15px;max-width:520px;width:clamp(280px,90vw,520px);">
-    <form method="dialog" id="ops-form" style="display:grid;gap:12px;">
-        <h3 style="margin:0; color:var(--brand-red-700);">Actualizar Operativa</h3>
-        <input type="hidden" id="ops-id">
-        
-        <label>Título
-            <input id="ops-title" type="text" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-        </label>
+<!-- ACTUALIZACIONES OPERATIVAS -->
+<div class="widget" id="ops-updates-widget">
+<h2 class="widget-title">3) Actualizaciones operativas</h2>
+<div class="ops-toolbar" aria-label="Filtros actualizaciones operativas">
+<input id="ops-search" class="ops-search" type="search" placeholder="Buscar (#etiqueta, @persona, texto)…">
+<select id="ops-filter-prio" class="ops-filter" title="Filtrar prioridad">
+<option value="">Todas las prioridades</option>
+<option value="Alta">Alta (!!)</option>
+<option value="Media">Media (!)</option>
+<option value="Baja">Baja</option>
+</select>
+<button type="button" class="btn" id="ops-export">Copiar resumen</button>
+<div id="ops-lines-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-            <label>Prioridad
-                <select id="ops-impact" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-                    <option>Alto</option><option>Medio</option><option>Bajo</option>
-                </select>
-            </label>
-            <label>Ámbito
-                <select id="ops-scope-field" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-                    <option>General</option><option>Isla</option><option>Dorada</option>
-                    <option>Muelle Imp</option><option>Muelle Exp</option><option>Import</option><option>Export</option>
-                </select>
-            </label>
-        </div>
-
-        <label>Responsable (opcional)
-            <input id="ops-owner" type="text" placeholder="Ej.: @juan" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-        </label>
-
-        <!-- NUEVO CAMPO DE FECHA -->
-        <label style="font-weight:600;color:var(--text-muted);">
-            Vigente hasta:
-            <input id="ops-to" type="date" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;margin-top:4px;">
-        </label>
-
-        <menu style="display:flex;gap:10px;justify-content:flex-end;margin:0;padding-top:10px;">
-            <button type="button" class="btn-compact" value="cancel" onclick="document.getElementById('ops-dialog').close()">Cancelar</button>
-            <button type="submit" class="btn-primary" id="ops-save">Guardar</button>
-        </menu>
-    </form>
-</dialog>
+</div>
 
 
 <div class="ops-actions">
@@ -1440,6 +1397,12 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 <div class="safety-card">
 <strong>Alta manual de incidentes</strong>
 <form id="safety-form" class="incident-form" autocomplete="off">
+<input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
+<textarea id="safety-desc" rows="4" placeholder="Descripción breve, lugar, personas implicadas…" required></textarea>
+<div class="controls">
+<button type="submit" class="btn">Guardar incidente</button>
+<button type="button" class="btn" id="safety-clear">Vaciar lista</button>
+</div>
     <input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
     <textarea id="safety-desc" rows="3" placeholder="Descripción breve..." required></textarea>
     
@@ -1535,77 +1498,77 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <!-- KPIs CENTRO -->
 <!-- 6) KPIs Operativos & Estándares (AHORA CON 5S Y GW INTEGRADO) -->
 <div class="widget kpi-widget" id="kpi-center">
-  <h2 class="widget-title">6) KPIs Operativos & Estándares</h2>
+<h2 class="widget-title">6) KPIs Operativos & Estándares</h2>
 
-  <!-- PARTE SUPERIOR: KPIs Numéricos -->
-  <div class="kpi-grid">
-    <div class="kpi-tile">
-      <div class="kpi-label">Uniwin</div>
-      <div class="kpi-value" id="kpi-uph">—</div>
-      <small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
-    </div>
+<!-- PARTE SUPERIOR: KPIs Numéricos -->
+<div class="kpi-grid">
+<div class="kpi-tile">
+<div class="kpi-label">Uniwin</div>
+<div class="kpi-value" id="kpi-uph">—</div>
+<small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
+</div>
 
-    <div class="kpi-tile">
-      <div class="kpi-label">DG Autocheck</div>
-      <div class="kpi-value" id="kpi-otif">—</div>
-      <small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
-    </div>
+<div class="kpi-tile">
+<div class="kpi-label">DG Autocheck</div>
+<div class="kpi-value" id="kpi-otif">—</div>
+<small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
+</div>
 
-    <div class="kpi-tile">
-      <div class="kpi-label">CargoMobile</div>
-      <div class="kpi-value" id="kpi-backlog">—</div>
-      <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
-    </div>
+<div class="kpi-tile">
+<div class="kpi-label">CargoMobile</div>
+<div class="kpi-value" id="kpi-backlog">—</div>
+<small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
+</div>
 
-    <div class="kpi-tile" id="kpi-costes">
-      <div class="kpi-label">Costes Daños</div>
-      <div class="kpi-value" style="color:var(--brand-red-600)">
-        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
-      </div>
-      <small class="kpi-text" id="kpi-costes-meta"></small>
-    </div>
-  </div>
+<div class="kpi-tile" id="kpi-costes">
+<div class="kpi-label">Costes Daños</div>
+<div class="kpi-value" style="color:var(--brand-red-600)">
+<span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
+</div>
+<small class="kpi-text" id="kpi-costes-meta"></small>
+</div>
+</div>
 
-  <!-- SEPARADOR -->
-  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+<!-- SEPARADOR -->
+<hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
 
-  <!-- PARTE INFERIOR: 5S y GW -->
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-    
-    <!-- COLUMNA 5S -->
-    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <strong style="font-size:0.95rem;">Estado 5S</strong>
-        <small id="s5-meta" class="kpi-text">—</small>
-      </div>
-      
-      <!-- Botones 5S -->
-      <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S" style="justify-content: center;">
-        <button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
-        <button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
-        <button type="button" class="s5-pill" data-key="seiso" title="3S · Seiso"><span class="s5-dot"></span>3S</button>
-        <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu"><span class="s5-dot"></span>4S</button>
-        <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke"><span class="s5-dot"></span>5S</button>
-      </div>
-    </div>
+<!-- PARTE INFERIOR: 5S y GW -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
 
-    <!-- COLUMNA GW -->
-    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
-      </div>
+<!-- COLUMNA 5S -->
+<div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+<strong style="font-size:0.95rem;">Estado 5S</strong>
+<small id="s5-meta" class="kpi-text">—</small>
+</div>
 
-      <!-- Formulario GW -->
-      <form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-        <input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
-        <button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Subir</button>
-      </form>
-      <small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
+<!-- Botones 5S -->
+<div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S" style="justify-content: center;">
+<button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
+<button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
+<button type="button" class="s5-pill" data-key="seiso" title="3S · Seiso"><span class="s5-dot"></span>3S</button>
+<button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu"><span class="s5-dot"></span>4S</button>
+<button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke"><span class="s5-dot"></span>5S</button>
+</div>
+</div>
 
-      <!-- Lista GW -->
-      <div id="gw-tasks-dynamic-container"></div>
-    </div>
-  </div>
+<!-- COLUMNA GW -->
+<div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
+</div>
+
+<!-- Formulario GW -->
+<form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+<input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
+<button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Subir</button>
+</form>
+<small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
+
+<!-- Lista GW -->
+<div id="gw-tasks-dynamic-container"></div>
+</div>
+</div>
 </div>
 
 <!-- KANBAN FEEDBACK DIRECTO -->
@@ -1633,8 +1596,8 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 <!-- Alta Kanban BCN -->
 <form class="new-item-form" id="new-kanban-form"
 style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
-                display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
-                gap:8px; align-items:center;">
+               display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
+               gap:8px; align-items:center;">
 <select id="problem-category" name="category" required>
 <option value="" disabled selected>Selecciona categoría…</option>
 <option value="seguridad">Seguridad</option>
@@ -1661,30 +1624,30 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 
 <!-- KAIZEN (Ahora fuera del split, ocupa todo el ancho) -->
 <div class="widget" id="kaizen-widget" style="margin-top: 20px;">
-  <h2 class="widget-title">KAIZEN (Proyectos de mejora)</h2>
-  
-  <form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
-    <input type="text" name="title" placeholder="Proyecto de mejora…" required>
-    <input type="text" name="assigned_to" placeholder="Responsable…">
-    <input type="date" name="due_date" aria-label="Fecha máxima">
-    <button type="submit" class="btn-primary">Añadir</button>
-  </form>
+<h2 class="widget-title">KAIZEN (Proyectos de mejora)</h2>
 
-  <!-- Le quitamos la clase 'compact' si quieres ver 3 columnas anchas -->
-  <div class="board-container kaizen" style="margin-top:12px;">
-    <div class="kanban-column">
-      <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
-      <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
-    </div>
-    <div class="kanban-column">
-      <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
-      <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
-    </div>
-    <div class="kanban-column">
-      <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
-      <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
-    </div>
-  </div>
+<form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+<input type="text" name="title" placeholder="Proyecto de mejora…" required>
+<input type="text" name="assigned_to" placeholder="Responsable…">
+<input type="date" name="due_date" aria-label="Fecha máxima">
+<button type="submit" class="btn-primary">Añadir</button>
+</form>
+
+<!-- Le quitamos la clase 'compact' si quieres ver 3 columnas anchas -->
+<div class="board-container kaizen" style="margin-top:12px;">
+<div class="kanban-column">
+<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+</div>
+</div>
 </div>
 
 
@@ -1694,6 +1657,7 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 <section class="col-right">
 <!-- Busca esto y añade el botón dentro del H2 -->
 <div class="widget" id="prev-shift-widget">
+<h2 class="widget-title">2) Información Turno Anterior BCN</h2>
   <h2 class="widget-title">
       2) Información Turno Anterior BCN
       <!-- AÑADIR ESTE BOTÓN -->
@@ -1706,12 +1670,21 @@ role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior"
 spellcheck="true"
 style="min-height:96px; padding:10px 12px; border:1px solid var(--border);
-               border-radius:10px; background:#fff; line-height:1.4;"
+              border-radius:10px; background:#fff; line-height:1.4;"
 data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 <small class="kpi-text" id="prev-shift-saved-hint"></small>
 </div>
 
 <div class="widget" id="ehs-widget">
+<h2 class="widget-title">Días sin incidentes</h2>
+<div class="ehs-month" id="ehs-month">—</div>
+<div id="ehs-spin" class="ehs-controls" role="spinbutton"
+aria-label="Días sin incidentes del mes actual"
+aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
+<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
+<div class="ehs-big" id="ehs-days">0</div>
+<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
+</div>
   <h2 class="widget-title">Días sin incidentes</h2>
   <div class="ehs-month" id="ehs-month">—</div>
   
@@ -1727,46 +1700,46 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 
 <!-- PANTALLA MODO INFO (Post-Briefing) -->
 <div id="post-briefing-screen">
-    <div class="pb-header">
-        <div class="pb-title">🚀 MODO OPERATIVO - BCN INFORMACIÓN</div>
-        <button class="pb-close-btn" onclick="closePostBriefingMode()">✖ Volver al Dashboard</button>
-    </div>
-
-    <div class="pb-grid">
-        <!-- 1. Turno Anterior -->
-        <div class="pb-card">
-            <div class="pb-card-title">↩️ Highlights Turno Anterior</div>
-            <div id="pb-prev-content" class="pb-content"></div>
-        </div>
-        <!-- 2. Operativa -->
-        <div class="pb-card">
-            <div class="pb-card-title">🚧 Actualizaciones Operativas</div>
-            <div id="pb-ops-content" class="pb-content"></div>
-        </div>
-        <!-- 3. KPIs -->
-        <div class="pb-card">
-            <div class="pb-card-title">📊 KPIs del Turno</div>
-            <div id="pb-kpi-content" class="pb-content">
-                <div class="pb-kpi-box">
-                    <div class="pb-kpi-item">
-                        <span style="font-size:1.2rem;font-weight:600;color:#64748b">UPH</span>
-                        <span id="pb-val-uph" class="pb-kpi-val">-</span>
-                    </div>
-                    <div class="pb-kpi-item">
-                        <span style="font-size:1.2rem;font-weight:600;color:#64748b">Costes</span>
-                        <span id="pb-val-cost" class="pb-kpi-val">-</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- 4. Seguridad -->
-        <div class="pb-card">
-            <div class="pb-card-title">🛡️ Seguridad y Riesgos</div>
-            <div id="pb-sec-content" class="pb-content"></div>
-        </div>
-    </div>
+<div class="pb-header">
+<div class="pb-title">🚀 MODO OPERATIVO - BCN INFORMACIÓN</div>
+<button class="pb-close-btn" onclick="closePostBriefingMode()">✖ Volver al Dashboard</button>
 </div>
-    
+
+<div class="pb-grid">
+<!-- 1. Turno Anterior -->
+<div class="pb-card">
+<div class="pb-card-title">↩️ Highlights Turno Anterior</div>
+<div id="pb-prev-content" class="pb-content"></div>
+</div>
+<!-- 2. Operativa -->
+<div class="pb-card">
+<div class="pb-card-title">🚧 Actualizaciones Operativas</div>
+<div id="pb-ops-content" class="pb-content"></div>
+</div>
+<!-- 3. KPIs -->
+<div class="pb-card">
+<div class="pb-card-title">📊 KPIs del Turno</div>
+<div id="pb-kpi-content" class="pb-content">
+<div class="pb-kpi-box">
+<div class="pb-kpi-item">
+<span style="font-size:1.2rem;font-weight:600;color:#64748b">UPH</span>
+<span id="pb-val-uph" class="pb-kpi-val">-</span>
+</div>
+<div class="pb-kpi-item">
+<span style="font-size:1.2rem;font-weight:600;color:#64748b">Costes</span>
+<span id="pb-val-cost" class="pb-kpi-val">-</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. Seguridad -->
+<div class="pb-card">
+<div class="pb-card-title">🛡️ Seguridad y Riesgos</div>
+<div id="pb-sec-content" class="pb-content"></div>
+</div>
+</div>
+</div>
+
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
@@ -1989,6 +1962,37 @@ function loadIncidents(){ return loadJson(SAFETY_INC_KEY, []); }
 function saveIncidents(list){ saveJson(SAFETY_INC_KEY, list); }
 
 function renderIncidents(){
+const listEl = document.getElementById('safety-list');
+const meta = document.getElementById('safety-inc-meta');
+if(!listEl) return;
+const data = loadIncidents();
+listEl.innerHTML = '';
+data.slice().reverse().forEach((it, idx)=>{
+const card = document.createElement('div');
+card.className = 'incident-item';
+const ts = new Date(it.ts||Date.now());
+card.innerHTML = `
+   <div class="incident-head">
+     <span>${esc(it.title||'')}</span>
+     <span class="danger" data-del="${it.id}" title="Eliminar">🗑</span>
+   </div>
+   <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
+   <div>${esc(it.desc||'')}</div>
+ `;
+listEl.appendChild(card);
+});
+if(meta){
+meta.textContent = `Incidentes guardados: ${data.length}`;
+}
+
+listEl.querySelectorAll('[data-del]').forEach(btn=>{
+btn.addEventListener('click', ()=>{
+const id = btn.getAttribute('data-del');
+const cur = loadIncidents().filter(x=>String(x.id)!==String(id));
+saveIncidents(cur);
+renderIncidents();
+});
+});
     const listEl = document.getElementById('safety-list');
     const meta = document.getElementById('safety-inc-meta');
     if(!listEl) return;
@@ -2030,20 +2034,40 @@ function renderIncidents(){
 }
 
 function setupSafetyIncidents(){
+const form = document.getElementById('safety-form');
+const title = document.getElementById('safety-title');
+const desc  = document.getElementById('safety-desc');
+const clear = document.getElementById('safety-clear');
     const form = document.getElementById('safety-form');
     const title = document.getElementById('safety-title');
     const desc  = document.getElementById('safety-desc');
     const validDate = document.getElementById('safety-valid-until'); // Referencia al nuevo input
     const clear = document.getElementById('safety-clear');
 
+renderIncidents();
     renderIncidents();
 
+form?.addEventListener('submit', (e)=>{
+e.preventDefault();
+const t = (title?.value||'').trim();
+const d = (desc?.value||'').trim();
+if(!t || !d) return;
+const cur = loadIncidents();
+cur.push({ id: Date.now(), title: t, desc: d, ts: Date.now(), station: STATION_CODE });
+saveIncidents(cur);
+title.value=''; desc.value='';
+renderIncidents();
+});
     form?.addEventListener('submit', (e)=>{
         e.preventDefault();
         const t = (title?.value||'').trim();
         const d = (desc?.value||'').trim();
         const v = validDate?.value || null; // Capturar valor fecha
 
+clear?.addEventListener('click', ()=>{
+if(!confirm('¿Vaciar todos los incidentes guardados?')) return;
+saveIncidents([]); renderIncidents();
+});
         if(!t || !d) return;
         
         const cur = loadIncidents();
@@ -2117,31 +2141,9 @@ const m = Math.floor((t%3600)/60);
 const s = t%60;
 return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
-// MODIFICACIÓN EN LA LÓGICA DEL CRONÓMETRO
-  function paint(){
-    const nowMs = running ? (Date.now() - startedAt) : elapsed;
-    const clamped = Math.min(nowMs, STOP_MS);
-    const textFormatted = fmt(clamped);
-
-    // Actualizar texto
-    display.textContent = textFormatted;
-
-    // Lógica de ALERTA (> 4 minutos = 240000 ms)
-    // Si pasa de 4 minutos, añade la clase 'alert-mode'
-    if (clamped >= 4 * 60 * 1000) {
-        display.classList.add('alert-mode');
-    } else {
-        display.classList.remove('alert-mode');
-    }
-
-    // Auto-stop al límite (10 min)
-    if (running && nowMs >= STOP_MS){
-      running = false;
-      elapsed = STOP_MS;
-      clearInterval(tick); tick=null;
-      setUI(); save();
-    }
-  }
+function paint(){
+display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
+}
 function save(){
 try{
 localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
@@ -2317,6 +2319,40 @@ setInterval(paintDateTimeAndShift, 60000);
 EHS simple
 ========================== */
 function initEhsSimple(){
+const now=new Date();
+const year=now.getFullYear();
+const month=now.getMonth();
+const daysInMonth=new Date(year,month+1,0).getDate();
+const monthEl=document.getElementById('ehs-month');
+const daysEl=document.getElementById('ehs-days');
+const spin=document.getElementById('ehs-spin');
+if (!monthEl || !daysEl || !spin) return;
+monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+const keyMonth=`${year}-${month+1}`;
+const lastKey=localStorage.getItem('ehs_month_key');
+let days=Number(localStorage.getItem('ehs_days_month'))||0;
+if (lastKey!==keyMonth) days=0;
+function render(){
+days=Math.max(0,Math.min(daysInMonth,Math.trunc(days)));
+daysEl.textContent = days;
+spin.setAttribute('aria-valuemin','0');
+spin.setAttribute('aria-valuemax',String(daysInMonth));
+spin.setAttribute('aria-valuenow',String(days));
+localStorage.setItem('ehs_days_month',String(days));
+localStorage.setItem('ehs_month_key',keyMonth);
+}
+const inc=()=>{ if(days<daysInMonth){ days++; render(); } };
+const dec=()=>{ if(days>0){ days--; render(); } };
+spin.querySelectorAll('.ehs-btn').forEach(btn=>{
+btn.addEventListener('click', ()=>{
+(btn.dataset.op==='inc'?inc:dec)();
+});
+});
+spin.addEventListener('keydown', e=>{
+if(e.key==='ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
+if(e.key==='ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
+});
+render();
     const daysEl = document.getElementById('ehs-days');
     const monthEl = document.getElementById('ehs-month');
     if (!daysEl) return;
@@ -2515,17 +2551,17 @@ const right = document.createElement('div');
 right.className='team-right';
 right.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
 right.innerHTML = `
-   <div class="presence-toggle" role="group" aria-label="Presencia">
-     <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
-     <label for="att-${idx}-y" class="yes">✓ Presente</label>
-     <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
-     <label for="att-${idx}-n" class="no">✕ Ausente</label>
-   </div>
-   <select class="zone-select" data-person="${esc(full)}" title="Zona">
-     <option value="" ${zone?'':'selected'} disabled>Zona…</option>
-     ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
-   </select>
- `;
+  <div class="presence-toggle" role="group" aria-label="Presencia">
+    <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+    <label for="att-${idx}-y" class="yes">✓ Presente</label>
+    <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+    <label for="att-${idx}-n" class="no">✕ Ausente</label>
+  </div>
+  <select class="zone-select" data-person="${esc(full)}" title="Zona">
+    <option value="" ${zone?'':'selected'} disabled>Zona…</option>
+    ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+  </select>
+`;
 
 row.appendChild(left);
 row.appendChild(right);
@@ -2576,9 +2612,9 @@ const list = document.getElementById('team-list');
 // Mensaje de aviso de procedimiento manual
 if(list) {
 list.innerHTML = `
-           <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px;">
-               <strong>⚠️ Atención BCN</strong><br>Procedimiento manual activo.
-           </div>`;
+          <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px;">
+              <strong>⚠️ Atención BCN</strong><br>Procedimiento manual activo.
+          </div>`;
 }
 
 // Inicializar estado vacío para permitir altas manuales
@@ -2649,14 +2685,14 @@ let html = aviso;
 window.TEAM_STATE.people.forEach((p) => {
 const isPresent = window.TEAM_STATE.attendance[p.nombre_completo];
 html += `
-           <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
-               <span>${p.nombre_completo}</span>
-               <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
-                   <input type="checkbox" ${isPresent ? 'checked' : ''} 
-                          onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
-                   Presente
-               </label>
-           </div>`;
+          <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+              <span>${p.nombre_completo}</span>
+              <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
+                  <input type="checkbox" ${isPresent ? 'checked' : ''} 
+                         onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
+                  Presente
+              </label>
+          </div>`;
 });
 list.innerHTML = html;
 
@@ -2778,12 +2814,12 @@ container.prepend(el);
 }
 el.className='gw-task-item';
 el.innerHTML=`
- <input type="checkbox" id="${chkId}" ${task.is_completed?'checked':''}>
- <label for="${chkId}">${esc(task.title||'')}</label>
- <input type="text" class="gw-note" id="${noteId}"
-        placeholder="Añadir nota (opcional)"
-        ${task.is_completed?'':'disabled'}
-        value="${task.note?esc(task.note):''}">
+<input type="checkbox" id="${chkId}" ${task.is_completed?'checked':''}>
+<label for="${chkId}">${esc(task.title||'')}</label>
+<input type="text" class="gw-note" id="${noteId}"
+       placeholder="Añadir nota (opcional)"
+       ${task.is_completed?'':'disabled'}
+       value="${task.note?esc(task.note):''}">
 `;
 el.classList.toggle('completed', !!task.is_completed);
 el.classList.add('highlight-gw');
@@ -3042,17 +3078,17 @@ cont.innerHTML = '';
 const el = document.createElement('div');
 el.className = 'ops-section';
 el.innerHTML = `
-   <div class="ops-section-title"
-        role="textbox" aria-label="Título de sección" contenteditable="true"
-        data-placeholder="Título de sección…">${esc(s.title||'')}</div>
-   <div class="ops-section-body"
-        role="textbox" aria-label="Contenido de sección" contenteditable="true"
-        data-placeholder="Escribe las actualizaciones (una por línea)…">${esc(s.body||'')}</div>
-   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-     <button type="button" class="btn-compact" data-act="addline">+ Línea</button>
-     <button type="button" class="btn-compact" data-act="delete">Eliminar sección</button>
-   </div>
- `;
+  <div class="ops-section-title"
+       role="textbox" aria-label="Título de sección" contenteditable="true"
+       data-placeholder="Título de sección…">${esc(s.title||'')}</div>
+  <div class="ops-section-body"
+       role="textbox" aria-label="Contenido de sección" contenteditable="true"
+       data-placeholder="Escribe las actualizaciones (una por línea)…">${esc(s.body||'')}</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn-compact" data-act="addline">+ Línea</button>
+    <button type="button" class="btn-compact" data-act="delete">Eliminar sección</button>
+  </div>
+`;
 cont.appendChild(el);
 });
 
@@ -3176,22 +3212,22 @@ card.className='ops-line-card';
 card.setAttribute('role','listitem');
 card.dataset.priority = it.priority;
 card.innerHTML = `
-   <div class="ops-line-head">
-     <div class="ops-line-title">${esc(it.title)}</div>
-     <div class="ops-line-meta">
-       <span class="ops-badge ${it.priority==='Alta'?'prio-high':it.priority==='Media'?'prio-med':'prio-low'}">${esc(it.priority)}</span>
-       ${it.section ? `<span class="ops-badge">#${esc(it.section)}</span>` : ''}
-       ${it.assigned ? `<span>@${esc(it.assigned)}</span>` : ''}
-       ${it.due_date ? `<span>⏲ ${new Date(it.due_date).toLocaleDateString('es-ES')}</span>` : ''}
-       <span>${new Date(it.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
-     </div>
-   </div>
-   <div class="ops-line-actions">
-     <button class="ops-line-btn" data-act="kanban">Mandar al Kanban</button>
-     <button class="ops-line-btn" data-act="pin">${it.archived?'Quitar pin':'Pin/Archivar'}</button>
-     <button class="ops-line-btn" data-act="del">Eliminar</button>
-   </div>
- `;
+  <div class="ops-line-head">
+    <div class="ops-line-title">${esc(it.title)}</div>
+    <div class="ops-line-meta">
+      <span class="ops-badge ${it.priority==='Alta'?'prio-high':it.priority==='Media'?'prio-med':'prio-low'}">${esc(it.priority)}</span>
+      ${it.section ? `<span class="ops-badge">#${esc(it.section)}</span>` : ''}
+      ${it.assigned ? `<span>@${esc(it.assigned)}</span>` : ''}
+      ${it.due_date ? `<span>⏲ ${new Date(it.due_date).toLocaleDateString('es-ES')}</span>` : ''}
+      <span>${new Date(it.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
+    </div>
+  </div>
+  <div class="ops-line-actions">
+    <button class="ops-line-btn" data-act="kanban">Mandar al Kanban</button>
+    <button class="ops-line-btn" data-act="pin">${it.archived?'Quitar pin':'Pin/Archivar'}</button>
+    <button class="ops-line-btn" data-act="del">Eliminar</button>
+  </div>
+`;
 if (it.archived) card.classList.add('is-archived');
 host.appendChild(card);
 
@@ -3494,29 +3530,29 @@ card.classList.add(`cat-${catKey}`);
 }
 
 card.innerHTML=`
- ${GRIP}
- <div class="card-content">
-   <div class="card-title" data-edit="title">${esc(task.title||'')}</div>
-   <div class="card-details">
-     Alta: ${creationDate} • Objetivo:
-     <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
-   </div>
-   <div class="card-assignee">
-     Responsable:
-     <span class="assignee" data-edit="assigned_to">${esc(task.assigned_to || 'Sin asignar')}</span>
-   </div>
-   <div style="margin-top:6px;">
-     <button class="btn-compact" data-edit="category">${catLabel}</button>
-   </div>
- </div>
- <div class="card-actions">
-   <button class="delete-card-btn" title="Eliminar">
-     <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-     </svg>
-   </button>
- </div>
+${GRIP}
+<div class="card-content">
+  <div class="card-title" data-edit="title">${esc(task.title||'')}</div>
+  <div class="card-details">
+    Alta: ${creationDate} • Objetivo:
+    <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
+  </div>
+  <div class="card-assignee">
+    Responsable:
+    <span class="assignee" data-edit="assigned_to">${esc(task.assigned_to || 'Sin asignar')}</span>
+  </div>
+  <div style="margin-top:6px;">
+    <button class="btn-compact" data-edit="category">${catLabel}</button>
+  </div>
+</div>
+<div class="card-actions">
+  <button class="delete-card-btn" title="Eliminar">
+    <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+      <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+    </svg>
+  </button>
+</div>
 `;
 // en renderBoardCard(), tras construir innerHTML:
 const content = card.querySelector('.card-content');
@@ -3600,22 +3636,22 @@ const dueDate = dueISO ? new Date(dueISO) : null;
 const dueHuman = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES'): '';
 
 card.innerHTML=`
- ${GRIP}
- <div class="card-content">
-   <div class="card-title">${esc(task.title||'')}</div>
-   <div class="card-details">
-     ${task.assigned_to ? 'Responsable: '+esc(task.assigned_to) : 'Responsable: —'}
-     ${dueHuman ? ' • Fecha máx: '+dueHuman : ''}
-   </div>
- </div>
- <div class="card-actions">
-   <button class="delete-card-btn" title="Eliminar">
-     <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-     </svg>
-   </button>
- </div>
+${GRIP}
+<div class="card-content">
+  <div class="card-title">${esc(task.title||'')}</div>
+  <div class="card-details">
+    ${task.assigned_to ? 'Responsable: '+esc(task.assigned_to) : 'Responsable: —'}
+    ${dueHuman ? ' • Fecha máx: '+dueHuman : ''}
+  </div>
+</div>
+<div class="card-actions">
+  <button class="delete-card-btn" title="Eliminar">
+    <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+      <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+    </svg>
+  </button>
+</div>
 `;
 ensureFullscreenBtn(card);
 if (card.parentElement !== col) col.prepend(card);
@@ -3673,50 +3709,50 @@ updateAllColumnCounts();
 Formularios Kanban/Kaizen
 ========================== */
 function setupEventListeners() {
-    // Formularios Kanban y Kaizen
-    document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
-    document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
-    
-    // Click global (para borrar tarjetas)
-    document.addEventListener('click', handleDeleteClick);
+// Formularios Kanban y Kaizen
+document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
 
-    // --- CORRECCIÓN CRÍTICA PARA GW (Gemba Walk) ---
-    // Ya no buscamos el ID 'rotativas-widget' porque lo borramos.
-    // Usamos delegación de eventos en el documento.
-    
-    // 1. Checkbox de completado
-    document.addEventListener('change', (e) => {
-        // La función handleGwTick ya verifica si es un checkbox válido
-        if (typeof handleGwTick === 'function') {
-            handleGwTick(e);
-        }
-    });
+// Click global (para borrar tarjetas)
+document.addEventListener('click', handleDeleteClick);
 
-    // 2. Notas (Enter y Escape)
-    document.addEventListener('keydown', (e) => {
-        const note = e.target.closest('.gw-note') ? e.target : null;
-        if (!note) return;
+// --- CORRECCIÓN CRÍTICA PARA GW (Gemba Walk) ---
+// Ya no buscamos el ID 'rotativas-widget' porque lo borramos.
+// Usamos delegación de eventos en el documento.
 
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const id = note.id.replace('gw-note-', '');
-            // Verificamos que la función exista antes de llamar
-            if(typeof updateTaskNote === 'function') updateTaskNote(id, note.value).catch(console.error);
-            note.blur();
-        }
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            note.blur();
-        }
-    });
+// 1. Checkbox de completado
+document.addEventListener('change', (e) => {
+// La función handleGwTick ya verifica si es un checkbox válido
+if (typeof handleGwTick === 'function') {
+handleGwTick(e);
+}
+});
 
-    // 3. Notas (Al perder el foco / Blur)
-    document.addEventListener('blur', (e) => {
-        if (e.target.classList && e.target.classList.contains('gw-note')) {
-            const id = e.target.id.replace('gw-note-', '');
-            if(typeof updateTaskNote === 'function') updateTaskNote(id, e.target.value).catch(console.error);
-        }
-    }, true); 
+// 2. Notas (Enter y Escape)
+document.addEventListener('keydown', (e) => {
+const note = e.target.closest('.gw-note') ? e.target : null;
+if (!note) return;
+
+if (e.key === 'Enter') {
+e.preventDefault();
+const id = note.id.replace('gw-note-', '');
+// Verificamos que la función exista antes de llamar
+if(typeof updateTaskNote === 'function') updateTaskNote(id, note.value).catch(console.error);
+note.blur();
+}
+if (e.key === 'Escape') {
+e.preventDefault();
+note.blur();
+}
+});
+
+// 3. Notas (Al perder el foco / Blur)
+document.addEventListener('blur', (e) => {
+if (e.target.classList && e.target.classList.contains('gw-note')) {
+const id = e.target.id.replace('gw-note-', '');
+if(typeof updateTaskNote === 'function') updateTaskNote(id, e.target.value).catch(console.error);
+}
+}, true); 
 }
 
 const gwContainer=document.getElementById('gw-tasks-dynamic-container');
@@ -4108,180 +4144,180 @@ updateAllColumnCounts();
 console.error('loadBoardsInitial', e);
 }
 }
- // 4. SISTEMA DE VOZ (MICRÓFONO)
-    (function initVoiceSystem() {
-        console.log("🎤 Inicializando sistema de voz...");
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        
-        // Comprobaciones de seguridad y soporte
-        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-        if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
-        
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'es-ES';
-        recognition.continuous = false;
-        recognition.interimResults = false;
+// 4. SISTEMA DE VOZ (MICRÓFONO)
+(function initVoiceSystem() {
+console.log("🎤 Inicializando sistema de voz...");
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        let activeBtn = null;
-        let activeTarget = null;
+// Comprobaciones de seguridad y soporte
+const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
 
-        recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
-        recognition.onend = () => { 
-            if (activeBtn) activeBtn.classList.remove('listening'); 
-            activeBtn = null; 
-            activeTarget = null; 
-        };
+const recognition = new SpeechRecognition();
+recognition.lang = 'es-ES';
+recognition.continuous = false;
+recognition.interimResults = false;
 
-        recognition.onresult = (event) => {
-            if (!activeTarget) return;
-            const transcript = event.results[0][0].transcript;
-            const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
-            
-            // Obtener texto actual para no borrar lo anterior
-            let currentText = isInput ? activeTarget.value : activeTarget.innerText;
-            currentText = currentText || "";
-            
-            // Añadir espacio si ya hay texto
-            const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
-            const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+let activeBtn = null;
+let activeTarget = null;
 
-            if (isInput) activeTarget.value = currentText + finalText;
-            else activeTarget.innerText = currentText + finalText;
+recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
+recognition.onend = () => { 
+if (activeBtn) activeBtn.classList.remove('listening'); 
+activeBtn = null; 
+activeTarget = null; 
+};
 
-            // Disparar evento para que se guarde automáticamente
-            activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
-        };
+recognition.onresult = (event) => {
+if (!activeTarget) return;
+const transcript = event.results[0][0].transcript;
+const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
 
-        recognition.onerror = (event) => {
-            if (activeBtn) activeBtn.classList.remove('listening');
-            if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
-        };
+// Obtener texto actual para no borrar lo anterior
+let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+currentText = currentText || "";
 
-        // Delegación de eventos para los botones .btn-mic
-        document.body.addEventListener('click', (e) => {
-            const btn = e.target.closest('.btn-mic');
-            if (!btn) return;
-            e.preventDefault(); e.stopPropagation();
+// Añadir espacio si ya hay texto
+const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
 
-            if (!isSecure) { alert("⚠️ El micrófono requiere HTTPS."); return; }
-            if (btn.classList.contains('listening')) { recognition.stop(); return; }
+if (isInput) activeTarget.value = currentText + finalText;
+else activeTarget.innerText = currentText + finalText;
 
-            const targetId = btn.getAttribute('data-target');
-            const targetEl = document.getElementById(targetId);
+// Disparar evento para que se guarde automáticamente
+activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+};
 
-            if (targetEl) {
-                activeBtn = btn;
-                activeTarget = targetEl;
-                try { recognition.start(); } catch (err) { recognition.stop(); }
-            } else {
-                alert("Error: No encuentro el campo de texto destino.");
-            }
-        });
-    })();
+recognition.onerror = (event) => {
+if (activeBtn) activeBtn.classList.remove('listening');
+if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
+};
+
+// Delegación de eventos para los botones .btn-mic
+document.body.addEventListener('click', (e) => {
+const btn = e.target.closest('.btn-mic');
+if (!btn) return;
+e.preventDefault(); e.stopPropagation();
+
+if (!isSecure) { alert("⚠️ El micrófono requiere HTTPS."); return; }
+if (btn.classList.contains('listening')) { recognition.stop(); return; }
+
+const targetId = btn.getAttribute('data-target');
+const targetEl = document.getElementById(targetId);
+
+if (targetEl) {
+activeBtn = btn;
+activeTarget = targetEl;
+try { recognition.start(); } catch (err) { recognition.stop(); }
+} else {
+alert("Error: No encuentro el campo de texto destino.");
+}
+});
+})();
 /* =========================================================
-   MEJORAS BCN: Navegación, Reset y Modo Info
-   ========================================================= */
+  MEJORAS BCN: Navegación, Reset y Modo Info
+  ========================================================= */
 
 // --- 1. FUNCIONES GLOBALES DE NAVEGACIÓN Y PANTALLA INFO ---
 
 window.navTo = function(targetId) {
-    if (!targetId) return;
-    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+if (!targetId) return;
+if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
 
-    setTimeout(() => {
-        const el = document.getElementById(targetId);
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            if (el.requestFullscreen) {
-                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
-            } else {
-                el.classList.add('widget--zoomed');
-            }
-        }
-    }, 100);
+setTimeout(() => {
+const el = document.getElementById(targetId);
+if (el) {
+el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+if (el.requestFullscreen) {
+el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
+} else {
+el.classList.add('widget--zoomed');
+}
+}
+}, 100);
 };
 
 window.exitFlow = function() {
-    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
-    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+if(window.updateSpotlightRouting) window.updateSpotlightRouting();
 };
 
 window.markOkAndNext = function(checkName, nextId) {
-    // 1. Marcar OK
-    if (checkName) {
-        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
-        if (radio) {
-            radio.checked = true;
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
-            radio.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    }
-    // 2. Navegar
-    if (nextId) {
-        navTo(nextId);
-    } else {
-        exitFlow();
-        document.querySelector('header').scrollIntoView({behavior:'smooth'});
-        setTimeout(() => alert("🎉 Checklist completado. Puedes generar el resumen."), 300);
-    }
+// 1. Marcar OK
+if (checkName) {
+const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
+if (radio) {
+radio.checked = true;
+radio.dispatchEvent(new Event('change', { bubbles: true }));
+radio.dispatchEvent(new Event('input', { bubbles: true }));
+}
+}
+// 2. Navegar
+if (nextId) {
+navTo(nextId);
+} else {
+exitFlow();
+document.querySelector('header').scrollIntoView({behavior:'smooth'});
+setTimeout(() => alert("🎉 Checklist completado. Puedes generar el resumen."), 300);
+}
 };
 
 window.openPostBriefingMode = function() {
-    const screen = document.getElementById('post-briefing-screen');
-    if (!screen) return;
+const screen = document.getElementById('post-briefing-screen');
+if (!screen) return;
 
-    // Rellenar datos
-    const prev = document.getElementById('prev-shift-note')?.innerText || "Sin novedades.";
-    document.getElementById('pb-prev-content').innerHTML = `<p>${prev.replace(/\n/g,'<br>')}</p>`;
+// Rellenar datos
+const prev = document.getElementById('prev-shift-note')?.innerText || "Sin novedades.";
+document.getElementById('pb-prev-content').innerHTML = `<p>${prev.replace(/\n/g,'<br>')}</p>`;
 
-    // Ops (clonar lista visual)
-    const opsList = document.getElementById('ops-lines-list');
-    const opsDest = document.getElementById('pb-ops-content');
-    opsDest.innerHTML = '';
-    if(opsList && opsList.children.length > 0){
-        Array.from(opsList.children).forEach(c => {
-            const clone = c.cloneNode(true);
-            const actions = clone.querySelector('.ops-line-actions');
-            if(actions) actions.remove(); // quitar botones
-            clone.style.boxShadow = "none";
-            clone.style.border = "1px solid #e2e8f0";
-            clone.style.marginBottom = "10px";
-            opsDest.appendChild(clone);
-        });
-    } else {
-        opsDest.innerHTML = '<p style="color:#94a3b8">Sin actualizaciones operativas.</p>';
-    }
+// Ops (clonar lista visual)
+const opsList = document.getElementById('ops-lines-list');
+const opsDest = document.getElementById('pb-ops-content');
+opsDest.innerHTML = '';
+if(opsList && opsList.children.length > 0){
+Array.from(opsList.children).forEach(c => {
+const clone = c.cloneNode(true);
+const actions = clone.querySelector('.ops-line-actions');
+if(actions) actions.remove(); // quitar botones
+clone.style.boxShadow = "none";
+clone.style.border = "1px solid #e2e8f0";
+clone.style.marginBottom = "10px";
+opsDest.appendChild(clone);
+});
+} else {
+opsDest.innerHTML = '<p style="color:#94a3b8">Sin actualizaciones operativas.</p>';
+}
 
-    // KPIs
-    const uph = document.getElementById('kpi-uph')?.innerText || "-";
-    const cost = document.getElementById('kpi-total-cost')?.innerText || "-";
-    document.getElementById('pb-val-uph').textContent = uph;
-    document.getElementById('pb-val-cost').textContent = cost + ' €';
+// KPIs
+const uph = document.getElementById('kpi-uph')?.innerText || "-";
+const cost = document.getElementById('kpi-total-cost')?.innerText || "-";
+document.getElementById('pb-val-uph').textContent = uph;
+document.getElementById('pb-val-cost').textContent = cost + ' €';
 
-    // Seguridad
-    const tips = document.getElementById('safety-tips')?.innerHTML || "";
-    const manualInc = document.getElementById('safety-list')?.innerHTML || "";
-    let secHtml = `<div style="margin-bottom:15px">${tips}</div>`;
-    if(manualInc.trim()){
-        secHtml += `<strong style="color:#b91c1c;display:block;margin-bottom:5px;">Incidentes Manuales:</strong>${manualInc}`;
-    }
-    const secDest = document.getElementById('pb-sec-content');
-    secDest.innerHTML = secHtml;
-    // Limpiar botones de borrado en la vista info
-    secDest.querySelectorAll('.danger').forEach(b => b.remove());
+// Seguridad
+const tips = document.getElementById('safety-tips')?.innerHTML || "";
+const manualInc = document.getElementById('safety-list')?.innerHTML || "";
+let secHtml = `<div style="margin-bottom:15px">${tips}</div>`;
+if(manualInc.trim()){
+secHtml += `<strong style="color:#b91c1c;display:block;margin-bottom:5px;">Incidentes Manuales:</strong>${manualInc}`;
+}
+const secDest = document.getElementById('pb-sec-content');
+secDest.innerHTML = secHtml;
+// Limpiar botones de borrado en la vista info
+secDest.querySelectorAll('.danger').forEach(b => b.remove());
 
-    // Mostrar
-    screen.classList.add('active');
-    if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(()=>{});
-    }
+// Mostrar
+screen.classList.add('active');
+if (document.documentElement.requestFullscreen) {
+document.documentElement.requestFullscreen().catch(()=>{});
+}
 };
 
 window.closePostBriefingMode = function() {
-    document.getElementById('post-briefing-screen').classList.remove('active');
-    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+document.getElementById('post-briefing-screen').classList.remove('active');
+if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
 };
 
 
@@ -4290,179 +4326,178 @@ window.closePostBriefingMode = function() {
 // =========================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // 1. Inyectar Navegación Guiada
-    const WIDGET_MAP = [
-        { id: 'prev-shift-widget',  check: 'c1', label: '1. Turno Anterior' },
-        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
-        { id: 'team-widget',        check: 'c3', label: '3. Equipo' },
-        { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
-        { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
-        { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
-        { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
-    ];
 
-    WIDGET_MAP.forEach((step, index) => {
-        const widget = document.getElementById(step.id);
-        if (!widget || widget.querySelector('.widget-nav-bar')) return;
+// 1. Inyectar Navegación Guiada
+const WIDGET_MAP = [
+{ id: 'prev-shift-widget',  check: 'c1', label: '1. Turno Anterior' },
+{ id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+{ id: 'team-widget',        check: 'c3', label: '3. Equipo' },
+{ id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
+{ id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
+{ id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
+{ id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
+];
 
-        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
-        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
+WIDGET_MAP.forEach((step, index) => {
+const widget = document.getElementById(step.id);
+if (!widget || widget.querySelector('.widget-nav-bar')) return;
 
-        const navBar = document.createElement('div');
-        navBar.className = 'widget-nav-bar';
-        navBar.innerHTML = `
-            <div class="nav-group">
-                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>⬅ Anterior</button>
-            </div>
-            <div class="nav-group" style="font-size:0.9rem;color:#64748b;">
-                ${step.label} (${index + 1}/${WIDGET_MAP.length})
-            </div>
-            <div class="nav-group">
-                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
-                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
-                    ✅ OK y Siguiente ➡
-                </button>
-            </div>
-        `;
-        widget.prepend(navBar);
-    });
+const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
+const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
 
-    // 2. Botón Reiniciar (Cronómetro + Checks)
-    const resetBtn = document.getElementById('timer-reset');
-    if (resetBtn) {
-        // MODIFICACIÓN: No clonamos el botón para no perder la referencia del script del cronómetro
-        // const newBtn = resetBtn.cloneNode(true);
-        // resetBtn.parentNode.replaceChild(newBtn, resetBtn);
-        
-        // Usamos el botón original (resetBtn)
-        resetBtn.addEventListener('click', (e) => {
-            // Evitamos comportamientos duplicados
-            e.preventDefault();
+const navBar = document.createElement('div');
+navBar.className = 'widget-nav-bar';
+navBar.innerHTML = `
+           <div class="nav-group">
+               <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>⬅ Anterior</button>
+           </div>
+           <div class="nav-group" style="font-size:0.9rem;color:#64748b;">
+               ${step.label} (${index + 1}/${WIDGET_MAP.length})
+           </div>
+           <div class="nav-group">
+               <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
+               <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
+                   ✅ OK y Siguiente ➡
+               </button>
+           </div>
+       `;
+widget.prepend(navBar);
+});
 
-            if (!confirm("¿Reiniciar turno BCN? Se borrarán los checks y el tiempo.")) return;
-            
-            // MODIFICACIÓN: Llamamos a la función real del cronómetro
-            if (window.resetFactoryTimer) {
-                window.resetFactoryTimer();
-            } else {
-                // Fallback visual por si acaso
-                document.getElementById('timer-display').textContent = "00:00:00";
-            }
-            
-            document.getElementById('timer-display').classList.remove('is-red');
+// 2. Botón Reiniciar (Cronómetro + Checks)
+const resetBtn = document.getElementById('timer-reset');
+if (resetBtn) {
+// MODIFICACIÓN: No clonamos el botón para no perder la referencia del script del cronómetro
+// const newBtn = resetBtn.cloneNode(true);
+// resetBtn.parentNode.replaceChild(newBtn, resetBtn);
 
-            document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
-            
-            // Resto del código de limpieza igual...
-            Object.keys(localStorage).forEach(k => {
-                if(k.includes('brief_check')) localStorage.removeItem(k);
-            });
-            
-            const meta = document.getElementById('brief-check-meta');
-            if(meta) meta.textContent = "Checklist reiniciado";
-            
-            if(window.updateSpotlightRouting) window.updateSpotlightRouting();
-            console.log("♻️ Turno BCN reiniciado.");
-        });
-    }
-            
-            Object.keys(localStorage).forEach(k => {
-                if(k.includes('brief_check')) localStorage.removeItem(k);
-            });
-            
-            const meta = document.getElementById('brief-check-meta');
-            if(meta) meta.textContent = "Checklist reiniciado";
-            
-            if(window.updateSpotlightRouting) window.updateSpotlightRouting();
-            console.log("♻️ Turno BCN reiniciado.");
-        });
-    
+// Usamos el botón original (resetBtn)
+resetBtn.addEventListener('click', (e) => {
+// Evitamos comportamientos duplicados
+e.preventDefault();
 
-    // 3. Botón Generar Resumen
-    const btnGen = document.querySelector('header .header-controls .btn-primary');
-    if (btnGen) {
-        const newBtnGen = btnGen.cloneNode(true);
-        btnGen.parentNode.replaceChild(newBtnGen, btnGen);
-        
-        newBtnGen.addEventListener('click', async () => {
-            newBtnGen.textContent = 'Guardando...';
-            newBtnGen.disabled = true;
+if (!confirm("¿Reiniciar turno BCN? Se borrarán los checks y el tiempo.")) return;
 
-            try {
-                const team = window.TEAM_STATE || {};
-                const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
-                
-                const rosterList = (team.people||[]).map(p => {
-                    const isP = (team.attendance||{})[p.nombre_completo] === true;
-                    return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
-                }).join(", ") || "Sin datos";
+// MODIFICACIÓN: Llamamos a la función real del cronómetro
+if (window.resetFactoryTimer) {
+window.resetFactoryTimer();
+} else {
+// Fallback visual por si acaso
+document.getElementById('timer-display').textContent = "00:00:00";
+}
 
-                const kanbanItems = [];
-                ['Abiertas','En-Curso','Cerradas','Vencidas'].forEach(st => {
-                    const col = document.getElementById(`kanban_rapida-${st}`);
-                    if(col) col.querySelectorAll('.card').forEach(c => 
-                        kanbanItems.push(`[${st}] ${c.querySelector('.card-title')?.innerText}`));
-                });
+document.getElementById('timer-display').classList.remove('is-red');
 
-                const payload = {
-                    station: "BCN",
-                    date: new Date().toLocaleDateString('es-ES'),
-                    shift: document.getElementById('shift-badge-header')?.innerText || 'General',
-                    timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-                    supervisor: supVal,
-                    checklist: {}, // opcional rellenar
-                    kpis: {
-                        "UPH": document.getElementById('kpi-uph')?.innerText,
-                        "Costes": document.getElementById('kpi-total-cost')?.innerText
-                    },
-                    roster_details: rosterList,
-                    prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
-                    kanban_details: kanbanItems.join(" | "),
-                    ops_updates: [] 
-                };
+document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
 
-                const res = await fetch('/api/briefing/summary', {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify(payload)
-                });
+// Resto del código de limpieza igual...
+Object.keys(localStorage).forEach(k => {
+if(k.includes('brief_check')) localStorage.removeItem(k);
+});
 
-                if(!res.ok) throw new Error('Error del servidor');
-                
-                alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
-                window.openPostBriefingMode();
+const meta = document.getElementById('brief-check-meta');
+if(meta) meta.textContent = "Checklist reiniciado";
 
-            } catch (e) {
-                console.error(e);
-                alert("Error: " + e.message);
-            } finally {
-                newBtnGen.textContent = "Generar Resumen";
-                newBtnGen.disabled = false;
-            }
-        });
-    }
+if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+console.log("♻️ Turno BCN reiniciado.");
+});
+}
 
-    // 4. Inicializadores heredados (try/catch para robustez)
-    try { initHeaderTimer(); } catch(e){}
-    try { initDateTimeAndShift(); } catch(e){}
-    try { initFullscreenToggles(); } catch(e){}
-    try { init5S(); } catch(e){}
-    try { initEhsSimple(); } catch(e){}
-    try { initTeamRoster(); } catch(e){}
-    try { setupEventListeners(); } catch(e){}
-    try { makeColumnsSortable(); } catch(e){}
-    try { hydrateKpiTotalCost(); } catch(e){}
-    try { loadBoardsInitial(); } catch(e){}
-    try { loadIncidentes(); } catch(e){}
-    try { connectWebSocket(); } catch(e){}
-    try { initOpsUpdates(); } catch(e){}
-    try { reorderChecklist(); } catch(e){}
-    try { initSafetyDailyWidget(); } catch(e){}
-    try { updateSpotlightRouting(); } catch(e){}
-    
-    console.log("Dashboard BCN inicializado correctamente.");
+Object.keys(localStorage).forEach(k => {
+if(k.includes('brief_check')) localStorage.removeItem(k);
+});
+
+const meta = document.getElementById('brief-check-meta');
+if(meta) meta.textContent = "Checklist reiniciado";
+
+if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+console.log("♻️ Turno BCN reiniciado.");
+});
+
+
+// 3. Botón Generar Resumen
+const btnGen = document.querySelector('header .header-controls .btn-primary');
+if (btnGen) {
+const newBtnGen = btnGen.cloneNode(true);
+btnGen.parentNode.replaceChild(newBtnGen, btnGen);
+
+newBtnGen.addEventListener('click', async () => {
+newBtnGen.textContent = 'Guardando...';
+newBtnGen.disabled = true;
+
+try {
+const team = window.TEAM_STATE || {};
+const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
+
+const rosterList = (team.people||[]).map(p => {
+const isP = (team.attendance||{})[p.nombre_completo] === true;
+return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
+}).join(", ") || "Sin datos";
+
+const kanbanItems = [];
+['Abiertas','En-Curso','Cerradas','Vencidas'].forEach(st => {
+const col = document.getElementById(`kanban_rapida-${st}`);
+if(col) col.querySelectorAll('.card').forEach(c => 
+kanbanItems.push(`[${st}] ${c.querySelector('.card-title')?.innerText}`));
+});
+
+const payload = {
+station: "BCN",
+date: new Date().toLocaleDateString('es-ES'),
+shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+supervisor: supVal,
+checklist: {}, // opcional rellenar
+kpis: {
+"UPH": document.getElementById('kpi-uph')?.innerText,
+"Costes": document.getElementById('kpi-total-cost')?.innerText
+},
+roster_details: rosterList,
+prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
+kanban_details: kanbanItems.join(" | "),
+ops_updates: [] 
+};
+
+const res = await fetch('/api/briefing/summary', {
+method: 'POST', headers: {'Content-Type':'application/json'},
+body: JSON.stringify(payload)
+});
+
+if(!res.ok) throw new Error('Error del servidor');
+
+alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
+window.openPostBriefingMode();
+
+} catch (e) {
+console.error(e);
+alert("Error: " + e.message);
+} finally {
+newBtnGen.textContent = "Generar Resumen";
+newBtnGen.disabled = false;
+}
+});
+}
+
+// 4. Inicializadores heredados (try/catch para robustez)
+try { initHeaderTimer(); } catch(e){}
+try { initDateTimeAndShift(); } catch(e){}
+try { initFullscreenToggles(); } catch(e){}
+try { init5S(); } catch(e){}
+try { initEhsSimple(); } catch(e){}
+try { initTeamRoster(); } catch(e){}
+try { setupEventListeners(); } catch(e){}
+try { makeColumnsSortable(); } catch(e){}
+try { hydrateKpiTotalCost(); } catch(e){}
+try { loadBoardsInitial(); } catch(e){}
+try { loadIncidentes(); } catch(e){}
+try { connectWebSocket(); } catch(e){}
+try { initOpsUpdates(); } catch(e){}
+try { reorderChecklist(); } catch(e){}
+try { initSafetyDailyWidget(); } catch(e){}
+try { updateSpotlightRouting(); } catch(e){}
+
+console.log("Dashboard BCN inicializado correctamente.");
 
 </script>
 </body>
 </html>
-
