@@ -4303,8 +4303,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     const WIDGET_MAP = [
         { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },
-        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
         { id: 'prev-shift-widget',  check: 'c1', label: '3. Turno Anterior' },
+        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+        
         
         // El resto se queda igual
         { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
@@ -4430,7 +4431,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     roster_details: rosterList,
                     prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
                     kanban_details: kanbanItems.join(" | "),
-                    ops_updates: [] 
+                    ops_updates: [],
+                    safety_incidents: safetyIncidentsPayload
                 };
 
                 const res = await fetch('/api/briefing/summary', {
