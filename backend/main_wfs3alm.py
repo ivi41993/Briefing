@@ -133,22 +133,27 @@ class TaskNoteUpdate(BaseModel):
     note: str | None = None
 
 class BriefingSnapshot(BaseModel):
-    station: Optional[str] = "WFS3ALM"  # Ajustado para WFS3
+    station: Optional[str] = STATION_CODE  # Usa la variable dinámica
     date: str
     shift: str
-    timer: str        # Requerido
-    supervisor: str   # Requerido
+    timer: str
+    supervisor: str = "No especificado"
     checklist: Dict[str, str] = {}
     kpis: Dict[str, Any] = {}
     roster_details: str = ""
     prev_shift_note: str = ""
     present_names: List[str] = []
     ops_updates: List[Dict[str, Any]] = []
+    
+    # --- AÑADIR ESTO ---
+    safety_incidents: List[Dict[str, Any]] = [] 
+    # -------------------
+    
     kanban_counts: Dict[str, int] = {}
+    kanban_details: str = ""
     roster_stats: str = ""
 
-    class Config:
-        extra = "allow"
+    class Config: extra = "allow"
 
 # Persistencia
 tasks_in_memory_store: Dict[str, Any] = {}
@@ -250,14 +255,15 @@ async def send_to_excel_online(data: BriefingSnapshot):
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
-        "timer": str(data.timer),          # CAMPO CRÍTICO
-        "supervisor": str(data.supervisor), # CAMPO CRÍTICO
-        "equipo": str(data.roster_details if data.roster_details else "Sin datos"),
+        "timer": str(data.timer),
+        "supervisor": str(data.supervisor),
+        "equipo": str(data.roster_details or "Sin datos"),
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
-        "origen": "WFS3ALM"
+        "feedback_kanban": str(data.kanban_details or "Sin feedback"),
+        "incidentes_seguridad": str(safety_text) # <--- Campo nuevo
     }
     
     print(f"📤 Enviando a Excel WFS3ALM: {json.dumps(payload)}")
