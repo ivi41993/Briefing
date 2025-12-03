@@ -667,36 +667,39 @@ class ConnectionManager:
             self.disconnect(websocket)
 
 async def send_to_excel_online(data: BriefingSnapshot):
-    # CAMBIO AQUÍ: Buscamos la variable específica de BCN
+    # BUSCAMOS LA VARIABLE ESPECÍFICA DE BCN O LA GENÉRICA
     url = os.getenv("EXCEL_WEBHOOK_URL_BCN") 
-    
     if not url:
-        # Fallback por si olvidaste cambiar el nombre en Render, intenta la genérica
         url = os.getenv("EXCEL_WEBHOOK_URL")
     
     if not url:
         print("⚠️ EXCEL_WEBHOOK_URL_BCN no definida.")
         return
 
-    # Formatear Actualizaciones como texto plano
+    # 1. FORMATEAR ACTUALIZACIONES
     ops_text = "Sin actualizaciones"
     if data.ops_updates:
-        ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
+        # Aseguramos que sea string para evitar errores
+        ops_lines = [f"[{str(op.get('impact','-'))}] {str(op.get('title','-'))}" for op in data.ops_updates]
         ops_text = " | ".join(ops_lines)
 
-    safety_text = "Sin incidentes reportados"
+    # 2. FORMATEAR INCIDENTES DE SEGURIDAD (Nueva lógica)
+    safety_text = "Sin incidentes manuales"
     if data.safety_incidents:
         safe_lines = []
         for inc in data.safety_incidents:
-            # Formato: [TÍTULO] Descripción (Vence: Fecha)
-            titulo = inc.get('title', 'Sin título')
-            desc = inc.get('desc', '')
-            valid = f" (Vence: {inc.get('valid_until')})" if inc.get('valid_until') else ""
-            safe_lines.append(f"[{titulo}] {desc}{valid}")
+            # Extraemos datos con seguridad
+            titulo = str(inc.get('title', 'Sin título'))
+            desc = str(inc.get('desc', ''))
+            # Formato: [TÍTULO] Descripción
+            entry = f"[{titulo}] {desc}"
+            # Añadir fecha vigencia si existe
+            if inc.get('valid_until'):
+                entry += f" (Vence: {inc.get('valid_until')})"
+            safe_lines.append(entry)
         safety_text = " | ".join(safe_lines)
-    # -------------------------------------------------------
 
-    # Payload que coincide con el esquema JSON de Power Automate
+    # 3. PREPARAR PAYLOAD (Todo convertido a string explícitamente)
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
@@ -705,15 +708,15 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "equipo": str(data.roster_details if data.roster_details else "Sin datos"),
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
-        "notas_turno_ant": str(data.prev_shift_note),
+        "notas_turno_ant": str(data.prev_shift_note or "Sin notas"),
         "actualizaciones_ops": str(ops_text),
         
-        # --- AÑADIR ESTA CLAVE AL DICCIONARIO ---
+        # ESTE ES EL CAMPO NUEVO QUE POWER AUTOMATE DEBE RECIBIR
         "incidentes_seguridad": str(safety_text)
-        # ----------------------------------------
     }
     
     print(f"📤 Enviando a Excel BCN: {json.dumps(payload)}")
+    
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, json=payload, timeout=20.0)
@@ -1978,6 +1981,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
