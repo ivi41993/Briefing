@@ -3328,26 +3328,34 @@ alert('Resumen copiado al portapapeles.');
 /* ==========================
 Reordenar checklist + renumerar
 ========================== */
+/* ==========================
+   Reordenar checklist: 1. Dotación, 2. Ops, 3. Turno Anterior, etc.
+   ========================== */
 function reorderChecklist(){
-const grid = document.querySelector('#brief-check .check-grid');
-if(!grid) return;
+    const grid = document.querySelector('#brief-check .check-grid');
+    if(!grid) return;
 
-// Detecta las tarjetas por su data-target original
-const card1 = [...grid.children].find(c => c.querySelector('.check-title')?.textContent?.trim().startsWith('1)'));
-const card3 = [...grid.children].find(c => c.querySelector('.check-title')?.textContent?.includes('Dotación y recursos'));
+    // Identificamos las tarjetas clave por su data-target
+    const cardTeam = grid.querySelector('[data-target="team-widget"]');       // Dotación
+    const cardOps  = grid.querySelector('[data-target="ops-updates-widget"]');// Ops
+    const cardPrev = grid.querySelector('[data-target="prev-shift-widget"]'); // Turno Anterior
 
-if(card1 && card3 && card3 !== grid.firstElementChild){
-grid.insertBefore(card3, grid.firstElementChild); // Dotación y recursos → primera
-}
+    // Forzamos el orden insertándolas al principio en la secuencia deseada
+    // (appendChild/insertBefore mueve el elemento si ya existe)
+    if(cardPrev) grid.insertBefore(cardPrev, grid.firstElementChild); // Primero ponemos Prev (se moverá luego)
+    if(cardOps)  grid.insertBefore(cardOps,  grid.firstElementChild); // Ops empuja a Prev
+    if(cardTeam) grid.insertBefore(cardTeam, grid.firstElementChild); // Team empuja a Ops
 
-// Renumera los prefijos "n) " según el orden visual
-const cards = [...grid.children];
-cards.forEach((c, idx)=>{
-const t = c.querySelector('.check-title');
-if(!t) return;
-const raw = t.textContent.replace(/^\s*\d+\)\s*/,''); // quita prefijo existente
-t.textContent = `${idx+1}) ${raw}`;
-});
+    // Resultado visual en DOM: Team -> Ops -> Prev -> [Resto que ya estaba]
+
+    // Renumerar títulos para que coincidan (1), 2), 3)...)
+    [...grid.children].forEach((c, idx)=>{
+        const t = c.querySelector('.check-title');
+        if(!t) return;
+        // Limpiamos número anterior y ponemos el nuevo índice
+        const raw = t.textContent.replace(/^\s*\d+\)\s*/,''); 
+        t.textContent = `${idx+1}) ${raw}`;
+    });
 }
 
 
@@ -4292,11 +4300,13 @@ window.closePostBriefingMode = function() {
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // 1. Inyectar Navegación Guiada
+    // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     const WIDGET_MAP = [
-        { id: 'prev-shift-widget',  check: 'c1', label: '1. Turno Anterior' },
+        { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },
         { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
-        { id: 'team-widget',        check: 'c3', label: '3. Equipo' },
+        { id: 'prev-shift-widget',  check: 'c1', label: '3. Turno Anterior' },
+        
+        // El resto se queda igual
         { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
         { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
         { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
