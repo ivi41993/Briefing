@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
-STATION_NAME = "WFS1"
+STATION_NAME = "WFS1ALM"
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
 ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
 ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "true"
@@ -758,4 +758,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     # Puerto diferente para no chocar con WFS4/BCN
-    uvicorn.run("main_wfs1:app", host="0.0.0.0", port=10020, reload=True)
+    uvicorn.run("main_wfs1alm:app", host="0.0.0.0", port=10020, reload=True)
