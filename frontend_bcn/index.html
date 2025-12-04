@@ -4405,13 +4405,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!supVal) {
                 alert("⚠️ El campo 'Supervisor' es obligatorio.\nPor favor, escribe tu nombre o usa el micrófono.");
-                supInput?.focus(); // Pone el cursor en el campo para que escribas
-                // Hacemos parpadear el input en rojo para que se vea claro
+                supInput?.focus(); 
                 supInput.style.borderColor = "red";
                 setTimeout(() => supInput.style.borderColor = "", 2000);
-                return; // DETIENE LA EJECUCIÓN AQUÍ
+                return; 
             }
-            // ----------------------------------------
 
             newBtnGen.textContent = 'Guardando...';
             newBtnGen.disabled = true;
@@ -4462,14 +4460,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const d = new Date();
                         const day = String(d.getDate()).padStart(2, '0');
                         const month = String(d.getMonth() + 1).padStart(2, '0');
-                        const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
+                        const year = String(d.getFullYear()).slice(-2); 
                         return `${day}/${month}/${year}`;
                     })(),
-
                     
-                    // --- AÑADIR ESTA LÍNEA: Hora actual del sistema ---
                     briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
-                    // --------------------------------------------------
 
                     shift: document.getElementById('shift-badge-header')?.innerText || 'General',
                     timer: document.getElementById('timer-display')?.innerText || '00:00:00',
@@ -4495,6 +4490,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
                 window.openPostBriefingMode();
+
+                // --- NUEVO: LIMPIAR CAMPO SUPERVISOR TRAS ÉXITO ---
+                if(supInput) supInput.value = ""; 
+                // --------------------------------------------------
 
             } catch (e) {
                 console.error(e);
