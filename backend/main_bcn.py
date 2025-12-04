@@ -625,6 +625,7 @@ class BriefingSnapshot(BaseModel):
     date: str
     shift: str
     timer: str
+    briefing_time: Optional[str] = None 
     supervisor: str = "No especificado"
     checklist: Dict[str, str] = {}
     kpis: Dict[str, Any] = {}
@@ -703,6 +704,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
+        "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M")),
         "timer": str(data.timer),
         "supervisor": str(data.supervisor),
         "equipo": str(data.roster_details if data.roster_details else "Sin datos"),
@@ -1982,6 +1984,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
