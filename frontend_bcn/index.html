@@ -4459,9 +4459,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const payload = {
                     station: "BCN",
                     date: new Date().toLocaleDateString('es-ES'),
+                    
+                    // --- AÑADIR ESTA LÍNEA: Hora actual del sistema ---
+                    briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
+                    // --------------------------------------------------
+
                     shift: document.getElementById('shift-badge-header')?.innerText || 'General',
                     timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-                    supervisor: supVal, // Usamos el valor validado
+                    supervisor: supVal,
                     checklist: {}, 
                     kpis: {
                         "UPH": document.getElementById('kpi-uph')?.innerText,
