@@ -222,7 +222,7 @@ def _read_sheet_people(xlsx_path: str, sheet_name: str, shift: str) -> list[dict
     cols = _normalize_cols(list(df.columns))
     req = ["apellidos","nombre","horario"]
     if any(cols[k] is None for k in req):
-        print("⚠️ Hoja sin columnas esperadas:", sheet_name, "→", df.columns.tolist())
+        print("⚠️ Hoja sin columnas esperadas en la hoja:", sheet_name, "→", df.columns.tolist())
         return []
 
     ap_col = cols["apellidos"]; no_col = cols["nombre"]; ho_col = cols["horario"]
@@ -1982,6 +1982,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
