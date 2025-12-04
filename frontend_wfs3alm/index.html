@@ -2065,6 +2065,7 @@ setInterval(paintDateTimeAndShift, 60000);
  EHS simple
 ========================== */
 /* EHS Automático (WFS1 MAD) */
+/* EHS Automático (WFS3 MAD) */
 function initEhsSimple(){
     const daysEl = document.getElementById('ehs-days');
     const monthEl = document.getElementById('ehs-month');
@@ -2076,8 +2077,8 @@ function initEhsSimple(){
     const now = new Date();
     if(monthEl) monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
 
-    // Clave única para esta estación
-    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_wfs1_mad_v1';
+    // Clave única para esta estación (WFS3)
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_wfs3_mad_v1';
 
     function render() {
         const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
@@ -2099,7 +2100,7 @@ function initEhsSimple(){
     // Doble clic para reportar un incidente hoy (Reinicia a 0)
     if(container) {
         container.addEventListener('dblclick', () => {
-            if(confirm("¿Reportar incidente en WFS1 MAD hoy? El contador se reiniciará a 0.")) {
+            if(confirm("¿Reportar incidente en WFS3 MAD hoy? El contador se reiniciará a 0.")) {
                 localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
                 render();
             }
@@ -2112,19 +2113,10 @@ function initEhsSimple(){
     }
 
     render();
+    // Revisar cada hora sin recargar
+    setInterval(render, 3600000);
 }
-const inc=()=>{ if(days<daysInMonth){ days++; render(); } };
-const dec=()=>{ if(days>0){ days--; render(); } };
-spin.querySelectorAll('.ehs-btn').forEach(btn=>{
-btn.addEventListener('click', ()=>{
-(btn.dataset.op==='inc'?inc:dec)();
-});
-});
-spin.addEventListener('keydown', e=>{
-if(e.key==='ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
-if(e.key==='ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
-});
-render();
+
 
 
 /* ==========================
