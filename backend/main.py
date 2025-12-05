@@ -2747,22 +2747,18 @@ async def _ws_heartbeat(interval_sec: int = 30):
 # ==========================================
 class FiixConnector:
     def __init__(self):
-        # Leemos las variables
         self.host = os.getenv("FIIX_HOST", "").strip()
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
         self.site_id = os.getenv("FIIX_SITE_ID", "").strip()
-        self.client = httpx.AsyncClient(timeout=30.0)
+        # Aumentamos timeout y permitimos redirecciones por si macmms redirige
+        self.client = httpx.AsyncClient(timeout=60.0, follow_redirects=True)
 
-        # --- DIAGNÓSTICO DE ARRANQUE ---
-        # Esto saldrá en los Logs de Render al reiniciar
-        print("🔍 DIAGNÓSTICO FIIX (Verificando variables):")
-        print(f"   👉 FIIX_HOST: '{self.host}' " + ("✅ OK" if self.host else "❌ VACÍO"))
-        print(f"   👉 FIIX_ACCESS_KEY: " + ("✅ DETECTADA" if self.access_key else "❌ VACÍA"))
-        print(f"   👉 FIIX_SECRET_KEY: " + ("✅ DETECTADA" if self.secret_key else "❌ VACÍA"))
+        print("🔍 DIAGNÓSTICO FIIX INICIAL:")
+        print(f"   👉 Host: {self.host}")
+        print(f"   👉 Access Key: {self.access_key[:5]}***")
 
     def _generate_signature(self, body: str) -> str:
-        """Firma HMAC-SHA256 requerida por la API de Fiix"""
         if not self.secret_key: return ""
         msg = body.encode('utf-8')
         key = self.secret_key.encode('utf-8')
@@ -2770,80 +2766,87 @@ class FiixConnector:
         return base64.b64encode(signature).decode('utf-8')
 
     async def fetch_metrics(self):
-        # Validación de seguridad: Si no hay credenciales en Render, no hacemos nada
-        if not self.host or not self.access_key or not self.secret_key:
-            print("⚠️ FIIX: Credenciales no configuradas en Environment Variables.")
+        if not self.host or not self.access_key:
+            print("⚠️ FIIX: Faltan credenciales.")
             return
 
+        # Construimos la URL. Si el usuario puso macmms, probamos esa.
         url = f"https://{self.host}/api/"
         
-        # 1. Filtros para OTs ABIERTAS (Backlog)
+        # Filtros
         criteria_open = "intCompleted = 0"
-        if self.site_id: 
-            criteria_open += f" AND intSiteID = {self.site_id}"
+        if self.site_id: criteria_open += f" AND intSiteID = {self.site_id}"
 
-        # 2. Filtros para COSTES (Mes Actual)
+        # Timestamp para costes (desde día 1 del mes)
         today = datetime.now()
         first_day = datetime(today.year, today.month, 1)
         ts_start = int(first_day.timestamp() * 1000) 
         criteria_costs = f"intCompleted = 1 AND dtmDateCompleted >= {ts_start}"
-        if self.site_id: 
-            criteria_costs += f" AND intSiteID = {self.site_id}"
+        if self.site_id: criteria_costs += f" AND intSiteID = {self.site_id}"
 
-        # Batch Request (2 peticiones en 1)
         payload = {
             "msg_id": str(uuid.uuid4()),
             "requests": [
-                # Request 0: Abiertas (ID, Tipo, Fecha, Prioridad)
                 {"action": "find", "className": "WorkOrder", "filters": criteria_open, "fields": "id, intMaintenanceTypeID, dtmSuggestedCompletionDate, intPriorityID", "max": 1000},
-                # Request 1: Costes (Coste Total)
                 {"action": "find", "className": "WorkOrder", "filters": criteria_costs, "fields": "id, dtmDateCompleted, dblTotalCost", "max": 1000}
             ]
         }
 
         try:
-            body_str = json.dumps(payload)
+            # Usamos separators para JSON compacto (a veces Fiix es quisquilloso con los espacios en la firma)
+            body_str = json.dumps(payload, separators=(',', ':'))
+            signature = self._generate_signature(body_str)
+
             headers = {
                 "Content-Type": "application/json",
                 "Access-Key": self.access_key,
-                "Signature": self._generate_signature(body_str)
+                "Signature": signature
             }
 
+            print(f"📡 FIIX: Conectando a {url} ...")
             resp = await self.client.post(url, content=body_str, headers=headers)
             
+            # --- DEBUG CRÍTICO: IMPRIMIR RESPUESTA ---
+            print(f"🔙 FIIX Status: {resp.status_code}")
+            
             if resp.status_code != 200:
-                print(f"❌ FIIX Error HTTP {resp.status_code}: {resp.text}")
+                print(f"❌ FIIX ERROR BODY: {resp.text}")
                 return
 
             data = resp.json()
-            if "responses" not in data: return
+            
+            # Verificar errores internos de la API (Success: false)
+            if "error" in data:
+                 print(f"❌ FIIX API ERROR: {data['error']}")
+                 return
 
-            # --- A. Procesar Backlog ---
+            if "responses" not in data:
+                print(f"⚠️ FIIX: Respuesta inesperada: {str(data)[:200]}")
+                return
+
+            # Procesar datos
             open_wos = data["responses"][0].get("value", [])
             count_backlog = len(open_wos)
             
-            # Urgencias: Asumimos intPriorityID == 0 es Alta/Crítica (Ajustar según tu Fiix)
-            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0)
+            # Intenta detectar prioridad (0 suele ser High/Critical)
+            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0 or w.get("intMaintenanceTypeID") == 1234)
 
-            # Vencidas
             now_ms = datetime.now().timestamp() * 1000
             count_overdue = sum(1 for w in open_wos if w.get("dtmSuggestedCompletionDate") and w.get("dtmSuggestedCompletionDate") < now_ms)
 
-            # --- B. Procesar Costes ---
             closed_wos = data["responses"][1].get("value", [])
             total_cost = sum(float(w.get("dblTotalCost") or 0) for w in closed_wos)
 
-            print(f"🔧 FIIX Sincronizado: Backlog={count_backlog}, Urgentes={count_urgent}, CosteMes={total_cost:.2f}€")
+            print(f"✅ FIIX ÉXITO: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost}")
 
-            # Enviar al Frontend vía WebSocket
+            # Enviar
             ts = datetime.utcnow().isoformat() + "Z"
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_backlog", "value": count_backlog, "timestamp": ts})
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_urgent",  "value": count_urgent,  "timestamp": ts})
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_cost",    "value": total_cost,    "timestamp": ts})
 
         except Exception as e:
-            print(f"❌ Excepción FIIX: {e}")
-
+            print(f"❌ FIIX EXCEPCIÓN: {e}")
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -2865,17 +2868,32 @@ async def lifespan(app: FastAPI):
     # ... (código existente) ...
     
     # Iniciar el conector de Fiix (WFS1)
+   # --- FIIX LOOP DE DIAGNÓSTICO ---
     fiix = FiixConnector()
     async def _fiix_loop():
+        print("⏳ FIIX: Esperando 5s para primera conexión...")
+        await asyncio.sleep(5) # Espera corta inicial
         while True:
             await fiix.fetch_metrics()
-            await asyncio.sleep(300) # Actualizar cada 5 minutos
+            await asyncio.sleep(300) # Luego cada 5 mins
             
     app.state._fiix_task = asyncio.create_task(_fiix_loop())
+    # --------------------------------
 
+    # Heartbeat
+    async def _hb():
+        while True:
+            await asyncio.sleep(30)
+            try: await manager.broadcast({"type":"server_heartbeat","ts":datetime.utcnow().isoformat()+"Z"})
+            except: pass
+    app.state._hb = asyncio.create_task(_hb())
+    
     yield
-    # ... (código de cierre) ...
+    print("🛑 Deteniendo...")
+    app.state._hb.cancel()
+    app.state._roster_task.cancel()
     if hasattr(app.state, '_fiix_task'): app.state._fiix_task.cancel()
+   
 
     print("🚀 Sistema iniciado correctamente")
     yield
@@ -4414,6 +4432,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
