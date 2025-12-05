@@ -2751,21 +2751,15 @@ class FiixConnector:
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
         self.site_id = os.getenv("FIIX_SITE_ID", "").strip()
-        # Timeout amplio y seguimiento de redirecciones
+        
+        # Cliente HTTP
         self.client = httpx.AsyncClient(timeout=60.0, follow_redirects=True)
 
-        print("🔍 DIAGNÓSTICO FIIX:")
-        print(f"   👉 Host: {self.host}")
-        print(f"   👉 Access Key: {self.access_key[:5]}***")
-        # Verificamos si el Site ID está vacío o es un número
-        if self.site_id:
-            print(f"   👉 Filtro Site ID: {self.site_id}")
-        else:
-            print("   👉 Filtro Site ID: Ninguno (Todas las ubicaciones)")
+        print(f"🔍 FIIX CONFIG: Host={self.host}")
 
     def _generate_signature(self, body: str) -> str:
         if not self.secret_key: return ""
-        # Fiix requiere firma HMAC-SHA256 del cuerpo EXACTO
+        # Fiix HMAC-SHA256
         msg = body.encode('utf-8')
         key = self.secret_key.encode('utf-8')
         signature = hmac.new(key, msg, hashlib.sha256).digest()
@@ -2773,18 +2767,17 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         if not self.host or not self.access_key:
-            print("⚠️ FIIX: Credenciales incompletas.")
+            print("⚠️ FIIX: Faltan credenciales.")
             return
 
         url = f"https://{self.host}/api/"
         
-        # --- CONSTRUCCIÓN DE FILTROS ---
-        # Aseguramos que si hay site_id, se añada correctamente
+        # --- FILTROS ---
         criteria_open = "intCompleted = 0"
         if self.site_id: 
             criteria_open += f" AND intSiteID = {self.site_id}"
 
-        # Timestamp para costes (principio de mes en milisegundos)
+        # Timestamp (ms) para inicio de mes
         today = datetime.now()
         first_day = datetime(today.year, today.month, 1)
         ts_start = int(first_day.timestamp() * 1000) 
@@ -2815,57 +2808,57 @@ class FiixConnector:
         }
 
         try:
-            # CAMBIO 1: Usamos json.dumps() ESTÁNDAR (sin separators)
-            # Algunos servidores antiguos fallan si el JSON está demasiado comprimido.
-            body_str = json.dumps(payload)
+            # CORRECCIÓN CRÍTICA: JSON COMPACTO (Sin espacios)
+            # Esto soluciona el SERVER_REQUEST_UNPACK porque la firma coincidirá byte a byte.
+            body_str = json.dumps(payload, separators=(',', ':'))
             
-            # CAMBIO 2: Imprimir el payload exacto para ver si hay errores de sintaxis
-            # (Solo se verá en los logs de Render)
-            print(f"📦 FIIX BODY ENVIO: {body_str[:200]}...") 
-
-            # Generamos firma sobre el string EXACTO
+            # Firmamos esa cadena exacta
             signature = self._generate_signature(body_str)
 
             headers = {
                 "Content-Type": "application/json",
                 "Access-Key": self.access_key,
-                "Signature": signature,
-                "User-Agent": "Python-Fiix-Connector/1.0" # A veces ayuda identificarse
+                "Signature": signature
             }
 
+            # Enviamos esa cadena exacta como content (no como json=...)
             resp = await self.client.post(url, content=body_str, headers=headers)
             
             if resp.status_code != 200:
-                print(f"❌ FIIX HTTP ERROR {resp.status_code}: {resp.text}")
+                print(f"❌ FIIX HTTP {resp.status_code}: {resp.text}")
                 return
 
             data = resp.json()
 
-            # Si Fiix devuelve error 200 pero con mensaje de error dentro
+            # Verificar errores de nivel aplicación (aunque sea 200 OK)
             if "error" in data:
-                print(f"❌ FIIX API ERROR DETALLE: {data}")
+                print(f"❌ FIIX API ERROR: {data['error']}")
+                # Si el error es "Invalid Signature", revisa que la SECRET_KEY en Render sea correcta.
                 return
 
             if "responses" not in data:
-                print(f"⚠️ FIIX: Estructura inesperada: {data}")
+                print(f"⚠️ FIIX: Respuesta inesperada: {data}")
                 return
 
-            # --- PROCESAR DATOS SI TODO VA BIEN ---
+            # --- PROCESAMIENTO ---
+            # 1. Abiertas
             open_wos = data["responses"][0].get("value", [])
             count_backlog = len(open_wos)
             
-            # Prioridad 0 suele ser crítica. Ajustar si tu Fiix usa otro ID.
+            # Urgentes (Priority 0 = Alta)
             count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0)
 
+            # Vencidas
             now_ms = datetime.now().timestamp() * 1000
             count_overdue = sum(1 for w in open_wos if w.get("dtmSuggestedCompletionDate") and w.get("dtmSuggestedCompletionDate") < now_ms)
 
+            # 2. Costes Mes
             closed_wos = data["responses"][1].get("value", [])
             total_cost = sum(float(w.get("dblTotalCost") or 0) for w in closed_wos)
 
-            print(f"✅ FIIX OK: Backlog={count_backlog}, Urg={count_urgent}, Coste={total_cost}")
+            print(f"✅ FIIX OK: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost:.2f}")
 
-            # Broadcast
+            # Enviar a Frontend
             ts = datetime.utcnow().isoformat() + "Z"
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_backlog", "value": count_backlog, "timestamp": ts})
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_urgent",  "value": count_urgent,  "timestamp": ts})
@@ -4458,6 +4451,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
