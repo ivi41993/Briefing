@@ -2846,23 +2846,23 @@ class FiixConnector:
         return objects
 
     async def fetch_metrics(self):
-        # Comprobación básica de credenciales
         if not (self.host and self.app_key and self.access_key and self.secret_key):
             print("⚠️ FIIX: Faltan credenciales (HOST / APP_KEY / ACCESS_KEY / SECRET_KEY).")
             return
 
-        # 1. Fechas: desde el primer día de mes actual (UTC o local, como prefieras)
-        today = datetime.utcnow()
+        # 1. Preparar parámetros de fecha y Site ID
+        today = datetime.now()
         first_day = datetime(today.year, today.month, 1)
-        ts_start = int(first_day.timestamp() * 1000)  # Fiix usa ms desde epoch
 
-        # 2. Site ID (opcional)
-        site_id_int: int | None = None
+        # 🔑 IMPORTANTE: Fiix está usando un campo DATETIME,
+        # así que le pasamos una cadena, no milisegundos.
+        date_start_str = first_day.strftime("%Y-%m-%d 00:00:00")
+
+        site_id_int = None
         if self.site_id and self.site_id.strip().isdigit():
-            site_id_int = int(self.site_id.strip())
+            site_id_int = int(self.site_id)
 
-        # 3. Filtro Backlog (órdenes abiertas)
-        # Abiertas = dtmDateCompleted IS NULL [+ intSiteID = ? si aplica]
+        # 2. Filtro Backlog (Órdenes abiertas: dtmDateCompleted IS NULL)
         ql_open = "dtmDateCompleted IS NULL"
         params_open: list[Any] = []
 
@@ -2877,10 +2877,9 @@ class FiixConnector:
             }
         ]
 
-        # 4. Filtro Costes (órdenes cerradas este mes)
-        # Cerradas este mes = dtmDateCompleted >= ? [+ intSiteID = ?]
+        # 3. Filtro Costes (Órdenes cerradas este mes: dtmDateCompleted >= fecha inicio mes)
         ql_cost = "dtmDateCompleted >= ?"
-        params_cost: list[Any] = [ts_start]
+        params_cost: list[Any] = [date_start_str]
 
         if site_id_int is not None:
             ql_cost += " AND intSiteID = ?"
@@ -2894,7 +2893,7 @@ class FiixConnector:
         ]
 
         try:
-            # 5. Llamadas reales a la API Fiix usando el patrón oficial (_maCn: FindRequest)
+            # 4. Llamadas oficiales a la API usando FindRequest
             open_wos = await self._find_workorders(
                 filters=filters_open,
                 fields="id,intPriorityID,dtmSuggestedCompletionDate,dtmDateCompleted,intSiteID",
@@ -2907,13 +2906,13 @@ class FiixConnector:
                 max_objects=1000,
             )
 
-            # 6. Cálculo de métricas
+            # 5. Cálculo de métricas
             count_backlog = len(open_wos)
 
-            # OJO: ajusta el valor de prioridad alta a lo que tengáis en Fiix
+            # Ajusta el valor de prioridad alta según vuestra configuración real
             count_urgent = sum(
                 1 for w in open_wos
-                if w.get("intPriorityID") == 0  # o el ID que toque
+                if w.get("intPriorityID") == 0
             )
 
             total_cost = sum(
@@ -2926,7 +2925,7 @@ class FiixConnector:
                 f"Urgentes={count_urgent}, Coste={total_cost:.2f}"
             )
 
-            # 7. Emisión al frontend vía WebSocket
+            # 6. Enviar al frontend
             ts = datetime.utcnow().isoformat() + "Z"
             await manager.broadcast({
                 "type": "kpi_update",
@@ -4536,6 +4535,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
