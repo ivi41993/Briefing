@@ -2766,70 +2766,87 @@ class FiixConnector:
         return base64.b64encode(signature).decode('utf-8')
 
     async def fetch_metrics(self):
-        # Validación de configuración
         if not self.host or not self.access_key or not self.secret_key:
-            print("⚠️ FIIX: Faltan credenciales (Host, Access Key o Secret Key).")
+            print("⚠️ FIIX: Faltan credenciales.")
             return
 
-        # Construcción de la URL (asegurando el protocolo)
-        # Si self.host ya viene limpio (ej: "empresa.fiixsoftware.com"), esto funciona.
         url = f"https://{self.host}/api/"
         
-        # --- FILTROS (Igual que tenías) ---
-        criteria_open = "intCompleted = 0"
-        if self.site_id: 
-            criteria_open += f" AND intSiteID = {self.site_id}"
-
+        # 1. Preparar parámetros de fecha y Site ID
         today = datetime.now()
         first_day = datetime(today.year, today.month, 1)
-        ts_start = int(first_day.timestamp() * 1000) 
+        ts_start = int(first_day.timestamp() * 1000)
         
-        criteria_costs = f"intCompleted = 1 AND dtmDateCompleted >= {ts_start}"
-        if self.site_id: 
-            criteria_costs += f" AND intSiteID = {self.site_id}"
+        # Convertir Site ID a entero si existe (importante para el array de parámetros)
+        site_id_int = None
+        if self.site_id and self.site_id.strip().isdigit():
+            site_id_int = int(self.site_id)
 
-        # --- PAYLOAD ---
+        # 2. Construir Filtro 1: Backlog (Abiertas)
+        # Equivalente a: intCompleted = 0 AND intSiteID = ?
+        ql_open = "intCompleted = ?"
+        params_open = [0] # 0 = False
+        
+        if site_id_int:
+            ql_open += " AND intSiteID = ?"
+            params_open.append(site_id_int)
+
+        # 3. Construir Filtro 2: Costes (Cerradas este mes)
+        # Equivalente a: intCompleted = 1 AND dtmDateCompleted >= ? AND intSiteID = ?
+        ql_cost = "intCompleted = ? AND dtmDateCompleted >= ?"
+        params_cost = [1, ts_start] # 1 = True
+        
+        if site_id_int:
+            ql_cost += " AND intSiteID = ?"
+            params_cost.append(site_id_int)
+
+        # --- PAYLOAD CORREGIDO ---
+        # "filters" ahora es una lista de objetos, no un string.
         payload = {
             "msg_id": str(uuid.uuid4()),
             "requests": [
                 {
                     "action": "find",
                     "className": "WorkOrder",
-                    "filters": criteria_open,
-                    "fields": "id, intMaintenanceTypeID, dtmSuggestedCompletionDate, intPriorityID",
+                    "filters": [
+                        {
+                            "ql": ql_open,
+                            "parameters": params_open
+                        }
+                    ],
+                    "fields": "id, intPriorityID, dtmSuggestedCompletionDate",
                     "max": 1000
                 },
                 {
                     "action": "find",
                     "className": "WorkOrder",
-                    "filters": criteria_costs,
-                    "fields": "id, dtmDateCompleted, dblTotalCost",
+                    "filters": [
+                        {
+                            "ql": ql_cost,
+                            "parameters": params_cost
+                        }
+                    ],
+                    "fields": "id, dblTotalCost",
                     "max": 1000
                 }
             ]
         }
 
         try:
-            # === CORRECCIÓN IMPORTANTE ===
-            # 1. Generar JSON string compacto
+            # Mantener la codificación binaria estricta que hicimos antes
             body_str = json.dumps(payload, separators=(',', ':'))
-            
-            # 2. Convertir a BYTES explícitamente (UTF-8)
             body_bytes = body_str.encode('utf-8')
 
-            # 3. Firmar los BYTES (no el string)
-            # Asegúrate que la secret_key no tenga espacios ocultos
             secret = self.secret_key.encode('utf-8')
             signature = base64.b64encode(hmac.new(secret, body_bytes, hashlib.sha256).digest()).decode('utf-8')
 
             headers = {
-                "Content-Type": "application/json",
+                "Content-Type": "application/json; charset=utf-8",
                 "Access-Key": self.access_key,
-                "Signature": signature
+                "Signature": signature,
+                "Content-Length": str(len(body_bytes))
             }
 
-            # 4. Enviar los BYTES (content=body_bytes)
-            # Esto evita que httpx altere la codificación en el camino
             resp = await self.client.post(url, content=body_bytes, headers=headers)
             
             if resp.status_code != 200:
@@ -2839,26 +2856,27 @@ class FiixConnector:
             data = resp.json()
 
             if "error" in data:
-                print(f"❌ FIIX API ERROR: {data['error']}")
+                print(f"❌ FIIX API ERROR: {data}")
+                return
+                
+            # Procesamiento de respuesta
+            resp_open = data["responses"][0]
+            resp_cost = data["responses"][1]
+
+            if resp_open.get("error"):
+                print(f"❌ Error en query Open: {resp_open['error']}")
                 return
 
-            if "responses" not in data:
-                print(f"⚠️ FIIX: Respuesta inesperada: {data}")
-                return
+            open_wos = resp_open.get("value", [])
+            closed_wos = resp_cost.get("value", [])
 
-            # --- PROCESAMIENTO (Igual que tenías) ---
-            open_wos = data["responses"][0].get("value", [])
             count_backlog = len(open_wos)
-            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0)
-
-            now_ms = datetime.now().timestamp() * 1000
-            # count_overdue lógica... (si la tienes implementada)
-
-            closed_wos = data["responses"][1].get("value", [])
+            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0) # 0 suele ser High/Critical
             total_cost = sum(float(w.get("dblTotalCost") or 0) for w in closed_wos)
 
             print(f"✅ FIIX OK: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost:.2f}")
 
+            # Enviar al frontend
             ts = datetime.utcnow().isoformat() + "Z"
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_backlog", "value": count_backlog, "timestamp": ts})
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_urgent",  "value": count_urgent,  "timestamp": ts})
@@ -4451,6 +4469,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
