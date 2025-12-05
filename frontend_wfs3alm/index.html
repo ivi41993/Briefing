@@ -3952,7 +3952,7 @@ updateSpotlightRouting?.();
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
             return `${day}/${month}/${year}`;
-        })()
+        })(),
       shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
       timer: document.getElementById('timer-display')?.textContent || '00:00:00',
       supervisor: supervisorVal,
