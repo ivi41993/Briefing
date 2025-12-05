@@ -93,6 +93,8 @@ class BriefingSnapshot(BaseModel):
     kanban_counts: Dict[str, int] = {}
     kanban_details: str = ""
     roster_stats: str = ""
+    # 👇 ESTA LÍNEA ES OBLIGATORIA:
+    briefing_time: Optional[str] = None 
 
     class Config: extra = "allow"
 
@@ -458,6 +460,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
+        "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M")),
         "feedback_kanban": str(data.kanban_details or "Sin feedback")
     }
     
