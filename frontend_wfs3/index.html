@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8" />
-<title>Factory Floor Dashboard - WFS3 MAD</title>
+<title>Factory Floor Dashboard - WFS3 MAD OPS</title>
 
 <!-- Fuentes -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1101,7 +1101,7 @@ Modo presentación
 <!-- HEADER -->
 <header>
 <div class="header-left">
-<h1>Factory Floor Dashboard - WFS3 MAD</h1>
+<h1>Factory Floor Dashboard - WFS3 MAD OPS</h1>
 <div id="now-header">—</div>
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
@@ -1127,7 +1127,7 @@ Modo presentación
 <!-- IZQUIERDA: EQUIPO -->
 <section class="col-left">
 <div class="widget" id="team-widget">
-<h2 class="widget-title">1) Equipo / Turno WFS3</h2>
+<h2 class="widget-title">1) Equipo / Turno WFS3 OPS</h2>
 <small class="kpi-text" id="team-meta">—</small>
 
 <!-- Alta manual rápida (local / opcional) -->
@@ -3915,11 +3915,17 @@ updateSpotlightRouting?.();
 
     return {
       station: station,
-      date: new Date().toLocaleDateString('es-ES'),
+      date: (() => {
+            const d = new Date();
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
+            return `${day}/${month}/${year}`;
+        })(),
       shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
       timer: document.getElementById('timer-display')?.textContent || '00:00:00',
       supervisor: supervisorVal,
-      
+      briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
       roster_details: rosterString,
       prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
       
@@ -3956,7 +3962,7 @@ updateSpotlightRouting?.();
     
     try {
       const payload = buildPayload();
-      console.log("Enviando Resumen WFS1:", payload);
+      console.log("Enviando Resumen WFS3:", payload);
 
       const res = await fetch('/api/briefing/summary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
@@ -3964,7 +3970,7 @@ updateSpotlightRouting?.();
 
       if (!res.ok) throw new Error('Error servidor');
       
-      alert("✅ Resumen WFS1 guardado.\nSe abrirá la pantalla de información.");
+      alert("✅ Resumen WFS3 guardado.\nSe abrirá la pantalla de información.");
       window.openPostBriefingMode();
       
     } catch (err) {
