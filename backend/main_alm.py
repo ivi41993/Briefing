@@ -44,8 +44,8 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
-        "feedback_kanban": str(data.kanban_details or "Sin feedback")
-        "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M")),
+        "feedback_kanban": str(data.kanban_details or "Sin feedback"),
+        "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M"))
     }
 
     print(f"📤 Payload Excel: {json.dumps(payload)}")
