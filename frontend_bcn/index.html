@@ -4399,7 +4399,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnGen.parentNode.replaceChild(newBtnGen, btnGen);
         
         newBtnGen.addEventListener('click', async () => {
-            // --- VALIDACIÓN DE SUPERVISOR (NUEVO) ---
+            // --- VALIDACIÓN DE SUPERVISOR ---
             const supInput = document.getElementById('briefing-supervisor');
             const supVal = supInput?.value.trim();
 
@@ -4460,7 +4460,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const d = new Date();
                         const day = String(d.getDate()).padStart(2, '0');
                         const month = String(d.getMonth() + 1).padStart(2, '0');
-                        const year = d.getFullYear(); // <--- Usamos el año completo (2025), NO .slice(-2)
+                        const year = d.getFullYear(); 
                         return `${day}/${month}/${year}`;
                     })(),
                     
@@ -4491,9 +4491,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
                 window.openPostBriefingMode();
 
-                // --- NUEVO: LIMPIAR CAMPO SUPERVISOR TRAS ÉXITO ---
+                // --- ACCIONES TRAS GUARDAR ---
+                
+                // 1. Limpiar Supervisor
                 if(supInput) supInput.value = ""; 
-                // --------------------------------------------------
+
+                // 2. Resetear Cronómetro a 00:00:00 (NUEVO)
+                if(window.resetFactoryTimer) {
+                    window.resetFactoryTimer();
+                }
+                // -----------------------------
 
             } catch (e) {
                 console.error(e);
