@@ -2757,12 +2757,12 @@ class FiixConnector:
 
         print(f"🔍 FIIX CONFIG: Host={self.host}")
 
-    def _generate_signature(self, body: str) -> str:
+    def _generate_signature(self, body_bytes: bytes) -> str:
+        """Genera la firma HMAC-SHA256 sobre los BYTES exactos del cuerpo."""
         if not self.secret_key: return ""
-        # Fiix HMAC-SHA256
-        msg = body.encode('utf-8')
         key = self.secret_key.encode('utf-8')
-        signature = hmac.new(key, msg, hashlib.sha256).digest()
+        # body_bytes ya son bytes, no volvemos a codificar
+        signature = hmac.new(key, body_bytes, hashlib.sha256).digest()
         return base64.b64encode(signature).decode('utf-8')
 
     async def fetch_metrics(self):
@@ -2770,23 +2770,25 @@ class FiixConnector:
             print("⚠️ FIIX: Faltan credenciales.")
             return
 
+        # URL base de la API RPC
         url = f"https://{self.host}/api/"
         
-        # --- FILTROS ---
+        # --- 1. FILTROS (Formato SQL-like de Fiix) ---
         criteria_open = "intCompleted = 0"
         if self.site_id: 
             criteria_open += f" AND intSiteID = {self.site_id}"
 
-        # Timestamp (ms) para inicio de mes
+        # Costes: Cerradas desde el día 1 del mes actual
         today = datetime.now()
         first_day = datetime(today.year, today.month, 1)
-        ts_start = int(first_day.timestamp() * 1000) 
+        ts_start = int(first_day.timestamp() * 1000) # ms
         
         criteria_costs = f"intCompleted = 1 AND dtmDateCompleted >= {ts_start}"
         if self.site_id: 
             criteria_costs += f" AND intSiteID = {self.site_id}"
 
-        # --- PAYLOAD ---
+        # --- 2. PAYLOAD (Batch Request RPC) ---
+        # Pedimos WorkOrder porque dblTotalCost ya incluye todo (Mano de obra + Piezas + Misc)
         payload = {
             "msg_id": str(uuid.uuid4()),
             "requests": [
@@ -2808,12 +2810,14 @@ class FiixConnector:
         }
 
         try:
-            # CORRECCIÓN CRÍTICA: JSON COMPACTO (Sin espacios)
-            # Esto soluciona el SERVER_REQUEST_UNPACK porque la firma coincidirá byte a byte.
-            body_str = json.dumps(payload, separators=(',', ':'))
+            # A. Serializar a JSON string estándar (con espacios, como en los ejemplos de la doc)
+            json_str = json.dumps(payload)
             
-            # Firmamos esa cadena exacta
-            signature = self._generate_signature(body_str)
+            # B. Convertir explícitamente a BYTES (UTF-8)
+            body_bytes = json_str.encode('utf-8')
+            
+            # C. Firmar esos BYTES exactos
+            signature = self._generate_signature(body_bytes)
 
             headers = {
                 "Content-Type": "application/json",
@@ -2821,8 +2825,9 @@ class FiixConnector:
                 "Signature": signature
             }
 
-            # Enviamos esa cadena exacta como content (no como json=...)
-            resp = await self.client.post(url, content=body_str, headers=headers)
+            # D. Enviar los BYTES exactos (usando content=, no json=)
+            # Esto evita que httpx vuelva a serializar y cambie el formato, rompiendo la firma.
+            resp = await self.client.post(url, content=body_bytes, headers=headers)
             
             if resp.status_code != 200:
                 print(f"❌ FIIX HTTP {resp.status_code}: {resp.text}")
@@ -2830,35 +2835,36 @@ class FiixConnector:
 
             data = resp.json()
 
-            # Verificar errores de nivel aplicación (aunque sea 200 OK)
+            # Verificar errores lógicos de la API
             if "error" in data:
                 print(f"❌ FIIX API ERROR: {data['error']}")
-                # Si el error es "Invalid Signature", revisa que la SECRET_KEY en Render sea correcta.
                 return
 
             if "responses" not in data:
                 print(f"⚠️ FIIX: Respuesta inesperada: {data}")
                 return
 
-            # --- PROCESAMIENTO ---
-            # 1. Abiertas
+            # --- 3. PROCESAMIENTO DE DATOS ---
+            
+            # Respuesta 0: OTs Abiertas (Backlog)
             open_wos = data["responses"][0].get("value", [])
             count_backlog = len(open_wos)
             
-            # Urgentes (Priority 0 = Alta)
+            # Urgentes: PriorityID 0 suele ser Alta/Crítica por defecto en Fiix
             count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0)
 
-            # Vencidas
+            # Vencidas: Fecha sugerida < Ahora
             now_ms = datetime.now().timestamp() * 1000
             count_overdue = sum(1 for w in open_wos if w.get("dtmSuggestedCompletionDate") and w.get("dtmSuggestedCompletionDate") < now_ms)
 
-            # 2. Costes Mes
+            # Respuesta 1: OTs Cerradas (Costes)
+            # dblTotalCost suma Labor + Parts + MiscCost
             closed_wos = data["responses"][1].get("value", [])
             total_cost = sum(float(w.get("dblTotalCost") or 0) for w in closed_wos)
 
-            print(f"✅ FIIX OK: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost:.2f}")
+            print(f"✅ FIIX OK: Backlog={count_backlog}, Urg={count_urgent}, CosteMes={total_cost:.2f}")
 
-            # Enviar a Frontend
+            # Enviar al Frontend
             ts = datetime.utcnow().isoformat() + "Z"
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_backlog", "value": count_backlog, "timestamp": ts})
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_urgent",  "value": count_urgent,  "timestamp": ts})
@@ -4451,6 +4457,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
