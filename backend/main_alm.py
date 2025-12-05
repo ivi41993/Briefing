@@ -45,6 +45,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
         "feedback_kanban": str(data.kanban_details or "Sin feedback")
+        "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M")),
     }
 
     print(f"📤 Payload Excel: {json.dumps(payload)}")
@@ -4173,7 +4174,7 @@ class BriefingSnapshot(BaseModel):
     shift: str
     timer: str
     supervisor: str = "No especificado"  # <--- NUEVO CAMPO
-    
+    briefing_time: Optional[str] = None 
     checklist: Dict[str, str] = {}
     kpis: Dict[str, Any] = {}
     roster_details: str = ""
