@@ -2754,7 +2754,7 @@ import uuid
 import json
 from datetime import datetime
 from urllib.parse import urlencode
-
+from typing import Any
 import httpx
 
 class FiixConnector:
@@ -2846,25 +2846,23 @@ class FiixConnector:
         return objects
 
     async def fetch_metrics(self):
-        if not self.host or not self.access_key or not self.secret_key:
-            print("⚠️ FIIX: Faltan credenciales.")
+        # Comprobación básica de credenciales
+        if not (self.host and self.app_key and self.access_key and self.secret_key):
+            print("⚠️ FIIX: Faltan credenciales (HOST / APP_KEY / ACCESS_KEY / SECRET_KEY).")
             return
 
-        url = f"https://{self.host}/api/"
-        
-        # 1. Preparar parámetros de fecha y Site ID
-        today = datetime.now()
+        # 1. Fechas: desde el primer día de mes actual (UTC o local, como prefieras)
+        today = datetime.utcnow()
         first_day = datetime(today.year, today.month, 1)
-        # Fiix suele trabajar con milisegundos desde epoch
-        ts_start = int(first_day.timestamp() * 1000)
-        
-        # Convertir Site ID a entero si existe (importante para el array de parámetros)
-        site_id_int = None
-        if self.site_id and self.site_id.strip().isdigit():
-            site_id_int = int(self.site_id)
+        ts_start = int(first_day.timestamp() * 1000)  # Fiix usa ms desde epoch
 
-        # 2. Filtro Backlog (Órdenes abiertas)
-        # Abiertas = dtmDateCompleted IS NULL [+ intSiteID si aplica]
+        # 2. Site ID (opcional)
+        site_id_int: int | None = None
+        if self.site_id and self.site_id.strip().isdigit():
+            site_id_int = int(self.site_id.strip())
+
+        # 3. Filtro Backlog (órdenes abiertas)
+        # Abiertas = dtmDateCompleted IS NULL [+ intSiteID = ? si aplica]
         ql_open = "dtmDateCompleted IS NULL"
         params_open: list[Any] = []
 
@@ -2872,8 +2870,15 @@ class FiixConnector:
             ql_open += " AND intSiteID = ?"
             params_open.append(site_id_int)
 
-        # 3. Filtro Costes (Órdenes cerradas este mes)
-        # Cerradas = dtmDateCompleted >= ? [+ intSiteID si aplica]
+        filters_open = [
+            {
+                "ql": ql_open,
+                "parameters": params_open,
+            }
+        ]
+
+        # 4. Filtro Costes (órdenes cerradas este mes)
+        # Cerradas este mes = dtmDateCompleted >= ? [+ intSiteID = ?]
         ql_cost = "dtmDateCompleted >= ?"
         params_cost: list[Any] = [ts_start]
 
@@ -2881,95 +2886,69 @@ class FiixConnector:
             ql_cost += " AND intSiteID = ?"
             params_cost.append(site_id_int)
 
-        # --- PAYLOAD CORREGIDO ---
-        payload = {
-            "msg_id": str(uuid.uuid4()),
-            "requests": [
-                {
-                    "action": "find",
-                    "className": "WorkOrder",
-                    "filters": [
-                        {
-                            "ql": ql_open,
-                            "parameters": params_open
-                        }
-                    ],
-                    "fields": "id,intPriorityID,dtmSuggestedCompletionDate,dtmDateCompleted,intSiteID",
-                    "max": 1000
-                },
-                {
-                    "action": "find",
-                    "className": "WorkOrder",
-                    "filters": [
-                        {
-                            "ql": ql_cost,
-                            "parameters": params_cost
-                        }
-                    ],
-                    "fields": "id,dblTotalCost,dtmDateCompleted,intSiteID",
-                    "max": 1000
-                }
-            ]
-        }
+        filters_cost = [
+            {
+                "ql": ql_cost,
+                "parameters": params_cost,
+            }
+        ]
 
         try:
-            body_str = json.dumps(payload, separators=(',', ':'))
-            body_bytes = body_str.encode('utf-8')
+            # 5. Llamadas reales a la API Fiix usando el patrón oficial (_maCn: FindRequest)
+            open_wos = await self._find_workorders(
+                filters=filters_open,
+                fields="id,intPriorityID,dtmSuggestedCompletionDate,dtmDateCompleted,intSiteID",
+                max_objects=1000,
+            )
 
-            secret = self.secret_key.encode('utf-8')
-            signature = base64.b64encode(
-                hmac.new(secret, body_bytes, hashlib.sha256).digest()
-            ).decode('utf-8')
+            closed_wos = await self._find_workorders(
+                filters=filters_cost,
+                fields="id,dblTotalCost,dtmDateCompleted,intSiteID",
+                max_objects=1000,
+            )
 
-            headers = {
-                "Content-Type": "application/json; charset=utf-8",
-                "Access-Key": self.access_key,
-                "Signature": signature,
-                "Content-Length": str(len(body_bytes))
-            }
-
-            resp = await self.client.post(url, content=body_bytes, headers=headers)
-
-            if resp.status_code != 200:
-                print(f"❌ FIIX HTTP {resp.status_code}: {resp.text}")
-                return
-
-            data = resp.json()
-
-            if "error" in data:
-                print(f"❌ FIIX API ERROR: {data}")
-                return
-                
-            resp_open = data["responses"][0]
-            resp_cost = data["responses"][1]
-
-            if resp_open.get("error"):
-                print(f"❌ Error en query Open: {resp_open['error']}")
-                return
-
-            open_wos = resp_open.get("value", [])
-            closed_wos = resp_cost.get("value", [])
-
+            # 6. Cálculo de métricas
             count_backlog = len(open_wos)
-            # Ojo: revisa el valor real de prioridad alta; aquí asumo 0
+
+            # OJO: ajusta el valor de prioridad alta a lo que tengáis en Fiix
             count_urgent = sum(
                 1 for w in open_wos
-                if w.get("intPriorityID") == 0
+                if w.get("intPriorityID") == 0  # o el ID que toque
             )
+
             total_cost = sum(
                 float(w.get("dblTotalCost") or 0)
                 for w in closed_wos
             )
 
-            print(f"✅ FIIX OK: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost:.2f}")
+            print(
+                f"✅ FIIX OK: Backlog={count_backlog}, "
+                f"Urgentes={count_urgent}, Coste={total_cost:.2f}"
+            )
 
+            # 7. Emisión al frontend vía WebSocket
             ts = datetime.utcnow().isoformat() + "Z"
-            await manager.broadcast({"type":"kpi_update", "metric":"fiix_backlog", "value": count_backlog, "timestamp": ts})
-            await manager.broadcast({"type":"kpi_update", "metric":"fiix_urgent",  "value": count_urgent,  "timestamp": ts})
-            await manager.broadcast({"type":"kpi_update", "metric":"fiix_cost",    "value": total_cost,    "timestamp": ts})
+            await manager.broadcast({
+                "type": "kpi_update",
+                "metric": "fiix_backlog",
+                "value": count_backlog,
+                "timestamp": ts,
+            })
+            await manager.broadcast({
+                "type": "kpi_update",
+                "metric": "fiix_urgent",
+                "value": count_urgent,
+                "timestamp": ts,
+            })
+            await manager.broadcast({
+                "type": "kpi_update",
+                "metric": "fiix_cost",
+                "value": total_cost,
+                "timestamp": ts,
+            })
 
         except Exception as e:
-            print(f"❌ FIIX EXCEPCIÓN: {e}")
+            print(f"❌ FIIX EXCEPCIÓN en fetch_metrics: {e}")
 
 
 # Al final del archivo, REEMPLAZA por:
@@ -4557,6 +4536,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
