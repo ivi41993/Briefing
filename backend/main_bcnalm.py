@@ -634,6 +634,7 @@ class BriefingSnapshot(BaseModel):
     ops_updates: List[Dict[str, Any]] = []
     kanban_counts: Dict[str, int] = {}
     roster_stats: str = ""
+    briefing_time: Optional[str] = None 
 
     class Config:
         extra = "allow"
@@ -693,7 +694,8 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
-        "actualizaciones_ops": str(ops_text)
+        "actualizaciones_ops": str(ops_text),
+        "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M")),
     }
     
     print(f"📤 Enviando a Excel BCN: {json.dumps(payload)}")
