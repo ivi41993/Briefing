@@ -13,6 +13,11 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import tempfile
+import hmac
+import hashlib
+import base64
+# Asegúrate de tener estos también si no estaban
+from datetime import timezone
 from urllib.parse import unquote
 from contextlib import asynccontextmanager  # ← ESTA LÍNEA DEBE ESTAR AQUÍ
 
@@ -2737,6 +2742,110 @@ async def _ws_heartbeat(interval_sec: int = 30):
         await asyncio.sleep(interval_sec)
 
 
+class FiixConnector:
+    def __init__(self):
+        self.host = os.getenv("FIIX_HOST", "").strip()
+        self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
+        self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        # El Site ID es opcional, pero recomendado si tienes varios centros
+        self.site_id = os.getenv("FIIX_SITE_ID", "").strip() 
+        self.client = httpx.AsyncClient(timeout=30.0)
+
+    def _sign(self, body: str) -> str:
+        if not self.secret_key: return ""
+        msg = body.encode('utf-8')
+        key = self.secret_key.encode('utf-8')
+        signature = hmac.new(key, msg, hashlib.sha256).digest()
+        return base64.b64encode(signature).decode('utf-8')
+
+    async def fetch_metrics(self):
+        if not self.host or not self.access_key: return
+
+        url = f"https://{self.host}/api/"
+        
+        # A. Obtener OTs ABIERTAS (Backlog, Correctivos, Vencidas)
+        # Nota: intCompleted = 0 significa "No terminada"
+        criteria_open = "intCompleted = 0"
+        if self.site_id: criteria_open += f" AND intSiteID = {self.site_id}"
+
+        # B. Obtener Costes del MES ACTUAL (OTs Cerradas)
+        # Calculamos el timestamp UNIX del día 1 del mes actual
+        today = datetime.now()
+        first_day = datetime(today.year, today.month, 1)
+        ts_start = int(first_day.timestamp() * 1000) # Fiix usa ms
+        
+        criteria_costs = f"intCompleted = 1 AND dtmDateCompleted >= {ts_start}"
+        if self.site_id: criteria_costs += f" AND intSiteID = {self.site_id}"
+
+        # Payload RPC (Batch request: pedimos todo de una vez)
+        payload = {
+            "msg_id": str(uuid.uuid4()),
+            "requests": [
+                # Request 0: Abiertas (traemos campos para filtrar en Python)
+                {
+                    "action": "find",
+                    "className": "WorkOrder",
+                    "filters": criteria_open,
+                    "fields": "id, intMaintenanceTypeID, dtmSuggestedCompletionDate, intPriorityID",
+                    "max": 1000
+                },
+                # Request 1: Costes (Cerradas este mes)
+                {
+                    "action": "find",
+                    "className": "WorkOrder",
+                    "filters": criteria_costs,
+                    "fields": "id, dtmDateCompleted, dblTotalCost", # dblTotalCost suma labor + parts
+                    "max": 1000
+                }
+            ]
+        }
+
+        try:
+            body_str = json.dumps(payload)
+            headers = {
+                "Content-Type": "application/json",
+                "Access-Key": self.access_key,
+                "Signature": self._sign(body_str)
+            }
+
+            resp = await self.client.post(url, content=body_str, headers=headers)
+            if resp.status_code != 200:
+                print(f"⚠️ Fiix Error: {resp.status_code}")
+                return
+
+            data = resp.json()
+            if "responses" not in data: return
+
+            # --- PROCESAR ABIERTAS ---
+            open_wos = data["responses"][0].get("value", [])
+            
+            count_backlog = len(open_wos)
+            
+            # Nota: Tendrás que ajustar el ID 1234 al ID real de "Correctivo" en tu Fiix
+            # O usar intPriorityID (ej: 0 o 1 suele ser Alta/Emergencia)
+            count_urgent = sum(1 for w in open_wos if w.get("intMaintenanceTypeID") == 1234 or w.get("intPriorityID") == 0)
+            
+            now_ms = datetime.now().timestamp() * 1000
+            count_overdue = sum(1 for w in open_wos if w.get("dtmSuggestedCompletionDate") and w.get("dtmSuggestedCompletionDate") < now_ms)
+
+            # --- PROCESAR COSTES ---
+            closed_wos = data["responses"][1].get("value", [])
+            total_cost = sum(float(w.get("dblTotalCost") or 0) for w in closed_wos)
+
+            print(f"🔧 Fiix KPIs: Backlog={count_backlog}, Urg={count_urgent}, Cost={total_cost}€")
+
+            # Enviar al WebSocket
+            # Enviamos cada métrica por separado para que el frontend las pinte
+            ts = datetime.utcnow().isoformat() + "Z"
+            
+            await manager.broadcast({"type":"kpi_update", "metric":"fiix_backlog", "value": count_backlog, "timestamp": ts})
+            await manager.broadcast({"type":"kpi_update", "metric":"fiix_urgent",  "value": count_urgent,  "timestamp": ts})
+            await manager.broadcast({"type":"kpi_update", "metric":"fiix_overdue", "value": count_overdue, "timestamp": ts})
+            await manager.broadcast({"type":"kpi_update", "metric":"fiix_cost",    "value": total_cost,    "timestamp": ts})
+
+        except Exception as e:
+            print(f"❌ Error Fiix: {e}")
+
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -2754,6 +2863,21 @@ async def lifespan(app: FastAPI):
 
     # 👇 NUEVO: heartbeat WS
     app.state._hb = asyncio.create_task(_ws_heartbeat(30))
+
+    # ... (código existente) ...
+    
+    # Iniciar el conector de Fiix (WFS1)
+    fiix = FiixConnector()
+    async def _fiix_loop():
+        while True:
+            await fiix.fetch_metrics()
+            await asyncio.sleep(300) # Actualizar cada 5 minutos
+            
+    app.state._fiix_task = asyncio.create_task(_fiix_loop())
+
+    yield
+    # ... (código de cierre) ...
+    if hasattr(app.state, '_fiix_task'): app.state._fiix_task.cancel()
 
     print("🚀 Sistema iniciado correctamente")
     yield
@@ -4292,6 +4416,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
