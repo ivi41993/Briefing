@@ -4084,11 +4084,17 @@ async function loadAllTasks(){
 
     return {
       station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
-      date: new Date().toLocaleDateString('es-ES'),
+      date: (() => {
+          const d = new Date();
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
+          return `${day}/${month}/${year}`;
+      })(),
       shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
       timer: document.getElementById('timer-display')?.textContent || '00:00:00',
       supervisor: supervisorVal,
-      
+      briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
       roster_details: rosterString,
       prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
       
