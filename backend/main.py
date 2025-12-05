@@ -2745,145 +2745,184 @@ async def _ws_heartbeat(interval_sec: int = 30):
 # ==========================================
 # CONECTOR FIIX (MANTENIMIENTO)
 # ==========================================
+import os
+import time
+import hmac
+import base64
+import hashlib
+import uuid
+import json
+from datetime import datetime
+from urllib.parse import urlencode
+
+import httpx
+
 class FiixConnector:
     def __init__(self):
-        self.host = os.getenv("FIIX_HOST", "").strip()
+        self.host = os.getenv("FIIX_HOST", "").strip()              # p.ej. "miempresa.macmms.com"
+        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
         self.site_id = os.getenv("FIIX_SITE_ID", "").strip()
         
-        # Cliente HTTP
         self.client = httpx.AsyncClient(timeout=60.0, follow_redirects=True)
+        self.base_url = f"https://{self.host}/api/"
 
         print(f"🔍 FIIX CONFIG: Host={self.host}")
 
-    def _generate_signature(self, body_bytes: bytes) -> str:
-        """Genera la firma HMAC-SHA256 sobre los BYTES exactos del cuerpo."""
-        if not self.secret_key: return ""
-        key = self.secret_key.encode('utf-8')
-        # body_bytes ya son bytes, no volvemos a codificar
-        signature = hmac.new(key, body_bytes, hashlib.sha256).digest()
-        return base64.b64encode(signature).decode('utf-8')
+    def _build_auth(self) -> tuple[dict, dict]:
+        """
+        Construye los query params y el header Authorization para Fiix,
+        firmando la URL (sin protocolo) con HMAC-SHA256 como indica la doc.
+        """
+        if not (self.app_key and self.access_key and self.secret_key):
+            raise RuntimeError("Credenciales Fiix incompletas (APP_KEY / ACCESS_KEY / SECRET_KEY).")
+
+        ts_ms = int(time.time() * 1000)
+
+        params = {
+            "service": "cmms",
+            "timestamp": str(ts_ms),
+            "appKey": self.app_key,
+            "accessKey": self.access_key,
+            "signatureMethod": "HmacSHA256",
+            "signatureVersion": "1",
+        }
+
+        # Construimos el requestUri (host + path + ?query) SIN protocolo
+        query_str = urlencode(params)
+        request_uri = f"{self.host}/api/?{query_str}"
+
+        # HMAC-SHA256 → hex lowercase
+        secret_bytes = self.secret_key.encode("utf-8")
+        msg_bytes = request_uri.encode("utf-8")
+        signature_hex = hmac.new(secret_bytes, msg_bytes, hashlib.sha256).hexdigest().lower()
+
+        headers = {
+            "Content-Type": "text/plain",     # tal y como indica Fiix
+            "Authorization": signature_hex,   # header esperado por Fiix
+        }
+
+        return params, headers
+
+    async def _find_workorders(self, filters: list[dict], fields: str, max_objects: int = 1000) -> list[dict]:
+        """
+        Lanza un FindRequest contra WorkOrder con los filtros indicados y devuelve la lista de objetos.
+        """
+        params, headers = self._build_auth()
+
+        body = {
+            "_maCn": "FindRequest",
+            "requestId": 1,
+            "requestSentUnixTime": int(time.time() * 1000),
+            "clientVersion": {
+                "major": 2,
+                "minor": 8,
+                "patch": 1,
+            },
+            "className": "WorkOrder",
+            "fields": fields,
+            "filters": filters,
+            "maxObjects": max_objects,
+        }
+
+        body_str = json.dumps(body, separators=(",", ":"))
+        resp = await self.client.post(self.base_url, params=params, content=body_str, headers=headers)
+
+        if resp.status_code != 200:
+            raise RuntimeError(f"❌ FIIX HTTP {resp.status_code}: {resp.text}")
+
+        data = resp.json()
+
+        if "error" in data and data["error"]:
+            # Fiix devuelve siempre 200, pero con 'error' en el body si algo fue mal
+            raise RuntimeError(f"❌ FIIX API ERROR: {data['error']}")
+
+        if data.get("_maCn") != "FindResponse":
+            raise RuntimeError(f"❌ Respuesta inesperada de Fiix: {data}")
+
+        # Aquí es donde Fiix devuelve realmente los resultados
+        objects = data.get("objects", [])
+        return objects
 
     async def fetch_metrics(self):
-        if not self.host or not self.access_key or not self.secret_key:
-            print("⚠️ FIIX: Faltan credenciales.")
+        if not self.host or not self.access_key or not self.secret_key or not self.app_key:
+            print("⚠️ FIIX: Faltan credenciales (HOST/APP_KEY/ACCESS_KEY/SECRET_KEY).")
             return
 
-        url = f"https://{self.host}/api/"
-        
-        # 1. Preparar parámetros de fecha y Site ID
+        # 1. Fechas
         today = datetime.now()
         first_day = datetime(today.year, today.month, 1)
         ts_start = int(first_day.timestamp() * 1000)
-        
-        # Convertir Site ID a entero si existe (importante para el array de parámetros)
+
+        # Site ID opcional
         site_id_int = None
         if self.site_id and self.site_id.strip().isdigit():
             site_id_int = int(self.site_id)
 
-        # 2. Construir Filtro 1: Backlog (Abiertas)
-        # Equivalente a: intCompleted = 0 AND intSiteID = ?
+        # 2. Filtro backlog (intCompleted = 0 AND [intSiteID = ?])
         ql_open = "intCompleted = ?"
-        params_open = [0] # 0 = False
-        
-        if site_id_int:
+        params_open = [0]   # 0 = False
+
+        if site_id_int is not None:
             ql_open += " AND intSiteID = ?"
             params_open.append(site_id_int)
 
-        # 3. Construir Filtro 2: Costes (Cerradas este mes)
-        # Equivalente a: intCompleted = 1 AND dtmDateCompleted >= ? AND intSiteID = ?
+        filters_open = [
+            {
+                "ql": ql_open,
+                "parameters": params_open,
+            }
+        ]
+
+        # 3. Filtro coste (intCompleted = 1 AND dtmDateCompleted >= ? AND [intSiteID = ?])
         ql_cost = "intCompleted = ? AND dtmDateCompleted >= ?"
-        params_cost = [1, ts_start] # 1 = True
-        
-        if site_id_int:
+        params_cost = [1, ts_start]  # 1 = True
+
+        if site_id_int is not None:
             ql_cost += " AND intSiteID = ?"
             params_cost.append(site_id_int)
 
-        # --- PAYLOAD CORREGIDO ---
-        # "filters" ahora es una lista de objetos, no un string.
-        payload = {
-            "msg_id": str(uuid.uuid4()),
-            "requests": [
-                {
-                    "action": "find",
-                    "className": "WorkOrder",
-                    "filters": [
-                        {
-                            "ql": ql_open,
-                            "parameters": params_open
-                        }
-                    ],
-                    "fields": "id, intPriorityID, dtmSuggestedCompletionDate",
-                    "max": 1000
-                },
-                {
-                    "action": "find",
-                    "className": "WorkOrder",
-                    "filters": [
-                        {
-                            "ql": ql_cost,
-                            "parameters": params_cost
-                        }
-                    ],
-                    "fields": "id, dblTotalCost",
-                    "max": 1000
-                }
-            ]
-        }
+        filters_cost = [
+            {
+                "ql": ql_cost,
+                "parameters": params_cost,
+            }
+        ]
 
         try:
-            # Mantener la codificación binaria estricta que hicimos antes
-            body_str = json.dumps(payload, separators=(',', ':'))
-            body_bytes = body_str.encode('utf-8')
+            # 4. Llamadas a la API (dos FindRequest separados)
+            open_wos = await self._find_workorders(
+                filters=filters_open,
+                fields="id,intPriorityID,dtmSuggestedCompletionDate",
+                max_objects=1000,
+            )
 
-            secret = self.secret_key.encode('utf-8')
-            signature = base64.b64encode(hmac.new(secret, body_bytes, hashlib.sha256).digest()).decode('utf-8')
+            closed_wos = await self._find_workorders(
+                filters=filters_cost,
+                fields="id,dblTotalCost",
+                max_objects=1000,
+            )
 
-            headers = {
-                "Content-Type": "application/json; charset=utf-8",
-                "Access-Key": self.access_key,
-                "Signature": signature,
-                "Content-Length": str(len(body_bytes))
-            }
-
-            resp = await self.client.post(url, content=body_bytes, headers=headers)
-            
-            if resp.status_code != 200:
-                print(f"❌ FIIX HTTP {resp.status_code}: {resp.text}")
-                return
-
-            data = resp.json()
-
-            if "error" in data:
-                print(f"❌ FIIX API ERROR: {data}")
-                return
-                
-            # Procesamiento de respuesta
-            resp_open = data["responses"][0]
-            resp_cost = data["responses"][1]
-
-            if resp_open.get("error"):
-                print(f"❌ Error en query Open: {resp_open['error']}")
-                return
-
-            open_wos = resp_open.get("value", [])
-            closed_wos = resp_cost.get("value", [])
-
+            # 5. Cálculo de métricas
             count_backlog = len(open_wos)
-            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0) # 0 suele ser High/Critical
+            count_urgent = sum(
+                1 for w in open_wos
+                if w.get("intPriorityID") == 0  # ajusta si tu mapping de prioridades es diferente
+            )
             total_cost = sum(float(w.get("dblTotalCost") or 0) for w in closed_wos)
 
             print(f"✅ FIIX OK: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost:.2f}")
 
-            # Enviar al frontend
+            # 6. Enviar al frontend (asumo que 'manager' está definido fuera, como en tu código)
             ts = datetime.utcnow().isoformat() + "Z"
-            await manager.broadcast({"type":"kpi_update", "metric":"fiix_backlog", "value": count_backlog, "timestamp": ts})
-            await manager.broadcast({"type":"kpi_update", "metric":"fiix_urgent",  "value": count_urgent,  "timestamp": ts})
-            await manager.broadcast({"type":"kpi_update", "metric":"fiix_cost",    "value": total_cost,    "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": count_backlog, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent",  "value": count_urgent,  "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost",    "value": total_cost,    "timestamp": ts})
 
         except Exception as e:
             print(f"❌ FIIX EXCEPCIÓN: {e}")
+
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -4469,6 +4508,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
