@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8" />
-<title>Dashboard - WFS2 MAD</title> <!-- CAMBIO WFS1 -->
+<title>Dashboard - WFS2 MAD OPS</title> <!-- CAMBIO WFS1 -->
 
 <!-- Fuentes -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1448,7 +1448,7 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 <!-- HEADER -->
 <header>
 <div class="header-left">
-<h1>Factory Floor Dashboard - WFS2 MAD</h1> <!-- CAMBIO WFS1 -->
+<h1>Factory Floor Dashboard - WFS2 MAD OPS</h1> <!-- CAMBIO WFS1 -->
 <div id="now-header" role="status" aria-live="polite">—</div>
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
@@ -1789,7 +1789,7 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 
     <div class="widget kpi-widget" id="kpi-costes">
 <h3 class="widget-title">
-<span>Costes en daños a los equipos WFS2 MAD</span> <!-- CAMBIO WFS1 -->
+<span>Costes en daños a los equipos WFS2 MAD OPS</span> <!-- CAMBIO WFS1 -->
 <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
 </h3>
 <div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
@@ -4126,11 +4126,17 @@ async function loadAllTasks(){
 
     return {
       station: station,
-      date: new Date().toLocaleDateString('es-ES'),
+      date: (() => {
+          const d = new Date();
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
+          return `${day}/${month}/${year}`;
+      })(),
       shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
       timer: document.getElementById('timer-display')?.textContent || '00:00:00',
       supervisor: supervisorVal,
-      
+      briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
       roster_details: rosterString,
       prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
       
