@@ -2747,12 +2747,19 @@ async def _ws_heartbeat(interval_sec: int = 30):
 # ==========================================
 class FiixConnector:
     def __init__(self):
-        # Render inyecta estas variables en el entorno
+        # Leemos las variables
         self.host = os.getenv("FIIX_HOST", "").strip()
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
         self.site_id = os.getenv("FIIX_SITE_ID", "").strip()
         self.client = httpx.AsyncClient(timeout=30.0)
+
+        # --- DIAGNÓSTICO DE ARRANQUE ---
+        # Esto saldrá en los Logs de Render al reiniciar
+        print("🔍 DIAGNÓSTICO FIIX (Verificando variables):")
+        print(f"   👉 FIIX_HOST: '{self.host}' " + ("✅ OK" if self.host else "❌ VACÍO"))
+        print(f"   👉 FIIX_ACCESS_KEY: " + ("✅ DETECTADA" if self.access_key else "❌ VACÍA"))
+        print(f"   👉 FIIX_SECRET_KEY: " + ("✅ DETECTADA" if self.secret_key else "❌ VACÍA"))
 
     def _generate_signature(self, body: str) -> str:
         """Firma HMAC-SHA256 requerida por la API de Fiix"""
@@ -4407,6 +4414,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
