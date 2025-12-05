@@ -2751,15 +2751,21 @@ class FiixConnector:
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
         self.site_id = os.getenv("FIIX_SITE_ID", "").strip()
-        # Aumentamos timeout y permitimos redirecciones por si macmms redirige
+        # Timeout amplio y seguimiento de redirecciones
         self.client = httpx.AsyncClient(timeout=60.0, follow_redirects=True)
 
-        print("🔍 DIAGNÓSTICO FIIX INICIAL:")
+        print("🔍 DIAGNÓSTICO FIIX:")
         print(f"   👉 Host: {self.host}")
         print(f"   👉 Access Key: {self.access_key[:5]}***")
+        # Verificamos si el Site ID está vacío o es un número
+        if self.site_id:
+            print(f"   👉 Filtro Site ID: {self.site_id}")
+        else:
+            print("   👉 Filtro Site ID: Ninguno (Todas las ubicaciones)")
 
     def _generate_signature(self, body: str) -> str:
         if not self.secret_key: return ""
+        # Fiix requiere firma HMAC-SHA256 del cuerpo EXACTO
         msg = body.encode('utf-8')
         key = self.secret_key.encode('utf-8')
         signature = hmac.new(key, msg, hashlib.sha256).digest()
@@ -2767,69 +2773,89 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         if not self.host or not self.access_key:
-            print("⚠️ FIIX: Faltan credenciales.")
+            print("⚠️ FIIX: Credenciales incompletas.")
             return
 
-        # Construimos la URL. Si el usuario puso macmms, probamos esa.
         url = f"https://{self.host}/api/"
         
-        # Filtros
+        # --- CONSTRUCCIÓN DE FILTROS ---
+        # Aseguramos que si hay site_id, se añada correctamente
         criteria_open = "intCompleted = 0"
-        if self.site_id: criteria_open += f" AND intSiteID = {self.site_id}"
+        if self.site_id: 
+            criteria_open += f" AND intSiteID = {self.site_id}"
 
-        # Timestamp para costes (desde día 1 del mes)
+        # Timestamp para costes (principio de mes en milisegundos)
         today = datetime.now()
         first_day = datetime(today.year, today.month, 1)
         ts_start = int(first_day.timestamp() * 1000) 
+        
         criteria_costs = f"intCompleted = 1 AND dtmDateCompleted >= {ts_start}"
-        if self.site_id: criteria_costs += f" AND intSiteID = {self.site_id}"
+        if self.site_id: 
+            criteria_costs += f" AND intSiteID = {self.site_id}"
 
+        # --- PAYLOAD ---
         payload = {
             "msg_id": str(uuid.uuid4()),
             "requests": [
-                {"action": "find", "className": "WorkOrder", "filters": criteria_open, "fields": "id, intMaintenanceTypeID, dtmSuggestedCompletionDate, intPriorityID", "max": 1000},
-                {"action": "find", "className": "WorkOrder", "filters": criteria_costs, "fields": "id, dtmDateCompleted, dblTotalCost", "max": 1000}
+                {
+                    "action": "find",
+                    "className": "WorkOrder",
+                    "filters": criteria_open,
+                    "fields": "id, intMaintenanceTypeID, dtmSuggestedCompletionDate, intPriorityID",
+                    "max": 1000
+                },
+                {
+                    "action": "find",
+                    "className": "WorkOrder",
+                    "filters": criteria_costs,
+                    "fields": "id, dtmDateCompleted, dblTotalCost",
+                    "max": 1000
+                }
             ]
         }
 
         try:
-            # Usamos separators para JSON compacto (a veces Fiix es quisquilloso con los espacios en la firma)
-            body_str = json.dumps(payload, separators=(',', ':'))
+            # CAMBIO 1: Usamos json.dumps() ESTÁNDAR (sin separators)
+            # Algunos servidores antiguos fallan si el JSON está demasiado comprimido.
+            body_str = json.dumps(payload)
+            
+            # CAMBIO 2: Imprimir el payload exacto para ver si hay errores de sintaxis
+            # (Solo se verá en los logs de Render)
+            print(f"📦 FIIX BODY ENVIO: {body_str[:200]}...") 
+
+            # Generamos firma sobre el string EXACTO
             signature = self._generate_signature(body_str)
 
             headers = {
                 "Content-Type": "application/json",
                 "Access-Key": self.access_key,
-                "Signature": signature
+                "Signature": signature,
+                "User-Agent": "Python-Fiix-Connector/1.0" # A veces ayuda identificarse
             }
 
-            print(f"📡 FIIX: Conectando a {url} ...")
             resp = await self.client.post(url, content=body_str, headers=headers)
             
-            # --- DEBUG CRÍTICO: IMPRIMIR RESPUESTA ---
-            print(f"🔙 FIIX Status: {resp.status_code}")
-            
             if resp.status_code != 200:
-                print(f"❌ FIIX ERROR BODY: {resp.text}")
+                print(f"❌ FIIX HTTP ERROR {resp.status_code}: {resp.text}")
                 return
 
             data = resp.json()
-            
-            # Verificar errores internos de la API (Success: false)
-            if "error" in data:
-                 print(f"❌ FIIX API ERROR: {data['error']}")
-                 return
 
-            if "responses" not in data:
-                print(f"⚠️ FIIX: Respuesta inesperada: {str(data)[:200]}")
+            # Si Fiix devuelve error 200 pero con mensaje de error dentro
+            if "error" in data:
+                print(f"❌ FIIX API ERROR DETALLE: {data}")
                 return
 
-            # Procesar datos
+            if "responses" not in data:
+                print(f"⚠️ FIIX: Estructura inesperada: {data}")
+                return
+
+            # --- PROCESAR DATOS SI TODO VA BIEN ---
             open_wos = data["responses"][0].get("value", [])
             count_backlog = len(open_wos)
             
-            # Intenta detectar prioridad (0 suele ser High/Critical)
-            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0 or w.get("intMaintenanceTypeID") == 1234)
+            # Prioridad 0 suele ser crítica. Ajustar si tu Fiix usa otro ID.
+            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") == 0)
 
             now_ms = datetime.now().timestamp() * 1000
             count_overdue = sum(1 for w in open_wos if w.get("dtmSuggestedCompletionDate") and w.get("dtmSuggestedCompletionDate") < now_ms)
@@ -2837,9 +2863,9 @@ class FiixConnector:
             closed_wos = data["responses"][1].get("value", [])
             total_cost = sum(float(w.get("dblTotalCost") or 0) for w in closed_wos)
 
-            print(f"✅ FIIX ÉXITO: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost}")
+            print(f"✅ FIIX OK: Backlog={count_backlog}, Urg={count_urgent}, Coste={total_cost}")
 
-            # Enviar
+            # Broadcast
             ts = datetime.utcnow().isoformat() + "Z"
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_backlog", "value": count_backlog, "timestamp": ts})
             await manager.broadcast({"type":"kpi_update", "metric":"fiix_urgent",  "value": count_urgent,  "timestamp": ts})
@@ -4432,6 +4458,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
