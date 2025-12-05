@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8" />
-<title>Dashboard - WFS4 MAD</title>
+<title>Dashboard - WFS4 MAD OPS</title>
 
 <!-- Fuentes -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2181,7 +2181,7 @@ body.card-open #timer-reset {
 <!-- HEADER -->
 <header>
 <div class="header-left">
-<h1>Factory Floor Dashboard - WFS4 MAD</h1>
+<h1>Factory Floor Dashboard - WFS4 MAD OPS</h1>
 <div id="now-header" role="status" aria-live="polite">—</div>
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
@@ -6761,7 +6761,13 @@ window.closePostBriefingMode = function() {
 
         const payload = {
             station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
-            date: new Date().toLocaleDateString('es-ES'),
+            date: (() => {
+                const d = new Date();
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
+                return `${day}/${month}/${year}`;
+            })(),
             shift: document.getElementById('shift-badge-header')?.innerText || 'General', 
             timer: document.getElementById('timer-display')?.innerText || '00:00:00',
             supervisor: supInput.value.trim(),
@@ -6769,6 +6775,7 @@ window.closePostBriefingMode = function() {
             prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
             kanban_details: kanbanItems.join(" | "),
             ops_updates: opsData,
+            briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
             
             // AÑADIDO: Enviamos las tarjetas de seguridad
             safety_incidents: securityPayload,
@@ -7041,6 +7048,7 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
 
 
