@@ -2310,14 +2310,54 @@ body.card-open #timer-reset {
   </div>
 
   <!-- 6) Revisión KPIs -->
-  <div class="check-card" tabindex="0"
-       data-help="KPIs del día: Ocupaciones de Uniwing, DG Autocheck, CargoMobile; revisar tendencia vs objetivo."
-       data-target="kpi-center">
-    <span class="check-title">6) Revisión Kpis</span>
-    <div class="check-actions" role="group" aria-label="Bloque 6">
-      <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
+  <div class="widget kpi-widget" id="kpi-center">
+  <h2 class="widget-title">6) KPIs Operativos & Mantenimiento</h2>
+
+  <!-- FILA 1: OPERACIONES (WFS) -->
+  <div class="kpi-grid" style="margin-bottom: 15px;">
+    <div class="kpi-tile">
+      <div class="kpi-label">UPH (Prod)</div>
+      <div class="kpi-value" id="kpi-uph">—</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">DG Autocheck</div>
+      <div class="kpi-value" id="kpi-otif">—</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">Costes Daños</div>
+      <div class="kpi-value" style="color:var(--brand-red-600)">
+        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
+      </div>
     </div>
   </div>
+
+  <hr style="border:0; border-top:1px solid var(--border); margin: 10px 0;">
+
+  <!-- FILA 2: MANTENIMIENTO (FIIX) -->
+  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
+  
+  <div class="kpi-grid">
+    <!-- Backlog -->
+    <div class="kpi-tile" style="border-left: 4px solid #3b82f6;">
+      <div class="kpi-label">Backlog (Abiertas)</div>
+      <div class="kpi-value" id="fiix-backlog">—</div>
+    </div>
+
+    <!-- Urgencias (Si > 0 se pondrá rojo por JS) -->
+    <div class="kpi-tile" id="tile-fiix-urgent" style="border-left: 4px solid #f59e0b;">
+      <div class="kpi-label">Correctivos</div>
+      <div class="kpi-value" id="fiix-urgent">—</div>
+    </div>
+
+    <!-- Costes Mto. (Mes) -->
+    <div class="kpi-tile" style="border-left: 4px solid #10b981;">
+      <div class="kpi-label">Gasto Mes (Mto)</div>
+      <div class="kpi-value">
+        <span id="fiix-cost">—</span><span class="kpi-currency">€</span>
+      </div>
+    </div>
+  </div>
+</div>
 
   <!-- 7) Feedback → Acciones -->
   <div class="check-card" tabindex="0"
@@ -3994,6 +4034,32 @@ if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)
   const metric = String(data.metric||'').trim().toLowerCase();
   const tab    = String(data.tab||'').trim();
 
+  
+  
+
+
+  if (data.metric === 'fiix_backlog') {
+      setKpiValue('fiix-backlog', null, data.value); // null porque no puse meta de fecha
+      return;
+  }
+  if (data.metric === 'fiix_urgent') {
+      setKpiValue('fiix-urgent', null, data.value);
+      // Alerta visual si hay urgencias
+      const tile = document.getElementById('tile-fiix-urgent');
+      if(tile) {
+          if(Number(data.value) > 0) tile.style.backgroundColor = '#fef2f2'; // Rojo suave
+          else tile.style.backgroundColor = '#fff';
+      }
+      return;
+  }
+  if (data.metric === 'fiix_cost') {
+      // Formatear dinero
+      const val = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(data.value);
+      setKpiValue('fiix-cost', null, val);
+      return;
+  }
+
+  
   // Coste total (ya lo tenías)
   if (metric === 'total cost' && (!tab || tab === 'MAD WFS4')){
     let v = data.value;
@@ -7048,6 +7114,7 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
 
 
