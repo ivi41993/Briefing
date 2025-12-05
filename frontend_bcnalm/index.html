@@ -3850,7 +3850,13 @@ btn.parentElement.appendChild(status);
 function buildPayload(){
 const station = (window.STATION_OVERRIDE || 'BCN').toUpperCase();
 const team = (window.TEAM_STATE || {});
-const date = new Date().toLocaleDateString('es-ES').split('/').join('-'); 
+const date = date: (() => {
+                const d = new Date();
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
+                return `${day}/${month}/${year}`;
+            })(), 
 const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
 
 // 1. CRONÓMETRO & SUPERVISOR
