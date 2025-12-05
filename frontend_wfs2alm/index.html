@@ -1789,7 +1789,7 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 
     <div class="widget kpi-widget" id="kpi-costes">
 <h3 class="widget-title">
-<span>Costes en daños a los equipos WFS2 MAD</span> <!-- CAMBIO WFS1 -->
+<span>Costes en daños a los equipos WFS2B MAD</span> <!-- CAMBIO WFS1 -->
 <svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
 </h3>
 <div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
@@ -2660,7 +2660,7 @@ function initEhsSimple(){
     // Doble clic para reportar un incidente hoy (Reinicia a 0)
     if(container) {
         container.addEventListener('dblclick', () => {
-            if(confirm("¿Reportar incidente en WFS1 MAD hoy? El contador se reiniciará a 0.")) {
+            if(confirm("¿Reportar incidente en WFS2B MAD hoy? El contador se reiniciará a 0.")) {
                 localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
                 render();
             }
@@ -4126,11 +4126,17 @@ async function loadAllTasks(){
 
     return {
       station: station,
-      date: new Date().toLocaleDateString('es-ES'),
+      date: (() => {
+          const d = new Date();
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
+          return `${day}/${month}/${year}`;
+      })(),
       shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
       timer: document.getElementById('timer-display')?.textContent || '00:00:00',
       supervisor: supervisorVal,
-      
+      briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
       roster_details: rosterString,
       prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
       
@@ -4167,7 +4173,7 @@ async function loadAllTasks(){
     
     try {
       const payload = buildPayload();
-      console.log("Enviando Resumen WFS2 Almacén:", payload);
+      console.log("Enviando Resumen WFS2B:", payload);
 
       const res = await fetch('/api/briefing/summary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
@@ -4175,7 +4181,7 @@ async function loadAllTasks(){
 
       if (!res.ok) throw new Error('Error servidor');
       
-      alert("✅ Resumen WFS2 Almacén guardado.\nSe abrirá la pantalla de información.");
+      alert("✅ Resumen WFS2B Almacén guardado.\nSe abrirá la pantalla de información.");
       window.openPostBriefingMode();
       
     } catch (err) {
