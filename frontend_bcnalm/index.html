@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8" />
-<title>Factory Floor Dashboard - BCN Almacén</title>
+<title>Factory Floor Dashboard - BCN WH</title>
 
 <!-- Fuentes -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1004,10 +1004,31 @@ display:flex; align-items:center; gap:10px;
 border:1px solid var(--border); border-radius:12px; background:#fff; padding:8px 10px;
 }
 .timer-face{ position:relative; display:flex; align-items:center; gap:8px; }
-.timer-display{
-font-family:"Space Grotesk", Inter, system-ui, sans-serif;
-font-weight:800; letter-spacing:.5px;
-font-variant-numeric:tabular-nums; cursor:pointer; user-select:none;
+/* CRONÓMETRO GRANDE Y ALERTA */
+.header-timer .timer-display {
+    /* Tamaño aumentado significativamente */
+    font-size: clamp(3rem, 5vw, 6rem); 
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--brand-red-900);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.3s, transform 0.2s;
+    text-shadow: 2px 2px 0px rgba(255,255,255,0.5);
+}
+
+/* Clase de alerta (rojo parpadeante) */
+.timer-display.alert-mode {
+    color: #dc2626 !important; /* Rojo intenso */
+    animation: timer-pulse 1s infinite;
+}
+
+@keyframes timer-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.8; text-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+    100% { transform: scale(1); opacity: 1; }
 }
 .timer-dot{
 width:8px; height:8px; border-radius:50%; background:#d1d5db;
@@ -1075,7 +1096,82 @@ content: attr(data-placeholder);
 color: var(--text-muted);
 pointer-events: none;
 }
+/* === Navegación Guiada en Widgets === */
+.widget-nav-bar {
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border);
+    margin: -16px -16px 16px -16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+.widget:fullscreen .widget-nav-bar,
+.widget.widget--zoomed .widget-nav-bar { display: flex; }
 
+.nav-group { display: flex; gap: 10px; align-items: center; }
+
+.btn-nav {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid #d1d5db;
+    background: #f8fafc;
+    color: #334155;
+}
+.btn-nav:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.btn-nav:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-nav.home { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.btn-nav.next-ok { background: #dcfce7; color: #166534; border-color: #86efac; }
+.btn-nav.next-ok:hover { background: #bbf7d0; }
+
+/* === PANTALLA MODO INFO (POST-BRIEFING) === */
+#post-briefing-screen {
+    display: none; position: fixed; inset: 0;
+    background-color: #f8fafc; z-index: 99999;
+    padding: 20px; flex-direction: column;
+}
+#post-briefing-screen.active { display: flex; }
+
+.pb-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0;
+}
+.pb-title { font-size: 1.8rem; font-weight: 800; color: var(--brand-red-700); font-family: "Space Grotesk", sans-serif; }
+.pb-close-btn {
+    background: #334155; color: white; border: none; padding: 10px 20px;
+    border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem;
+}
+.pb-grid {
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: 20px; flex: 1; overflow: hidden;
+}
+.pb-card {
+    background: white; border: 1px solid #cbd5e1; border-radius: 16px;
+    padding: 20px; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+.pb-card-title {
+    font-size: 1.4rem; font-weight: 700; color: #475569; margin-bottom: 15px;
+    border-bottom: 4px solid var(--brand-red-500); padding-bottom: 5px; width: fit-content;
+}
+.pb-content { flex: 1; overflow-y: auto; font-size: 1.1rem; line-height: 1.6; }
+.pb-content ul { padding-left: 20px; margin: 0; }
+.pb-kpi-box { display: flex; justify-content: space-around; align-items: center; height: 100%; }
+.pb-kpi-item { text-align: center; padding: 20px; background: #f1f5f9; border-radius: 12px; min-width: 150px; }
+.pb-kpi-val { font-size: 3rem; font-weight: 800; color: var(--brand-red-600); display: block; }
+
+@media (max-width: 1000px) {
+    .pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
+    #post-briefing-screen { overflow-y: auto; }
+}
 </style>
 </head>
 <body>
@@ -1101,7 +1197,7 @@ Modo presentación
 <!-- HEADER -->
 <header>
 <div class="header-left">
-<h1>Factory Floor Dashboard - BCN Almacén</h1>
+<h1>Factory Floor Dashboard - BCN WH</h1>
 <div id="now-header">—</div>
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
@@ -1112,15 +1208,20 @@ Modo presentación
 <div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
 <span class="timer-dot" aria-hidden="true"></span>
 </div>
-<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+<button type="button" class="timer-reset" id="timer-reset">Reiniciar</button>
 </div>
 
 <div class="header-controls">
+    <!-- Input para el Supervisor (ID necesario para que el script lo capture) -->
     <!-- Input del Supervisor con el ID que busca el script -->
-    <input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
-           style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; min-width: 200px; background: #fff;">
-    
-    <button class="btn-primary" type="button">Generar Resumen</button>
+<input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
+           style="padding: 8px 12px; border: 1px solid #e6e8ec; border-radius: 8px; font-size: 0.9rem; min-width: 200px;">
+     <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar nombre">
+        🎙️
+    </button>
+
+
+<button class="btn-primary" type="button">Generar Resumen</button>
 </div>
 </header>
 
@@ -1317,12 +1418,19 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 <div class="safety-card">
 <strong>Alta manual de incidentes</strong>
 <form id="safety-form" class="incident-form" autocomplete="off">
-<input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
-<textarea id="safety-desc" rows="4" placeholder="Descripción breve, lugar, personas implicadas…" required></textarea>
-<div class="controls">
-<button type="submit" class="btn">Guardar incidente</button>
-<button type="button" class="btn" id="safety-clear">Vaciar lista</button>
-</div>
+    <input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
+    <textarea id="safety-desc" rows="3" placeholder="Descripción breve..." required></textarea>
+    
+    <!-- AÑADIR ESTO: Input de fecha -->
+    <label style="font-size:0.85rem; color:var(--text-muted); display:flex; align-items:center; gap:8px; margin:5px 0;">
+        Vigente hasta:
+        <input type="date" id="safety-valid-until" style="padding:6px; border:1px solid var(--border); border-radius:8px;">
+    </label>
+
+    <div class="controls">
+        <button type="submit" class="btn">Guardar incidente</button>
+        <button type="button" class="btn" id="safety-clear">Vaciar lista</button>
+    </div>
 </form>
 <div id="safety-list" class="incident-list" aria-live="polite"></div>
 <small class="kpi-text" id="safety-inc-meta">—</small>
@@ -1403,43 +1511,79 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 </div>
 
 <!-- KPIs CENTRO -->
+<!-- 6) KPIs Operativos & Estándares (AHORA CON 5S Y GW INTEGRADO) -->
 <div class="widget kpi-widget" id="kpi-center">
-<h2 class="widget-title">6) KPIs Operativos BCN</h2>
-<div class="kpi-grid">
-<div class="kpi-tile">
-<div class="kpi-label">Productividad</div>
-<div class="kpi-value" id="kpi-uph">—</div>
-<small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
-</div>
-<div class="kpi-tile">
-<div class="kpi-label">Servicio</div>
-<div class="kpi-value" id="kpi-otif">—</div>
-<small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
-</div>
-<div class="kpi-tile">
-<div class="kpi-label">Backlog</div>
-<div class="kpi-value" id="kpi-backlog">—</div>
-<small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
-</div>
+  <h2 class="widget-title">6) KPIs Operativos & Estándares</h2>
 
-<!-- KPI Costes BCN -->
-<div class="kpi-tile" id="kpi-costes">
-<h3 class="widget-title" style="margin-bottom:4px;">
-<span>Costes Mantenimiento BCN</span>
-<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none"
-stroke="currentColor" stroke-width="2" stroke-linecap="round"
-stroke-linejoin="round">
-<polyline points="23 4 23 10 17 10"></polyline>
-<polyline points="1 20 1 14 7 14"></polyline>
-<path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path>
-</svg>
-</h3>
-<div class="kpi-value large">
-<span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
-</div>
-<small class="kpi-text" id="kpi-costes-meta"></small>
-</div>
-</div>
+  <!-- PARTE SUPERIOR: KPIs Numéricos -->
+  <div class="kpi-grid">
+    <div class="kpi-tile">
+      <div class="kpi-label">Uniwin</div>
+      <div class="kpi-value" id="kpi-uph">—</div>
+      <small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">DG Autocheck</div>
+      <div class="kpi-value" id="kpi-otif">—</div>
+      <small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">CargoMobile</div>
+      <div class="kpi-value" id="kpi-backlog">—</div>
+      <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
+    </div>
+
+    <div class="kpi-tile" id="kpi-costes">
+      <div class="kpi-label">Costes Daños</div>
+      <div class="kpi-value" style="color:var(--brand-red-600)">
+        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
+      </div>
+      <small class="kpi-text" id="kpi-costes-meta"></small>
+    </div>
+  </div>
+
+  <!-- SEPARADOR -->
+  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+
+  <!-- PARTE INFERIOR: 5S y GW -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+    
+    <!-- COLUMNA 5S -->
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong style="font-size:0.95rem;">Estado 5S</strong>
+        <small id="s5-meta" class="kpi-text">—</small>
+      </div>
+      
+      <!-- Botones 5S -->
+      <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S" style="justify-content: center;">
+        <button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
+        <button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
+        <button type="button" class="s5-pill" data-key="seiso" title="3S · Seiso"><span class="s5-dot"></span>3S</button>
+        <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu"><span class="s5-dot"></span>4S</button>
+        <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke"><span class="s5-dot"></span>5S</button>
+      </div>
+    </div>
+
+    <!-- COLUMNA GW -->
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
+      </div>
+
+      <!-- Formulario GW -->
+      <form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
+        <button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Subir</button>
+      </form>
+      <small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
+
+      <!-- Lista GW -->
+      <div id="gw-tasks-dynamic-container"></div>
+    </div>
+  </div>
 </div>
 
 <!-- KANBAN FEEDBACK DIRECTO -->
@@ -1467,8 +1611,8 @@ stroke-linejoin="round">
 <!-- Alta Kanban BCN -->
 <form class="new-item-form" id="new-kanban-form"
 style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
-                 display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
-                 gap:8px; align-items:center;">
+                display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
+                gap:8px; align-items:center;">
 <select id="problem-category" name="category" required>
 <option value="" disabled selected>Selecciona categoría…</option>
 <option value="seguridad">Seguridad</option>
@@ -1493,85 +1637,114 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 </form>
 </div>
 
-<!-- KAIZEN + 5S/GW -->
-<div class="actions-split">
-<div class="widget" id="kaizen-widget">
-<h2 class="widget-title">KAIZEN BCN</h2>
-<form class="new-item-form" id="new-kaizen-form" autocomplete="off"
-style="display:grid; grid-template-columns: 1fr 1fr auto auto;
-                   gap:8px; align-items:center;">
-<input type="text" name="title" placeholder="Proyecto de mejora…" required>
-<input type="text" name="assigned_to" placeholder="Responsable…">
-<input type="date" name="due_date" aria-label="Fecha máxima">
-<button type="submit" class="btn-primary">Añadir</button>
-</form>
-<div class="board-container kaizen compact" style="margin-top:12px;">
-<div class="kanban-column">
-<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
-</div>
-</div>
+<!-- KAIZEN (Ahora fuera del split, ocupa todo el ancho) -->
+<div class="widget" id="kaizen-widget" style="margin-top: 20px;">
+  <h2 class="widget-title">KAIZEN (Proyectos de mejora)</h2>
+  
+  <form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+    <input type="text" name="title" placeholder="Proyecto de mejora…" required>
+    <input type="text" name="assigned_to" placeholder="Responsable…">
+    <input type="date" name="due_date" aria-label="Fecha máxima">
+    <button type="submit" class="btn-primary">Añadir</button>
+  </form>
+
+  <!-- Le quitamos la clase 'compact' si quieres ver 3 columnas anchas -->
+  <div class="board-container kaizen" style="margin-top:12px;">
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+    </div>
+  </div>
 </div>
 
-<div class="widget" id="rotativas-widget">
-<h2 class="widget-title">5S & GW (Rápido)</h2>
 
-<!-- 5S -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-<strong>5S</strong>
-<div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
-<button type="button" class="s5-pill" data-key="seiri"><span class="s5-dot"></span>1S</button>
-<button type="button" class="s5-pill" data-key="seiton"><span class="s5-dot"></span>2S</button>
-<button type="button" class="s5-pill" data-key="seiso"><span class="s5-dot"></span>3S</button>
-<button type="button" class="s5-pill" data-key="seiketsu"><span class="s5-dot"></span>4S</button>
-<button type="button" class="s5-pill" data-key="shitsuke"><span class="s5-dot"></span>5S</button>
-</div>
-</div>
-<small id="s5-meta" class="kpi-text">—</small>
-
-<!-- GW -->
-<strong style="margin-top:12px; display:block;">GW</strong>
-<div id="gw-tasks-dynamic-container"></div>
-</div>
-</div>
 </section>
 
 <!-- DERECHA -->
 <section class="col-right">
+<!-- Busca esto y añade el botón dentro del H2 -->
 <div class="widget" id="prev-shift-widget">
-<h2 class="widget-title">2) Información Turno Anterior BCN</h2>
+  <h2 class="widget-title">
+      2) Información Turno Anterior BCN
+      <!-- AÑADIR ESTE BOTÓN -->
+      <button type="button" class="btn-mic" data-target="prev-shift-note" title="Dictar nota">
+          🎙️
+      </button>
+  </h2>
 <div id="prev-shift-note" class="editable-note" contenteditable="true"
 role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior"
 spellcheck="true"
 style="min-height:96px; padding:10px 12px; border:1px solid var(--border);
-                border-radius:10px; background:#fff; line-height:1.4;"
+               border-radius:10px; background:#fff; line-height:1.4;"
 data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 <small class="kpi-text" id="prev-shift-saved-hint"></small>
 </div>
 
 <div class="widget" id="ehs-widget">
-<h2 class="widget-title">Días sin incidentes</h2>
-<div class="ehs-month" id="ehs-month">—</div>
-<div id="ehs-spin" class="ehs-controls" role="spinbutton"
-aria-label="Días sin incidentes del mes actual"
-aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-<div class="ehs-big" id="ehs-days">0</div>
-<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
-</div>
+  <h2 class="widget-title">Días sin incidentes</h2>
+  <div class="ehs-month" id="ehs-month">—</div>
+  
+  <!-- REEMPLAZAR todo el div class="ehs-controls" por esto: -->
+  <div id="ehs-spin" class="ehs-controls" role="spinbutton" style="justify-content: center;">
+      <!-- Solo el número, sin botones. Doble clic para resetear -->
+      <div class="ehs-big" id="ehs-days" title="Doble clic para reiniciar a 0 si hubo incidente" style="cursor:pointer;">0</div>
+  </div>
 </div>
 </section>
 </div>
 
+
+<!-- PANTALLA MODO INFO (Post-Briefing) -->
+<div id="post-briefing-screen">
+    <div class="pb-header">
+        <div class="pb-title">🚀 MODO OPERATIVO - BCN INFORMACIÓN</div>
+        <button class="pb-close-btn" onclick="closePostBriefingMode()">✖ Volver al Dashboard</button>
+    </div>
+
+    <div class="pb-grid">
+        <!-- 1. Turno Anterior -->
+        <div class="pb-card">
+            <div class="pb-card-title">↩️ Highlights Turno Anterior</div>
+            <div id="pb-prev-content" class="pb-content"></div>
+        </div>
+        <!-- 2. Operativa -->
+        <div class="pb-card">
+            <div class="pb-card-title">🚧 Actualizaciones Operativas</div>
+            <div id="pb-ops-content" class="pb-content"></div>
+        </div>
+        <!-- 3. KPIs -->
+        <div class="pb-card">
+            <div class="pb-card-title">📊 KPIs del Turno</div>
+            <div id="pb-kpi-content" class="pb-content">
+                <div class="pb-kpi-box">
+                    <div class="pb-kpi-item">
+                        <span style="font-size:1.2rem;font-weight:600;color:#64748b">UPH</span>
+                        <span id="pb-val-uph" class="pb-kpi-val">-</span>
+                    </div>
+                    <div class="pb-kpi-item">
+                        <span style="font-size:1.2rem;font-weight:600;color:#64748b">Costes</span>
+                        <span id="pb-val-cost" class="pb-kpi-val">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 4. Seguridad -->
+        <div class="pb-card">
+            <div class="pb-card-title">🛡️ Seguridad y Riesgos</div>
+            <div id="pb-sec-content" class="pb-content"></div>
+        </div>
+    </div>
+</div>
+    
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
@@ -1592,7 +1765,7 @@ const OPS_SECTIONS_KEY = opsKey('ops_updates_sections_v1');
 const OPS_LINES_KEY    = opsKey('ops_updates_lines_v1');
 
 /* ==========================
- Utilidades básicas
+Utilidades básicas
 ========================== */
 function esc(s){
 return String(s ?? '')
@@ -1605,7 +1778,7 @@ return String(s ?? '')
 function $$(sel){ return Array.from(document.querySelectorAll(sel)); }
 
 /* ==========================
- Seguridad y protección — diario + manual
+Seguridad y protección — diario + manual
 ========================== */
 const SAFETY_TIPS_KEY = 'safety_daily_tips_history_v1';
 const SAFETY_INC_KEY  = 'safety_manual_incidents_v1';
@@ -1794,63 +1967,88 @@ function loadIncidents(){ return loadJson(SAFETY_INC_KEY, []); }
 function saveIncidents(list){ saveJson(SAFETY_INC_KEY, list); }
 
 function renderIncidents(){
-const listEl = document.getElementById('safety-list');
-const meta = document.getElementById('safety-inc-meta');
-if(!listEl) return;
-const data = loadIncidents();
-listEl.innerHTML = '';
-data.slice().reverse().forEach((it, idx)=>{
-const card = document.createElement('div');
-card.className = 'incident-item';
-const ts = new Date(it.ts||Date.now());
-card.innerHTML = `
-    <div class="incident-head">
-      <span>${esc(it.title||'')}</span>
-      <span class="danger" data-del="${it.id}" title="Eliminar">🗑</span>
-    </div>
-    <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
-    <div>${esc(it.desc||'')}</div>
-  `;
-listEl.appendChild(card);
-});
-if(meta){
-meta.textContent = `Incidentes guardados: ${data.length}`;
-}
+    const listEl = document.getElementById('safety-list');
+    const meta = document.getElementById('safety-inc-meta');
+    if(!listEl) return;
+    const data = loadIncidents();
+    listEl.innerHTML = '';
+    
+    data.slice().reverse().forEach((it)=>{
+        const card = document.createElement('div');
+        card.className = 'incident-item';
+        const ts = new Date(it.ts||Date.now());
+        
+        // AÑADIDO: Mostrar fecha de vigencia si existe
+        const validHtml = it.valid_until ? 
+            `<div style="color:#d97706; font-weight:700; font-size:0.85rem; margin-top:4px;">📅 Vigente hasta: ${new Date(it.valid_until).toLocaleDateString('es-ES')}</div>` 
+            : '';
 
-listEl.querySelectorAll('[data-del]').forEach(btn=>{
-btn.addEventListener('click', ()=>{
-const id = btn.getAttribute('data-del');
-const cur = loadIncidents().filter(x=>String(x.id)!==String(id));
-saveIncidents(cur);
-renderIncidents();
-});
-});
+        card.innerHTML = `
+           <div class="incident-head">
+             <span>${esc(it.title||'')}</span>
+             <span class="danger" data-del="${it.id}" title="Eliminar" style="cursor:pointer">🗑</span>
+           </div>
+           <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
+           ${validHtml}
+           <div style="margin-top:4px;">${esc(it.desc||'')}</div>
+         `;
+        listEl.appendChild(card);
+    });
+    
+    if(meta) meta.textContent = `Incidentes guardados: ${data.length}`;
+
+    listEl.querySelectorAll('[data-del]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+            const id = btn.getAttribute('data-del');
+            const cur = loadIncidents().filter(x=>String(x.id)!==String(id));
+            saveIncidents(cur);
+            renderIncidents();
+        });
+    });
 }
 
 function setupSafetyIncidents(){
-const form = document.getElementById('safety-form');
-const title = document.getElementById('safety-title');
-const desc  = document.getElementById('safety-desc');
-const clear = document.getElementById('safety-clear');
+    const form = document.getElementById('safety-form');
+    const title = document.getElementById('safety-title');
+    const desc  = document.getElementById('safety-desc');
+    const validDate = document.getElementById('safety-valid-until'); // Referencia al nuevo input
+    const clear = document.getElementById('safety-clear');
 
-renderIncidents();
+    renderIncidents();
 
-form?.addEventListener('submit', (e)=>{
-e.preventDefault();
-const t = (title?.value||'').trim();
-const d = (desc?.value||'').trim();
-if(!t || !d) return;
-const cur = loadIncidents();
-cur.push({ id: Date.now(), title: t, desc: d, ts: Date.now(), station: STATION_CODE });
-saveIncidents(cur);
-title.value=''; desc.value='';
-renderIncidents();
-});
+    form?.addEventListener('submit', (e)=>{
+        e.preventDefault();
+        const t = (title?.value||'').trim();
+        const d = (desc?.value||'').trim();
+        const v = validDate?.value || null; // Capturar valor fecha
 
-clear?.addEventListener('click', ()=>{
-if(!confirm('¿Vaciar todos los incidentes guardados?')) return;
-saveIncidents([]); renderIncidents();
-});
+        if(!t || !d) return;
+        
+        const cur = loadIncidents();
+        // Guardamos 'valid_until' en el objeto
+        cur.push({ 
+            id: Date.now(), 
+            title: t, 
+            desc: d, 
+            valid_until: v, 
+            ts: Date.now(), 
+            station: STATION_CODE 
+        });
+        
+        saveIncidents(cur);
+        
+        // Limpiar campos
+        title.value=''; 
+        desc.value=''; 
+        if(validDate) validDate.value=''; 
+        
+        renderIncidents();
+    });
+
+    clear?.addEventListener('click', ()=>{
+        if(!confirm('¿Vaciar todos los incidentes guardados?')) return;
+        saveIncidents([]); renderIncidents();
+    });
 }
 
 function initSafetyDailyWidget(){
@@ -1879,88 +2077,117 @@ h1.textContent = `Factory Floor Dashboard - ${STATION_CODE}`;
 })();
 
 /* ==========================
- Cronómetro Header
+Cronómetro Header
 ========================== */
+/* ==========================
+   Cronómetro Header (CORREGIDO)
+   ========================== */
 (function(){
-const KEY='header_big_timer_v1';
-let running=false, startedAt=0, elapsed=0, tick=null;
+    const KEY='header_big_timer_v1';
+    // 4 minutos en milisegundos para la alerta roja
+    const ALERT_MS = 4 * 60 * 1000; 
+    let running=false, startedAt=0, elapsed=0, tick=null;
 
-const $ = id => document.getElementById(id);
-const host = $('timer-widget');
-const display = $('timer-display');
-const resetBtn = $('timer-reset');
+    // Referencias tardías (se buscan al iniciar initHeaderTimer)
+    let display, resetBtn, host;
 
-function fmt(ms){
-const t = Math.floor(ms/1000);
-const h = Math.floor(t/3600);
-const m = Math.floor((t%3600)/60);
-const s = t%60;
-return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-}
-function paint(){
-display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
-}
-function save(){
-try{
-localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed}));
-}catch(e){}
-}
-function load(){
-try{
-const s = JSON.parse(localStorage.getItem(KEY)||'null');
-if(!s) return;
-running = !!s.running;
-elapsed = Number(s.elapsed)||0;
-startedAt = Number(s.startedAt)||0;
-if (running){
-const now=Date.now();
-elapsed = Math.max(elapsed, now-startedAt);
-startedAt = now - elapsed;
-}
-}catch(e){}
-}
-function setUI(){
-if (!host) return;
-host.classList.toggle('timer-running', running);
-if (resetBtn) resetBtn.disabled = (!running && elapsed===0);
-}
-function start(){
-if (running) return;
-running = true;
-startedAt = Date.now() - elapsed;
-tick = setInterval(paint, 250);
-setUI(); paint(); save();
-}
-function pause(){
-if (!running) return;
-running = false;
-elapsed = Date.now() - startedAt;
-clearInterval(tick); tick=null;
-setUI(); paint(); save();
-}
-function reset(){
-running = false; startedAt = 0; elapsed = 0;
-clearInterval(tick); tick=null;
-setUI(); paint(); save();
-}
+    function fmt(ms){
+        const t = Math.floor(ms/1000);
+        const h = Math.floor(t/3600);
+        const m = Math.floor((t%3600)/60);
+        const s = t%60;
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
 
-display?.addEventListener('click', ()=> (running ? pause() : start()));
-resetBtn?.addEventListener('click', reset);
+    function paint(){
+        if(!display) return;
+        const nowMs = running ? (Date.now() - startedAt) : elapsed;
+        
+        // 1. Pintar tiempo
+        display.textContent = fmt(nowMs);
 
-document.addEventListener('visibilitychange', ()=>{
-if (!running) return;
-startedAt = Date.now() - elapsed;
-paint(); save();
-});
+        // 2. Alerta Roja si pasa de 4 minutos
+        if (nowMs >= ALERT_MS) {
+            display.classList.add('alert-mode'); // Requiere CSS de alerta
+            display.style.color = '#dc2626';     // Fallback directo
+        } else {
+            display.classList.remove('alert-mode');
+            display.style.color = '';
+        }
+    }
 
-window.initHeaderTimer = function(){
-load(); paint(); setUI();
-if (running && !tick) tick = setInterval(paint, 250);
-};
+    function save(){
+        try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch(e){}
+    }
+
+    function load(){
+        try{
+            const s = JSON.parse(localStorage.getItem(KEY)||'null');
+            if(!s) return;
+            running = !!s.running;
+            elapsed = Number(s.elapsed)||0;
+            startedAt = Number(s.startedAt)||0;
+            if (running){
+                const now=Date.now();
+                elapsed = Math.max(elapsed, now-startedAt);
+                startedAt = now - elapsed;
+            }
+        }catch(e){}
+    }
+
+    function start(){
+        if (running) return;
+        running = true;
+        startedAt = Date.now() - elapsed;
+        if(!tick) tick = setInterval(paint, 250);
+        paint(); save();
+    }
+
+    function pause(){
+        if (!running) return;
+        running = false;
+        elapsed = Date.now() - startedAt;
+        clearInterval(tick); tick=null;
+        paint(); save();
+    }
+
+    function reset(){
+        running = false; startedAt = 0; elapsed = 0;
+        clearInterval(tick); tick=null;
+        paint(); save();
+        if(display) display.style.color = ''; // Quitar rojo
+    }
+
+    // Inicializador público seguro
+    window.initHeaderTimer = function(){
+        host = document.getElementById('timer-widget');
+        display = document.getElementById('timer-display');
+        resetBtn = document.getElementById('timer-reset');
+
+        if(display) {
+            // Limpiamos eventos previos para no duplicar
+            const newDisplay = display.cloneNode(true);
+            display.parentNode.replaceChild(newDisplay, display);
+            display = newDisplay;
+
+            // Asignar click para iniciar/pausar
+            display.addEventListener('click', () => {
+                running ? pause() : start();
+            });
+            display.style.cursor = 'pointer';
+        }
+
+        // Exponer reset globalmente para el botón de reinicio de turno
+        window.resetFactoryTimer = reset;
+
+        load(); 
+        paint();
+        if (running) tick = setInterval(paint, 250);
+    };
 })();
 
 /* ==========================
- Escala UI
+Escala UI
 ========================== */
 (function initUIScaling(){
 const KEY='ui_scale_v1';
@@ -1980,7 +2207,7 @@ apply(v);
 })();
 
 /* ==========================
- Fullscreen helpers
+Fullscreen helpers
 ========================== */
 const FS_ICONS = {
 on:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
@@ -2030,7 +2257,7 @@ await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen
 }
 
 /* ==========================
- Fecha / hora / turno
+Fecha / hora / turno
 ========================== */
 function computeShift(d=new Date()){
 const m=d.getHours()*60+d.getMinutes();
@@ -2067,47 +2294,56 @@ setInterval(paintDateTimeAndShift, 60000);
 }
 
 /* ==========================
- EHS simple
+EHS simple
 ========================== */
 function initEhsSimple(){
-const now=new Date();
-const year=now.getFullYear();
-const month=now.getMonth();
-const daysInMonth=new Date(year,month+1,0).getDate();
-const monthEl=document.getElementById('ehs-month');
-const daysEl=document.getElementById('ehs-days');
-const spin=document.getElementById('ehs-spin');
-if (!monthEl || !daysEl || !spin) return;
-monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-const keyMonth=`${year}-${month+1}`;
-const lastKey=localStorage.getItem('ehs_month_key');
-let days=Number(localStorage.getItem('ehs_days_month'))||0;
-if (lastKey!==keyMonth) days=0;
-function render(){
-days=Math.max(0,Math.min(daysInMonth,Math.trunc(days)));
-daysEl.textContent = days;
-spin.setAttribute('aria-valuemin','0');
-spin.setAttribute('aria-valuemax',String(daysInMonth));
-spin.setAttribute('aria-valuenow',String(days));
-localStorage.setItem('ehs_days_month',String(days));
-localStorage.setItem('ehs_month_key',keyMonth);
-}
-const inc=()=>{ if(days<daysInMonth){ days++; render(); } };
-const dec=()=>{ if(days>0){ days--; render(); } };
-spin.querySelectorAll('.ehs-btn').forEach(btn=>{
-btn.addEventListener('click', ()=>{
-(btn.dataset.op==='inc'?inc:dec)();
-});
-});
-spin.addEventListener('keydown', e=>{
-if(e.key==='ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
-if(e.key==='ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
-});
-render();
+    const daysEl = document.getElementById('ehs-days');
+    const monthEl = document.getElementById('ehs-month');
+    if (!daysEl) return;
+    
+    // Mes actual
+    const now = new Date();
+    if(monthEl) monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_bcn_v1';
+
+    function render() {
+        const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
+        // Si no hay fecha guardada, asumimos hoy (0 días)
+        let lastDate = lastDateStr ? new Date(lastDateStr) : new Date();
+        
+        // Resetear horas para comparar solo días naturales
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        lastDate.setHours(0,0,0,0);
+
+        // Diferencia en milisegundos a días
+        const diffTime = today - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        daysEl.textContent = Math.max(0, diffDays);
+    }
+
+    // Doble clic para reportar un incidente hoy (Reinicia a 0)
+    daysEl.addEventListener('dblclick', () => {
+        if(confirm("¿Reportar incidente hoy? El contador se reiniciará a 0.")) {
+            localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+            render();
+        }
+    });
+
+    // Inicializar fecha si es la primera vez que se usa
+    if(!localStorage.getItem(KEY_LAST_INCIDENT)){
+        localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+    }
+
+    render();
+    // Revisar cada hora si ha cambiado el día sin recargar
+    setInterval(render, 3600000);
 }
 
 /* ==========================
- 5S (localStorage)
+5S (localStorage)
 ========================== */
 const S5_STATE_KEY='s5_state_v1';
 function loadS5State(){
@@ -2160,7 +2396,7 @@ render5S();
 }
 
 /* ==========================
- Roster / Equipo
+Roster / Equipo
 ========================== */
 let TEAM_STATE = null;
 
@@ -2259,17 +2495,17 @@ const right = document.createElement('div');
 right.className='team-right';
 right.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
 right.innerHTML = `
-    <div class="presence-toggle" role="group" aria-label="Presencia">
-      <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
-      <label for="att-${idx}-y" class="yes">✓ Presente</label>
-      <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
-      <label for="att-${idx}-n" class="no">✕ Ausente</label>
-    </div>
-    <select class="zone-select" data-person="${esc(full)}" title="Zona">
-      <option value="" ${zone?'':'selected'} disabled>Zona…</option>
-      ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
-    </select>
-  `;
+   <div class="presence-toggle" role="group" aria-label="Presencia">
+     <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+     <label for="att-${idx}-y" class="yes">✓ Presente</label>
+     <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+     <label for="att-${idx}-n" class="no">✕ Ausente</label>
+   </div>
+   <select class="zone-select" data-person="${esc(full)}" title="Zona">
+     <option value="" ${zone?'':'selected'} disabled>Zona…</option>
+     ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+   </select>
+ `;
 
 row.appendChild(left);
 row.appendChild(right);
@@ -2315,37 +2551,37 @@ updateTeamMeta(TEAM_STATE);
 }
 
 async function initTeamRoster(){
-    const list = document.getElementById('team-list');
-    
-    // Mensaje de aviso de procedimiento manual
-    if(list) {
-        list.innerHTML = `
-            <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px;">
-                <strong>⚠️ Atención BCN</strong><br>Procedimiento manual activo.
-            </div>`;
-    }
+const list = document.getElementById('team-list');
 
-    // Inicializar estado vacío para permitir altas manuales
-    window.TEAM_STATE = { people: [], attendance: {} };
-    
-    // Lógica para el formulario de alta manual
-    const form = document.getElementById('team-form');
-    if(form) {
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            const nameInput = document.getElementById('team-name');
-            const name = nameInput.value.trim();
-            if(!name) return;
-            
-            // Añadir persona localmente
-            window.TEAM_STATE.people.push({ nombre_completo: name });
-            // Marcar como presente por defecto
-            window.TEAM_STATE.attendance[name] = true;
-            
-            renderLocalRoster();
-            nameInput.value = '';
-        };
-    }
+// Mensaje de aviso de procedimiento manual
+if(list) {
+list.innerHTML = `
+           <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px;">
+               <strong>⚠️ Atención BCN</strong><br>Procedimiento manual activo.
+           </div>`;
+}
+
+// Inicializar estado vacío para permitir altas manuales
+window.TEAM_STATE = { people: [], attendance: {} };
+
+// Lógica para el formulario de alta manual
+const form = document.getElementById('team-form');
+if(form) {
+form.onsubmit = (e) => {
+e.preventDefault();
+const nameInput = document.getElementById('team-name');
+const name = nameInput.value.trim();
+if(!name) return;
+
+// Añadir persona localmente
+window.TEAM_STATE.people.push({ nombre_completo: name });
+// Marcar como presente por defecto
+window.TEAM_STATE.attendance[name] = true;
+
+renderLocalRoster();
+nameInput.value = '';
+};
+}
 }
 
 /* Upload roster Excel */
@@ -2383,35 +2619,35 @@ const input = document.getElementById('team-name');
 const list  = document.getElementById('team-list');
 if (!form || !input || !list) return;
 function renderLocalRoster() {
-    const list = document.getElementById('team-list');
-    // Mantenemos el aviso (primer hijo)
-    const aviso = list.querySelector('div') ? list.querySelector('div').outerHTML : '';
-    
-    let html = aviso;
-    
-    // Generamos la lista de nombres con checkbox
-    window.TEAM_STATE.people.forEach((p) => {
-        const isPresent = window.TEAM_STATE.attendance[p.nombre_completo];
-        html += `
-            <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
-                <span>${p.nombre_completo}</span>
-                <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
-                    <input type="checkbox" ${isPresent ? 'checked' : ''} 
-                           onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
-                    Presente
-                </label>
-            </div>`;
-    });
-    list.innerHTML = html;
-    
-    // Actualizar contador si existe
-    const meta = document.getElementById('team-meta');
-    if(meta) meta.textContent = `${window.TEAM_STATE.people.length} personas`;
+const list = document.getElementById('team-list');
+// Mantenemos el aviso (primer hijo)
+const aviso = list.querySelector('div') ? list.querySelector('div').outerHTML : '';
+
+let html = aviso;
+
+// Generamos la lista de nombres con checkbox
+window.TEAM_STATE.people.forEach((p) => {
+const isPresent = window.TEAM_STATE.attendance[p.nombre_completo];
+html += `
+           <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+               <span>${p.nombre_completo}</span>
+               <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
+                   <input type="checkbox" ${isPresent ? 'checked' : ''} 
+                          onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
+                   Presente
+               </label>
+           </div>`;
+});
+list.innerHTML = html;
+
+// Actualizar contador si existe
+const meta = document.getElementById('team-meta');
+if(meta) meta.textContent = `${window.TEAM_STATE.people.length} personas`;
 }
 
 // Función global para el onchange del checkbox
 window.togglePresence = (name, checked) => {
-    window.TEAM_STATE.attendance[name] = checked;
+window.TEAM_STATE.attendance[name] = checked;
 };
 async function syncServerAdd(name){
 // Endpoint esperado en backend: POST /api/roster/add
@@ -2469,7 +2705,7 @@ updateSpotlightRouting?.();
 })();
 
 /* ==========================
- Prev shift note (local)
+Prev shift note (local)
 ========================== */
 (function(){
 const KEY='prev_shift_note_bcn_v1';
@@ -2501,7 +2737,7 @@ el.addEventListener('blur', save);
 })();
 
 /* ==========================
- GW Top-3
+GW Top-3
 ========================== */
 const GW_MAP = new Map();
 function gwGetDate(t){
@@ -2522,12 +2758,12 @@ container.prepend(el);
 }
 el.className='gw-task-item';
 el.innerHTML=`
-  <input type="checkbox" id="${chkId}" ${task.is_completed?'checked':''}>
-  <label for="${chkId}">${esc(task.title||'')}</label>
-  <input type="text" class="gw-note" id="${noteId}"
-         placeholder="Añadir nota (opcional)"
-         ${task.is_completed?'':'disabled'}
-         value="${task.note?esc(task.note):''}">
+ <input type="checkbox" id="${chkId}" ${task.is_completed?'checked':''}>
+ <label for="${chkId}">${esc(task.title||'')}</label>
+ <input type="text" class="gw-note" id="${noteId}"
+        placeholder="Añadir nota (opcional)"
+        ${task.is_completed?'':'disabled'}
+        value="${task.note?esc(task.note):''}">
 `;
 el.classList.toggle('completed', !!task.is_completed);
 el.classList.add('highlight-gw');
@@ -2561,7 +2797,7 @@ top3.slice().reverse().forEach(t=>renderGwTask(t, `task-${t.id}`));
 }
 
 /* ==========================
- Incidentes / PDF
+Incidentes / PDF
 ========================== */
 const INC_CACHE_KEY='incidents_cache_bcn_v1';
 function cacheIncidentes(state){
@@ -2701,7 +2937,7 @@ input.value='';
 })();
 
 /* ==========================
- Incidentes (edición local)
+Incidentes (edición local)
 ========================== */
 (function initIncidentEditableFields(){
 const FIELDS = [
@@ -2765,79 +3001,100 @@ try{ localStorage.setItem(OPS_LINES_KEY, String(lines??'')); }catch{}
 }
 
 function opsSerializeFromDOM(){
-const cont = document.getElementById('ops-sections');
-const quick = document.getElementById('ops-quicklines');
-const sections = [...(cont?.querySelectorAll('.ops-section')||[])].map(sec=>{
-const t = sec.querySelector('.ops-section-title')?.textContent || '';
-const b = sec.querySelector('.ops-section-body')?.textContent || '';
-return {title:t.trim(), body:b.trim()};
-});
-const lines = (quick?.textContent||'').trim();
-return {sections, lines};
+    const cont = document.getElementById('ops-sections');
+    const quick = document.getElementById('ops-quicklines');
+    
+    const sections = [...(cont?.querySelectorAll('.ops-section')||[])].map(sec=>{
+        const t = sec.querySelector('.ops-section-title')?.textContent || '';
+        const b = sec.querySelector('.ops-section-body')?.textContent || '';
+        // NUEVO: Leer la fecha del input
+        const d = sec.querySelector('.ops-section-date')?.value || ''; 
+        
+        return {title:t.trim(), body:b.trim(), date: d};
+    });
+    
+    const lines = (quick?.textContent||'').trim();
+    return {sections, lines};
 }
 
 function opsRender(data){
-const cont = document.getElementById('ops-sections');
-const quick = document.getElementById('ops-quicklines');
-if (!cont) return;
+    const cont = document.getElementById('ops-sections');
+    const quick = document.getElementById('ops-quicklines');
+    if (!cont) return;
 
-cont.innerHTML = '';
-(data.sections||[]).forEach((s, idx)=>{
-const el = document.createElement('div');
-el.className = 'ops-section';
-el.innerHTML = `
-    <div class="ops-section-title"
-         role="textbox" aria-label="Título de sección" contenteditable="true"
-         data-placeholder="Título de sección…">${esc(s.title||'')}</div>
-    <div class="ops-section-body"
-         role="textbox" aria-label="Contenido de sección" contenteditable="true"
-         data-placeholder="Escribe las actualizaciones (una por línea)…">${esc(s.body||'')}</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button type="button" class="btn-compact" data-act="addline">+ Línea</button>
-      <button type="button" class="btn-compact" data-act="delete">Eliminar sección</button>
-    </div>
-  `;
-cont.appendChild(el);
-});
+    cont.innerHTML = '';
+    (data.sections||[]).forEach((s, idx)=>{
+        const el = document.createElement('div');
+        el.className = 'ops-section';
+        
+        // NUEVO HTML: Incluye el input type="date"
+        el.innerHTML = `
+           <div class="ops-section-title"
+                role="textbox" aria-label="Título de sección" contenteditable="true"
+                data-placeholder="Título de sección…">${esc(s.title||'')}</div>
+                
+           <div style="margin: 5px 0;">
+               <label style="font-size:0.75rem; color:#6b7280; font-weight:700;">Vigente hasta:</label>
+               <input type="date" class="ops-section-date" value="${s.date||''}" 
+                      style="border:1px solid #e6e8ec; border-radius:6px; padding:4px; font-size:0.85rem;">
+           </div>
 
-if (quick){
-quick.textContent = data.lines || '';
-}
+           <div class="ops-section-body"
+                role="textbox" aria-label="Contenido de sección" contenteditable="true"
+                data-placeholder="Escribe las actualizaciones (una por línea)…">${esc(s.body||'')}</div>
+                
+           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+             <button type="button" class="btn-compact" data-act="addline">+ Línea</button>
+             <button type="button" class="btn-compact" data-act="delete">Eliminar sección</button>
+           </div>
+         `;
+        cont.appendChild(el);
+    });
 
-// listeners de edición (debounce)
-let t;
-const scheduleSave = ()=>{
-clearTimeout(t);
-t = setTimeout(()=>{
-const state = opsSerializeFromDOM();
-opsSave(state);
-}, 300);
-};
+    if (quick){
+        quick.textContent = data.lines || '';
+    }
+    
+    // (El resto de la función con los listeners se mantiene igual, 
+    //  o puedes copiarla completa si prefieres asegurar)
+    
+    // ... listeners de edición y botones (addline/delete) ...
+    let t;
+    const scheduleSave = ()=>{
+        clearTimeout(t);
+        t = setTimeout(()=>{
+            const state = opsSerializeFromDOM();
+            opsSave(state);
+        }, 300);
+    };
 
-cont.addEventListener('input', scheduleSave);
-quick?.addEventListener('input', scheduleSave);
+    cont.addEventListener('input', scheduleSave);
+    // También guardamos si cambia la fecha
+    cont.addEventListener('change', (e) => {
+        if(e.target.classList.contains('ops-section-date')) scheduleSave();
+    });
+    
+    quick?.addEventListener('input', scheduleSave);
 
-// botones por sección
-cont.querySelectorAll('.ops-section').forEach(sec=>{
-sec.addEventListener('click', e=>{
-const btn = e.target.closest('[data-act]');
-if (!btn) return;
-const act = btn.getAttribute('data-act');
-if (act === 'addline'){
-const body = sec.querySelector('.ops-section-body');
-if (body){
-// inserta salto de línea al final
-body.focus();
-document.execCommand?.('insertLineBreak');
-scheduleSave();
-}
-}
-if (act === 'delete'){
-sec.remove();
-scheduleSave();
-}
-});
-});
+    cont.querySelectorAll('.ops-section').forEach(sec=>{
+        sec.addEventListener('click', e=>{
+            const btn = e.target.closest('[data-act]');
+            if (!btn) return;
+            const act = btn.getAttribute('data-act');
+            if (act === 'addline'){
+                const body = sec.querySelector('.ops-section-body');
+                if (body){
+                    body.focus();
+                    document.execCommand?.('insertLineBreak');
+                    scheduleSave();
+                }
+            }
+            if (act === 'delete'){
+                sec.remove();
+                scheduleSave();
+            }
+        });
+    });
 }
 function parseOpsLine(raw){
 // Sintaxis:  "Texto libre #Etiqueta @Nombre >2025-11-18 !!"
@@ -2920,22 +3177,22 @@ card.className='ops-line-card';
 card.setAttribute('role','listitem');
 card.dataset.priority = it.priority;
 card.innerHTML = `
-    <div class="ops-line-head">
-      <div class="ops-line-title">${esc(it.title)}</div>
-      <div class="ops-line-meta">
-        <span class="ops-badge ${it.priority==='Alta'?'prio-high':it.priority==='Media'?'prio-med':'prio-low'}">${esc(it.priority)}</span>
-        ${it.section ? `<span class="ops-badge">#${esc(it.section)}</span>` : ''}
-        ${it.assigned ? `<span>@${esc(it.assigned)}</span>` : ''}
-        ${it.due_date ? `<span>⏲ ${new Date(it.due_date).toLocaleDateString('es-ES')}</span>` : ''}
-        <span>${new Date(it.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
-      </div>
-    </div>
-    <div class="ops-line-actions">
-      <button class="ops-line-btn" data-act="kanban">Mandar al Kanban</button>
-      <button class="ops-line-btn" data-act="pin">${it.archived?'Quitar pin':'Pin/Archivar'}</button>
-      <button class="ops-line-btn" data-act="del">Eliminar</button>
-    </div>
-  `;
+   <div class="ops-line-head">
+     <div class="ops-line-title">${esc(it.title)}</div>
+     <div class="ops-line-meta">
+       <span class="ops-badge ${it.priority==='Alta'?'prio-high':it.priority==='Media'?'prio-med':'prio-low'}">${esc(it.priority)}</span>
+       ${it.section ? `<span class="ops-badge">#${esc(it.section)}</span>` : ''}
+       ${it.assigned ? `<span>@${esc(it.assigned)}</span>` : ''}
+       ${it.due_date ? `<span>⏲ ${new Date(it.due_date).toLocaleDateString('es-ES')}</span>` : ''}
+       <span>${new Date(it.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
+     </div>
+   </div>
+   <div class="ops-line-actions">
+     <button class="ops-line-btn" data-act="kanban">Mandar al Kanban</button>
+     <button class="ops-line-btn" data-act="pin">${it.archived?'Quitar pin':'Pin/Archivar'}</button>
+     <button class="ops-line-btn" data-act="del">Eliminar</button>
+   </div>
+ `;
 if (it.archived) card.classList.add('is-archived');
 host.appendChild(card);
 
@@ -3069,33 +3326,41 @@ alert('Resumen copiado al portapapeles.');
 }
 
 /* ==========================
- Reordenar checklist + renumerar
+Reordenar checklist + renumerar
 ========================== */
+/* ==========================
+   Reordenar checklist: 1. Dotación, 2. Ops, 3. Turno Anterior, etc.
+   ========================== */
 function reorderChecklist(){
-const grid = document.querySelector('#brief-check .check-grid');
-if(!grid) return;
+    const grid = document.querySelector('#brief-check .check-grid');
+    if(!grid) return;
 
-// Detecta las tarjetas por su data-target original
-const card1 = [...grid.children].find(c => c.querySelector('.check-title')?.textContent?.trim().startsWith('1)'));
-const card3 = [...grid.children].find(c => c.querySelector('.check-title')?.textContent?.includes('Dotación y recursos'));
+    // Identificamos las tarjetas clave por su data-target
+    const cardTeam = grid.querySelector('[data-target="team-widget"]');       // Dotación
+    const cardOps  = grid.querySelector('[data-target="ops-updates-widget"]');// Ops
+    const cardPrev = grid.querySelector('[data-target="prev-shift-widget"]'); // Turno Anterior
 
-if(card1 && card3 && card3 !== grid.firstElementChild){
-grid.insertBefore(card3, grid.firstElementChild); // Dotación y recursos → primera
-}
+    // Forzamos el orden insertándolas al principio en la secuencia deseada
+    // (appendChild/insertBefore mueve el elemento si ya existe)
+    if(cardPrev) grid.insertBefore(cardPrev, grid.firstElementChild); // Primero ponemos Prev (se moverá luego)
+    if(cardOps)  grid.insertBefore(cardOps,  grid.firstElementChild); // Ops empuja a Prev
+    if(cardTeam) grid.insertBefore(cardTeam, grid.firstElementChild); // Team empuja a Ops
 
-// Renumera los prefijos "n) " según el orden visual
-const cards = [...grid.children];
-cards.forEach((c, idx)=>{
-const t = c.querySelector('.check-title');
-if(!t) return;
-const raw = t.textContent.replace(/^\s*\d+\)\s*/,''); // quita prefijo existente
-t.textContent = `${idx+1}) ${raw}`;
-});
+    // Resultado visual en DOM: Team -> Ops -> Prev -> [Resto que ya estaba]
+
+    // Renumerar títulos para que coincidan (1), 2), 3)...)
+    [...grid.children].forEach((c, idx)=>{
+        const t = c.querySelector('.check-title');
+        if(!t) return;
+        // Limpiamos número anterior y ponemos el nuevo índice
+        const raw = t.textContent.replace(/^\s*\d+\)\s*/,''); 
+        t.textContent = `${idx+1}) ${raw}`;
+    });
 }
 
 
 /* ==========================
- KPI Costes
+KPI Costes
 ========================== */
 function formatEuro(n){
 if (n==null || Number.isNaN(n)) return '—';
@@ -3145,7 +3410,7 @@ if (tile) flash(tile);
 }
 
 /* ==========================
- Tasks API helpers
+Tasks API helpers
 ========================== */
 async function createTaskOnServer(data){
 const r=await fetch('/api/tasks',{
@@ -3192,7 +3457,7 @@ if (!r.ok) throw new Error('note failed');
 }
 
 /* ==========================
- Render tarjetas (Kanban, Kaizen, GW)
+Render tarjetas (Kanban, Kaizen, GW)
 ========================== */
 const GRIP =
 '<div class="drag-handle" aria-hidden="true" title="Arrastrar">'+
@@ -3238,29 +3503,29 @@ card.classList.add(`cat-${catKey}`);
 }
 
 card.innerHTML=`
-  ${GRIP}
-  <div class="card-content">
-    <div class="card-title" data-edit="title">${esc(task.title||'')}</div>
-    <div class="card-details">
-      Alta: ${creationDate} • Objetivo:
-      <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
-    </div>
-    <div class="card-assignee">
-      Responsable:
-      <span class="assignee" data-edit="assigned_to">${esc(task.assigned_to || 'Sin asignar')}</span>
-    </div>
-    <div style="margin-top:6px;">
-      <button class="btn-compact" data-edit="category">${catLabel}</button>
-    </div>
-  </div>
-  <div class="card-actions">
-    <button class="delete-card-btn" title="Eliminar">
-      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-      </svg>
-    </button>
-  </div>
+ ${GRIP}
+ <div class="card-content">
+   <div class="card-title" data-edit="title">${esc(task.title||'')}</div>
+   <div class="card-details">
+     Alta: ${creationDate} • Objetivo:
+     <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
+   </div>
+   <div class="card-assignee">
+     Responsable:
+     <span class="assignee" data-edit="assigned_to">${esc(task.assigned_to || 'Sin asignar')}</span>
+   </div>
+   <div style="margin-top:6px;">
+     <button class="btn-compact" data-edit="category">${catLabel}</button>
+   </div>
+ </div>
+ <div class="card-actions">
+   <button class="delete-card-btn" title="Eliminar">
+     <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+     </svg>
+   </button>
+ </div>
 `;
 // en renderBoardCard(), tras construir innerHTML:
 const content = card.querySelector('.card-content');
@@ -3344,29 +3609,29 @@ const dueDate = dueISO ? new Date(dueISO) : null;
 const dueHuman = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('es-ES'): '';
 
 card.innerHTML=`
-  ${GRIP}
-  <div class="card-content">
-    <div class="card-title">${esc(task.title||'')}</div>
-    <div class="card-details">
-      ${task.assigned_to ? 'Responsable: '+esc(task.assigned_to) : 'Responsable: —'}
-      ${dueHuman ? ' • Fecha máx: '+dueHuman : ''}
-    </div>
-  </div>
-  <div class="card-actions">
-    <button class="delete-card-btn" title="Eliminar">
-      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-      </svg>
-    </button>
-  </div>
+ ${GRIP}
+ <div class="card-content">
+   <div class="card-title">${esc(task.title||'')}</div>
+   <div class="card-details">
+     ${task.assigned_to ? 'Responsable: '+esc(task.assigned_to) : 'Responsable: —'}
+     ${dueHuman ? ' • Fecha máx: '+dueHuman : ''}
+   </div>
+ </div>
+ <div class="card-actions">
+   <button class="delete-card-btn" title="Eliminar">
+     <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+     </svg>
+   </button>
+ </div>
 `;
 ensureFullscreenBtn(card);
 if (card.parentElement !== col) col.prepend(card);
 }
 
 /* ==========================
- Column counts / Sortable
+Column counts / Sortable
 ========================== */
 function updateAllColumnCounts(){
 document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
@@ -3414,18 +3679,60 @@ updateAllColumnCounts();
 }
 
 /* ==========================
- Formularios Kanban/Kaizen
+Formularios Kanban/Kaizen
 ========================== */
-function setupEventListeners(){
-document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
-document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
-document.addEventListener('click', handleDeleteClick);
+function setupEventListeners() {
+    // Formularios Kanban y Kaizen
+    document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+    document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+    
+    // Click global (para borrar tarjetas)
+    document.addEventListener('click', handleDeleteClick);
+
+    // --- CORRECCIÓN CRÍTICA PARA GW (Gemba Walk) ---
+    // Ya no buscamos el ID 'rotativas-widget' porque lo borramos.
+    // Usamos delegación de eventos en el documento.
+    
+    // 1. Checkbox de completado
+    document.addEventListener('change', (e) => {
+        // La función handleGwTick ya verifica si es un checkbox válido
+        if (typeof handleGwTick === 'function') {
+            handleGwTick(e);
+        }
+    });
+
+    // 2. Notas (Enter y Escape)
+    document.addEventListener('keydown', (e) => {
+        const note = e.target.closest('.gw-note') ? e.target : null;
+        if (!note) return;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const id = note.id.replace('gw-note-', '');
+            // Verificamos que la función exista antes de llamar
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, note.value).catch(console.error);
+            note.blur();
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            note.blur();
+        }
+    });
+
+    // 3. Notas (Al perder el foco / Blur)
+    document.addEventListener('blur', (e) => {
+        if (e.target.classList && e.target.classList.contains('gw-note')) {
+            const id = e.target.id.replace('gw-note-', '');
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, e.target.value).catch(console.error);
+        }
+    }, true); 
+}
 
 const gwContainer=document.getElementById('gw-tasks-dynamic-container');
 gwContainer?.addEventListener('change', e=>{
 if (e.target.classList.contains('gw-note')) return;
 });
-}
+
 async function handleKanbanSubmit(e){
 e.preventDefault();
 const f=e.target;
@@ -3482,7 +3789,7 @@ deleteTaskOnServer(id, type).catch(()=>alert('No se pudo eliminar.'));
 }
 
 /* ==========================
- WebSocket + processTaskUpdate
+WebSocket + processTaskUpdate
 ========================== */
 function connectWebSocket(){
 const wsUrl = `${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`;
@@ -3604,7 +3911,7 @@ return;
 }
 
 /* ==========================
- Checklist compact (persist)
+Checklist compact (persist)
 ========================== */
 (function(){
 const host=document.getElementById('brief-check');
@@ -3654,7 +3961,7 @@ if (e.target.matches('.check-actions input')) bump();
 })();
 
 /* ==========================
- Spotlight routing
+Spotlight routing
 ========================== */
 function rosterComplete(){
 const total=(TEAM_STATE?.people||[]).length;
@@ -3779,7 +4086,7 @@ setText();
 
 
 /* ==========================
- Carga inicial
+Carga inicial
 ========================== */
 async function loadBoardsInitial(){
 try{
@@ -3810,190 +4117,414 @@ updateAllColumnCounts();
 console.error('loadBoardsInitial', e);
 }
 }
+ // 4. SISTEMA DE VOZ (MICRÓFONO)
+    (function initVoiceSystem() {
+        console.log("🎤 Inicializando sistema de voz...");
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        // Comprobaciones de seguridad y soporte
+        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+        if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
+        
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'es-ES';
+        recognition.continuous = false;
+        recognition.interimResults = false;
 
-/* ==========================
- DOM Ready
-========================== */
-document.addEventListener('DOMContentLoaded', ()=>{
-console.log('Init BCN dashboard, estación:', STATION_CODE);
-try{ initHeaderTimer(); }catch(e){ console.error('Timer', e); }
-try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/turno', e); }
-try{ initFullscreenToggles(); }catch(e){ console.error('FS', e); }
-try{ init5S(); }catch(e){ console.error('5S', e); }
-try{ initEhsSimple(); }catch(e){ console.error('EHS', e); }
-try{ initTeamRoster(); }catch(e){ console.error('Roster', e); }
-try{ setupEventListeners(); }catch(e){ console.error('Listeners', e); }
-try{ makeColumnsSortable(); }catch(e){ console.error('Sortable', e); }
-try{ hydrateKpiTotalCost(); }catch(e){ console.error('KPI cost cache', e); }
-try{ loadBoardsInitial(); }catch(e){ console.error('Boards', e); }
-try{ loadIncidentes(); }catch(e){ console.error('Incidentes', e); }
-try{ connectWebSocket(); }catch(e){ console.error('WS', e); }
-try{ initOpsUpdates(); }catch(e){ console.error('Ops updates', e); }
-try{ reorderChecklist(); }catch(e){ console.error('Checklist reorder', e); }
-try{ initSafetyDailyWidget(); }catch(e){ console.error('Safety widget', e); }
+        let activeBtn = null;
+        let activeTarget = null;
 
+        recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
+        recognition.onend = () => { 
+            if (activeBtn) activeBtn.classList.remove('listening'); 
+            activeBtn = null; 
+            activeTarget = null; 
+        };
 
+        recognition.onresult = (event) => {
+            if (!activeTarget) return;
+            const transcript = event.results[0][0].transcript;
+            const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
+            
+            // Obtener texto actual para no borrar lo anterior
+            let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+            currentText = currentText || "";
+            
+            // Añadir espacio si ya hay texto
+            const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+            const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
 
-updateSpotlightRouting?.();
-/* ===== Briefing: Generar Resumen BCN Completo ===== */
-(function wireBriefingGenerate(){
-const btn = document.querySelector('header .header-controls .btn-primary');
-if (!btn) return;
+            if (isInput) activeTarget.value = currentText + finalText;
+            else activeTarget.innerText = currentText + finalText;
 
-// Crear pequeño estado visual
-const status = document.createElement('small');
-status.style.marginLeft = '8px';
-status.style.color = 'var(--text-muted)';
-btn.parentElement.appendChild(status);
+            // Disparar evento para que se guarde automáticamente
+            activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        };
 
-// --- 1. Recolectar TODOS los datos ---
-function buildPayload(){
-const station = (window.STATION_OVERRIDE || 'BCN').toUpperCase();
-const team = (window.TEAM_STATE || {});
-const date = date: (() => {
-                const d = new Date();
-                const day = String(d.getDate()).padStart(2, '0');
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
-                return `${day}/${month}/${year}`;
-            })(), 
-const shift = document.getElementById('shift-badge-header')?.textContent || 'General';
+        recognition.onerror = (event) => {
+            if (activeBtn) activeBtn.classList.remove('listening');
+            if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
+        };
 
-// 1. CRONÓMETRO & SUPERVISOR
-const timerVal = document.getElementById('timer-display')?.textContent || '00:00:00';
-const supVal = document.getElementById('briefing-supervisor')?.value.trim() || "No especificado";
+        // Delegación de eventos para los botones .btn-mic
+        document.body.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-mic');
+            if (!btn) return;
+            e.preventDefault(); e.stopPropagation();
 
-// 2. INFO TURNO ANTERIOR
-const prevShiftNote = document.getElementById('prev-shift-note')?.innerText || '';
+            if (!isSecure) { alert("⚠️ El micrófono requiere HTTPS."); return; }
+            if (btn.classList.contains('listening')) { recognition.stop(); return; }
 
-// 3. CHECKLIST
-const checklist = {};
-document.querySelectorAll('#brief-check .check-actions input[type="radio"]:checked')
-.forEach(r => { checklist[r.name] = r.value; });
+            const targetId = btn.getAttribute('data-target');
+            const targetEl = document.getElementById(targetId);
 
-// 4. EQUIPO (Lógica para Excel y GitHub)
-const peopleList = team.people || [];
-const attMap = team.attendance || {};
+            if (targetEl) {
+                activeBtn = btn;
+                activeTarget = targetEl;
+                try { recognition.start(); } catch (err) { recognition.stop(); }
+            } else {
+                alert("Error: No encuentro el campo de texto destino.");
+            }
+        });
+    })();
+/* =========================================================
+   MEJORAS BCN: Navegación, Reset y Modo Info
+   ========================================================= */
 
-// Lista para GitHub (Solo nombres presentes)
-const presentNames = peopleList
-.filter(p => attMap[p.nombre_completo] === true)
-.map(p => p.nombre_completo);
+// --- 1. FUNCIONES GLOBALES DE NAVEGACIÓN Y PANTALLA INFO ---
 
-// Texto detallado para Excel (Nombre + Icono estado)
-// Genera: "Juan (✅), Pepe (❌), Ana (✅)"
-const rosterDetailsArr = peopleList.map(p => {
-const name = p.nombre_completo || "Sin Nombre";
-const isPresent = attMap[name] === true;
-return `${name} (${isPresent ? "✅" : "❌"})`;
-});
-const rosterDetailsStr = rosterDetailsArr.length > 0 ? rosterDetailsArr.join(", ") : "Sin datos de equipo";
+window.navTo = function(targetId) {
+    if (!targetId) return;
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
 
-const rosterStats = `${presentNames.length} presentes / ${peopleList.length} totales`;
-
-// 5. KPIs y OPS
-// Nota: En BCN usas 'ops-lines-list' y tarjetas '.ops-line-card' en lugar de '.ops-item'
-// Adaptamos el selector para que funcione con tu HTML de BCN
-const opsCards = document.querySelectorAll('.ops-line-card, .ops-item'); 
-const ops = Array.from(opsCards).map(card => ({
-title: card.querySelector('.ops-line-title, .ops-title')?.textContent?.trim() || '',
-impact: card.dataset.priority || card.querySelector('.ops-impact')?.textContent?.trim() || '',
-scope: 'General' // En BCN parece que no usas scope explícito en tarjetas de líneas
-}));
-
-const kpis = {
-"UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
-"OTIF": document.getElementById('kpi-otif')?.textContent?.trim() || '-',
-"Backlog": document.getElementById('kpi-backlog')?.textContent?.trim() || '-',
-"Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
+    setTimeout(() => {
+        const el = document.getElementById(targetId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (el.requestFullscreen) {
+                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
+            } else {
+                el.classList.add('widget--zoomed');
+            }
+        }
+    }, 100);
 };
 
-const kanbanCounts = {
-"Abiertas": document.querySelectorAll('#kanban_rapida-Abiertas .card').length,
-"En Curso": document.querySelectorAll('#kanban_rapida-En-Curso .card').length,
-"Cerradas": document.querySelectorAll('#kanban_rapida-Cerradas .card').length
+window.exitFlow = function() {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
 };
 
-// Payload exacto para BriefingSnapshot en main_bcn.py
-return {
-station, date, shift, 
-timer: timerVal,
-supervisor: supVal,            
-prev_shift_note: prevShiftNote,
-checklist,
-briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
-// Datos de equipo
-roster_stats: rosterStats,
-present_names: presentNames,   // Para Markdown
-roster_details: rosterDetailsStr, // Para Excel (Texto largo)
-
-ops_updates: ops,
-kpis,
-kanban_counts: kanbanCounts
+window.markOkAndNext = function(checkName, nextId) {
+    // 1. Marcar OK
+    if (checkName) {
+        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
+        if (radio) {
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            radio.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+    // 2. Navegar
+    if (nextId) {
+        navTo(nextId);
+    } else {
+        exitFlow();
+        document.querySelector('header').scrollIntoView({behavior:'smooth'});
+        setTimeout(() => alert("🎉 Checklist completado. Puedes generar el resumen."), 300);
+    }
 };
-}
 
-// --- 2. Diálogo de Confirmación ---
-function showSummaryDialog(text, logMsg){
-let dlg = document.getElementById('briefing-summary-dialog');
-if (!dlg){
-dlg = document.createElement('dialog');
-dlg.id = 'briefing-summary-dialog';
-dlg.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; max-width:600px; width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
-dlg.innerHTML = `
-       <form method="dialog" style="display:grid;gap:12px;">
-         <h3 style="margin:0;color:var(--brand-red-600)">Resumen Generado (BCN)</h3>
-         <div id="briefing-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; background:#f8f9fa; padding:12px; border-radius:8px; max-height:50vh; overflow:auto; border:1px solid #eee;"></div>
-         <p id="briefing-log" style="font-size:0.8rem; color:#666; margin:0; font-style:italic;"></p>
-         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
-           <button class="btn-compact" value="cancel">Cerrar</button>
-           <button type="button" id="btn-copy-summary" class="btn-primary">Copiar Texto</button>
-         </div>
-       </form>`;
-document.body.appendChild(dlg);
+window.openPostBriefingMode = function() {
+    const screen = document.getElementById('post-briefing-screen');
+    if (!screen) return;
 
-dlg.querySelector('#btn-copy-summary').addEventListener('click', async ()=>{
-const txt = dlg.querySelector('#briefing-content').innerText;
-try { await navigator.clipboard.writeText(txt); alert('Copiado al portapapeles'); } 
-catch(e) { alert('Error copiando automática, selecciona y copia.'); }
-});
-}
+    // Rellenar datos
+    const prev = document.getElementById('prev-shift-note')?.innerText || "Sin novedades.";
+    document.getElementById('pb-prev-content').innerHTML = `<p>${prev.replace(/\n/g,'<br>')}</p>`;
 
-dlg.querySelector('#briefing-content').textContent = text;
-dlg.querySelector('#briefing-log').textContent = logMsg || "";
-try{ dlg.showModal(); }catch{ dlg.setAttribute('open',true); }
-}
+    // Ops (clonar lista visual)
+    const opsList = document.getElementById('ops-lines-list');
+    const opsDest = document.getElementById('pb-ops-content');
+    opsDest.innerHTML = '';
+    if(opsList && opsList.children.length > 0){
+        Array.from(opsList.children).forEach(c => {
+            const clone = c.cloneNode(true);
+            const actions = clone.querySelector('.ops-line-actions');
+            if(actions) actions.remove(); // quitar botones
+            clone.style.boxShadow = "none";
+            clone.style.border = "1px solid #e2e8f0";
+            clone.style.marginBottom = "10px";
+            opsDest.appendChild(clone);
+        });
+    } else {
+        opsDest.innerHTML = '<p style="color:#94a3b8">Sin actualizaciones operativas.</p>';
+    }
 
-// --- 3. Envío al Servidor ---
-btn.addEventListener('click', async ()=>{
-const oldText = btn.textContent;
-btn.textContent = 'Guardando...';
-btn.disabled = true;
+    // KPIs
+    const uph = document.getElementById('kpi-uph')?.innerText || "-";
+    const cost = document.getElementById('kpi-total-cost')?.innerText || "-";
+    document.getElementById('pb-val-uph').textContent = uph;
+    document.getElementById('pb-val-cost').textContent = cost + ' €';
 
-try {
-const payload = buildPayload();
-console.log("📤 Enviando BCN:", payload);
+    // Seguridad
+    const tips = document.getElementById('safety-tips')?.innerHTML || "";
+    const manualInc = document.getElementById('safety-list')?.innerHTML || "";
+    let secHtml = `<div style="margin-bottom:15px">${tips}</div>`;
+    if(manualInc.trim()){
+        secHtml += `<strong style="color:#b91c1c;display:block;margin-bottom:5px;">Incidentes Manuales:</strong>${manualInc}`;
+    }
+    const secDest = document.getElementById('pb-sec-content');
+    secDest.innerHTML = secHtml;
+    // Limpiar botones de borrado en la vista info
+    secDest.querySelectorAll('.danger').forEach(b => b.remove());
 
-const res = await fetch('/api/briefing/summary', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(payload)
-});
+    // Mostrar
+    screen.classList.add('active');
+    if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(()=>{});
+    }
+};
 
-if (!res.ok) throw new Error('Error en servidor');
-const respData = await res.json();
-showSummaryDialog(respData.summary, respData.log);
+window.closePostBriefingMode = function() {
+    document.getElementById('post-briefing-screen').classList.remove('active');
+    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+};
 
-} catch (err) {
-console.error(err);
-alert('Error al guardar resumen. Revisa la consola.');
-} finally {
-btn.textContent = oldText;
-btn.disabled = false;
-}
-});
-})();
-});
+
+// =========================================================
+// INICIALIZACIÓN PRINCIPAL (DOM READY)
+// =========================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
+    const WIDGET_MAP = [
+        { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },
+        { id: 'prev-shift-widget',  check: 'c1', label: '3. Turno Anterior' },
+        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+        
+        
+        // El resto se queda igual
+        { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
+        { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
+        { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
+        { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
+    ];
+
+    WIDGET_MAP.forEach((step, index) => {
+        const widget = document.getElementById(step.id);
+        if (!widget || widget.querySelector('.widget-nav-bar')) return;
+
+        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
+        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
+
+        const navBar = document.createElement('div');
+        navBar.className = 'widget-nav-bar';
+        navBar.innerHTML = `
+            <div class="nav-group">
+                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>⬅ Anterior</button>
+            </div>
+            <div class="nav-group" style="font-size:0.9rem;color:#64748b;">
+                ${step.label} (${index + 1}/${WIDGET_MAP.length})
+            </div>
+            <div class="nav-group">
+                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
+                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
+                    ✅ OK y Siguiente ➡
+                </button>
+            </div>
+        `;
+        widget.prepend(navBar);
+    });
+
+    // 2. Botón Reiniciar (Cronómetro + Checks)
+    const resetBtn = document.getElementById('timer-reset');
+    if (resetBtn) {
+        // MODIFICACIÓN: No clonamos el botón para no perder la referencia del script del cronómetro
+        // const newBtn = resetBtn.cloneNode(true);
+        // resetBtn.parentNode.replaceChild(newBtn, resetBtn);
+        
+        // Usamos el botón original (resetBtn)
+        resetBtn.addEventListener('click', (e) => {
+            // Evitamos comportamientos duplicados
+            e.preventDefault();
+
+            if (!confirm("¿Reiniciar turno BCN? Se borrarán los checks y el tiempo.")) return;
+            
+            // MODIFICACIÓN: Llamamos a la función real del cronómetro
+            if (window.resetFactoryTimer) {
+                window.resetFactoryTimer();
+            } else {
+                // Fallback visual por si acaso
+                document.getElementById('timer-display').textContent = "00:00:00";
+            }
+            
+            document.getElementById('timer-display').classList.remove('is-red');
+
+            document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+            
+            // Resto del código de limpieza igual...
+            Object.keys(localStorage).forEach(k => {
+                if(k.includes('brief_check')) localStorage.removeItem(k);
+            });
+            
+            const meta = document.getElementById('brief-check-meta');
+            if(meta) meta.textContent = "Checklist reiniciado";
+            
+            if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+            console.log("♻️ Turno BCN reiniciado.");
+        });
+    }
+            
+            Object.keys(localStorage).forEach(k => {
+                if(k.includes('brief_check')) localStorage.removeItem(k);
+            });
+            
+            const meta = document.getElementById('brief-check-meta');
+            if(meta) meta.textContent = "Checklist reiniciado";
+            
+            if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+            console.log("♻️ Turno BCN reiniciado.");
+        });
+    
+
+    // 3. Botón Generar Resumen
+   // 3. Botón Generar Resumen
+     const btnGen = document.querySelector('header .header-controls .btn-primary');
+    if (btnGen) {
+        const newBtnGen = btnGen.cloneNode(true);
+        btnGen.parentNode.replaceChild(newBtnGen, btnGen);
+        
+        newBtnGen.addEventListener('click', async () => {
+            // --- VALIDACIÓN DE SUPERVISOR (NUEVO) ---
+            const supInput = document.getElementById('briefing-supervisor');
+            const supVal = supInput?.value.trim();
+
+            if (!supVal) {
+                alert("⚠️ El campo 'Supervisor' es obligatorio.\nPor favor, escribe tu nombre o usa el micrófono.");
+                supInput?.focus(); 
+                supInput.style.borderColor = "red";
+                setTimeout(() => supInput.style.borderColor = "", 2000);
+                return; 
+            }
+
+            newBtnGen.textContent = 'Guardando...';
+            newBtnGen.disabled = true;
+
+            try {
+                const team = window.TEAM_STATE || {};
+                
+                // Roster
+                const rosterList = (team.people||[]).map(p => {
+                    const isP = (team.attendance||{})[p.nombre_completo] === true;
+                    return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
+                }).join(", ") || "Sin datos";
+
+                // Kanban
+                const kanbanItems = [];
+                ['Abiertas','En-Curso','Cerradas','Vencidas'].forEach(st => {
+                    const col = document.getElementById(`kanban_rapida-${st}`);
+                    if(col) col.querySelectorAll('.card').forEach(c => 
+                        kanbanItems.push(`[${st}] ${c.querySelector('.card-title')?.innerText}`));
+                });
+
+                // Ops
+                let opsData = [];
+                try {
+                    const opsContainer = document.getElementById('ops-lines-list');
+                    if(opsContainer) {
+                        Array.from(opsContainer.children).forEach(card => {
+                            opsData.push({
+                                title: card.querySelector('.ops-line-title')?.innerText || '',
+                                impact: card.querySelector('.ops-badge')?.innerText || 'General'
+                            });
+                        });
+                    }
+                } catch(e) { console.warn("Error leyendo ops", e); }
+
+                // Incidentes Seguridad
+                let safetyIncidentsPayload = []; 
+                try {
+                    const rawSafety = localStorage.getItem('safety_manual_incidents_v1') || '[]';
+                    safetyIncidentsPayload = JSON.parse(rawSafety);
+                } catch (e) {
+                    console.warn("Error leyendo incidentes de seguridad", e);
+                }
+
+                const payload = {
+                    station: "BCN",
+                    date: (() => {
+                        const d = new Date();
+                        const day = String(d.getDate()).padStart(2, '0');
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const year = String(d.getFullYear()).slice(-2); 
+                        return `${day}/${month}/${year}`;
+                    })(),
+                    
+                    briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
+
+                    shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+                    timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+                    supervisor: supVal,
+                    checklist: {}, 
+                    kpis: {
+                        "UPH": document.getElementById('kpi-uph')?.innerText,
+                        "Costes": document.getElementById('kpi-total-cost')?.innerText
+                    },
+                    roster_details: rosterList,
+                    prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
+                    kanban_details: kanbanItems.join(" | "),
+                    ops_updates: opsData,
+                    safety_incidents: safetyIncidentsPayload
+                };
+
+                const res = await fetch('/api/briefing/summary', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                if(!res.ok) throw new Error('Error del servidor');
+                
+                alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
+                window.openPostBriefingMode();
+
+                // --- NUEVO: LIMPIAR CAMPO SUPERVISOR TRAS ÉXITO ---
+                if(supInput) supInput.value = ""; 
+                // --------------------------------------------------
+
+            } catch (e) {
+                console.error(e);
+                alert("Error: " + e.message);
+            } finally {
+                newBtnGen.textContent = "Generar Resumen";
+                newBtnGen.disabled = false;
+            }
+        });
+    }
+
+    // 4. Inicializadores heredados (try/catch para robustez)
+    try { initHeaderTimer(); } catch(e){}
+    try { initDateTimeAndShift(); } catch(e){}
+    try { initFullscreenToggles(); } catch(e){}
+    try { init5S(); } catch(e){}
+    try { initEhsSimple(); } catch(e){}
+    try { initTeamRoster(); } catch(e){}
+    try { setupEventListeners(); } catch(e){}
+    try { makeColumnsSortable(); } catch(e){}
+    try { hydrateKpiTotalCost(); } catch(e){}
+    try { loadBoardsInitial(); } catch(e){}
+    try { loadIncidentes(); } catch(e){}
+    try { connectWebSocket(); } catch(e){}
+    try { initOpsUpdates(); } catch(e){}
+    try { reorderChecklist(); } catch(e){}
+    try { initSafetyDailyWidget(); } catch(e){}
+    try { updateSpotlightRouting(); } catch(e){}
+    
+    console.log("Dashboard BCN inicializado correctamente.");
+
 </script>
 </body>
 </html>
