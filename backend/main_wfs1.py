@@ -97,7 +97,7 @@ class BriefingSnapshot(BaseModel):
     # --- AÑADIR ESTO ---
     safety_incidents: List[Dict[str, Any]] = [] 
     # -------------------
-    
+    briefing_time: Optional[str] = None 
     kanban_counts: Dict[str, int] = {}
     kanban_details: str = ""
     roster_stats: str = ""
@@ -513,6 +513,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
         "feedback_kanban": str(data.kanban_details or "Sin feedback"),
+        "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M")),
         "incidentes_seguridad": str(safety_text) # <--- Campo nuevo
     }
     
