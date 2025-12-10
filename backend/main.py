@@ -2938,80 +2938,34 @@ class FiixConnector:
 
         except Exception as e:
             print(f"❌ FIIX EXCEPCIÓN en fetch_metrics: {e}")
-    async def debug_kpi_capabilities(self):
+   async def debug_kpi_capabilities(self):
         """
-        Llamada de exploración para ver qué campos nos devuelve Fiix
-        en WorkOrder y así decidir qué KPIs podemos calcular.
+        Explora qué campos devuelve Fiix en WorkOrder para decidir
+        qué KPIs podemos calcular.
+        Usa el mismo mecanismo de auth que _fiix_find.
         """
-        if not self.host or not self.access_key or not self.secret_key:
-            print("⚠️ FIIX: Faltan credenciales para debug.")
+        if not self.host or not self.access_key or not self.secret_key or not self.app_key:
+            print("⚠️ FIIX: Faltan credenciales para debug (HOST / APP_KEY / ACCESS_KEY / SECRET_KEY).")
             return
 
-        url = self.base_url
-
-        # Un filtro muy abierto: coger algunas OT recientes o cualquiera
-        ql_debug = "1 = 1"     # no filtra nada, solo limitamos con max
+        # Filtro mínimo: todo (limitando por maxObjects)
+        ql_debug = "1 = 1"
         params_debug: list[Any] = []
 
-        payload = {
-            "msg_id": str(uuid.uuid4()),
-            "requests": [
-                {
-                    "action": "find",
-                    "className": "WorkOrder",
-                    "filters": [
-                        {
-                            "ql": ql_debug,
-                            "parameters": params_debug,
-                        }
-                    ],
-                    # TRUCO 1: intentamos pedir todos los campos
-                    # Si diera error de UNPACK, probamos la variante comentada abajo.
-                    "fields": "*",
-                    "max": 3,
-                }
-            ],
-        }
-
         try:
-            body_str = json.dumps(payload, separators=(",", ":"))
-            body_bytes = body_str.encode("utf-8")
+            # Pedimos * para ver todos los campos
+            sample_wos = await self._fiix_find(
+                ql=ql_debug,
+                parameters=params_debug,
+                fields="*",
+                max_objects=3,   # con 3 objetos de ejemplo nos basta
+            )
 
-            secret = self.secret_key.encode("utf-8")
-            signature = base64.b64encode(
-                hmac.new(secret, body_bytes, hashlib.sha256).digest()
-            ).decode("utf-8")
-
-            headers = {
-                "Content-Type": "application/json; charset=utf-8",
-                "Access-Key": self.access_key,
-                "Signature": signature,
-                "Content-Length": str(len(body_bytes)),
-            }
-
-            resp = await self.client.post(url, content=body_bytes, headers=headers)
-
-            if resp.status_code != 200:
-                print(f"❌ FIIX HTTP {resp.status_code}: {resp.text}")
-                return
-
-            data = resp.json()
-
-            if "error" in data:
-                print(f"❌ FIIX API ERROR (debug): {data['error']}")
-                return
-
-            resp_debug = data["responses"][0]
-            if resp_debug.get("error"):
-                print(f"❌ Error en query debug: {resp_debug['error']}")
-                return
-
-            objects = resp_debug.get("value", [])
-            if not objects:
+            if not sample_wos:
                 print("ℹ️ Debug Fiix: no se han devuelto WorkOrders.")
                 return
 
-            sample = objects[0]
+            sample = sample_wos[0]
 
             print("🔎 Campos disponibles en WorkOrder:")
             print(list(sample.keys()))
@@ -3021,6 +2975,7 @@ class FiixConnector:
 
         except Exception as e:
             print(f"❌ FIIX EXCEPCIÓN en debug_kpi_capabilities: {e}")
+
 
 
 
@@ -4610,6 +4565,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
