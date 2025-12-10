@@ -1440,17 +1440,20 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
   .btn-primary{ box-shadow:0 8px 18px rgba(239,68,68,.18); }
 }
 /* === Navegación dentro de Widgets (Fullscreen) === */
+/* === Navegación dentro de Widgets (Fullscreen) === */
 .widget-nav-bar {
     display: none; /* Oculto por defecto */
     justify-content: space-between;
     align-items: center;
     background: #fff;
-    padding: 10px;
+    padding: 10px 15px;
     border-bottom: 1px solid var(--border);
-    margin: -16px -16px 16px -16px; /* Contrarresta el padding del widget */
+    /* Margen negativo para pegar a los bordes de la tarjeta */
+    margin: -20px -20px 20px -20px; 
     position: sticky;
     top: 0;
-    z-index: 100;
+    /* Z-Index superior al contenido de la tarjeta */
+    z-index: 50; 
 }
 
 /* Mostrar solo cuando está en pantalla completa o zoomed */
@@ -3240,24 +3243,14 @@ document.getElementById('present-btn')?.addEventListener('click', async ()=>{
 }
 
 function openWidgetFromChecklist(targetId){
-  if (!targetId) return;
-  const el = document.getElementById(targetId);
-  if (!el) {
-    console.warn('Checklist target no encontrado:', targetId);
-    return;
-  }
-
-  // Llevarlo a la vista
-  el.scrollIntoView({ behavior:'smooth', block:'center' });
-
-  // Asegurar botón de fullscreen (por consistencia visual)
-  try { ensureFullscreenBtn(el); } catch {}
-
-  // Intentar fullscreen real (depende del navegador)
-  if (el.requestFullscreen) {
-    el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
-      // Si falla por permisos, al menos se queda centrado.
-    });
+  // Redirigir siempre a la navegación CSS (navTo)
+  // Esto evita el conflicto de capas "dobles" y hace que los botones funcionen siempre.
+  if (window.navTo) {
+      window.navTo(targetId);
+  } else {
+      console.error("La función navTo no está definida todavía.");
+      const el = document.getElementById(targetId);
+      if(el) el.scrollIntoView({ behavior:'smooth', block:'center' });
   }
 }
 
@@ -7128,5 +7121,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
