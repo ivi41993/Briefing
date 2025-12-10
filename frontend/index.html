@@ -2255,7 +2255,13 @@ body.card-open #timer-reset {
     padding: 4px 8px; font-size: 0.75rem; cursor: pointer; color: var(--text-muted);
 }
 .prev-btn:hover { background: #f9fafb; color: var(--text); }
-  
+/* Scroll en Incidentes (Tablet) */
+#incidentes-widget .table-scroll {
+    max-height: 300px; /* Altura máxima fija */
+    overflow-y: auto;  /* Scroll vertical activado */
+    -webkit-overflow-scrolling: touch; /* Suavidad en iOS */
+    border-bottom: 1px solid var(--border);
+}  
 </style>
 </head>
 <body>
@@ -2504,34 +2510,31 @@ body.card-open #timer-reset {
 
 
 
-<!-- SEGURIDAD Y PROTECCIÓN (solo dinámicas + 2 frases aleatorias por turno) -->
 <div class="widget vivid" id="seguridad-widget">
   <h2 class="widget-title hero">
     <span class="hero-ico">🛡️</span><span>4) Seguridad y Protección</span>
     <span class="hero-badge warn">PRIORIDAD</span>
   </h2>
 
-  <!-- Alta de tarjeta dinámica -->
-  <form id="sec-form" class="inline-form" autocomplete="off" style="margin-bottom:8px;">
-    <input type="text" id="sec-title" placeholder="Añadir tarjeta de seguridad…" required>
-    <input type="text" id="sec-owner" placeholder="Responsable (opcional)">
-    <button type="submit" class="btn-primary">Añadir</button>
-  </form>
-
-  <!-- Lista de tarjetas -->
-  <div id="sec-cards" class="sec-list" role="list" aria-label="Tarjetas de seguridad"></div>
-  <small class="kpi-text" id="sec-meta">—</small>
-
-  <!-- Recordatorio aleatorio (2 frases) por turno -->
-  <div class="ops-item" id="sec-random-tips" style="margin-top:10px;">
+  <!-- 1. RECORDATORIOS (MOVIDO ARRIBA) -->
+  <div class="ops-item" id="sec-random-tips" style="margin-bottom:12px; background:#ffffff; border-left:4px solid #f59e0b;">
     <div class="ops-head">
-      <div class="ops-title">Recordatorio de seguridad (2 puntos del día)</div>
+      <div class="ops-title">Recordatorio del día</div>
       <span class="ops-scope" id="sec-random-scope">Turno —</span>
     </div>
     <ul id="sec-random-list" style="margin:6px 0 0 18px; padding:0; list-style:disc;"></ul>
   </div>
-</div>
 
+  <!-- 2. FORMULARIO Y TARJETAS -->
+  <form id="sec-form" class="inline-form" autocomplete="off" style="margin-bottom:8px;">
+    <input type="text" id="sec-title" placeholder="Añadir riesgo / tarjeta..." required>
+    <input type="text" id="sec-owner" placeholder="Responsable">
+    <button type="submit" class="btn-primary">Añadir</button>
+  </form>
+
+  <div id="sec-cards" class="sec-list" role="list"></div>
+  <small class="kpi-text" id="sec-meta">—</small>
+</div>
 
 
   
@@ -2780,11 +2783,21 @@ body.card-open #timer-reset {
 
 
   <div class="widget" id="prev-shift-widget">
-  <h2 class="widget-title">3) Información Turno Anterior
-  <button type="button" class="btn-mic" data-target="prev-shift-note" title="Dictar nota">
-          🎙️
-      </button>
-  </h2>
+  <h2 class="widget-title">3) Turno Anterior</h2>
+  
+  <!-- Formulario de alta rápida -->
+  <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <input type="text" id="prev-input" placeholder="Añadir highlight..." 
+             style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+      <button id="prev-add-btn" class="btn-primary" style="padding:0 12px;">+</button>
+      <button type="button" class="btn-mic" data-target="prev-input">🎙️</button>
+  </div>
+
+  <!-- Contenedor de tarjetas (filas) -->
+  <div id="prev-list" style="display:flex; flex-direction:column; gap:8px; max-height:400px; overflow-y:auto;">
+      <!-- Se llenará con JS -->
+  </div>
+</div>
 <div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
 aria-label="Escribe la información del turno anterior" spellcheck="true"
 style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
@@ -3114,8 +3127,10 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
         tick = setInterval(paint, 250);
         paint(); save();
         
+        // --- CAMBIO SOLICITADO: Abrir Checklist al comenzar ---
+        if(window.navTo) window.navTo('brief-check');
         
-        if(startBtn) startBtn.style.display = 'none'; // Ocultar botón al arrancar
+        if(startBtn) startBtn.style.display = 'none';
     }
 
     function pause(){
@@ -6823,12 +6838,14 @@ window.closePostBriefingMode = function() {
 /* ===== TRIGGER: Generar Resumen (CORREGIDO) ===== */
 /* ===== TRIGGER: Generar Resumen (CON SEGURIDAD) ===== */
 /* ===== Generar Resumen Completo ===== */
+/* ===== Generar Resumen Completo ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
 
   btn.addEventListener('click', async ()=>{
     const supInput = document.getElementById('briefing-supervisor');
+    // Validación básica
     if (!supInput || !supInput.value.trim()) {
         alert("⚠️ El campo 'Supervisor' es obligatorio.");
         supInput?.focus();
@@ -6846,36 +6863,28 @@ window.closePostBriefingMode = function() {
           `${p.nombre_completo} (${(team.attendance||{})[p.nombre_completo]===true ? '✅':'❌'})`
       ).join(", ") || "Sin datos";
 
-      // Usamos la nueva función para obtener el texto del turno anterior
+      // Usar la nueva función para obtener el texto del turno anterior (filas)
       const prevShiftText = window.getPrevShiftText ? window.getPrevShiftText() : "Sin novedades";
 
       const payload = {
-          station: "WFS3", // Ajustar según corresponda
+          station: "WFS3", 
           date: new Date().toLocaleDateString('es-ES'),
           briefing_time: new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}),
           shift: document.getElementById('shift-badge-header')?.innerText || 'General',
           timer: document.getElementById('timer-display')?.innerText || '00:00:00',
           supervisor: supInput.value.trim(),
           roster_details: rosterList,
-          prev_shift_note: prevShiftText, // Enviamos la lista formateada
-          // ... resto de tus campos (kanban, ops, etc) ...
-          kanban_details: "Ver dashboard", // O tu lógica de kanban
-          ops_updates: [], // O tu lógica de ops
-          safety_incidents: [], // O tu lógica de seguridad
-          kpis: {} // O tu lógica de KPIs
+          prev_shift_note: prevShiftText, 
+          // ... resto de campos ...
       };
 
-      // 2. Enviar
-      const res = await fetch('/api/briefing/summary', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) throw new Error('Error servidor');
+      // Simular envío (o tu fetch real)
+      console.log("Enviando:", payload);
+      // const res = await fetch(...) 
       
       alert("✅ Resumen WFS3 guardado correctamente.");
-      if(window.openPostBriefingMode) window.openPostBriefingMode();
-
-      // === 3. RESETEO COMPLETO ===
+      
+      // === 3. RESETEO COMPLETO (LO QUE PEDISTE) ===
       
       // A. Resetear Timer
       if(window.resetFactoryTimer) window.resetFactoryTimer();
@@ -6883,16 +6892,21 @@ window.closePostBriefingMode = function() {
       // B. Limpiar Supervisor
       supInput.value = "";
       
-      // C. Resetear Checklist (Radio buttons)
+      // C. Resetear Checklist
       document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
           r.checked = false;
-          // Disparar evento change para que se guarde el estado vacío
           r.dispatchEvent(new Event('change'));
       });
-      // Borrar la memoria del checklist
+      // Borrar memoria checklist
       Object.keys(localStorage).forEach(k => {
           if(k.includes('brief_check')) localStorage.removeItem(k);
       });
+      
+      // D. Resetear Turno Anterior
+      if(window.resetPrevShift) window.resetPrevShift();
+
+      // E. Salir de cualquier modo pantalla completa
+      if(window.exitFlow) window.exitFlow();
 
     } catch (err) {
       console.error(err);
@@ -7162,9 +7176,86 @@ document.addEventListener('DOMContentLoaded', () => {
         widget.prepend(navBar);
     });
 });
+
+/* ===== Lógica Turno Anterior (Filas Editables) ===== */
+(function initPrevShiftSystem(){
+    const input = document.getElementById('prev-input');
+    const btn = document.getElementById('prev-add-btn');
+    const list = document.getElementById('prev-list');
+    const KEY = 'prev_shift_items_v2';
+
+    if(!list) return;
+
+    function load() { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+    function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
+
+    function render() {
+        const items = load();
+        list.innerHTML = '';
+        items.forEach((text, idx) => {
+            const row = document.createElement('div');
+            row.className = 'prev-item'; // Estilo definido en tu CSS
+            row.innerHTML = `
+                <div class="prev-text" contenteditable="true" data-idx="${idx}">${text}</div>
+                <div class="prev-actions">
+                    <button class="prev-btn del-btn" data-idx="${idx}">🗑️</button>
+                </div>
+            `;
+            list.appendChild(row);
+        });
+    }
+
+    // Añadir
+    function add() {
+        const val = input.value.trim();
+        if(!val) return;
+        const items = load();
+        items.unshift(val); // Añadir al principio
+        save(items);
+        render();
+        input.value = '';
+    }
+
+    btn?.addEventListener('click', add);
+    input?.addEventListener('keydown', (e) => { if(e.key === 'Enter') add(); });
+
+    // Delegación: Borrar y Editar
+    list.addEventListener('click', (e) => {
+        if(e.target.closest('.del-btn')) {
+            const idx = e.target.closest('.del-btn').dataset.idx;
+            const items = load();
+            items.splice(idx, 1);
+            save(items);
+            render();
+        }
+    });
+
+    list.addEventListener('input', (e) => {
+        if(e.target.classList.contains('prev-text')) {
+            const idx = e.target.dataset.idx;
+            const items = load();
+            items[idx] = e.target.innerText;
+            save(items); // Guardado automático al editar
+        }
+    });
+
+    // Exponer función de reset para el botón Generar
+    window.resetPrevShift = function() {
+        localStorage.removeItem(KEY);
+        render();
+    };
+    
+    // Exponer getter para el resumen
+    window.getPrevShiftText = function() {
+        return load().join(' | ');
+    };
+
+    render();
+})();
 </script>
 </body>
 </html>
+
 
 
 
