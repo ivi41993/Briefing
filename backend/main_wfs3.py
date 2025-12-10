@@ -372,6 +372,7 @@ latest_external_table: Dict[str, Any] = {
     "columns": [], "rows": [], "fetched_at": None, "version": 0,
 }
 
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
