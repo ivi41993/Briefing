@@ -2945,8 +2945,11 @@ class FiixConnector:
         qué KPIs podemos calcular.
         Usa el mismo mecanismo de auth que _fiix_find.
         """
+        print("🧪 Entrando en debug_kpi_capabilities()...")
+
         if not self.host or not self.access_key or not self.secret_key or not self.app_key:
             print("⚠️ FIIX: Faltan credenciales para debug (HOST / APP_KEY / ACCESS_KEY / SECRET_KEY).")
+            print(f"HOST={self.host!r} APP_KEY={bool(self.app_key)} ACCESS_KEY={bool(self.access_key)} SECRET_KEY={bool(self.secret_key)}")
             return
 
         # Filtro mínimo: todo (limitando por maxObjects)
@@ -2954,7 +2957,7 @@ class FiixConnector:
         params_debug: list[Any] = []
 
         try:
-            # Pedimos * para ver todos los campos
+            print("🧪 Llamando a _fiix_find() para debug...")
             sample_wos = await self._fiix_find(
                 ql=ql_debug,
                 parameters=params_debug,
@@ -2976,6 +2979,7 @@ class FiixConnector:
 
         except Exception as e:
             print(f"❌ FIIX EXCEPCIÓN en debug_kpi_capabilities: {e}")
+
 
 
 
@@ -3047,6 +3051,8 @@ async def lifespan(app: FastAPI):
 
 # ÚNICA instancia de la app
 app = FastAPI(title="WFS1 MAD Dashboard", version="1.0.0", lifespan=lifespan)
+
+
 
 # CORS
 from fastapi.middleware.cors import CORSMiddleware
@@ -3162,6 +3168,21 @@ async def upload_roster(file: UploadFile = File(...)):
         "rows_total": total_rows,
         "hint": "Indexado y persistido por fecha; ya se sirve desde el almacén.",
     }
+
+@app.get("/api/fiix-debug")
+async def fiix_debug():
+    """
+    Endpoint manual para explorar los campos de WorkOrder en Fiix.
+    Lo puedes lanzar desde el navegador o Postman.
+    """
+    try:
+        await fiix_connector.debug_kpi_capabilities()
+        return {"status": "ok", "message": "Debug ejecutado. Revisa los logs del servidor."}
+    except Exception as e:
+        # Para ver claramente si peta dentro del método
+        print(f"❌ Error HTTP en /api/fiix-debug: {e}")
+        return {"status": "error", "detail": str(e)}
+
 
 from fastapi import UploadFile, File
 
@@ -4567,6 +4588,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
