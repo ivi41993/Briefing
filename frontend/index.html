@@ -3067,8 +3067,7 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
         tick = setInterval(paint, 250);
         paint(); save();
         
-        // --- NUEVO: ABRIR CHECKLIST AL COMENZAR ---
-        if(window.navTo) window.navTo('brief-check');
+        
         if(startBtn) startBtn.style.display = 'none'; // Ocultar botón al arrancar
     }
 
@@ -7129,4 +7128,5 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
