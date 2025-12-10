@@ -2212,7 +2212,6 @@ body.card-open #timer-reset {
 </style>
 </head>
 <body>
-<body>
 
 <button id="exit-shift-mode-btn" onclick="exitShiftMode()">Cerrar Vista Turno ✖</button>
 
@@ -6964,171 +6963,77 @@ window.closePostBriefingMode = function() {
   });
 })();
 // =========================================================
-//  LÓGICA DE CAMBIO DE TURNO AUTOMÁTICO
+//  LÓGICA FINAL: CAMBIO DE TURNO, NAVEGACIÓN Y VOZ
 // =========================================================
- // 4. SISTEMA DE VOZ (MICRÓFONO)
-    (function initVoiceSystem() {
-        console.log("🎤 Inicializando sistema de voz...");
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        
-        // Comprobaciones de seguridad y soporte
-        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-        if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
-        
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'es-ES';
-        recognition.continuous = false;
-        recognition.interimResults = false;
 
-        let activeBtn = null;
-        let activeTarget = null;
+// 1. SISTEMA DE VOZ (MICRÓFONO)
+(function initVoiceSystem() {
+    console.log("🎤 Inicializando sistema de voz...");
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    // Comprobaciones de seguridad
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+    if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
+    
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-        recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
-        recognition.onend = () => { 
-            if (activeBtn) activeBtn.classList.remove('listening'); 
-            activeBtn = null; 
-            activeTarget = null; 
-        };
+    let activeBtn = null;
+    let activeTarget = null;
 
-        recognition.onresult = (event) => {
-            if (!activeTarget) return;
-            const transcript = event.results[0][0].transcript;
-            const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
-            
-            // Obtener texto actual para no borrar lo anterior
-            let currentText = isInput ? activeTarget.value : activeTarget.innerText;
-            currentText = currentText || "";
-            
-            // Añadir espacio si ya hay texto
-            const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
-            const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
-
-            if (isInput) activeTarget.value = currentText + finalText;
-            else activeTarget.innerText = currentText + finalText;
-
-            // Disparar evento para que se guarde automáticamente
-            activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
-        };
-
-        recognition.onerror = (event) => {
-            if (activeBtn) activeBtn.classList.remove('listening');
-            if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
-        };
-
-        // Delegación de eventos para los botones .btn-mic
-        document.body.addEventListener('click', (e) => {
-            const btn = e.target.closest('.btn-mic');
-            if (!btn) return;
-            e.preventDefault(); e.stopPropagation();
-
-            if (!isSecure) { alert("⚠️ El micrófono requiere HTTPS."); return; }
-            if (btn.classList.contains('listening')) { recognition.stop(); return; }
-
-            const targetId = btn.getAttribute('data-target');
-            const targetEl = document.getElementById(targetId);
-
-            if (targetEl) {
-                activeBtn = btn;
-                activeTarget = targetEl;
-                try { recognition.start(); } catch (err) { recognition.stop(); }
-            } else {
-                alert("Error: No encuentro el campo de texto destino.");
-            }
-        });
-    })();
-  
-(function initAutoShiftChange(){
-    let lastShift = null;
-
-    // Determina el turno actual según la hora
-    function getCurrentShiftName() {
-        const h = new Date().getHours();
-        if (h >= 6 && h < 14) return 'Mañana';
-        if (h >= 14 && h < 22) return 'Tarde';
-        return 'Noche';
-    }
-
-    // Loop de comprobación (cada segundo)
-    function checkTime() {
-        const currentShift = getCurrentShiftName();
-
-        // Primera carga: solo guardamos el estado
-        if (lastShift === null) {
-            lastShift = currentShift;
-            return;
-        }
-
-        // Si el turno cambia respecto al guardado -> DISPARAR
-        if (currentShift !== lastShift) {
-            console.log(`🔄 CAMBIO DE TURNO: ${lastShift} -> ${currentShift}`);
-            lastShift = currentShift;
-            triggerShiftMode(currentShift);
-        }
-    }
-
-    // Función que activa la UI
-    window.triggerShiftMode = function(shiftName) {
-        console.log("🚀 Activando Modo Cambio de Turno...");
-        
-        // 1. Activar clase en BODY (esto mueve el cronómetro)
-        document.body.classList.add('shift-active');
-
-        // 2. Activar clase en CHECKLIST (esto lo hace fullscreen)
-        const checklist = document.getElementById('brief-check') || document.getElementById('checklist-widget');
-        if(checklist) {
-            checklist.classList.add('shift-focus');
-            
-            // Cambiar título temporalmente
-            const title = checklist.querySelector('.widget-title');
-            if(title) {
-                if(!title.dataset.original) title.dataset.original = title.innerHTML;
-                title.innerHTML = `COMIENZO TURNO: <span style="color:#dc2626">${shiftName.toUpperCase()}</span>`;
-            }
-        }
-
-        // 3. Resetear cronómetro
-        const resetBtn = document.getElementById('timer-reset');
-        if(resetBtn) resetBtn.click();
-
-        // 4. Resetear checks
-        document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
+    recognition.onend = () => { 
+        if (activeBtn) activeBtn.classList.remove('listening'); 
+        activeBtn = null; 
+        activeTarget = null; 
     };
 
-    // Intervalo de comprobación
-    setInterval(checkTime, 1000);
+    recognition.onresult = (event) => {
+        if (!activeTarget) return;
+        const transcript = event.results[0][0].transcript;
+        const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
+        
+        let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+        currentText = currentText || "";
+        
+        const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+        const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+
+        if (isInput) activeTarget.value = currentText + finalText;
+        else activeTarget.innerText = currentText + finalText;
+
+        activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    recognition.onerror = (event) => {
+        if (activeBtn) activeBtn.classList.remove('listening');
+        if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
+    };
+
+    document.body.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-mic');
+        if (!btn) return;
+        e.preventDefault(); e.stopPropagation();
+
+        if (!isSecure) { alert("⚠️ El micrófono requiere HTTPS."); return; }
+        if (btn.classList.contains('listening')) { recognition.stop(); return; }
+
+        const targetId = btn.getAttribute('data-target');
+        const targetEl = document.getElementById(targetId);
+
+        if (targetEl) {
+            activeBtn = btn;
+            activeTarget = targetEl;
+            try { recognition.start(); } catch (err) { recognition.stop(); }
+        } else {
+            alert("Error: No encuentro el campo de texto destino.");
+        }
+    });
 })();
 
-// Función para salir del modo
-window.exitShiftMode = function() {
-    document.body.classList.remove('shift-active');
-    
-    const checklist = document.getElementById('brief-check') || document.getElementById('checklist-widget');
-    if(checklist) {
-        checklist.classList.remove('shift-focus');
-        // Restaurar título
-        const title = checklist.querySelector('.widget-title');
-        if(title && title.dataset.original) title.innerHTML = title.dataset.original;
-    }
-};
-
-// Enganche para salir al generar resumen
-const genBtn = document.getElementById('btn-generate') || document.querySelector('.header-controls .btn-primary');
-if(genBtn) {
-    genBtn.addEventListener('click', () => {
-        // Esperamos 1s a que guarde y salimos
-        setTimeout(exitShiftMode, 1000);
-    });
-}
-
-// PARA PROBARLO AHORA MISMO:
-// Escribe en la consola: testShiftMode()
-window.testShiftMode = function() {
-    triggerShiftMode("PRUEBA");
-}
-// =========================================================
-//  LÓGICA DE NAVEGACIÓN Y CAMBIO DE TURNO
-// =========================================================
-
+// 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
 (function initAutoShiftChange(){
     let lastShift = null;
 
@@ -7141,99 +7046,181 @@ window.testShiftMode = function() {
         if (lastShift === null) { lastShift = currentShift; return; }
 
         if (currentShift !== lastShift) {
+            console.log(`🔄 CAMBIO DE TURNO DETECTADO: ${lastShift} -> ${currentShift}`);
             lastShift = currentShift;
-            
-            // ACTIVAR MODO TURNO
-            document.body.classList.add('shift-mode'); // Activa el cronómetro flotante
-            
-            // Resetear Timer
-            document.getElementById('timer-reset').click();
-            
-            // Resetear Checks
-            document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
-            
-            // Enfocar Checklist (Nivel 1)
-            document.querySelectorAll('.shift-focus').forEach(e => e.classList.remove('shift-focus'));
-            const checklist = document.getElementById('brief-check');
-            if(checklist) checklist.classList.add('shift-focus');
+            triggerShiftMode();
         }
     }
+
+    window.triggerShiftMode = function() {
+        // ACTIVAR MODO TURNO (Crono flotante)
+        document.body.classList.add('shift-mode'); 
+        
+        // Resetear Timer
+        const btnReset = document.getElementById('timer-reset');
+        if(btnReset) btnReset.click();
+        
+        // Resetear Checks
+        document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+        
+        // Enfocar Checklist (Fake Fullscreen)
+        document.querySelectorAll('.shift-focus').forEach(e => e.classList.remove('shift-focus'));
+        const checklist = document.getElementById('brief-check');
+        if(checklist) checklist.classList.add('shift-focus');
+    };
+
+    // Función manual para salir
+    window.exitShiftMode = function() {
+        document.body.classList.remove('shift-mode');
+        document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
+    };
+
     setInterval(checkTime, 1000);
 })();
 
-// === NAVEGACIÓN QUE SIEMPRE ACTIVA EL CRONO ===
-
+// 3. NAVEGACIÓN GUIADA (ZOOM + CRONO)
 window.navTo = function(targetId) {
     const el = document.getElementById(targetId);
     if (!el) return;
 
-    console.log("Abriendo tarjeta:", targetId);
-
-    // 1. Limpiar zooms previos
+    // Limpiar zooms previos
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
     
-    // 2. Activar MODO TARJETA ABIERTA (Esto hace aparecer el crono gracias al CSS)
+    // Activar modo tarjeta abierta (hace visible el crono encima)
     document.body.classList.add('card-open');
 
-    // 3. Aplicar clase de Zoom a la tarjeta (Z-Index 15000)
+    // Zoom a la tarjeta
     el.classList.add('widget--zoomed');
-    
-    // 4. Scroll al inicio de la tarjeta
     el.scrollTop = 0;
 };
 
 window.exitFlow = function() {
-    // 1. Quitar zoom de la tarjeta
+    // Quitar zoom
     document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-    
-    // 2. Quitar estado de tarjeta abierta (El crono vuelve arriba si no estamos en shift-mode)
+    // Quitar estado tarjeta abierta
     document.body.classList.remove('card-open');
 
-    // 3. Si estábamos en modo turno automático, volvemos al checklist base
+    // Si estábamos en modo turno, volver al checklist fullscreen
     if (document.body.classList.contains('shift-mode')) {
         const checklist = document.getElementById('brief-check');
         if(checklist) checklist.classList.add('shift-focus');
     } else {
-        // Si es modo normal, limpieza total
+        // Limpieza total
         document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
     }
+    
+    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
 };
+
+window.markOkAndNext = function(checkName, nextId) {
+    // Marcar OK
+    if (checkName) {
+        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
+        if (radio) {
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+    // Navegar
+    if (nextId) {
+        navTo(nextId);
+    } else {
+        exitFlow();
+        alert("🎉 Checklist completado.");
+    }
+};
+
+// 4. GENERAR RESUMEN (TRIGGER)
+(function wireBriefingGenerate(){
+  const btn = document.querySelector('header .header-controls .btn-primary');
+  if (!btn) return;
+
+  btn.addEventListener('click', async ()=>{
+    const supInput = document.getElementById('briefing-supervisor');
+    if (!supInput || !supInput.value.trim()) {
+        alert("⚠️ El campo 'Supervisor' es obligatorio.");
+        supInput?.focus();
+        return;
+    }
+
+    const oldText = btn.textContent;
+    btn.textContent = 'Guardando...';
+    btn.disabled = true;
+    
+    try {
+      // Recoger datos básicos (simulado)
+      const payload = {
+          supervisor: supInput.value.trim(),
+          date: new Date().toISOString()
+      };
+
+      // Simular envío
+      // await fetch(...) 
+      
+      console.log("✅ Resumen generado:", payload);
+      
+      if(window.openPostBriefingMode) window.openPostBriefingMode();
+
+      // RESETEO COMPLETO
+      if(window.resetFactoryTimer) window.resetFactoryTimer();
+      supInput.value = "";
+      document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
+          r.checked = false;
+          r.dispatchEvent(new Event('change'));
+      });
+      // Salir del modo turno si estaba activo
+      window.exitShiftMode();
+
+    } catch (err) {
+      console.error(err);
+      alert('Error: ' + err.message);
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+    }
+  });
+})();
+
+// 5. INYECCIÓN DE NAVEGACIÓN EN TARJETAS
+document.addEventListener('DOMContentLoaded', () => {
+    const WIDGET_MAP = [
+        { id: 'team-widget',        check: 'c1', label: '1. Dotación' },
+        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+        { id: 'prev-shift-widget',  check: 'c3', label: '3. Turno Anterior' },
+        { id: 'seguridad-widget',   check: 'c4', label: '4. Seguridad' },
+        { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
+        { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
+        { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
+    ];
+
+    WIDGET_MAP.forEach((step, index) => {
+        const widget = document.getElementById(step.id);
+        if (!widget || widget.querySelector('.widget-nav-bar')) return;
+
+        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
+        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
+        
+        const navBar = document.createElement('div');
+        navBar.className = 'widget-nav-bar';
+        navBar.innerHTML = `
+            <div class="nav-group">
+                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
+                    ⬅ Anterior
+                </button>
+            </div>
+            <div class="nav-group" style="font-size:0.9rem; color:#64748b;">
+                ${step.label} (${index + 1}/${WIDGET_MAP.length})
+            </div>
+            <div class="nav-group">
+                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
+                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
+                    ✅ OK ➡
+                </button>
+            </div>
+        `;
+        widget.prepend(navBar);
+    });
+});
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
