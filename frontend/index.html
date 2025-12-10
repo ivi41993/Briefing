@@ -1458,8 +1458,52 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 
 /* Mostrar solo cuando está en pantalla completa o zoomed */
 .widget:fullscreen .widget-nav-bar,
+/* === TARJETA EN PANTALLA COMPLETA (CORREGIDO) === */
+.widget.widget--zoomed {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    
+    /* Usamos 100% en lugar de 100vw para evitar scroll horizontal por la barra vertical */
+    width: 100% !important;
+    height: 100% !important; /* Fallback */
+    height: 100dvh !important; /* Altura dinámica real en móviles */
+    
+    z-index: 20000 !important;
+    background: #ffffff !important;
+    
+    /* ESTA LÍNEA ES LA CLAVE: Hace que el padding no aumente el ancho total */
+    box-sizing: border-box !important;
+    
+    /* Padding inferior grande para que el cronómetro no tape el final */
+    padding: 0 0 160px 0 !important; 
+    
+    overflow-y: auto !important; /* Scroll vertical permitido */
+    overflow-x: hidden !important; /* Prohibido scroll horizontal */
+    
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    display: block !important;
+}
+
+/* Ajuste para que el contenido interno tenga margen lateral en modo zoom */
+.widget.widget--zoomed > *:not(.widget-nav-bar) {
+    margin-left: 20px;
+    margin-right: 20px;
+}
+
+/* Ajuste de la barra de navegación en modo zoom para que quede pegada arriba */
 .widget.widget--zoomed .widget-nav-bar {
-    display: flex;
+    margin: 0 !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    box-sizing: border-box !important;
+    position: sticky !important;
+    top: 0 !important;
 }
 
 .nav-group { display: flex; gap: 10px; }
@@ -7121,6 +7165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
