@@ -2938,7 +2938,8 @@ class FiixConnector:
 
         except Exception as e:
             print(f"❌ FIIX EXCEPCIÓN en fetch_metrics: {e}")
-   async def debug_kpi_capabilities(self):
+
+    async def debug_kpi_capabilities(self):
         """
         Explora qué campos devuelve Fiix en WorkOrder para decidir
         qué KPIs podemos calcular.
@@ -2975,6 +2976,7 @@ class FiixConnector:
 
         except Exception as e:
             print(f"❌ FIIX EXCEPCIÓN en debug_kpi_capabilities: {e}")
+
 
 
 
@@ -4565,6 +4567,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
