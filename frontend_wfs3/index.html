@@ -2152,18 +2152,7 @@ function initEhsSimple(){
 
     render();
 }
-const inc=()=>{ if(days<daysInMonth){ days++; render(); } };
-const dec=()=>{ if(days>0){ days--; render(); } };
-spin.querySelectorAll('.ehs-btn').forEach(btn=>{
-btn.addEventListener('click', ()=>{
-(btn.dataset.op==='inc'?inc:dec)();
-});
-});
-spin.addEventListener('keydown', e=>{
-if(e.key==='ArrowUp' || e.key==='ArrowRight'){ e.preventDefault(); inc(); }
-if(e.key==='ArrowDown' || e.key==='ArrowLeft'){ e.preventDefault(); dec(); }
-});
-render();
+
 
 
 /* ==========================
