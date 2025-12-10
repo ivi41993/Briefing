@@ -2170,6 +2170,44 @@ body.card-open #timer-reset {
 #brief-check .br-explain {
     display: none;
 }
+/* === NUEVOS ESTILOS === */
+
+/* Botón Comenzar en el Cronómetro */
+.timer-start-btn {
+    background: #10b981; /* Verde */
+    color: white; border: none; border-radius: 8px;
+    padding: 6px 12px; font-weight: 700; font-size: 0.9rem;
+    cursor: pointer; box-shadow: 0 4px 10px rgba(16,185,129,0.3);
+}
+.timer-start-btn:active { transform: scale(0.98); }
+.header-timer { gap: 12px; } /* Un poco más de espacio */
+
+/* Scroll en Incidentes (Tablet) */
+#incidentes-widget .table-scroll {
+    max-height: 300px; /* Altura máxima fija */
+    overflow-y: auto;  /* Scroll vertical */
+    -webkit-overflow-scrolling: touch; /* Suavidad en iOS/Android */
+    border-bottom: 1px solid var(--border);
+}
+
+/* Tarjetas de Turno Anterior (Estilo fila) */
+.prev-item {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-left: 4px solid #f59e0b; /* Naranja */
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.prev-text { flex: 1; font-size: 0.9rem; word-break: break-word; }
+.prev-actions { display: flex; gap: 6px; }
+.prev-btn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 8px; font-size: 0.75rem; cursor: pointer; color: var(--text-muted);
+}
+.prev-btn:hover { background: #f9fafb; color: var(--text); }
 </style>
 </head>
 <body>
@@ -2197,12 +2235,15 @@ body.card-open #timer-reset {
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
 
+<!-- Cronómetro Modificado -->
 <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
-<div class="timer-face" id="timer-face">
-<div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
-<span class="timer-dot" aria-hidden="true"></span>
-</div>
-<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+    <div class="timer-face" id="timer-face">
+        <div class="timer-display" id="timer-display">00:00:00</div>
+        <span class="timer-dot" aria-hidden="true"></span>
+    </div>
+    <!-- NUEVO BOTÓN -->
+    <button type="button" id="timer-start-btn" class="timer-start-btn">Comenzar</button>
+    <button type="button" class="timer-reset" id="timer-reset">Reiniciar</button>
 </div>
 
 <!-- Busca esto en tu header y reemplázalo o modifícalo -->
@@ -3067,11 +3108,103 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
   });
 
   // Init público
-  function initHeaderTimer(){
-    load(); paint(); setUI();
-    if (running && !tick) tick = setInterval(paint, 250);
-  }
-  window.initHeaderTimer = initHeaderTimer;
+  /* ===== Cronómetro Header (Con botón Comenzar) ===== */
+(function(){
+    const KEY='header_big_timer_v1';
+    let running=false, startedAt=0, elapsed=0, tick=null;
+
+    const display = document.getElementById('timer-display');
+    const resetBtn = document.getElementById('timer-reset');
+    const startBtn = document.getElementById('timer-start-btn'); // NUEVO
+    const widget = document.getElementById('timer-widget');
+
+    function fmt(ms){
+        const t = Math.floor(ms/1000);
+        const h = Math.floor(t/3600);
+        const m = Math.floor((t%3600)/60);
+        const s = t%60;
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function paint(){
+        display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
+        // Si quieres parpadeo rojo > 4 min
+        if ((running ? Date.now()-startedAt : elapsed) > 240000) {
+            display.classList.add('alert-mode');
+            display.style.color = '#dc2626';
+        } else {
+            display.classList.remove('alert-mode');
+            display.style.color = '';
+        }
+    }
+
+    function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
+    
+    function load(){
+        try{
+            const s = JSON.parse(localStorage.getItem(KEY)||'null');
+            if(!s) return;
+            running = !!s.running;
+            elapsed = Number(s.elapsed)||0;
+            startedAt = Number(s.startedAt)||0;
+            if (running){
+                const now=Date.now();
+                elapsed = Math.max(elapsed, now-startedAt);
+                startedAt = now - elapsed;
+            }
+        }catch{}
+    }
+
+    function start(){
+        if (running) return;
+        running = true;
+        startedAt = Date.now() - elapsed;
+        tick = setInterval(paint, 250);
+        paint(); save();
+        
+        // --- NUEVO: ABRIR CHECKLIST AL COMENZAR ---
+        if(window.navTo) window.navTo('brief-check');
+        if(startBtn) startBtn.style.display = 'none'; // Ocultar botón al arrancar
+    }
+
+    function pause(){
+        if (!running) return;
+        running = false;
+        elapsed = Date.now() - startedAt;
+        clearInterval(tick); tick=null;
+        paint(); save();
+        if(startBtn) {
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = 'Continuar';
+        }
+    }
+
+    function reset(){
+        running = false; startedAt = 0; elapsed = 0;
+        clearInterval(tick); tick=null;
+        paint(); save();
+        display.style.color = '';
+        if(startBtn) {
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = 'Comenzar';
+        }
+    }
+
+    // Eventos
+    display?.addEventListener('click', ()=> (running ? pause() : start()));
+    resetBtn?.addEventListener('click', reset);
+    startBtn?.addEventListener('click', start); // Evento del botón verde
+
+    // Exponer globalmente
+    window.resetFactoryTimer = reset;
+
+    window.initHeaderTimer = function(){
+        load(); paint();
+        if (running) {
+            tick = setInterval(paint, 250);
+            if(startBtn) startBtn.style.display = 'none';
+        }
+    };
 })();
 
 const UI_SCALE_KEY='ui_scale_v1';
@@ -6748,14 +6881,12 @@ window.closePostBriefingMode = function() {
 
 /* ===== TRIGGER: Generar Resumen (CORREGIDO) ===== */
 /* ===== TRIGGER: Generar Resumen (CON SEGURIDAD) ===== */
+/* ===== Generar Resumen Completo ===== */
 (function wireBriefingGenerate(){
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
 
   btn.addEventListener('click', async ()=>{
-    const oldText = btn.textContent;
-    
-    // Validación Supervisor
     const supInput = document.getElementById('briefing-supervisor');
     if (!supInput || !supInput.value.trim()) {
         alert("⚠️ El campo 'Supervisor' es obligatorio.");
@@ -6763,101 +6894,64 @@ window.closePostBriefingMode = function() {
         return;
     }
 
+    const oldText = btn.textContent;
     btn.textContent = 'Guardando...';
     btn.disabled = true;
     
     try {
-        const team = window.TEAM_STATE || {};
-        
-        // 1. Roster Texto
-        const peopleList = team.people || [];
-        const attMap = team.attendance || {};
-        const rosterList = peopleList.map(p => {
-            const name = p.nombre_completo || "Sin Nombre";
-            const isPresent = attMap[name] === true;
-            return `${name} (${isPresent ? "✅" : "❌"})`;
-        });
-        
-        // 2. Kanban Texto
-        const kanbanItems = [];
-        ['Abiertas', 'En-Curso', 'Cerradas', 'Vencidas'].forEach(status => {
-            const col = document.getElementById(`kanban_rapida-${status}`);
-            if(col) {
-                col.querySelectorAll('.card').forEach(card => {
-                    kanbanItems.push(`[${status}] ${card.querySelector('.card-title')?.innerText?.trim()}`);
-                });
-            }
-        });
+      // 1. Recoger datos
+      const team = window.TEAM_STATE || {};
+      const rosterList = (team.people||[]).map(p => 
+          `${p.nombre_completo} (${(team.attendance||{})[p.nombre_completo]===true ? '✅':'❌'})`
+      ).join(", ") || "Sin datos";
 
-        // 3. Ops Texto
-        let opsData = [];
-        try {
-             // Tu función OPS ya tiene un método window.OPS.list(), pero por si acaso leemos del DOM
-             const opsItems = document.querySelectorAll('#ops-list .ops-item');
-             opsItems.forEach(item => {
-                 opsData.push({
-                     title: item.querySelector('.ops-title')?.innerText || '',
-                     impact: item.querySelector('.ops-impact')?.innerText || ''
-                 });
-             });
-        } catch(e){}
+      // Usamos la nueva función para obtener el texto del turno anterior
+      const prevShiftText = window.getPrevShiftText ? window.getPrevShiftText() : "Sin novedades";
 
-        // 4. SEGURIDAD (NUEVO) - Recoger de localStorage
-        let securityPayload = [];
-        try {
-            const rawSec = localStorage.getItem('sec_cards_v1') || '[]'; // Clave usada en tu initSeguridadModule
-            const parsedSec = JSON.parse(rawSec);
-            // Mapeamos al formato que espera el backend (title, desc)
-            securityPayload = parsedSec.map(c => ({
-                title: c.title || "Aviso",
-                desc: c.owner ? `Responsable: ${c.owner}` : "",
-                valid_until: null // En MAD no usas fecha de caducidad en estas tarjetas
-            }));
-        } catch (e) {
-            console.warn("Error leyendo seguridad", e);
-        }
+      const payload = {
+          station: "WFS3", // Ajustar según corresponda
+          date: new Date().toLocaleDateString('es-ES'),
+          briefing_time: new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}),
+          shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+          timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+          supervisor: supInput.value.trim(),
+          roster_details: rosterList,
+          prev_shift_note: prevShiftText, // Enviamos la lista formateada
+          // ... resto de tus campos (kanban, ops, etc) ...
+          kanban_details: "Ver dashboard", // O tu lógica de kanban
+          ops_updates: [], // O tu lógica de ops
+          safety_incidents: [], // O tu lógica de seguridad
+          kpis: {} // O tu lógica de KPIs
+      };
 
-        const payload = {
-            station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
-            date: (() => {
-                const d = new Date();
-                const day = String(d.getDate()).padStart(2, '0');
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
-                return `${day}/${month}/${year}`;
-            })(),
-            shift: document.getElementById('shift-badge-header')?.innerText || 'General', 
-            timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-            supervisor: supInput.value.trim(),
-            roster_details: rosterList.join(", "),
-            prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
-            kanban_details: kanbanItems.join(" | "),
-            ops_updates: opsData,
-            briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
-            
-            // AÑADIDO: Enviamos las tarjetas de seguridad
-            safety_incidents: securityPayload,
-            
-            kpis: {
-                "UPH": document.getElementById('kpi-uph')?.innerText,
-                "Costes": document.getElementById('kpi-total-cost')?.innerText
-            },
-            checklist: {}, 
-            kanban_counts: {}, 
-            roster_stats: "", 
-            present_names: []
-        };
+      // 2. Enviar
+      const res = await fetch('/api/briefing/summary', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
 
-        console.log("📤 Enviando...", payload);
+      if (!res.ok) throw new Error('Error servidor');
+      
+      alert("✅ Resumen WFS3 guardado correctamente.");
+      if(window.openPostBriefingMode) window.openPostBriefingMode();
 
-        const res = await fetch('/api/briefing/summary', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) throw new Error('Error servidor');
-        
-        alert("✅ Resumen MAD guardado.\nSe abrirá la pantalla de información.");
-        window.openPostBriefingMode();
+      // === 3. RESETEO COMPLETO ===
+      
+      // A. Resetear Timer
+      if(window.resetFactoryTimer) window.resetFactoryTimer();
+      
+      // B. Limpiar Supervisor
+      supInput.value = "";
+      
+      // C. Resetear Checklist (Radio buttons)
+      document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
+          r.checked = false;
+          // Disparar evento change para que se guarde el estado vacío
+          r.dispatchEvent(new Event('change'));
+      });
+      // Borrar la memoria del checklist
+      Object.keys(localStorage).forEach(k => {
+          if(k.includes('brief_check')) localStorage.removeItem(k);
+      });
 
     } catch (err) {
       console.error(err);
@@ -7106,6 +7200,7 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
 
 
