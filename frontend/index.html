@@ -292,13 +292,24 @@ align-items:start;
 
 /* Asa de arrastre */
 .card { gap:10px; }
+/* Asa de arrastre MEJORADA PARA TÁCTIL */
 .drag-handle{
-align-self:stretch; display:flex; align-items:center; justify-content:center;
-padding:6px; border:1px solid var(--border); border-radius:10px; background:var(--bg-card);
-cursor:grab; opacity:.7;
+    align-self:stretch;
+    display:flex; align-items:center; justify-content:center;
+    padding: 12px; /* AUMENTADO de 6px a 12px para dedos gordos */
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--bg-card);
+    cursor:grab;
+    opacity:.7;
+    
+    /* ESTA ES LA CLAVE PARA ANDROID: */
+    touch-action: none; /* Evita que el navegador intente hacer scroll al tocar aquí */
+    -webkit-user-select: none;
+    user-select: none;
 }
-.card:active .drag-handle{ cursor:grabbing; opacity:1; }
-.drag-handle svg{ width:14px; height:14px; }
+.card:active .drag-handle{ cursor:grabbing; opacity:1; background: #f3f4f6; }
+.drag-handle svg{ width:20px; height:20px; } /* Icono un poco más grande */
 .dashboard{
 padding: clamp(12px, 2vw, 28px);
 padding-left:  max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
@@ -3605,24 +3616,30 @@ async function initTeamRoster(){
 
 
 /* Kanban / Kaizen / GW */
+/* Kanban / Kaizen / GW Configuración Táctil */
 function makeColumnsSortable(){
-const common = {
-animation: 150,
-ghostClass: 'sortable-ghost',
-dragClass: 'sortable-drag',
-handle: '.drag-handle',
-forceFallback: true,         // ← iPad fiable
-delayOnTouchOnly: true,      // ← solo táctil
-delay: 120,
-fallbackTolerance: 6,// ← evita taps accidentales
-touchStartThreshold: 4
-};
+    const common = {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        
+        handle: '.drag-handle', // Solo se mueve si tocan el icono
+        
+        // --- CONFIGURACIÓN CRÍTICA PARA TABLET ---
+        forceFallback: true,    // Usa emulación de drag (más compatible en Android)
+        delay: 0,               // SIN RETRASO: respuesta inmediata al tocar el asa
+        fallbackTolerance: 3,   // Sensibilidad: empieza a mover tras 3px de deslizamiento
+        touchStartThreshold: 3, // Igual para pantallas táctiles
+        // -----------------------------------------
+        
+        onEnd: handleDragEnd
+    };
 
-document.querySelectorAll('#kanban-widget .cards-container')
-.forEach(c => new Sortable(c, { group:'kanban-board', ...common, onEnd:handleDragEnd }));
+    document.querySelectorAll('#kanban-widget .cards-container')
+        .forEach(c => new Sortable(c, { group:'kanban-board', ...common }));
 
-document.querySelectorAll('#kaizen-widget .cards-container')
-.forEach(c => new Sortable(c, { group:'kaizen-board', ...common, onEnd:handleDragEnd }));
+    document.querySelectorAll('#kaizen-widget .cards-container')
+        .forEach(c => new Sortable(c, { group:'kaizen-board', ...common }));
 }
 async function handleDragEnd({item,to,from,oldIndex}){
 if(to===from){ updateAllColumnCounts(); return; }
@@ -7089,6 +7106,7 @@ window.exitFlow = function() {
 </script>
 </body>
 </html>
+
 
 
 
