@@ -2742,14 +2742,22 @@ async def _ws_heartbeat(interval_sec: int = 30):
         await asyncio.sleep(interval_sec)
 
 
+import os
+import time
+import hmac
+import base64
+import hashlib
+import uuid
+import json
 from datetime import datetime
-from typing import Any
-import os, time, hmac, base64, hashlib, uuid, json
+from typing import Any, List
+
 import httpx
 
 class FiixConnector:
     def __init__(self):
-        self.host = os.getenv("FIIX_HOST", "").strip()
+        self.host = os.getenv("FIIX_HOST", "").strip()              # ej: "midominio.macmms.com"
+        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
         self.site_id = os.getenv("FIIX_SITE_ID", "").strip()
@@ -2759,14 +2767,99 @@ class FiixConnector:
 
         print(f"🔍 FIIX CONFIG: Host={self.host}")
 
+    def _build_auth(self) -> tuple[dict, dict]:
+        """
+        Construye: 
+        - los query params (service, timestamp, appKey, accessKey, ...)
+        - el header Authorization con la firma HMAC-SHA256 sobre host+path+?query
+        """
+        if not (self.app_key and self.access_key and self.secret_key):
+            raise RuntimeError("Credenciales Fiix incompletas (APP_KEY / ACCESS_KEY / SECRET_KEY).")
+
+        ts_ms = int(time.time() * 1000)
+
+        params = {
+            "service": "cmms",
+            "timestamp": str(ts_ms),
+            "appKey": self.app_key,
+            "accessKey": self.access_key,
+            "signatureMethod": "HmacSHA256",
+            "signatureVersion": "1",
+        }
+
+        # Construimos el requestUri (SIN protocolo) que hay que firmar
+        from urllib.parse import urlencode
+        query_str = urlencode(params)
+        request_uri = f"{self.host}/api/?{query_str}"
+
+        secret_bytes = self.secret_key.encode("utf-8")
+        msg_bytes = request_uri.encode("utf-8")
+        signature_hex = hmac.new(secret_bytes, msg_bytes, hashlib.sha256).hexdigest().lower()
+
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Authorization": signature_hex,
+        }
+
+        return params, headers
+
+    async def _fiix_find(
+        self,
+        ql: str,
+        parameters: List[Any],
+        fields: str,
+        max_objects: int = 1000,
+    ) -> list[dict]:
+        """
+        Lanza un FindRequest contra WorkOrder y devuelve la lista de objetos.
+        """
+        params, headers = self._build_auth()
+
+        body = {
+            "_maCn": "FindRequest",
+            "requestId": 1,
+            "requestSentUnixTime": int(time.time() * 1000),
+            "clientVersion": {
+                "major": 2,
+                "minor": 8,
+                "patch": 1,
+            },
+            "className": "WorkOrder",
+            "fields": fields,
+            "filters": [
+                {
+                    "ql": ql,
+                    "parameters": parameters,
+                }
+            ],
+            "maxObjects": max_objects,
+        }
+
+        body_str = json.dumps(body, separators=(",", ":"))
+        resp = await self.client.post(self.base_url, params=params, content=body_str, headers=headers)
+
+        if resp.status_code != 200:
+            raise RuntimeError(f"❌ FIIX HTTP {resp.status_code}: {resp.text}")
+
+        data = resp.json()
+
+        # Si Fiix devuelve error global:
+        if "error" in data and data["error"]:
+            raise RuntimeError(f"❌ FIIX API ERROR: {data['error']}")
+
+        if data.get("_maCn") != "FindResponse":
+            raise RuntimeError(f"❌ Respuesta inesperada de Fiix: {data}")
+
+        return data.get("objects", [])  # puede llamarse objects o value según versión
+
     async def fetch_metrics(self):
+        from datetime import datetime
+
         if not self.host or not self.access_key or not self.secret_key:
             print("⚠️ FIIX: Faltan credenciales.")
             return
 
-        url = self.base_url
-        
-        # 1. Rango de fechas: primer día de mes en formato DATETIME
+        # 1. Primer día de mes en formato DATETIME
         today = datetime.now()
         first_day = datetime(today.year, today.month, 1)
         ts_start_str = first_day.strftime("%Y-%m-%d 00:00:00")
@@ -2784,7 +2877,7 @@ class FiixConnector:
             ql_open += " AND intSiteID = ?"
             params_open.append(site_id_int)
 
-        # 4. Filtro Cerradas este mes (para contar cuántas se han cerrado)
+        # 4. Filtro Cerradas este mes
         ql_closed = "dtmDateCompleted >= ?"
         params_closed: list[Any] = [ts_start_str]
 
@@ -2792,84 +2885,26 @@ class FiixConnector:
             ql_closed += " AND intSiteID = ?"
             params_closed.append(site_id_int)
 
-        # --- PAYLOAD SIN dblTotalCost ---
-        payload = {
-            "msg_id": str(uuid.uuid4()),
-            "requests": [
-                {
-                    "action": "find",
-                    "className": "WorkOrder",
-                    "filters": [
-                        {
-                            "ql": ql_open,
-                            "parameters": params_open,
-                        }
-                    ],
-                    "fields": "id,intPriorityID,dtmSuggestedCompletionDate,dtmDateCompleted,intSiteID",
-                    "max": 1000,
-                },
-                {
-                    "action": "find",
-                    "className": "WorkOrder",
-                    "filters": [
-                        {
-                            "ql": ql_closed,
-                            "parameters": params_closed,
-                        }
-                    ],
-                    # 👇 Pedimos solo campos que seguro existen
-                    "fields": "id,dtmDateCompleted,intSiteID",
-                    "max": 1000,
-                },
-            ],
-        }
-
         try:
-            body_str = json.dumps(payload, separators=(",", ":"))
-            body_bytes = body_str.encode("utf-8")
+            # --- Query 1: Backlog ---
+            open_wos = await self._fiix_find(
+                ql=ql_open,
+                parameters=params_open,
+                fields="id,intPriorityID,dtmSuggestedCompletionDate,dtmDateCompleted,intSiteID",
+            )
 
-            secret = self.secret_key.encode("utf-8")
-            signature = base64.b64encode(
-                hmac.new(secret, body_bytes, hashlib.sha256).digest()
-            ).decode("utf-8")
-
-            headers = {
-                "Content-Type": "application/json; charset=utf-8",
-                "Access-Key": self.access_key,
-                "Signature": signature,
-                "Content-Length": str(len(body_bytes)),
-            }
-
-            resp = await self.client.post(url, content=body_bytes, headers=headers)
-
-            if resp.status_code != 200:
-                print(f"❌ FIIX HTTP {resp.status_code}: {resp.text}")
-                return
-
-            data = resp.json()
-
-            if "error" in data:
-                # Aquí entra tu error de SERVER_REQUEST_PROCESS / dblTotalCost
-                raise RuntimeError(f"❌ FIIX API ERROR: {data['error']}")
-
-            resp_open = data["responses"][0]
-            resp_closed = data["responses"][1]
-
-            if resp_open.get("error"):
-                print(f"❌ Error en query Open: {resp_open['error']}")
-                return
-            if resp_closed.get("error"):
-                print(f"❌ Error en query Closed: {resp_closed['error']}")
-                return
-
-            open_wos = resp_open.get("value", [])
-            closed_wos = resp_closed.get("value", [])
+            # --- Query 2: Cerradas este mes ---
+            closed_wos = await self._fiix_find(
+                ql=ql_closed,
+                parameters=params_closed,
+                fields="id,dtmDateCompleted,intSiteID",
+            )
 
             # KPIs
             count_backlog = len(open_wos)
             count_urgent = sum(
                 1 for w in open_wos
-                if w.get("intPriorityID") == 0  # ajusta según la prioridad "alta" real
+                if w.get("intPriorityID") == 0  # ajusta según prioridad "alta" real
             )
             count_closed_this_month = len(closed_wos)
 
@@ -2879,7 +2914,9 @@ class FiixConnector:
                 f"CerradasMes={count_closed_this_month}"
             )
 
-            ts = datetime.utcnow().isoformat() + "Z"
+            from datetime import datetime as dt_utc
+            ts = dt_utc.utcnow().isoformat() + "Z"
+
             await manager.broadcast({
                 "type": "kpi_update",
                 "metric": "fiix_backlog",
@@ -2901,6 +2938,7 @@ class FiixConnector:
 
         except Exception as e:
             print(f"❌ FIIX EXCEPCIÓN en fetch_metrics: {e}")
+
 
 
 
@@ -4489,6 +4527,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
