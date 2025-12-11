@@ -4294,38 +4294,30 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sheet_date, start, end = _current_shift_info(now)
 
-    # Forzamos recarga si la lista de gente está vacía (para que cargue los de prueba al arrancar)
-    has_people = len(roster_cache.get("people", [])) > 0
-
-    needs_reload = force or (not has_people) or (mtime != roster_cache.get("file_mtime")) \
-                         or (sheet_date != roster_cache.get("sheet_date")) \
-                         or (shift != roster_cache.get("shift"))
+    # --- FORZAMOS LA CARGA DE PRUEBA SIEMPRE ---
+    # Comenta las condiciones reales para pruebas:
+    # needs_reload = force or (mtime != roster_cache.get("file_mtime")) ...
+    needs_reload = True 
 
     if needs_reload:
-        # Intenta buscar hoja real
-        sheet_real, sheet_names = _find_sheet_for_date(ROSTER_XLSX_PATH, sheet_date)
+        print(f"🔥 CARGANDO ROSTER DE PRUEBA (FORZADO) - {shift} {sheet_date}")
+        
+        # DATOS FIJOS DE PRUEBA
+        people = [
+            {"nombre_completo": "PRUEBA Supervisor", "horario": "07:00-15:00", "observaciones": "Responsable", "funcion_diaria": "Supervisión"},
+            {"nombre_completo": "Juan Operario", "horario": "07:00-15:00", "observaciones": "Muelle 1", "funcion_diaria": "Carga"},
+            {"nombre_completo": "Maria Administrativa", "horario": "08:00-16:00", "observaciones": "Oficina", "funcion_diaria": "Documentación"},
+            {"nombre_completo": "Carlos Carretillero", "horario": "07:00-15:00", "observaciones": "Playa", "funcion_diaria": "Ubicación"},
+            {"nombre_completo": "Ana Seguridad", "horario": "06:00-14:00", "observaciones": "Entrada", "funcion_diaria": "Control"},
+            {"nombre_completo": "Luis Soporte", "horario": "09:00-18:00", "observaciones": "IT", "funcion_diaria": "Sistemas"}
+        ]
+        
+        # Nombre de hoja ficticio para que se vea en el frontend
+        sheet_real = "MODO PRUEBA ACTIVADO"
 
-        if not sheet_real:
-            # ============================================================
-            # 🔥 ZONA DE PRUEBAS: EQUIPO FIJO (Hardcoded)
-            # ============================================================
-            print(f"⚠️ No se encontró hoja Excel para {sheet_date}. Cargando equipo de PRUEBA fijo.")
-            
-            people = [
-                {"nombre_completo": "TEST Supervisor", "horario": "07:00-15:00", "observaciones": "Responsable", "funcion_diaria": "Supervisión"},
-                {"nombre_completo": "Juan Operario", "horario": "07:00-15:00", "observaciones": "Muelle 1", "funcion_diaria": "Carga"},
-                {"nombre_completo": "Maria Administrativa", "horario": "08:00-16:00", "observaciones": "Oficina", "funcion_diaria": "Documentación"},
-                {"nombre_completo": "Carlos Carretillero", "horario": "07:00-15:00", "observaciones": "Playa", "funcion_diaria": "Ubicación"},
-                {"nombre_completo": "Ana Seguridad", "horario": "06:00-14:00", "observaciones": "Entrada", "funcion_diaria": "Control"},
-                {"nombre_completo": "Luis Soporte", "horario": "09:00-18:00", "observaciones": "IT", "funcion_diaria": "Sistemas"}
-            ]
-            sheet_real = "MODO PRUEBA"
-            # ============================================================
-        else:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift)
-
+        # Actualizamos la caché en memoria del servidor
         roster_cache.update({
-            "file_mtime": mtime,
+            "file_mtime": mtime, # Mantenemos el mtime real para no romper lógica
             "sheet_date": sheet_date,
             "shift": shift,
             "people": people,
@@ -4334,6 +4326,7 @@ async def _build_roster_state(force=False) -> dict:
             "sheet": sheet_real,
         })
         
+        # Enviamos los datos al Frontend inmediatamente vía WebSocket
         await manager.broadcast({
             "type": "roster_update",
             "shift": shift,
@@ -4342,7 +4335,7 @@ async def _build_roster_state(force=False) -> dict:
             "window": {"from": start, "to": end},
             "count": len(people),
             "people": people,
-            "source": "excel" if sheet_real != "MODO PRUEBA" else "test",
+            "source": "test",
             "updated_at": roster_cache["updated_at"],
         })
         
@@ -4601,6 +4594,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
