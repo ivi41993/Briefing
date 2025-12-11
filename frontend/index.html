@@ -6833,15 +6833,18 @@ window.closePostBriefingMode = function() {
 /* ===== TRIGGER: Generar Resumen (CON SEGURIDAD) ===== */
 /* ===== Generar Resumen Completo ===== */
 /* ===== Generar Resumen Completo ===== */
+/* ===== GENERAR RESUMEN (Guardar Excel + Reset) ===== */
 (function wireBriefingGenerate(){
+  // Buscamos el botón de la cabecera
   const btn = document.querySelector('header .header-controls .btn-primary');
   if (!btn) return;
 
   btn.addEventListener('click', async ()=>{
     const supInput = document.getElementById('briefing-supervisor');
-    // Validación básica
+    
+    // 1. Validación básica
     if (!supInput || !supInput.value.trim()) {
-        alert("⚠️ El campo 'Supervisor' es obligatorio.");
+        alert("⚠️ El campo 'Supervisor' es obligatorio para generar el resumen.");
         supInput?.focus();
         return;
     }
@@ -6851,34 +6854,70 @@ window.closePostBriefingMode = function() {
     btn.disabled = true;
     
     try {
-      // 1. Recoger datos
+      // 2. Recopilación de datos del Dashboard
       const team = window.TEAM_STATE || {};
-      const rosterList = (team.people||[]).map(p => 
-          `${p.nombre_completo} (${(team.attendance||{})[p.nombre_completo]===true ? '✅':'❌'})`
-      ).join(", ") || "Sin datos";
+      
+      // Formatear lista de asistencia para el Excel
+      const rosterList = (team.people || []).map(p => {
+          const isPresent = (team.attendance || {})[p.nombre_completo];
+          const status = isPresent === true ? 'Presente' : isPresent === false ? 'Ausente' : '?';
+          return `${p.nombre_completo} (${status})`;
+      }).join(", ");
 
-      // Usar la nueva función para obtener el texto del turno anterior (filas)
-      const prevShiftText = window.getPrevShiftText ? window.getPrevShiftText() : "Sin novedades";
+      // Recoger texto de Turno Anterior (usando el nuevo sistema de filas)
+      // Si la función existe usa la nueva, si no, busca el texto antiguo por si acaso
+      let prevShiftText = "Sin novedades";
+      if (window.getPrevShiftText) {
+          prevShiftText = window.getPrevShiftText(); // Devuelve las tarjetas unidas con " | "
+      } else {
+          const oldNote = document.getElementById('prev-shift-note');
+          if (oldNote) prevShiftText = oldNote.innerText;
+      }
 
+      // Construir el Payload (lo que recibe Python)
       const payload = {
-          station: "WFS3", 
+          station: (window.STATION_OVERRIDE || 'MAD'),
           date: new Date().toLocaleDateString('es-ES'),
           briefing_time: new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}),
           shift: document.getElementById('shift-badge-header')?.innerText || 'General',
-          timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+          
+          // Datos críticos
           supervisor: supInput.value.trim(),
-          roster_details: rosterList,
-          prev_shift_note: prevShiftText, 
-          // ... resto de campos ...
+          timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+          
+          // Bloques de contenido
+          roster_details: rosterList || "Sin datos de equipo",
+          prev_shift_note: prevShiftText,
+          
+          // Puedes añadir aquí capturas de los otros widgets si tu backend lo soporta
+          kanban_count: document.querySelectorAll('#kanban-widget .card').length || 0,
+          safety_count: document.querySelectorAll('#sec-cards .ops-item').length || 0
       };
 
-      // Simular envío (o tu fetch real)
-      console.log("Enviando:", payload);
-      // const res = await fetch(...) 
+      console.log("📤 Enviando datos al servidor:", payload);
+
+      // 3. ENVÍO REAL AL SERVIDOR (Esto es lo que faltaba)
+      const res = await fetch('/api/briefing/summary', {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+          const errData = await res.json().catch(()=>({}));
+          throw new Error(errData.detail || 'Error en el servidor al guardar el Excel.');
+      }
       
-      alert("✅ Resumen WFS3 guardado correctamente.");
-      
-      // === 3. RESETEO COMPLETO (LO QUE PEDISTE) ===
+      // 4. ÉXITO
+      const responseJson = await res.json();
+      console.log("✅ Respuesta servidor:", responseJson);
+      alert("✅ Resumen guardado correctamente en Excel.");
+
+      // Si tienes la pantalla de modo info, ábrela
+      if(window.openPostBriefingMode) window.openPostBriefingMode();
+
+      // === 5. RESETEO DE LA INTERFAZ ===
+      console.log("🧹 Ejecutando limpieza de turno...");
       
       // A. Resetear Timer
       if(window.resetFactoryTimer) window.resetFactoryTimer();
@@ -6886,25 +6925,28 @@ window.closePostBriefingMode = function() {
       // B. Limpiar Supervisor
       supInput.value = "";
       
-      // C. Resetear Checklist
+      // C. Resetear Checklist (Visual y Memoria)
       document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
           r.checked = false;
-          r.dispatchEvent(new Event('change'));
+          // Disparar eventos para que se guarde el estado vacío
+          r.dispatchEvent(new Event('change', {bubbles:true}));
+          r.dispatchEvent(new Event('input', {bubbles:true}));
       });
-      // Borrar memoria checklist
+      // Borrar localStorage específico del checklist
       Object.keys(localStorage).forEach(k => {
           if(k.includes('brief_check')) localStorage.removeItem(k);
       });
       
-      // D. Resetear Turno Anterior
+      // D. Resetear Turno Anterior (Nueva lista)
       if(window.resetPrevShift) window.resetPrevShift();
 
-      // E. Salir de cualquier modo pantalla completa
+      // E. Salir de cualquier modo pantalla completa / Turno
       if(window.exitFlow) window.exitFlow();
+      if(window.exitShiftMode) window.exitShiftMode();
 
     } catch (err) {
       console.error(err);
-      alert('Error al guardar: ' + err.message);
+      alert('❌ Error al guardar: ' + err.message);
     } finally {
       btn.textContent = oldText;
       btn.disabled = false;
@@ -7249,6 +7291,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
