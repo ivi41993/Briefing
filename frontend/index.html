@@ -6834,69 +6834,77 @@ window.closePostBriefingMode = function() {
 /* ===== Generar Resumen Completo ===== */
 /* ===== Generar Resumen Completo ===== */
 /* ===== GENERAR RESUMEN (Guardar Excel + Reset) ===== */
+/* ===== GENERAR RESUMEN (REPARADO: Guardado Excel + Limpieza Eventos) ===== */
 (function wireBriefingGenerate(){
-  // Buscamos el botón de la cabecera
-  const btn = document.querySelector('header .header-controls .btn-primary');
-  if (!btn) return;
+  // 1. Buscamos el botón original
+  const oldBtn = document.querySelector('header .header-controls .btn-primary');
+  if (!oldBtn) return;
 
-  btn.addEventListener('click', async ()=>{
+  // 2. TRUCO DE LIMPIEZA CRÍTICO: 
+  // Clonamos el botón y reemplazamos el original. 
+  // Esto ELIMINA todos los eventos "fantasmas" o duplicados anteriores.
+  const btn = oldBtn.cloneNode(true);
+  oldBtn.parentNode.replaceChild(btn, oldBtn);
+
+  // 3. Asignamos la lógica única y correcta
+  btn.addEventListener('click', async (e)=>{
+    e.preventDefault(); 
+    
     const supInput = document.getElementById('briefing-supervisor');
     
-    // 1. Validación básica
+    // --- PASO 1: VALIDACIÓN ---
     if (!supInput || !supInput.value.trim()) {
-        alert("⚠️ El campo 'Supervisor' es obligatorio para generar el resumen.");
-        supInput?.focus();
-        return;
+        alert("⚠️ ATENCIÓN: El campo 'Supervisor' es obligatorio para guardar.");
+        setTimeout(() => supInput?.focus(), 100);
+        return; // Detiene la ejecución aquí. No guarda, no resetea.
     }
 
     const oldText = btn.textContent;
-    btn.textContent = 'Guardando...';
+    btn.textContent = 'Guardando Excel...';
     btn.disabled = true;
     
     try {
-      // 2. Recopilación de datos del Dashboard
-      const team = window.TEAM_STATE || {};
+      // --- PASO 2: RECOPILAR DATOS ---
       
-      // Formatear lista de asistencia para el Excel
+      // Datos del equipo
+      const team = window.TEAM_STATE || {};
       const rosterList = (team.people || []).map(p => {
           const isPresent = (team.attendance || {})[p.nombre_completo];
+          // Lógica simplificada: si está checked es presente, si no... depende de tu lógica
+          // Aquí asumimos que attendance guarda true/false
           const status = isPresent === true ? 'Presente' : isPresent === false ? 'Ausente' : '?';
           return `${p.nombre_completo} (${status})`;
       }).join(", ");
 
-      // Recoger texto de Turno Anterior (usando el nuevo sistema de filas)
-      // Si la función existe usa la nueva, si no, busca el texto antiguo por si acaso
+      // Texto del turno anterior (usando la nueva lógica de filas o fallback a la antigua)
       let prevShiftText = "Sin novedades";
       if (window.getPrevShiftText) {
-          prevShiftText = window.getPrevShiftText(); // Devuelve las tarjetas unidas con " | "
+          prevShiftText = window.getPrevShiftText(); 
       } else {
           const oldNote = document.getElementById('prev-shift-note');
           if (oldNote) prevShiftText = oldNote.innerText;
       }
 
-      // Construir el Payload (lo que recibe Python)
+      // Payload para el backend
       const payload = {
           station: (window.STATION_OVERRIDE || 'MAD'),
           date: new Date().toLocaleDateString('es-ES'),
           briefing_time: new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}),
           shift: document.getElementById('shift-badge-header')?.innerText || 'General',
           
-          // Datos críticos
           supervisor: supInput.value.trim(),
           timer: document.getElementById('timer-display')?.innerText || '00:00:00',
           
-          // Bloques de contenido
           roster_details: rosterList || "Sin datos de equipo",
           prev_shift_note: prevShiftText,
           
-          // Puedes añadir aquí capturas de los otros widgets si tu backend lo soporta
-          kanban_count: document.querySelectorAll('#kanban-widget .card').length || 0,
-          safety_count: document.querySelectorAll('#sec-cards .ops-item').length || 0
+          // Métricas extra si las necesitas
+          kanban_count: document.querySelectorAll('#kanban-widget .card').length || 0
       };
 
-      console.log("📤 Enviando datos al servidor:", payload);
+      console.log("📤 Enviando datos...", payload);
 
-      // 3. ENVÍO REAL AL SERVIDOR (Esto es lo que faltaba)
+      // --- PASO 3: ENVÍO AL SERVIDOR ---
       const res = await fetch('/api/briefing/summary', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
@@ -6904,49 +6912,45 @@ window.closePostBriefingMode = function() {
       });
 
       if (!res.ok) {
-          const errData = await res.json().catch(()=>({}));
-          throw new Error(errData.detail || 'Error en el servidor al guardar el Excel.');
+          throw new Error(`Error del servidor: ${res.status}`);
       }
       
-      // 4. ÉXITO
-      const responseJson = await res.json();
-      console.log("✅ Respuesta servidor:", responseJson);
-      alert("✅ Resumen guardado correctamente en Excel.");
+      // --- PASO 4: ÉXITO Y RESETEO ---
+      // Solo llegamos aquí si el servidor respondió OK (200)
+      
+      alert("✅ Información guardada correctamente en Excel.");
 
-      // Si tienes la pantalla de modo info, ábrela
+      // A. Mostrar pantalla info (opcional)
       if(window.openPostBriefingMode) window.openPostBriefingMode();
 
-      // === 5. RESETEO DE LA INTERFAZ ===
-      console.log("🧹 Ejecutando limpieza de turno...");
-      
-      // A. Resetear Timer
-      if(window.resetFactoryTimer) window.resetFactoryTimer();
-      
-      // B. Limpiar Supervisor
+      // B. Resetear Supervisor
       supInput.value = "";
       
-      // C. Resetear Checklist (Visual y Memoria)
+      // C. Resetear Cronómetro
+      if(window.resetFactoryTimer) window.resetFactoryTimer();
+      
+      // D. Resetear Checklist
       document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
           r.checked = false;
-          // Disparar eventos para que se guarde el estado vacío
+          // Forzar evento change para limpiar localStorage y spotlight
           r.dispatchEvent(new Event('change', {bubbles:true}));
-          r.dispatchEvent(new Event('input', {bubbles:true}));
       });
-      // Borrar localStorage específico del checklist
+      // Limpieza profunda de localStorage del checklist
       Object.keys(localStorage).forEach(k => {
           if(k.includes('brief_check')) localStorage.removeItem(k);
       });
       
-      // D. Resetear Turno Anterior (Nueva lista)
+      // E. Resetear Turno Anterior (Nueva lista)
       if(window.resetPrevShift) window.resetPrevShift();
 
-      // E. Salir de cualquier modo pantalla completa / Turno
+      // F. Salir de modos pantalla completa
       if(window.exitFlow) window.exitFlow();
       if(window.exitShiftMode) window.exitShiftMode();
 
     } catch (err) {
       console.error(err);
       alert('❌ Error al guardar: ' + err.message);
+      // NO reseteamos nada si falla, para que puedas reintentar.
     } finally {
       btn.textContent = oldText;
       btn.disabled = false;
@@ -7291,6 +7295,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
