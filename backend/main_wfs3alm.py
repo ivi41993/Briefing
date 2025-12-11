@@ -245,14 +245,23 @@ async def send_to_excel_online(data: BriefingSnapshot):
     url = os.getenv("EXCEL_WEBHOOK_URL_WFS3ALM") 
     
     if not url:
-        print("⚠️ EXCEL_WEBHOOK_URL_WFS3 no definida.")
+        print("⚠️ EXCEL_WEBHOOK_URL_WFS3ALM no definida.")
         return
 
+    # 1. Procesar Actualizaciones Operativas (Ya lo tenías)
     ops_text = "Sin actualizaciones"
     if data.ops_updates:
         ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
         ops_text = " | ".join(ops_lines)
 
+    # 2. Procesar Incidentes de Seguridad (ESTO ES LO QUE FALTABA)
+    safety_text = "Sin incidentes reportados"
+    if data.safety_incidents:
+        # Asumimos que el frontend envía dicts con 'title' y 'desc'
+        safety_lines = [f"{inc.get('title','Aviso')}: {inc.get('desc','')}" for inc in data.safety_incidents]
+        safety_text = " | ".join(safety_lines)
+
+    # 3. Construir el Payload
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
@@ -265,7 +274,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "actualizaciones_ops": str(ops_text),
         "feedback_kanban": str(data.kanban_details or "Sin feedback"),
         "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M")),
-        "incidentes_seguridad": str(safety_text) # <--- Campo nuevo
+        "incidentes_seguridad": str(safety_text) # <--- Ahora esta variable YA EXISTE
     }
     
     print(f"📤 Enviando a Excel WFS3ALM: {json.dumps(payload)}")
