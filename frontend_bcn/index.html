@@ -3331,6 +3331,9 @@ Reordenar checklist + renumerar
 /* ==========================
    Reordenar checklist: 1. Dotación, 2. Ops, 3. Turno Anterior, etc.
    ========================== */
+/* ==========================
+   Reordenar checklist: 1. Dotación, 2. Turno Anterior, 3. Ops
+   ========================== */
 function reorderChecklist(){
     const grid = document.querySelector('#brief-check .check-grid');
     if(!grid) return;
@@ -3340,13 +3343,19 @@ function reorderChecklist(){
     const cardOps  = grid.querySelector('[data-target="ops-updates-widget"]');// Ops
     const cardPrev = grid.querySelector('[data-target="prev-shift-widget"]'); // Turno Anterior
 
-    // Forzamos el orden insertándolas al principio en la secuencia deseada
-    // (appendChild/insertBefore mueve el elemento si ya existe)
-    if(cardPrev) grid.insertBefore(cardPrev, grid.firstElementChild); // Primero ponemos Prev (se moverá luego)
-    if(cardOps)  grid.insertBefore(cardOps,  grid.firstElementChild); // Ops empuja a Prev
-    if(cardTeam) grid.insertBefore(cardTeam, grid.firstElementChild); // Team empuja a Ops
+    // ORDEN DESEADO: 1) Team, 2) Prev, 3) Ops
+    // Insertamos en orden INVERSO al inicio para que queden apiladas correctamente:
+    
+    // 3. Insertamos OPS (quedará primero temporalmente)
+    if(cardOps)  grid.insertBefore(cardOps,  grid.firstElementChild); 
+    
+    // 2. Insertamos PREV (empuja a Ops a la posición 2)
+    if(cardPrev) grid.insertBefore(cardPrev, grid.firstElementChild); 
+    
+    // 1. Insertamos TEAM (empuja a Prev a la pos 2 y a Ops a la pos 3)
+    if(cardTeam) grid.insertBefore(cardTeam, grid.firstElementChild); 
 
-    // Resultado visual en DOM: Team -> Ops -> Prev -> [Resto que ya estaba]
+    // Resultado final en pantalla: Team -> Prev -> Ops -> [El resto]
 
     // Renumerar títulos para que coincidan (1), 2), 3)...)
     [...grid.children].forEach((c, idx)=>{
@@ -4301,18 +4310,18 @@ window.closePostBriefingMode = function() {
 document.addEventListener('DOMContentLoaded', () => {
     
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
+    // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
     const WIDGET_MAP = [
         { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },
-        { id: 'prev-shift-widget',  check: 'c1', label: '3. Turno Anterior' },
-        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
-        
+        { id: 'prev-shift-widget',  check: 'c1', label: '2. Turno Anterior' },   // Ahora es el paso 2
+        { id: 'ops-updates-widget', check: 'c2', label: '3. Actualizaciones' },  // Ahora es el paso 3
         
         // El resto se queda igual
         { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
         { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
         { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
         { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
-    ];
+    ];;
 
     WIDGET_MAP.forEach((step, index) => {
         const widget = document.getElementById(step.id);
