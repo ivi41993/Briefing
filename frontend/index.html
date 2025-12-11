@@ -1749,22 +1749,28 @@ body.shift-active .timer-display {
 }
 
 /* Botón para salir manualmente si es necesario */
+/* Botón para salir manualmente si es necesario */
 #exit-shift-mode-btn {
     display: none; /* Oculto por defecto */
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 10001;
-    padding: 10px 20px;
+    /* Z-INDEX MÁXIMO para que nada lo tape */
+    z-index: 2147483647 !important; 
+    padding: 12px 24px;
     background: #334155;
     color: white;
-    border: none;
-    border-radius: 8px;
+    border: 2px solid #fff;
+    border-radius: 12px;
     cursor: pointer;
-    font-weight: bold;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
-body.shift-active #exit-shift-mode-btn {
-    display: block;
+
+/* Mostrar botón tanto si la clase es shift-active como shift-mode */
+body.shift-active #exit-shift-mode-btn,
+body.shift-mode #exit-shift-mode-btn {
+    display: block !important;
 }
 
 
@@ -7029,6 +7035,7 @@ window.closePostBriefingMode = function() {
 })();
 
 // 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
+// 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
 (function initAutoShiftChange(){
     let lastShift = null;
 
@@ -7043,31 +7050,51 @@ window.closePostBriefingMode = function() {
         if (currentShift !== lastShift) {
             console.log(`🔄 CAMBIO DE TURNO DETECTADO: ${lastShift} -> ${currentShift}`);
             lastShift = currentShift;
-            triggerShiftMode();
+            triggerShiftMode(currentShift);
         }
     }
 
-    window.triggerShiftMode = function() {
-        // ACTIVAR MODO TURNO (Crono flotante)
+    window.triggerShiftMode = function(shiftName) {
+        // 1. ACTIVAR MODO TURNO (Clase unificada)
         document.body.classList.add('shift-mode'); 
         
-        // Resetear Timer
+        // 2. Resetear Timer
         const btnReset = document.getElementById('timer-reset');
         if(btnReset) btnReset.click();
         
-        // Resetear Checks
+        // 3. Resetear Checks visuales
         document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
         
-        // Enfocar Checklist (Fake Fullscreen)
-        document.querySelectorAll('.shift-focus').forEach(e => e.classList.remove('shift-focus'));
+        // 4. Enfocar Checklist (Fake Fullscreen)
         const checklist = document.getElementById('brief-check');
-        if(checklist) checklist.classList.add('shift-focus');
+        if(checklist) {
+            checklist.classList.add('shift-focus');
+            
+            // Cambiar título temporalmente para indicar cambio
+            const title = checklist.querySelector('.widget-title');
+            if(title) {
+                if(!title.dataset.original) title.dataset.original = title.innerHTML;
+                title.innerHTML = `COMIENZO TURNO: <span style="color:#dc2626">${(shiftName || 'NUEVO').toUpperCase()}</span>`;
+            }
+        }
     };
 
-    // Función manual para salir
+    // Función manual para salir y limpiar todo
     window.exitShiftMode = function() {
+        // Quitar clases del body
         document.body.classList.remove('shift-mode');
-        document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
+        document.body.classList.remove('shift-active'); // Por si acaso
+        
+        // Quitar fullscreen del checklist
+        const checklist = document.getElementById('brief-check');
+        if(checklist) {
+            checklist.classList.remove('shift-focus');
+            // Restaurar título original
+            const title = checklist.querySelector('.widget-title');
+            if(title && title.dataset.original) {
+                title.innerHTML = title.dataset.original;
+            }
+        }
     };
 
     setInterval(checkTime, 1000);
@@ -7295,6 +7322,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
