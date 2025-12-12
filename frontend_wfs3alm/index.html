@@ -2267,7 +2267,49 @@ body.card-open #timer-reset {
     overflow-y: auto;  /* Scroll vertical activado */
     -webkit-overflow-scrolling: touch; /* Suavidad en iOS */
     border-bottom: 1px solid var(--border);
-}  
+}
+/* Estilos específicos para tarjetas de Incidentes/Lecciones */
+.inc-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex; 
+    flex-direction: column; 
+    gap: 6px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+    transition: transform 0.1s;
+}
+.inc-card:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+
+/* Estilo Rojo para Incidentes */
+.inc-card.type-incident {
+    border-left: 5px solid #dc2626;
+}
+.inc-card.type-incident .inc-badge {
+    background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+}
+
+/* Estilo Azul/Bombilla para Lecciones */
+.inc-card.type-lesson {
+    border-left: 5px solid #8b5cf6;
+}
+.inc-card.type-lesson .inc-badge {
+    background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe;
+}
+
+.inc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.inc-badge { 
+    font-size: 0.75rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; 
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.inc-title { font-weight: 700; font-size: 0.95rem; color: #1f2937; }
+.inc-desc { font-size: 0.9rem; color: #4b5563; white-space: pre-wrap; margin-top: 4px; }
+.inc-meta { font-size: 0.75rem; color: #9ca3af; margin-top: 6px; display: flex; justify-content: space-between; align-items: center; }
+.inc-del-btn { 
+    background: none; border: none; cursor: pointer; opacity: 0.6; font-size: 1rem; 
+}
+.inc-del-btn:hover { opacity: 1; transform: scale(1.1); }
 </style>
 </head>
 <body>
@@ -2404,7 +2446,7 @@ body.card-open #timer-reset {
   <div class="check-card" tabindex="0"
        data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad."
        data-target="seguridad-widget">
-    <span class="check-title">4) Seguridad y protección</span>
+    <span class="check-title">4) Safety, Security, Quality & PRL</span>
     <div class="check-actions" role="group" aria-label="Bloque 4">
       <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
     </div>
@@ -2518,7 +2560,7 @@ body.card-open #timer-reset {
 
 <div class="widget vivid" id="seguridad-widget">
   <h2 class="widget-title hero">
-    <span class="hero-ico">🛡️</span><span>4) Seguridad y Protección</span>
+    <span class="hero-ico">🛡️</span><span>4) Safety, Security, Quality & PRL</span>
     <span class="hero-badge warn">PRIORIDAD</span>
   </h2>
 
@@ -2544,66 +2586,58 @@ body.card-open #timer-reset {
 
 
   
-<!-- INCIDENTES (ENABLON) -->
+<!-- INCIDENTES (ENABLON) + LECCIONES APRENDIDAS -->
 <div class="widget vivid" id="incidentes-widget">
   <h2 class="widget-title hero">
-    <span class="hero-ico">⚠️</span><span>5) Incidentes</span>
-    <span class="hero-badge danger">ENABLON</span>
+    <span class="hero-ico">⚠️</span><span>5) Incidentes & Aprendizaje</span>
+    <span class="hero-badge danger">MANUAL</span>
   </h2>
 
-<!-- RECORDAR entre título y bullets -->
-<!-- PROTOCOLO DE INCIDENTES (editable) -->
-<form id="incidents-protocol-form" class="inline-form" autocomplete="off" 
-      style="display:grid;grid-template-columns:1fr;gap:8px;margin:10px 0 12px;">
-  <div class="ops-item">
-    <label for="ip-understanding-note" style="font-weight:700;">Asegurar comprensión del procedimiento (resumen explicado hoy)</label>
-    <textarea id="ip-understanding-note" rows="2" placeholder="Ej.: Procedimiento ‘Pulse/Enablon’ explicado a todo el personal del turno, con roles y tiempos…"
-              style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+  <!-- BANNER RECORDATORIO (Se mantiene) -->
+  <div class="incident-remember">
+    RECORDAR: Reportar cualquier incidente inmediatamente en ENABLON.
   </div>
 
-  <div class="ops-item">
-    <label for="ip-what-to-do" style="font-weight:700;">Qué hacer si algo sale mal</label>
-    <textarea id="ip-what-to-do" rows="2" placeholder="Ej.: Parada segura, avisar a supervisor, acordonar zona, activar protocolo, registrar en Pulse/Enablon…"
-              style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+  <!-- PROTOCOLO (Se mantiene editable) -->
+  <details style="margin-bottom:15px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff;">
+    <summary style="font-weight:700; cursor:pointer; color:var(--text-muted);">📂 Ver Protocolo de Actuación</summary>
+    <form id="incidents-protocol-form" class="inline-form" autocomplete="off" style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;">
+      <div class="ops-item">
+        <label style="font-weight:700;">Qué hacer si algo sale mal</label>
+        <textarea id="ip-what-to-do" rows="2" placeholder="Procedimiento..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+      </div>
+      <div class="ops-item">
+        <label style="font-weight:700;">A quién informar</label>
+        <input id="ip-contacts" type="text" placeholder="Teléfonos..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+      </div>
+      <div class="meta-row">
+        <button class="btn-compact" type="submit">Guardar Protocolo</button>
+        <small id="incidents-protocol-status" class="kpi-text">—</small>
+      </div>
+    </form>
+  </details>
+
+  <!-- === NUEVO SISTEMA: ALTA MANUAL DE INCIDENTES / LECCIONES === -->
+  
+  <!-- Formulario de Alta -->
+  <form id="manual-inc-form" style="background:#fff5f5; padding:12px; border-radius:10px; border:1px dashed #fecaca; margin-bottom:15px;">
+    <div style="display:grid; grid-template-columns: 140px 1fr auto; gap:8px; margin-bottom:8px;">
+      <select id="new-inc-type" style="padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-weight:bold;">
+        <option value="incident">🔴 Incidente</option>
+        <option value="lesson">💡 Lección</option>
+      </select>
+      <input type="text" id="new-inc-title" placeholder="Título corto..." required 
+             style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+      <button type="submit" class="btn-primary" style="padding:8px 16px;">Añadir</button>
+    </div>
+    <textarea id="new-inc-desc" rows="2" placeholder="Descripción detallada o aprendizaje..." 
+              style="width:100%; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
+  </form>
+
+  <!-- Lista de Tarjetas -->
+  <div id="incidents-list-container" class="ops-list" style="max-height:400px; overflow-y:auto; padding-right:4px;">
+    <!-- Se llena con JS -->
   </div>
-
-  <div class="ops-item">
-    <label for="ip-contacts" style="font-weight:700;">A quién informar / pedir apoyo inmediato</label>
-    <input id="ip-contacts" type="text" 
-           placeholder="Ej.: Supervisor (666 111 222), QHSSE (666 333 444), Emergencias 112…" 
-           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-  </div>
-
-  <div class="ops-item">
-    <label for="ip-tools-location" style="font-weight:700;">Dónde están las herramientas de emergencia</label>
-    <input id="ip-tools-location" type="text" 
-           placeholder="Ej.: Botón paro: muelle 3; extintores: pasillo central; botiquín: oficina Ops…"
-           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-  </div>
-
-  <div class="meta-row">
-    <button class="btn-primary" type="submit" style="justify-self:start;">Guardar protocolo</button>
-    <small id="incidents-protocol-status" class="kpi-text">—</small>
-  </div>
-</form>
-
-
-<!-- Subida de PDF (Incidentes) -->
-<form id="incidents-pdf-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
-  <input type="file" id="incidents-pdf-file" accept="application/pdf" required
-         style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
-  <button class="btn-primary" type="submit">Subir PDF</button>
-</form>
-<small id="incidents-pdf-status" class="kpi-text">—</small>
-
-<!-- Resultados del PDF -->
-<div class="table-scroll" id="incidentes-pdf-wrap" style="display:none; margin-top:6px;">
-  <table id="incidentes-pdf-table"></table>
-</div>
-<small class="kpi-text" id="incidentes-meta">—</small>
-<div class="table-scroll">
-<table id="incidentes-table"></table>
-</div>
 </div>
 
 
@@ -2805,7 +2839,7 @@ body.card-open #timer-reset {
   </div>
 </div>
 <div class="widget" id="ehs-widget">
-  <h2 class="widget-title">Días sin incidentes</h2>
+  <h2 class="widget-title">Días sin accidentes de trabajo</h2>
   <div class="ehs-month" id="ehs-month">—</div>
   
   <!-- CAMBIO: Eliminados botones manuales, añadido title explicativo -->
@@ -2958,46 +2992,6 @@ function getTaskId(obj){
 
 
 // === PDF Incidentes: subida y render ===
-(function initIncidentsPdfUpload(){
-  const form   = document.getElementById('incidents-pdf-form');
-  const input  = document.getElementById('incidents-pdf-file');
-  const status = document.getElementById('incidents-pdf-status');
-  const wrap   = document.getElementById('incidentes-pdf-wrap');
-
-  if (!form) return;
-
-
-
-  // ⬇️ ESTE SUBMIT ES LO QUE FALTABA
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();                           // 👈 evita recargar la página
-    const f = input.files?.[0];
-    if (!f) { status.textContent = 'Selecciona un PDF'; return; }
-
-    const fd = new FormData();
-    fd.append('file', f);                          // 👈 el backend espera name="file"
-
-    status.textContent = 'Subiendo…';
-    try {
-      const res = await fetch('/api/incidents-table', { method:'POST', body: fd });
-      const data = await res.json().catch(()=> ({}));
-      if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al subir');
-
-      status.textContent = `OK: ${Array.isArray(data.rows) ? data.rows.length : data.rows} filas`;
-      wrap.style.display = 'block';
-
-      // Si el backend devuelve {columns, rows}, reusa tu renderer de la tabla principal:
-      if (data.columns && data.rows) {
-        renderIncidentes(data);
-      }
-    } catch (err) {
-      status.textContent = `Error: ${err.message || err}`;
-      console.error(err);
-    } finally {
-      input.value = '';
-    }
-  });
-})(); 
   
 
 
@@ -3568,7 +3562,56 @@ updateTeamMeta(TEAM_STATE);
 updateTeamMeta(TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
+/* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
+async function initTeamRoster(){
+    const listEl = document.getElementById('team-list');
+    
+    // 1. Inicializar estado VACÍO
+    window.TEAM_STATE = {
+        shift: "Mañana", 
+        sheet_date: new Date().toISOString().split('T')[0],
+        people: [],         // Array vacío, sin datos falsos
+        attendance: {},
+        zones: {}
+    };
 
+    // 2. Renderizar solo la TARJETA DE AVISO
+    if(listEl) {
+        listEl.innerHTML = `
+            <div style="padding: 15px; text-align: center; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; color: #856404; margin-bottom: 10px;">
+                <strong>⚠️ Atención</strong><br>
+                Procedimiento manual activo.<br>
+                <span style="font-size:0.85rem">Añada el personal uno a uno usando el botón +.</span>
+            </div>`;
+        
+        // Actualizar el meta info
+        const meta = document.getElementById('team-meta');
+        if(meta) meta.textContent = "Modo Manual";
+    }
+
+    // 3. Mantener la lógica del formulario de alta manual (funcional)
+    const form = document.getElementById('team-form');
+    if(form) {
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const input = document.getElementById('team-name');
+            const name = input.value.trim();
+            if(!name) return;
+            
+            // Añadir persona real al estado
+            const newPerson = { nombre_completo: name, horario: "Extra", observaciones: "Manual" };
+            window.TEAM_STATE.people.push(newPerson);
+            
+            // Marcar presente por defecto al añadir manualmente
+            window.TEAM_STATE.attendance[name] = true; 
+            
+            // Re-renderizar la lista completa (esto borrará el aviso amarillo y mostrará la lista)
+            renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
+            
+            input.value = '';
+        };
+    }
+}
 
 /* === FIX 1: Eliminar el date-picker estático de cabecera === */
 (function removeHeaderStaticDate(){
@@ -3835,7 +3878,7 @@ function setupEventListeners() {
     // Usamos delegación de eventos en el documento.
     
     // 1. Checkbox de completado
-    document.addEventListener('change', (e) => {
+   ('change', (e) => {
         // La función handleGwTick ya verifica si es un checkbox válido
         if (typeof handleGwTick === 'function') {
             handleGwTick(e);
@@ -4075,7 +4118,7 @@ return;
 
 if(data && (data.type==='kpi_update'||data.type==='kpi_state'||(data.metric&&data.tab))){
 const metric=String(data.metric||'').trim().toLowerCase(); const tab=String(data.tab||'').trim();
-if(metric==='total cost' && (!tab || tab==='MAD WFS4')){
+if(metric==='total cost' && (!tab || tab==='MAD WFS3')){
 let v=data.value;
 if(typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
 else if(Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
@@ -4115,7 +4158,7 @@ if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)
 
   
   // Coste total (ya lo tenías)
-  if (metric === 'total cost' && (!tab || tab === 'MAD WFS4')){
+  if (metric === 'total cost' && (!tab || tab === 'MAD WFS3')){
     let v = data.value;
     if (typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
     else if (Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
@@ -4128,19 +4171,19 @@ if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)
   }
 
   // UPH
-  if (metric === 'uph' && (!tab || tab === 'MAD WFS4')){
+  if (metric === 'uph' && (!tab || tab === 'MAD WFS3')){
     const v = Number(data.value);
     if (Number.isFinite(v)) setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
     return;
   }
   // OTIF
-  if (metric === 'otif' && (!tab || tab === 'MAD WFS4')){
+  if (metric === 'otif' && (!tab || tab === 'MAD WFS3')){
     const v = Number(data.value);
     if (Number.isFinite(v)) setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(v) + ' %');
     return;
   }
   // Backlog
-  if (metric === 'backlog' && (!tab || tab === 'MAD WFS4')){
+  if (metric === 'backlog' && (!tab || tab === 'MAD WFS3')){
     const v = Number(data.value);
     if (Number.isFinite(v)) setKpiValue('kpi-backlog', 'kpi-backlog-meta', new Intl.NumberFormat('es-ES').format(v));
     return;
@@ -6232,7 +6275,6 @@ document.addEventListener('DOMContentLoaded', () => {
   try { hydrateKpiTotalCost?.(); } catch(e){ console.warn('hydrateKpiTotalCost', e); }
   try { initEhsSimple?.(); } catch(e){ console.warn('initEhsSimple', e); }
   try { init5S?.(); } catch(e){ console.warn('init5S', e); }
-  try { loadIncidentes?.(); } catch(e){ console.warn('loadIncidentes', e); }
 });
 
 // ===== Limpieza opcional =====
@@ -7292,15 +7334,108 @@ document.addEventListener('DOMContentLoaded', () => {
 
     render();
 })();
+
+/* ===== NUEVO SISTEMA: Incidentes Manuales & Lecciones ===== */
+(function initManualIncidents() {
+    const KEY = 'incidents_manual_entries_v1';
+    const listEl = document.getElementById('incidents-list-container');
+    const form = document.getElementById('manual-inc-form');
+    
+    if (!listEl || !form) return;
+
+    // 1. Cargar datos
+    function load() {
+        try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } 
+        catch { return []; }
+    }
+
+    // 2. Guardar datos
+    function save(data) {
+        try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {}
+    }
+
+    // 3. Renderizar
+    function render() {
+        const items = load();
+        listEl.innerHTML = '';
+
+        if (items.length === 0) {
+            listEl.innerHTML = `
+                <div style="text-align:center; padding:20px; color:#9ca3af; font-style:italic;">
+                    No hay incidentes ni lecciones registradas hoy.
+                </div>`;
+            return;
+        }
+
+        // Ordenar: más recientes primero
+        items.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            // Clase según tipo
+            const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
+            const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
+            
+            card.className = `inc-card ${typeClass}`;
+            card.innerHTML = `
+                <div class="inc-header">
+                    <div>
+                        <span class="inc-badge">${badgeText}</span>
+                        <div class="inc-title" style="margin-top:4px;">${esc(item.title)}</div>
+                    </div>
+                    <button class="inc-del-btn" title="Eliminar" data-id="${item.id}">🗑️</button>
+                </div>
+                <div class="inc-desc">${esc(item.desc)}</div>
+                <div class="inc-meta">
+                    <span>${new Date(item.date).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})} - ${new Date(item.date).toLocaleDateString('es-ES')}</span>
+                </div>
+            `;
+            listEl.appendChild(card);
+        });
+    }
+
+    // 4. Añadir nuevo
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const type = document.getElementById('new-inc-type').value;
+        const title = document.getElementById('new-inc-title').value.trim();
+        const desc = document.getElementById('new-inc-desc').value.trim();
+
+        if (!title) return;
+
+        const newItem = {
+            id: Date.now().toString(),
+            type: type,
+            title: title,
+            desc: desc,
+            date: new Date().toISOString()
+        };
+
+        const items = load();
+        items.push(newItem);
+        save(items);
+        
+        // Limpiar form
+        document.getElementById('new-inc-title').value = '';
+        document.getElementById('new-inc-desc').value = '';
+        
+        render();
+    });
+
+    // 5. Borrar
+    listEl.addEventListener('click', (e) => {
+        if (e.target.classList.contains('inc-del-btn')) {
+            if(!confirm("¿Borrar este registro?")) return;
+            const id = e.target.dataset.id;
+            const items = load().filter(i => i.id !== id);
+            save(items);
+            render();
+        }
+    });
+
+    // Iniciar
+    render();
+})();
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
