@@ -1354,7 +1354,7 @@ data-target="kanban-widget">
 
 <!-- ACTUALIZACIONES OPERATIVAS -->
 <div class="widget" id="ops-updates-widget">
-<h2 class="widget-title">3) Actualizaciones operativas</h2>
+<h2 class="widget-title">2) Actualizaciones operativas</h2>
 <div class="ops-toolbar" aria-label="Filtros actualizaciones operativas">
 <input id="ops-search" class="ops-search" type="search" placeholder="Buscar (#etiqueta, @persona, texto)…">
 <select id="ops-filter-prio" class="ops-filter" title="Filtrar prioridad">
@@ -1580,8 +1580,6 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
       </form>
       <small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
 
-      <!-- Lista GW -->
-      <div id="gw-tasks-dynamic-container"></div>
     </div>
   </div>
 </div>
@@ -1673,7 +1671,7 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 <!-- Busca esto y añade el botón dentro del H2 -->
 <div class="widget" id="prev-shift-widget">
   <h2 class="widget-title">
-      2) Información Turno Anterior BCN
+      3) Información Turno Anterior BCN
       <!-- AÑADIR ESTE BOTÓN -->
       <button type="button" class="btn-mic" data-target="prev-shift-note" title="Dictar nota">
           🎙️
@@ -3325,15 +3323,7 @@ alert('Resumen copiado al portapapeles.');
 
 }
 
-/* ==========================
-Reordenar checklist + renumerar
-========================== */
-/* ==========================
-   Reordenar checklist: 1. Dotación, 2. Ops, 3. Turno Anterior, etc.
-   ========================== */
-/* ==========================
-   Reordenar checklist: 1. Dotación, 2. Turno Anterior, 3. Ops
-   ========================== */
+
 function reorderChecklist(){
     const grid = document.querySelector('#brief-check .check-grid');
     if(!grid) return;
@@ -3346,14 +3336,10 @@ function reorderChecklist(){
     // ORDEN DESEADO: 1) Team, 2) Prev, 3) Ops
     // Insertamos en orden INVERSO al inicio para que queden apiladas correctamente:
     
-    // 3. Insertamos OPS (quedará primero temporalmente)
-    if(cardOps)  grid.insertBefore(cardOps,  grid.firstElementChild); 
-    
-    // 2. Insertamos PREV (empuja a Ops a la posición 2)
-    if(cardPrev) grid.insertBefore(cardPrev, grid.firstElementChild); 
-    
-    // 1. Insertamos TEAM (empuja a Prev a la pos 2 y a Ops a la pos 3)
-    if(cardTeam) grid.insertBefore(cardTeam, grid.firstElementChild); 
+    // Tu código actual hace esto:
+    if(cardPrev) grid.insertBefore(cardPrev, grid.firstElementChild); // 1. Pone Prev primero
+    if(cardOps)  grid.insertBefore(cardOps,  grid.firstElementChild); // 2. Pone Ops primero (empuja Prev a 2º)
+    if(cardTeam) grid.insertBefore(cardTeam, grid.firstElementChild); // 3. Pone Team primero (empuja Ops a 2º y Prev a 3º)
 
     // Resultado final en pantalla: Team -> Prev -> Ops -> [El resto]
 
