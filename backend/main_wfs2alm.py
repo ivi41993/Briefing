@@ -491,39 +491,58 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
 # Lógica de Negocio Principal
 # -----------------------------------
 async def send_to_excel_online(data: BriefingSnapshot):
-    # IMPORTANTE: Variable específica para WFS1
-    url = os.getenv("EXCEL_WEBHOOK_URL_WFS2ALM") 
-    if not url:
-        # Fallback si se desea, pero mejor aislar
-        url = os.getenv("EXCEL_WEBHOOK_URL")
+    url = os.getenv("EXCEL_WEBHOOK_URL_WFS2ALM")
+    if not url: return
+
+    # 1. Formatear Actualizaciones Operativas
+    # Inicializamos siempre la variable antes del IF
+    ops_text = "Sin actualizaciones"
+    if data.ops_updates:
+        ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
+        ops_text = " | ".join(ops_lines)
+
+    # 2. Formatear Incidentes de Seguridad (NUEVO)
+    # CORRECCIÓN: Inicializamos la variable aquí, fuera de cualquier IF, para evitar el NameError
+    safety_text = "Sin incidentes manuales"
     
-    if not url: 
-        print("⚠️ EXCEL_WEBHOOK_URL_WFS2 no configurada.")
-        return
+    if data.safety_incidents:
+        safe_lines = []
+        for inc in data.safety_incidents:
+            # En MAD usas title y desc
+            titulo = str(inc.get('title', 'Sin título'))
+            desc = str(inc.get('desc', ''))
+            safe_lines.append(f"[{titulo}] {desc}")
+        # Si hay líneas, actualizamos la variable
+        if safe_lines:
+            safety_text = " | ".join(safe_lines)
 
-    ops_text = " | ".join([f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]) if data.ops_updates else "Sin actualizaciones"
-
+    # 3. Payload
+    # Ahora safety_text siempre existe, tenga incidentes o no
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
         "timer": str(data.timer),
         "supervisor": str(data.supervisor),
-        "equipo": str(data.roster_details or "Sin datos"),
+        "equipo": str(data.roster_details if data.roster_details else "Sin datos"),
         "kpi_uph": str(data.kpis.get("UPH", "-")),
         "kpi_costes": str(data.kpis.get("Costes", "-")),
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
         "feedback_kanban": str(data.kanban_details or "Sin feedback"),
         "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M")),
-        "incidentes_seguridad": str(safety_text) # <--- Campo nuevo
+        "incidentes_seguridad": str(safety_text) 
     }
+
+    print(f"📤 Payload Excel: {json.dumps(payload)}")
     
-    print(f"📤 [WFS2] Enviando a Excel: {json.dumps(payload)}")
     try:
         async with httpx.AsyncClient() as client:
             await client.post(url, json=payload, timeout=15.0)
     except Exception as e:
-        print(f"❌ Error Excel WFS2: {e}")
+        print(f"Error Excel: {e}")
+
+
+
 
 def _compute_briefing_metrics(sections, duration):
     ok = sum(1 for s in sections.values() if s.get('status') == 'OK')
