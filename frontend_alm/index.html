@@ -292,13 +292,24 @@ align-items:start;
 
 /* Asa de arrastre */
 .card { gap:10px; }
+/* Asa de arrastre MEJORADA PARA TÁCTIL */
 .drag-handle{
-align-self:stretch; display:flex; align-items:center; justify-content:center;
-padding:6px; border:1px solid var(--border); border-radius:10px; background:var(--bg-card);
-cursor:grab; opacity:.7;
+    align-self:stretch;
+    display:flex; align-items:center; justify-content:center;
+    padding: 12px; /* AUMENTADO de 6px a 12px para dedos gordos */
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--bg-card);
+    cursor:grab;
+    opacity:.7;
+    
+    /* ESTA ES LA CLAVE PARA ANDROID: */
+    touch-action: none; /* Evita que el navegador intente hacer scroll al tocar aquí */
+    -webkit-user-select: none;
+    user-select: none;
 }
-.card:active .drag-handle{ cursor:grabbing; opacity:1; }
-.drag-handle svg{ width:14px; height:14px; }
+.card:active .drag-handle{ cursor:grabbing; opacity:1; background: #f3f4f6; }
+.drag-handle svg{ width:20px; height:20px; } /* Icono un poco más grande */
 .dashboard{
 padding: clamp(12px, 2vw, 28px);
 padding-left:  max(clamp(12px, 2vw, 28px), env(safe-area-inset-left));
@@ -1428,12 +1439,884 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
   .widget,.card{ box-shadow:none; }
   .btn-primary{ box-shadow:0 8px 18px rgba(239,68,68,.18); }
 }
+/* === Navegación dentro de Widgets (Fullscreen) === */
+/* === Navegación dentro de Widgets (Fullscreen) === */
+.widget-nav-bar {
+    display: none; /* Oculto por defecto */
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border);
+    /* Margen negativo para pegar a los bordes de la tarjeta */
+    margin: -20px -20px 20px -20px; 
+    position: sticky;
+    top: 0;
+    /* Z-Index superior al contenido de la tarjeta */
+    z-index: 50; 
+}
+
+/* Mostrar solo cuando está en pantalla completa o zoomed */
+.widget:fullscreen .widget-nav-bar,
+/* === TARJETA EN PANTALLA COMPLETA (CORREGIDO) === */
+.widget.widget--zoomed {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    
+    /* Usamos 100% en lugar de 100vw para evitar scroll horizontal por la barra vertical */
+    width: 100% !important;
+    height: 100% !important; /* Fallback */
+    height: 100dvh !important; /* Altura dinámica real en móviles */
+    
+    z-index: 20000 !important;
+    background: #ffffff !important;
+    
+    /* ESTA LÍNEA ES LA CLAVE: Hace que el padding no aumente el ancho total */
+    box-sizing: border-box !important;
+    
+    /* Padding inferior grande para que el cronómetro no tape el final */
+    padding: 0 0 160px 0 !important; 
+    
+    overflow-y: auto !important; /* Scroll vertical permitido */
+    overflow-x: hidden !important; /* Prohibido scroll horizontal */
+    
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    display: block !important;
+}
+
+/* Ajuste para que el contenido interno tenga margen lateral en modo zoom */
+.widget.widget--zoomed > *:not(.widget-nav-bar) {
+    margin-left: 20px;
+    margin-right: 20px;
+}
+
+/* Ajuste de la barra de navegación en modo zoom para que quede pegada arriba */
+.widget.widget--zoomed .widget-nav-bar {
+    margin: 0 !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    box-sizing: border-box !important;
+    position: sticky !important;
+    top: 0 !important;
+}
+
+.nav-group { display: flex; gap: 10px; }
+
+.btn-nav {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+}
+.btn-nav:hover { background: #e5e7eb; transform: translateY(-1px); }
+
+.btn-nav.home {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+}
+.btn-nav.home:hover { background: #fecaca; }
+/* =============================================
+   PANTALLA MODO INFO (POST-BRIEFING)
+   ============================================= */
+#post-briefing-screen {
+    display: none; /* Oculto por defecto */
+    position: fixed;
+    inset: 0; /* Ocupa toda la pantalla */
+    background-color: #f8fafc;
+    z-index: 99999; /* Por encima de todo */
+    padding: 20px;
+    flex-direction: column;
+}
+
+#post-briefing-screen.active {
+    display: flex;
+}
+
+/* Cabecera del modo info */
+.pb-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.pb-title {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--brand-red-700);
+    font-family: "Space Grotesk", sans-serif;
+}
+
+.pb-close-btn {
+    background: #334155;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    transition: background 0.2s;
+}
+.pb-close-btn:hover { background: #1e293b; }
+
+/* Grid 2x2 para los contenidos */
+.pb-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden; /* Evita scroll global */
+}
+
+.pb-card {
+    background: white;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.pb-card-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 15px;
+    border-bottom: 4px solid var(--brand-red-500);
+    padding-bottom: 5px;
+    display: inline-block;
+    width: fit-content;
+}
+
+.pb-content {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 1.1rem; /* Texto más grande para leer de lejos */
+    line-height: 1.6;
+}
+
+/* Estilos específicos para listas clonadas */
+.pb-content ul { padding-left: 20px; margin: 0; }
+.pb-content li { margin-bottom: 8px; }
+.pb-kpi-box {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 100%;
+}
+.pb-kpi-item {
+    text-align: center;
+    padding: 20px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    min-width: 150px;
+}
+.pb-kpi-val { font-size: 3rem; font-weight: 800; color: var(--brand-red-600); display: block; }
+.pb-kpi-lbl { font-size: 1.2rem; color: #64748b; font-weight: 600; }
+
+/* Responsive para tablet vertical */
+@media (max-width: 1000px) {
+    .pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
+    #post-briefing-screen { overflow-y: auto; }
+}
+
+/* === Navegación Guiada en Widgets === */
+.widget-nav-bar {
+    display: none; /* Oculto por defecto */
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border);
+    margin: -16px -16px 16px -16px; /* Contrarresta padding del widget */
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+/* Mostrar solo cuando está en pantalla completa o zoomed */
+.widget:fullscreen .widget-nav-bar,
+.widget.widget--zoomed .widget-nav-bar {
+    display: flex;
+}
+
+.nav-group { display: flex; gap: 10px; align-items: center; }
+
+.btn-nav {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid #d1d5db;
+    background: #f8fafc;
+    color: #334155;
+}
+.btn-nav:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.btn-nav:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-nav.home { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.btn-nav.next-ok { background: #dcfce7; color: #166534; border-color: #86efac; }
+.btn-nav.next-ok:hover { background: #bbf7d0; }
+/* =========================================
+   ESTILOS PARA CAMBIO DE TURNO AUTOMÁTICO
+   ========================================= */
+
+/* Clase que se añade al widget de Checklist para forzar pantalla completa (Fake Fullscreen) */
+.widget.shift-focus {
+    position: fixed !important;
+    inset: 0 !important; /* Top, right, bottom, left: 0 */
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9990 !important; /* Muy alto, tapa todo */
+    margin: 0 !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    padding: 40px 20px 120px 20px !important; /* Padding inferior extra para el cronómetro */
+    display: block !important; /* Asegura que sea visible */
+    box-shadow: none !important;
+    animation: zoom-in-shift 0.4s ease-out forwards;
+}
+
+/* Animación de entrada */
+@keyframes zoom-in-shift {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Título más grande en modo cambio de turno */
+.widget.shift-focus .widget-title {
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--brand-red-700);
+}
+
+/* Tarjetas del checklist más grandes para facilitar el toque */
+.widget.shift-focus .check-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.widget.shift-focus .check-card {
+    padding: 20px;
+    border: 2px solid var(--border);
+}
+
+/* === CRONÓMETRO FLOTANTE === */
+/* Cuando el body tiene la clase 'shift-active', movemos el cronómetro */
+body.shift-active #timer-widget {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000; /* Por encima del checklist */
+    background: #fff;
+    padding: 15px 40px;
+    border-radius: 50px;
+    box-shadow: 0 10px 40px rgba(220, 38, 38, 0.25); /* Sombra roja suave */
+    border: 3px solid var(--brand-red-600);
+    display: flex !important;
+    gap: 20px;
+}
+
+body.shift-active .timer-display {
+    font-size: 3rem; /* Números gigantes */
+    font-variant-numeric: tabular-nums;
+}
+
+/* Botón para salir manualmente si es necesario */
+/* Botón para salir manualmente si es necesario */
+#exit-shift-mode-btn {
+    display: none; /* Oculto por defecto */
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    /* Z-INDEX MÁXIMO para que nada lo tape */
+    z-index: 2147483647 !important; 
+    padding: 12px 24px;
+    background: #334155;
+    color: white;
+    border: 2px solid #fff;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Mostrar botón tanto si la clase es shift-active como shift-mode */
+body.shift-active #exit-shift-mode-btn,
+body.shift-mode #exit-shift-mode-btn {
+    display: block !important;
+}
 
 
-  
+/* =================================================
+   CRONÓMETRO FLOTANTE (FIX)
+   ================================================= */
+
+/* Solo se activa cuando el body tiene la clase 'shift-active' */
+body.shift-active #timer-widget {
+    position: fixed !important;
+    bottom: 30px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important; /* Centrado perfecto */
+    
+    /* VISIBILIDAD Y CAPA */
+    z-index: 10000 !important; /* MÁS ALTO que el checklist (9990) */
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    
+    /* ESTÉTICA */
+    background-color: #ffffff !important;
+    padding: 15px 50px !important;
+    border-radius: 50px !important;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4) !important;
+    border: 4px solid #dc2626 !important;
+    gap: 20px !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* Texto del cronómetro gigante */
+body.shift-active #timer-display {
+    font-size: 4rem !important;
+    font-family: 'Space Grotesk', monospace !important;
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    line-height: 1 !important;
+}
+
+/* Botón de reset un poco más grande */
+body.shift-active #timer-reset {
+    width: 60px !important;
+    height: 60px !important;
+    font-size: 24px !important;
+    border-radius: 50% !important;
+    background: #f3f4f6 !important;
+    cursor: pointer !important;
+}
+
+/* Botón de SALIDA DE EMERGENCIA (Arriba derecha) */
+#exit-shift-btn {
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10001 !important;
+    background: #333;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+}
+body.shift-active #exit-shift-btn {
+    display: block;
+}
+/* =========================================================
+   JERARQUÍA VISUAL PARA MODO CAMBIO DE TURNO
+   ========================================================= */
+
+/* 1. EL CRONÓMETRO: SIEMPRE ENCIMA DE TODO */
+body.shift-active #timer-widget {
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 20000 !important; /* Capa Suprema */
+    
+    /* Diseño Gigante y Claro */
+    display: flex !important;
+    background: #fff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.5) !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+body.shift-active #timer-display {
+    font-size: 3.5rem !important;
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 2. EL CHECKLIST (Pantalla Base del Modo Turno) */
+.widget.shift-focus {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 10000 !important; /* Capa Base */
+    background: #f8fafc !important;
+    padding-bottom: 140px !important; /* Espacio para el crono */
+    overflow-y: auto !important;
+    border: none !important;
+    margin: 0 !important;
+}
+
+/* 3. LAS TARJETAS INDIVIDUALES (Cuando navegas: Dotación, Ops, etc.) */
+body.shift-active .widget.widget--zoomed {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 15000 !important; /* Capa Media (Encima del checklist, debajo del crono) */
+    background: #ffffff !important;
+    padding: 20px 20px 140px 20px !important; /* Espacio inferior vital para el crono */
+    overflow-y: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: block !important;
+}
+
+/* Asegurar que la barra de navegación (Siguiente/Anterior) se vea bien arriba */
+body.shift-active .widget-nav-bar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 15001 !important; /* Encima del contenido de la tarjeta */
+    background: #f1f5f9 !important;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 15px !important;
+}
+
+/* Botones de navegación más grandes en este modo */
+body.shift-active .btn-nav {
+    padding: 12px 24px !important;
+    font-size: 1.1rem !important;
+}
+/* =========================================================
+   ESTILOS MODIFICADOS: MODO TURNO Y CRONÓMETRO
+   ========================================================= */
+
+/* --- 1. EL CRONÓMETRO FLOTANTE (Siempre encima de todo) --- */
+body.shift-mode #timer-widget {
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 20000 !important; /* Por encima de cualquier widget abierto */
+    
+    display: flex !important;
+    background: #fff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4) !important;
+    
+    /* Asegura que se vea si estaba oculto */
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+body.shift-mode #timer-display {
+    font-size: 4rem !important; /* Números muy grandes */
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    font-variant-numeric: tabular-nums;
+    line-height: 1 !important;
+}
+
+body.shift-mode #timer-reset {
+    width: 50px !important; height: 50px !important;
+    font-size: 20px !important;
+}
+
+/* --- 2. WIDGETS EN "FALSO FULLSCREEN" (Para que el crono se vea encima) --- */
+/* Esta clase se aplica al widget que estemos viendo en ese momento */
+.widget.shift-focus {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 10000 !important; /* Debajo del cronómetro */
+    
+    background: #f8fafc !important; /* Fondo gris muy suave */
+    overflow-y: auto !important;    /* Scroll interno si hace falta */
+    padding: 30px 30px 140px 30px !important; /* Padding inferior grande para el crono */
+    
+    border-radius: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* --- 3. ARREGLO DEL CHECKLIST (Contenedor grande, tarjetas normales) --- */
+
+/* Título en modo pantalla completa */
+.widget.shift-focus .widget-title {
+    font-size: 2rem !important;
+    text-align: center;
+    margin-bottom: 30px !important;
+    color: #b91c1c;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 10px;
+}
+
+/* Grid: Usamos más columnas para aprovechar el ancho de la pantalla */
+.widget.shift-focus .check-grid {
+    display: grid !important;
+    /* Mínimo 240px, caben 4 o 5 en una pantalla grande */
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important; 
+    gap: 15px !important;
+    max-width: 1400px; /* No estirar al infinito */
+    margin: 0 auto;
+}
+
+/* Tarjetas: Volvemos al diseño compacto y limpio */
+.widget.shift-focus .check-card {
+    padding: 15px !important;
+    min-height: auto !important; /* Altura automática según contenido */
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.widget.shift-focus .check-title {
+    font-size: 1.1rem !important;
+    font-weight: 700;
+    color: #334155;
+    margin: 0 !important;
+}
+
+/* Botones dentro de la tarjeta: tamaño normal pero cómodos */
+.widget.shift-focus .check-actions label {
+    padding: 8px 16px !important;
+    font-size: 0.95rem !important;
+    width: 100%;
+    text-align: center;
+    background: #f1f5f9;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.widget.shift-focus .check-actions input:checked + label {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+    font-weight: 700;
+}
+
+/* --- 4. BARRA DE NAVEGACIÓN (Siguiente/Anterior) --- */
+/* Asegurar que se pegue arriba cuando una tarjeta específica está abierta */
+.widget.shift-focus .widget-nav-bar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10001 !important;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    padding: 10px 20px;
+    margin: -30px -30px 20px -30px !important; /* Compensar padding del widget */
+}
+
+/* === CRONÓMETRO SUPREMO (Nivel más alto) === */
+body.shift-mode #timer-widget {
+    /* Posición fija respecto a la ventana, ignorando el header */
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    
+    /* Z-INDEX MÁXIMO: Asegura que esté encima de cualquier tarjeta abierta */
+    z-index: 2147483647 !important; 
+    
+    /* Estilo visual */
+    display: flex !important;
+    visibility: visible !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* === TARJETA EN PANTALLA COMPLETA (Nivel medio) === */
+/* Esta clase se aplica a la tarjeta (ej: Dotación) cuando pulsas en ella */
+.widget.widget--zoomed {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    
+    /* Z-INDEX MENOR QUE EL CRONÓMETRO (2147483647) pero mayor que el resto */
+    z-index: 20000 !important; 
+    
+    background: #ffffff !important;
+    /* Padding inferior de 180px OBLIGATORIO para que el crono no tape el contenido */
+    padding: 20px 20px 180px 20px !important; 
+    overflow-y: auto !important;
+    margin: 0 !important;
+    display: block !important;
+}
+
+/* =========================================================
+   CORRECCIÓN DEFINITIVA: CAPAS Z-INDEX
+   ========================================================= */
+
+/* 1. EL CRONÓMETRO (Capa Suprema) */
+body.shift-mode #timer-widget {
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    
+    /* El número más alto posible en CSS para asegurar que NADA lo tape */
+    z-index: 2147483647 !important; 
+    
+    display: flex !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* 2. TARJETA ABIERTA EN GRANDE (Capa Media) */
+.widget.widget--zoomed {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    
+    /* Z-index alto (20000), pero MENOR que el cronómetro */
+    z-index: 20000 !important; 
+    
+    background: #ffffff !important;
+    /* Padding inferior gigante (180px) para que el contenido no se esconda detrás del crono */
+    padding: 20px 20px 180px 20px !important; 
+    overflow-y: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: block !important;
+}
+
+/* 3. CHECKLIST DE FONDO (Capa Base) */
+.widget.shift-focus {
+    z-index: 10000 !important;
+}
+
+/* === CRONÓMETRO SUPREMO (Siempre visible abajo) === */
+/* AÑADIMOS "body.card-open #timer-widget" AL SELECTOR */
+body.shift-mode #timer-widget,
+body.card-open #timer-widget { 
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important; /* Encima de todo */
+    
+    display: flex !important;
+    background: #ffffff !important;
+    padding: 10px 40px !important;
+    border-radius: 50px !important;
+    border: 4px solid #dc2626 !important;
+    box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important;
+    
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* Texto grande */
+body.shift-mode #timer-display,
+body.card-open #timer-display {
+    font-size: 4rem !important;
+    font-weight: 800 !important;
+    color: #1f2937 !important;
+    line-height: 1 !important;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Botón reset */
+body.shift-mode #timer-reset,
+body.card-open #timer-reset {
+    width: 50px !important; height: 50px !important;
+    font-size: 20px !important;
+    border-radius: 50% !important;
+    background: #f3f4f6 !important;
+}
+  /* === FIX: Checklist Compacto Auto-adaptable (Sin Scroll) === */
+#brief-check {
+    position: relative; /* Ya no sticky para dejar fluir */
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important; /* Prohibido scroll interno */
+    padding-bottom: 10px;
+}
+
+#brief-check .check-grid {
+    display: grid;
+    /* Columnas dinámicas: mínimo 160px, caben 3 o 4 en pantallas normales */
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); 
+    gap: 8px; /* Hueco pequeño */
+}
+
+#brief-check .check-card {
+    /* Diseño súper compacto */
+    min-height: auto;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+#brief-check .check-title {
+    font-size: 0.85rem; /* Texto ajustado */
+    line-height: 1.2;
+    margin: 0;
+    white-space: normal;
+}
+
+#brief-check .check-actions {
+    margin-top: 0;
+    justify-content: flex-start;
+}
+
+#brief-check .check-actions label {
+    padding: 2px 8px; /* Botones más finos */
+    font-size: 0.75rem;
+}
+
+/* Ocultar la ayuda grande para ganar espacio */
+#brief-check .br-explain {
+    display: none;
+}
+/* === NUEVOS ESTILOS === */
+
+/* Botón Comenzar en el Cronómetro */
+.timer-start-btn {
+    background: #10b981; /* Verde */
+    color: white; border: none; border-radius: 8px;
+    padding: 6px 12px; font-weight: 700; font-size: 0.9rem;
+    cursor: pointer; box-shadow: 0 4px 10px rgba(16,185,129,0.3);
+}
+.timer-start-btn:active { transform: scale(0.98); }
+.header-timer { gap: 12px; } /* Un poco más de espacio */
+
+/* Scroll en Incidentes (Tablet) */
+#incidentes-widget .table-scroll {
+    max-height: 300px; /* Altura máxima fija */
+    overflow-y: auto;  /* Scroll vertical */
+    -webkit-overflow-scrolling: touch; /* Suavidad en iOS/Android */
+    border-bottom: 1px solid var(--border);
+}
+
+/* Tarjetas de Turno Anterior (Estilo fila) */
+.prev-item {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-left: 4px solid #f59e0b; /* Naranja */
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.prev-text { flex: 1; font-size: 0.9rem; word-break: break-word; }
+.prev-actions { display: flex; gap: 6px; }
+.prev-btn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 8px; font-size: 0.75rem; cursor: pointer; color: var(--text-muted);
+}
+.prev-btn:hover { background: #f9fafb; color: var(--text); }
+/* Scroll en Incidentes (Tablet) */
+#incidentes-widget .table-scroll {
+    max-height: 300px; /* Altura máxima fija */
+    overflow-y: auto;  /* Scroll vertical activado */
+    -webkit-overflow-scrolling: touch; /* Suavidad en iOS */
+    border-bottom: 1px solid var(--border);
+}
+/* Estilos específicos para tarjetas de Incidentes/Lecciones */
+.inc-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex; 
+    flex-direction: column; 
+    gap: 6px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+    transition: transform 0.1s;
+}
+.inc-card:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+
+/* Estilo Rojo para Incidentes */
+.inc-card.type-incident {
+    border-left: 5px solid #dc2626;
+}
+.inc-card.type-incident .inc-badge {
+    background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+}
+
+/* Estilo Azul/Bombilla para Lecciones */
+.inc-card.type-lesson {
+    border-left: 5px solid #8b5cf6;
+}
+.inc-card.type-lesson .inc-badge {
+    background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe;
+}
+
+.inc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.inc-badge { 
+    font-size: 0.75rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; 
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.inc-title { font-weight: 700; font-size: 0.95rem; color: #1f2937; }
+.inc-desc { font-size: 0.9rem; color: #4b5563; white-space: pre-wrap; margin-top: 4px; }
+.inc-meta { font-size: 0.75rem; color: #9ca3af; margin-top: 6px; display: flex; justify-content: space-between; align-items: center; }
+.inc-del-btn { 
+    background: none; border: none; cursor: pointer; opacity: 0.6; font-size: 1rem; 
+}
+.inc-del-btn:hover { opacity: 1; transform: scale(1.1); }
 </style>
 </head>
 <body>
+
+<button id="exit-shift-mode-btn" onclick="exitShiftMode()">Cerrar Vista Turno ✖</button>
+
+
 <select id="scale-select" aria-label="Escala UI">
 <option value="1">100%</option>
 <option value="1.15" selected>115%</option>
@@ -1453,18 +2336,24 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
 
+<!-- Cronómetro Modificado -->
 <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
-<div class="timer-face" id="timer-face">
-<div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
-<span class="timer-dot" aria-hidden="true"></span>
-</div>
-<button type="button" class="timer-reset" id="timer-reset" disabled>Reiniciar</button>
+    <div class="timer-face" id="timer-face">
+        <div class="timer-display" id="timer-display">00:00:00</div>
+        <span class="timer-dot" aria-hidden="true"></span>
+    </div>
+    <!-- NUEVO BOTÓN -->
+    <button type="button" id="timer-start-btn" class="timer-start-btn">Comenzar</button>
+    <button type="button" class="timer-reset" id="timer-reset">Reiniciar</button>
 </div>
 
 <!-- Busca esto en tu header y reemplázalo o modifícalo -->
 <div class="header-controls">
     <!-- El date-picker lo quitamos antes por JS, así que pon esto: -->
     <input type="text" id="briefing-supervisor" placeholder="Supervisor" style="min-width: 140px; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+    <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar nombre">
+        🎙️
+    </button>
     <button class="btn-primary" type="button">Generar Resumen</button>
 </div>
 </header>
@@ -1557,7 +2446,7 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
   <div class="check-card" tabindex="0"
        data-help="Seguridad: riesgos del día, EPIs, permisos, control de accesos y brief de seguridad."
        data-target="seguridad-widget">
-    <span class="check-title">4) Seguridad y protección</span>
+    <span class="check-title">4) Safety, Security, Quality & PRL</span>
     <div class="check-actions" role="group" aria-label="Bloque 4">
       <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
     </div>
@@ -1573,7 +2462,6 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
     </div>
   </div>
 
-  <!-- 6) Revisión KPIs -->
   <div class="check-card" tabindex="0"
        data-help="KPIs del día: Ocupaciones de Uniwing, DG Autocheck, CargoMobile; revisar tendencia vs objetivo."
        data-target="kpi-center">
@@ -1670,133 +2558,181 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 
 
 
-<!-- SEGURIDAD Y PROTECCIÓN (solo dinámicas + 2 frases aleatorias por turno) -->
 <div class="widget vivid" id="seguridad-widget">
   <h2 class="widget-title hero">
-    <span class="hero-ico">🛡️</span><span>4) Seguridad y Protección</span>
+    <span class="hero-ico">🛡️</span><span>4) Safety, Security, Quality & PRL</span>
     <span class="hero-badge warn">PRIORIDAD</span>
   </h2>
 
-  <!-- Alta de tarjeta dinámica -->
-  <form id="sec-form" class="inline-form" autocomplete="off" style="margin-bottom:8px;">
-    <input type="text" id="sec-title" placeholder="Añadir tarjeta de seguridad…" required>
-    <input type="text" id="sec-owner" placeholder="Responsable (opcional)">
-    <button type="submit" class="btn-primary">Añadir</button>
-  </form>
-
-  <!-- Lista de tarjetas -->
-  <div id="sec-cards" class="sec-list" role="list" aria-label="Tarjetas de seguridad"></div>
-  <small class="kpi-text" id="sec-meta">—</small>
-
-  <!-- Recordatorio aleatorio (2 frases) por turno -->
-  <div class="ops-item" id="sec-random-tips" style="margin-top:10px;">
+  <!-- 1. RECORDATORIOS (MOVIDO ARRIBA) -->
+  <div class="ops-item" id="sec-random-tips" style="margin-bottom:12px; background:#ffffff; border-left:4px solid #f59e0b;">
     <div class="ops-head">
-      <div class="ops-title">Recordatorio de seguridad (2 puntos del día)</div>
+      <div class="ops-title">Recordatorio del día</div>
       <span class="ops-scope" id="sec-random-scope">Turno —</span>
     </div>
     <ul id="sec-random-list" style="margin:6px 0 0 18px; padding:0; list-style:disc;"></ul>
   </div>
-</div>
 
+  <!-- 2. FORMULARIO Y TARJETAS -->
+  <form id="sec-form" class="inline-form" autocomplete="off" style="margin-bottom:8px;">
+    <input type="text" id="sec-title" placeholder="Añadir riesgo / tarjeta..." required>
+    <input type="text" id="sec-owner" placeholder="Responsable">
+    <button type="submit" class="btn-primary">Añadir</button>
+  </form>
+
+  <div id="sec-cards" class="sec-list" role="list"></div>
+  <small class="kpi-text" id="sec-meta">—</small>
+</div>
 
 
   
-<!-- INCIDENTES (ENABLON) -->
+<!-- INCIDENTES (ENABLON) + LECCIONES APRENDIDAS -->
 <div class="widget vivid" id="incidentes-widget">
   <h2 class="widget-title hero">
-    <span class="hero-ico">⚠️</span><span>5) Incidentes</span>
-    <span class="hero-badge danger">ENABLON</span>
+    <span class="hero-ico">⚠️</span><span>5) Incidentes & Aprendizaje</span>
+    <span class="hero-badge danger">MANUAL</span>
   </h2>
 
-<!-- RECORDAR entre título y bullets -->
-<!-- PROTOCOLO DE INCIDENTES (editable) -->
-<form id="incidents-protocol-form" class="inline-form" autocomplete="off" 
-      style="display:grid;grid-template-columns:1fr;gap:8px;margin:10px 0 12px;">
-  <div class="ops-item">
-    <label for="ip-understanding-note" style="font-weight:700;">Asegurar comprensión del procedimiento (resumen explicado hoy)</label>
-    <textarea id="ip-understanding-note" rows="2" placeholder="Ej.: Procedimiento ‘Pulse/Enablon’ explicado a todo el personal del turno, con roles y tiempos…"
-              style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+  <!-- BANNER RECORDATORIO (Se mantiene) -->
+  <div class="incident-remember">
+    RECORDAR: Reportar cualquier incidente inmediatamente en ENABLON.
   </div>
 
-  <div class="ops-item">
-    <label for="ip-what-to-do" style="font-weight:700;">Qué hacer si algo sale mal</label>
-    <textarea id="ip-what-to-do" rows="2" placeholder="Ej.: Parada segura, avisar a supervisor, acordonar zona, activar protocolo, registrar en Pulse/Enablon…"
-              style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
-  </div>
+  <!-- PROTOCOLO (Se mantiene editable) -->
+  <details style="margin-bottom:15px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff;">
+    <summary style="font-weight:700; cursor:pointer; color:var(--text-muted);">📂 Ver Protocolo de Actuación</summary>
+    <form id="incidents-protocol-form" class="inline-form" autocomplete="off" style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;">
+      <div class="ops-item">
+        <label style="font-weight:700;">Qué hacer si algo sale mal</label>
+        <textarea id="ip-what-to-do" rows="2" placeholder="Procedimiento..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+      </div>
+      <div class="ops-item">
+        <label style="font-weight:700;">A quién informar</label>
+        <input id="ip-contacts" type="text" placeholder="Teléfonos..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+      </div>
+      <div class="meta-row">
+        <button class="btn-compact" type="submit">Guardar Protocolo</button>
+        <small id="incidents-protocol-status" class="kpi-text">—</small>
+      </div>
+    </form>
+  </details>
 
-  <div class="ops-item">
-    <label for="ip-contacts" style="font-weight:700;">A quién informar / pedir apoyo inmediato</label>
-    <input id="ip-contacts" type="text" 
-           placeholder="Ej.: Supervisor (666 111 222), QHSSE (666 333 444), Emergencias 112…" 
-           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-  </div>
-
-  <div class="ops-item">
-    <label for="ip-tools-location" style="font-weight:700;">Dónde están las herramientas de emergencia</label>
-    <input id="ip-tools-location" type="text" 
-           placeholder="Ej.: Botón paro: muelle 3; extintores: pasillo central; botiquín: oficina Ops…"
-           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
-  </div>
-
-  <div class="meta-row">
-    <button class="btn-primary" type="submit" style="justify-self:start;">Guardar protocolo</button>
-    <small id="incidents-protocol-status" class="kpi-text">—</small>
-  </div>
-</form>
-
-
-<!-- Subida de PDF (Incidentes) -->
-<form id="incidents-pdf-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
-  <input type="file" id="incidents-pdf-file" accept="application/pdf" required
-         style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
-  <button class="btn-primary" type="submit">Subir PDF</button>
-</form>
-<small id="incidents-pdf-status" class="kpi-text">—</small>
-
-<!-- Resultados del PDF -->
-<div class="table-scroll" id="incidentes-pdf-wrap" style="display:none; margin-top:6px;">
-  <table id="incidentes-pdf-table"></table>
-</div>
-<small class="kpi-text" id="incidentes-meta">—</small>
-<div class="table-scroll">
-<table id="incidentes-table"></table>
-</div>
-</div>
-
-
-
-<div class="widget kpi-widget" id="kpi-center">
-  <h2 class="widget-title">6) KPIs Operativos</h2>
-
-  <div class="kpi-grid">
-    <div class="kpi-tile">
-      <div class="kpi-label">Uniwin</div>
-      <div class="kpi-value" id="kpi-uph">—</div>
-      <small class="kpi-text" id="kpi-uph-meta">Actualizado: —</small>
+  <!-- === NUEVO SISTEMA: ALTA MANUAL DE INCIDENTES / LECCIONES === -->
+  
+  <!-- Formulario de Alta -->
+  <form id="manual-inc-form" style="background:#fff5f5; padding:12px; border-radius:10px; border:1px dashed #fecaca; margin-bottom:15px;">
+    <div style="display:grid; grid-template-columns: 140px 1fr auto; gap:8px; margin-bottom:8px;">
+      <select id="new-inc-type" style="padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-weight:bold;">
+        <option value="incident">🔴 Incidente</option>
+        <option value="lesson">💡 Lección</option>
+      </select>
+      <input type="text" id="new-inc-title" placeholder="Título corto..." required 
+             style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+      <button type="submit" class="btn-primary" style="padding:8px 16px;">Añadir</button>
     </div>
+    <textarea id="new-inc-desc" rows="2" placeholder="Descripción detallada o aprendizaje..." 
+              style="width:100%; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
+  </form>
 
+  <!-- Lista de Tarjetas -->
+  <div id="incidents-list-container" class="ops-list" style="max-height:400px; overflow-y:auto; padding-right:4px;">
+    <!-- Se llena con JS -->
+  </div>
+</div>
+
+
+
+<!-- 6) KPIs Operativos & Estándares (AHORA CON 5S Y GW INTEGRADO) -->
+<div class="widget kpi-widget" id="kpi-center">
+  <h2 class="widget-title">6) KPIs Operativos & Mantenimiento</h2>
+
+  <!-- FILA 1: OPERACIONES (WFS) -->
+  <div class="kpi-grid" style="margin-bottom: 15px;">
+    <div class="kpi-tile">
+      <div class="kpi-label">UPH (Prod)</div>
+      <div class="kpi-value" id="kpi-uph">—</div>
+    </div>
     <div class="kpi-tile">
       <div class="kpi-label">DG Autocheck</div>
       <div class="kpi-value" id="kpi-otif">—</div>
-      <small class="kpi-text" id="kpi-otif-meta">Actualizado: —</small>
     </div>
-
     <div class="kpi-tile">
-      <div class="kpi-label">CargoMobile</div>
-      <div class="kpi-value" id="kpi-backlog">—</div>
-      <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
+      <div class="kpi-label">Costes Daños</div>
+      <div class="kpi-value" style="color:var(--brand-red-600)">
+        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
+      </div>
+    </div>
+  </div>
+
+  <hr style="border:0; border-top:1px solid var(--border); margin: 10px 0;">
+
+  <!-- FILA 2: MANTENIMIENTO (FIIX) -->
+  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
+  
+  <div class="kpi-grid">
+    <!-- Backlog -->
+    <div class="kpi-tile" style="border-left: 4px solid #3b82f6;">
+      <div class="kpi-label">Backlog (Abiertas)</div>
+      <div class="kpi-value" id="fiix-backlog">—</div>
     </div>
 
-    <div class="widget kpi-widget" id="kpi-costes">
-<h3 class="widget-title">
-<span>Costes en daños a los equipos WFS4 MAD</span>
-<svg class="widget-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 2M3.51 22a9 9 0 0 1 14.85-3.36L20.49 12"></path></svg>
-</h3>
-<div class="kpi-value large"><span id="kpi-total-cost">—</span><span class="kpi-currency">€</span></div>
-<small class="kpi-text" id="kpi-costes-meta"></small>
-</div>
+    <!-- Urgencias (Si > 0 se pondrá rojo por JS) -->
+    <div class="kpi-tile" id="tile-fiix-urgent" style="border-left: 4px solid #f59e0b;">
+      <div class="kpi-label">Correctivos</div>
+      <div class="kpi-value" id="fiix-urgent">—</div>
+    </div>
+
+    <!-- Costes Mto. (Mes) -->
+    <div class="kpi-tile" style="border-left: 4px solid #10b981;">
+      <div class="kpi-label">Gasto Mes (Mto)</div>
+      <div class="kpi-value">
+        <span id="fiix-cost">—</span><span class="kpi-currency">€</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEPARADOR -->
+  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+
+  <!-- PARTE INFERIOR: 5S y GW -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+    
+    <!-- COLUMNA 5S -->
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong style="font-size:0.95rem;">Estado 5S</strong>
+        <small id="s5-meta" class="kpi-text">—</small>
+      </div>
+      
+      <!-- Botones 5S -->
+      <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S" style="justify-content: center;">
+        <button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
+        <button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
+        <button type="button" class="s5-pill" data-key="seiso" title="3S · Seiso"><span class="s5-dot"></span>3S</button>
+        <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu"><span class="s5-dot"></span>4S</button>
+        <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke"><span class="s5-dot"></span>5S</button>
+      </div>
+    </div>
+
+    <!-- COLUMNA GW -->
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
+      </div>
+
+      <!-- Formulario GW -->
+      <form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
+        <button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Subir</button>
+      </form>
+      <small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
+
+      <!-- Lista GW -->
+      <div id="gw-tasks-dynamic-container"></div>
+    </div>
   </div>
 </div>
+
 
  
 <!-- KANBAN -->
@@ -1850,62 +2786,32 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 </div>
 
 
-<!-- Kaizen + 5S/GW compartido -->
-<div class="actions-split">
-<div class="widget" id="kaizen-widget">
-<h2 class="widget-title">KAIZEN (compacto)</h2>
-<form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
-<input type="text" name="title" placeholder="Proyecto de mejora…" required>
-<input type="text" name="assigned_to" placeholder="Responsable…">
-<input type="date" name="due_date" aria-label="Fecha máxima">
-<button type="submit" class="btn-primary">Añadir</button>
-</form>
-<div class="board-container kaizen compact" style="margin-top:12px;">
-<div class="kanban-column">
-<h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
-</div>
-<div class="kanban-column">
-<h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
-<div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
-</div>
-</div>
-</div>
+<!-- KAIZEN (Ahora fuera del split, ocupa todo el ancho) -->
+<div class="widget" id="kaizen-widget" style="margin-top: 20px;">
+  <h2 class="widget-title">KAIZEN (Proyectos de mejora)</h2>
+  
+  <form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+    <input type="text" name="title" placeholder="Proyecto de mejora…" required>
+    <input type="text" name="assigned_to" placeholder="Responsable…">
+    <input type="date" name="due_date" aria-label="Fecha máxima">
+    <button type="submit" class="btn-primary">Añadir</button>
+  </form>
 
-<div class="widget" id="rotativas-widget">
-<h2 class="widget-title">5S & GW (Rápido)</h2>
-
-<!-- 5S gestionable -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-<strong>5S</strong>
-<div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S">
-<button type="button" class="s5-pill" data-key="seiri"      title="1S · Seiri (Clasificar)"><span class="s5-dot"></span>1S</button>
-<button type="button" class="s5-pill" data-key="seiton"     title="2S · Seiton (Ordenar)"><span class="s5-dot"></span>2S</button>
-<button type="button" class="s5-pill" data-key="seiso"      title="3S · Seiso (Limpiar)"><span class="s5-dot"></span>3S</button>
-<button type="button" class="s5-pill" data-key="seiketsu"   title="4S · Seiketsu (Estandarizar)"><span class="s5-dot"></span>4S</button>
-<button type="button" class="s5-pill" data-key="shitsuke"   title="5S · Shitsuke (Disciplina)"><span class="s5-dot"></span>5S</button>
-</div>
-<small id="s5-meta" class="kpi-text">—</small>
-
-</div>
-
-<strong style="margin-top: 12px; display:block;">GW</strong>
-
-<form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin:4px 0 6px;">
-  <input type="file" id="gw-file" accept=".xlsx,.xls"
-         style="flex:1; padding:6px; border:1px solid var(--border); border-radius:8px;">
-  <button class="btn-primary" type="submit" style="padding:6px 10px;">Subir GW Excel</button>
-</form>
-<small id="gw-upload-status" class="kpi-text">—</small>
-
-<div id="gw-tasks-dynamic-container"></div>
-
-
-</div>
+  <!-- Le quitamos la clase 'compact' si quieres ver 3 columnas anchas -->
+  <div class="board-container kaizen" style="margin-top:12px;">
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Proyectos" data-status="Proyectos"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>En Progreso</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-En-Progreso" data-status="En Progreso"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Hecho</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Hecho" data-status="Hecho"></div>
+    </div>
+  </div>
 </div>
 
 
@@ -1917,26 +2823,79 @@ header h1{ color:#0F172A; letter-spacing:.1px; }
 
 
   <div class="widget" id="prev-shift-widget">
-  <h2 class="widget-title">3) Información Turno Anterior</h2>
-<div id="prev-shift-note" class="editable-note" contenteditable="true" role="textbox" aria-multiline="true"
-aria-label="Escribe la información del turno anterior" spellcheck="true"
-style="min-height:96px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; line-height:1.4;"
-data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
-<small class="kpi-text" id="prev-shift-saved-hint"></small>
-  </div> 
-<div class="widget" id="ehs-widget">
-<h2 class="widget-title">Días sin incidentes</h2>
-<div class="ehs-month" id="ehs-month">—</div>
-<div id="ehs-spin" class="ehs-controls" role="spinbutton" aria-label="Días con incidentes del mes actual"
-aria-valuemin="0" aria-valuemax="31" aria-valuenow="0" tabindex="0">
-<button class="ehs-btn" type="button" aria-label="Restar un día" data-op="dec">–</button>
-<div class="ehs-big" id="ehs-days">0</div>
-<button class="ehs-btn" type="button" aria-label="Sumar un día" data-op="inc">+</button>
+  <h2 class="widget-title">3) Turno Anterior</h2>
+  
+  <!-- Formulario de alta rápida -->
+  <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <input type="text" id="prev-input" placeholder="Añadir highlight..." 
+             style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+      <button id="prev-add-btn" class="btn-primary" style="padding:0 12px;">+</button>
+      <button type="button" class="btn-mic" data-target="prev-input">🎙️</button>
+  </div>
+
+  <!-- Contenedor de tarjetas (filas) -->
+  <div id="prev-list" style="display:flex; flex-direction:column; gap:8px; max-height:400px; overflow-y:auto;">
+      <!-- Se llenará con JS -->
+  </div>
 </div>
+<div class="widget" id="ehs-widget">
+  <h2 class="widget-title">Días sin accidentes de trabajo</h2>
+  <div class="ehs-month" id="ehs-month">—</div>
+  
+  <!-- CAMBIO: Eliminados botones manuales, añadido title explicativo -->
+  <div id="ehs-spin" class="ehs-controls" role="spinbutton" 
+       style="justify-content: center; cursor: pointer;" 
+       title="Doble clic para reportar incidente (Reset a 0)">
+      <div class="ehs-big" id="ehs-days">0</div>
+  </div>
 </div>
 </section>
 </div>
 
+<!-- PANTALLA MODO INFO (Post-Briefing) -->
+<div id="post-briefing-screen">
+    <div class="pb-header">
+        <div class="pb-title">🚀 MODO OPERATIVO - INFORMACIÓN ACTIVA</div>
+        <button class="pb-close-btn" onclick="closePostBriefingMode()">✖ Volver al Dashboard (Edición)</button>
+    </div>
+
+    <div class="pb-grid">
+        <!-- 1. Highlights Turno Anterior -->
+        <div class="pb-card">
+            <div class="pb-card-title">↩️ Highlights Turno Anterior</div>
+            <div id="pb-prev-content" class="pb-content"></div>
+        </div>
+
+        <!-- 2. Actualizaciones Operativas -->
+        <div class="pb-card">
+            <div class="pb-card-title">🚧 Actualizaciones Operativas</div>
+            <div id="pb-ops-content" class="pb-content"></div>
+        </div>
+
+        <!-- 3. KPIs -->
+        <div class="pb-card">
+            <div class="pb-card-title">📊 KPIs del Turno</div>
+            <div id="pb-kpi-content" class="pb-content">
+                <div class="pb-kpi-box">
+                    <div class="pb-kpi-item">
+                        <span class="pb-kpi-lbl">UPH</span>
+                        <span id="pb-val-uph" class="pb-kpi-val">-</span>
+                    </div>
+                    <div class="pb-kpi-item">
+                        <span class="pb-kpi-lbl">Costes</span>
+                        <span id="pb-val-cost" class="pb-kpi-val">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Seguridad -->
+        <div class="pb-card">
+            <div class="pb-card-title">🛡️ Seguridad y Riesgos</div>
+            <div id="pb-sec-content" class="pb-content"></div>
+        </div>
+    </div>
+</div>
 <script>
   window.STATION_OVERRIDE = 'MAD';
 </script>
@@ -2033,46 +2992,6 @@ function getTaskId(obj){
 
 
 // === PDF Incidentes: subida y render ===
-(function initIncidentsPdfUpload(){
-  const form   = document.getElementById('incidents-pdf-form');
-  const input  = document.getElementById('incidents-pdf-file');
-  const status = document.getElementById('incidents-pdf-status');
-  const wrap   = document.getElementById('incidentes-pdf-wrap');
-
-  if (!form) return;
-
-
-
-  // ⬇️ ESTE SUBMIT ES LO QUE FALTABA
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();                           // 👈 evita recargar la página
-    const f = input.files?.[0];
-    if (!f) { status.textContent = 'Selecciona un PDF'; return; }
-
-    const fd = new FormData();
-    fd.append('file', f);                          // 👈 el backend espera name="file"
-
-    status.textContent = 'Subiendo…';
-    try {
-      const res = await fetch('/api/incidents-table', { method:'POST', body: fd });
-      const data = await res.json().catch(()=> ({}));
-      if (!res.ok) throw new Error(data.detail || res.statusText || 'Error al subir');
-
-      status.textContent = `OK: ${Array.isArray(data.rows) ? data.rows.length : data.rows} filas`;
-      wrap.style.display = 'block';
-
-      // Si el backend devuelve {columns, rows}, reusa tu renderer de la tabla principal:
-      if (data.columns && data.rows) {
-        renderIncidentes(data);
-      }
-    } catch (err) {
-      status.textContent = `Error: ${err.message || err}`;
-      console.error(err);
-    } finally {
-      input.value = '';
-    }
-  });
-})(); 
   
 
 
@@ -2148,106 +3067,104 @@ h1.textContent = h1.textContent.replace(/(MAD|BCN|VLC|SVQ)/i, STATION_CODE);
 
 // Función $$ ya existe, mantenerla
 function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
-/* ===== CRONÓMETRO EN HEADER ===== */
-/* ===== CRONÓMETRO EN HEADER ===== */
+  /* ===== Cronómetro Header (Con botón Comenzar) ===== */
 (function(){
-  const KEY='header_big_timer_v1';
-  const RED_MS  = 8 * 60 * 1000;   // 8 minutos
-  const STOP_MS = 10 * 60 * 1000;  // 10 minutos (límite)
+    const KEY='header_big_timer_v1';
+    let running=false, startedAt=0, elapsed=0, tick=null;
 
-  let running=false, startedAt=0, elapsed=0, tick=null;
+    const display = document.getElementById('timer-display');
+    const resetBtn = document.getElementById('timer-reset');
+    const startBtn = document.getElementById('timer-start-btn'); // NUEVO
+    const widget = document.getElementById('timer-widget');
 
-  const $ = (id)=>document.getElementById(id);
-  const host    = $('timer-widget');
-  const face    = $('timer-face');
-  const display = $('timer-display');
-  const resetBtn= $('timer-reset');
-
-  function fmt(ms){
-    const t = Math.floor(ms/1000);
-    const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
-    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  }
-
-  function paint(){
-    const nowMs   = running ? (Date.now() - startedAt) : elapsed;
-    const clamped = Math.min(nowMs, STOP_MS);
-
-    display.textContent = fmt(clamped);
-    display.classList.toggle('is-red', clamped >= RED_MS);
-
-    // Auto-stop al llegar a 10:00
-    if (running && nowMs >= STOP_MS){
-      running = false;
-      elapsed = STOP_MS;
-      clearInterval(tick); tick=null;
-      setUI(); save();
+    function fmt(ms){
+        const t = Math.floor(ms/1000);
+        const h = Math.floor(t/3600);
+        const m = Math.floor((t%3600)/60);
+        const s = t%60;
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
-  }
 
-  function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
-  function load(){
-    try{
-      const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(!s) return;
-      running   = !!s.running;
-      elapsed   = Number(s.elapsed)||0;
-      startedAt = Number(s.startedAt)||0;
-      if (running){
-        const now=Date.now();
-        elapsed   = Math.max(elapsed, now - startedAt);
-        startedAt = now - elapsed;
-      }
-      // Si ya estaba en el límite, asegurar estado parado
-      if (elapsed >= STOP_MS){ running=false; elapsed=STOP_MS; }
-    }catch{}
-  }
+    function paint(){
+        display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
+        // Si quieres parpadeo rojo > 4 min
+        if ((running ? Date.now()-startedAt : elapsed) > 240000) {
+            display.classList.add('alert-mode');
+            display.style.color = '#dc2626';
+        } else {
+            display.classList.remove('alert-mode');
+            display.style.color = '';
+        }
+    }
 
-  function setUI(){
-    host?.classList.toggle('timer-running', running);
-    resetBtn.disabled = (!running && elapsed===0);
-  }
+    function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
+    
+    function load(){
+        try{
+            const s = JSON.parse(localStorage.getItem(KEY)||'null');
+            if(!s) return;
+            running = !!s.running;
+            elapsed = Number(s.elapsed)||0;
+            startedAt = Number(s.startedAt)||0;
+            if (running){
+                const now=Date.now();
+                elapsed = Math.max(elapsed, now-startedAt);
+                startedAt = now - elapsed;
+            }
+        }catch{}
+    }
 
-  function start(){
-    if (running) return;
-    if (elapsed >= STOP_MS) return;           // no arrancar si alcanzó el límite
-    running   = true;
-    startedAt = Date.now() - elapsed;
-    tick = setInterval(paint, 250);
-    setUI(); paint(); save();
-  }
+    function start(){
+        if (running) return;
+        running = true;
+        startedAt = Date.now() - elapsed;
+        tick = setInterval(paint, 250);
+        paint(); save();
+        
+        // --- CAMBIO SOLICITADO: Abrir Checklist al comenzar ---
+        if(window.navTo) window.navTo('brief-check');
+        
+        if(startBtn) startBtn.style.display = 'none';
+    }
 
-  function pause(){
-    if (!running) return;
-    running = false;
-    elapsed = Date.now() - startedAt;
-    clearInterval(tick); tick=null;
-    setUI(); paint(); save();
-  }
+    function pause(){
+        if (!running) return;
+        running = false;
+        elapsed = Date.now() - startedAt;
+        clearInterval(tick); tick=null;
+        paint(); save();
+        if(startBtn) {
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = 'Continuar';
+        }
+    }
 
-  function reset(){
-    running=false; startedAt=0; elapsed=0;
-    clearInterval(tick); tick=null;
-    setUI(); paint(); save();
-    display.classList.remove('is-red');
-  }
+    function reset(){
+        running = false; startedAt = 0; elapsed = 0;
+        clearInterval(tick); tick=null;
+        paint(); save();
+        display.style.color = '';
+        if(startBtn) {
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = 'Comenzar';
+        }
+    }
 
-  // Interacciones
-  display?.addEventListener('click', ()=> (running ? pause() : start()));
-  resetBtn?.addEventListener('click', reset);
+    // Eventos
+    display?.addEventListener('click', ()=> (running ? pause() : start()));
+    resetBtn?.addEventListener('click', reset);
+    startBtn?.addEventListener('click', start); // Evento del botón verde
 
-  // Robustez al cambiar visibilidad
-  document.addEventListener('visibilitychange', ()=>{
-    if (!running) return;
-    startedAt = Date.now() - elapsed;
-    paint(); save();
-  });
+    // Exponer globalmente
+    window.resetFactoryTimer = reset;
 
-  // Init público
-  function initHeaderTimer(){
-    load(); paint(); setUI();
-    if (running && !tick) tick = setInterval(paint, 250);
-  }
-  window.initHeaderTimer = initHeaderTimer;
+    window.initHeaderTimer = function(){
+        load(); paint();
+        if (running) {
+            tick = setInterval(paint, 250);
+            if(startBtn) startBtn.style.display = 'none';
+        }
+    };
 })();
 
 const UI_SCALE_KEY='ui_scale_v1';
@@ -2379,24 +3296,14 @@ document.getElementById('present-btn')?.addEventListener('click', async ()=>{
 }
 
 function openWidgetFromChecklist(targetId){
-  if (!targetId) return;
-  const el = document.getElementById(targetId);
-  if (!el) {
-    console.warn('Checklist target no encontrado:', targetId);
-    return;
-  }
-
-  // Llevarlo a la vista
-  el.scrollIntoView({ behavior:'smooth', block:'center' });
-
-  // Asegurar botón de fullscreen (por consistencia visual)
-  try { ensureFullscreenBtn(el); } catch {}
-
-  // Intentar fullscreen real (depende del navegador)
-  if (el.requestFullscreen) {
-    el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
-      // Si falla por permisos, al menos se queda centrado.
-    });
+  // Redirigir siempre a la navegación CSS (navTo)
+  // Esto evita el conflicto de capas "dobles" y hace que los botones funcionen siempre.
+  if (window.navTo) {
+      window.navTo(targetId);
+  } else {
+      console.error("La función navTo no está definida todavía.");
+      const el = document.getElementById(targetId);
+      if(el) el.scrollIntoView({ behavior:'smooth', block:'center' });
   }
 }
 
@@ -2414,20 +3321,52 @@ try{ const cached = JSON.parse(localStorage.getItem('kpi_total_cost')||'null'); 
 }
 
 /* EHS simple */
+/* EHS Automático (Días desde último incidente) */
 function initEhsSimple(){
-const now=new Date(); const year=now.getFullYear(), month=now.getMonth();
-const daysInMonth=new Date(year,month+1,0).getDate();
-const monthEl=document.getElementById('ehs-month'); const daysEl=document.getElementById('ehs-days'); const spinEl=document.getElementById('ehs-spin');
-monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-const monthKey=`${year}-${month+1}`; const lastKey=localStorage.getItem('ehs_month_key'); let days=Number(localStorage.getItem('ehs_days_month'))||0; if(lastKey!==monthKey) days=0;
-function render(){ days=Math.max(0,Math.min(daysInMonth,Math.trunc(days))); daysEl.textContent=days; spinEl.setAttribute('aria-valuemin','0'); spinEl.setAttribute('aria-valuemax',String(daysInMonth)); spinEl.setAttribute('aria-valuenow',String(days));
-localStorage.setItem('ehs_days_month',String(days)); localStorage.setItem('ehs_month_key',monthKey); }
-const inc=()=>{ if(days<daysInMonth){ days+=1; render(); } }; const dec=()=>{ if(days>0){ days-=1; render(); } };
-spinEl.querySelectorAll('.ehs-btn').forEach(btn=>btn.addEventListener('click',()=> (btn.dataset.op==='inc'?inc():dec())));
-spinEl.addEventListener('keydown',(e)=>{ if(e.key==='ArrowUp'||e.key==='ArrowRight'){e.preventDefault();inc();} if(e.key==='ArrowDown'||e.key==='ArrowLeft'){e.preventDefault();dec();}
-if(e.key==='PageUp'){e.preventDefault();days=Math.min(daysInMonth,days+5);render();} if(e.key==='PageDown'){e.preventDefault();days=Math.max(0,days-5);render();}
-if(e.key==='Home'){e.preventDefault();days=0;render();} if(e.key==='End'){e.preventDefault();days=daysInMonth;render();} });
-render();
+    const daysEl = document.getElementById('ehs-days');
+    const monthEl = document.getElementById('ehs-month');
+    const container = document.getElementById('ehs-spin');
+    
+    if (!daysEl) return;
+    
+    // Mes actual visual
+    const now = new Date();
+    if(monthEl) monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+
+    // Clave única para MAD
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_mad_v1';
+
+    function render() {
+        const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
+        // Si no hay fecha guardada, asumimos hoy (0 días)
+        let lastDate = lastDateStr ? new Date(lastDateStr) : new Date();
+        
+        // Resetear horas para comparar solo días naturales
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        lastDate.setHours(0,0,0,0);
+
+        // Diferencia en milisegundos a días
+        const diffTime = today - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        daysEl.textContent = Math.max(0, diffDays);
+    }
+
+    // Doble clic para reportar un incidente hoy (Reinicia a 0)
+    container.addEventListener('dblclick', () => {
+        if(confirm("¿Reportar incidente en MAD hoy? El contador se reiniciará a 0.")) {
+            localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+            render();
+        }
+    });
+
+    // Inicializar fecha si es la primera vez que se usa
+    if(!localStorage.getItem(KEY_LAST_INCIDENT)){
+        localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+    }
+
+    render();
 }
 
 /* Equipo (roster) */
@@ -2622,34 +3561,56 @@ updateTeamMeta(TEAM_STATE);
 
 updateTeamMeta(TEAM_STATE);
 }
+/* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
+/* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
 async function initTeamRoster(){
-    // 1. Bloqueamos la carga automática del servidor
-    /* 
-    const state = await fetchServerRoster();
-    if(state){ ... } 
-    */
-
-    // 2. Ponemos el mensaje de procedimiento manual
-    const list = document.getElementById('team-list');
-    if(list) {
-        list.innerHTML = `
-            <div style="padding: 20px; text-align: center; color: var(--text-muted); background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;">
-                <strong>⚠️ Atención</strong><br>
-                Se tiene que seguir el procedimiento manual hasta ahora.
-            </div>
-        `;
-    }
-
-    // 3. Inicializamos el estado vacío para permitir altas manuales si se desea
+    const listEl = document.getElementById('team-list');
+    
+    // 1. Inicializar estado VACÍO
     window.TEAM_STATE = {
-        shift: null,
-        people: [],
+        shift: "Mañana", 
+        sheet_date: new Date().toISOString().split('T')[0],
+        people: [],         // Array vacío, sin datos falsos
         attendance: {},
         zones: {}
     };
-    
-    // Actualizamos la meta-info (contador) a ceros
-    updateTeamMeta(window.TEAM_STATE);
+
+    // 2. Renderizar solo la TARJETA DE AVISO
+    if(listEl) {
+        listEl.innerHTML = `
+            <div style="padding: 15px; text-align: center; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; color: #856404; margin-bottom: 10px;">
+                <strong>⚠️ Atención</strong><br>
+                Procedimiento manual activo.<br>
+                <span style="font-size:0.85rem">Añada el personal uno a uno usando el botón +.</span>
+            </div>`;
+        
+        // Actualizar el meta info
+        const meta = document.getElementById('team-meta');
+        if(meta) meta.textContent = "Modo Manual";
+    }
+
+    // 3. Mantener la lógica del formulario de alta manual (funcional)
+    const form = document.getElementById('team-form');
+    if(form) {
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const input = document.getElementById('team-name');
+            const name = input.value.trim();
+            if(!name) return;
+            
+            // Añadir persona real al estado
+            const newPerson = { nombre_completo: name, horario: "Extra", observaciones: "Manual" };
+            window.TEAM_STATE.people.push(newPerson);
+            
+            // Marcar presente por defecto al añadir manualmente
+            window.TEAM_STATE.attendance[name] = true; 
+            
+            // Re-renderizar la lista completa (esto borrará el aviso amarillo y mostrará la lista)
+            renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
+            
+            input.value = '';
+        };
+    }
 }
 
 /* === FIX 1: Eliminar el date-picker estático de cabecera === */
@@ -2760,24 +3721,30 @@ async function initTeamRoster(){
 
 
 /* Kanban / Kaizen / GW */
+/* Kanban / Kaizen / GW Configuración Táctil */
 function makeColumnsSortable(){
-const common = {
-animation: 150,
-ghostClass: 'sortable-ghost',
-dragClass: 'sortable-drag',
-handle: '.drag-handle',
-forceFallback: true,         // ← iPad fiable
-delayOnTouchOnly: true,      // ← solo táctil
-delay: 120,
-fallbackTolerance: 6,// ← evita taps accidentales
-touchStartThreshold: 4
-};
+    const common = {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        
+        handle: '.drag-handle', // Solo se mueve si tocan el icono
+        
+        // --- CONFIGURACIÓN CRÍTICA PARA TABLET ---
+        forceFallback: true,    // Usa emulación de drag (más compatible en Android)
+        delay: 0,               // SIN RETRASO: respuesta inmediata al tocar el asa
+        fallbackTolerance: 3,   // Sensibilidad: empieza a mover tras 3px de deslizamiento
+        touchStartThreshold: 3, // Igual para pantallas táctiles
+        // -----------------------------------------
+        
+        onEnd: handleDragEnd
+    };
 
-document.querySelectorAll('#kanban-widget .cards-container')
-.forEach(c => new Sortable(c, { group:'kanban-board', ...common, onEnd:handleDragEnd }));
+    document.querySelectorAll('#kanban-widget .cards-container')
+        .forEach(c => new Sortable(c, { group:'kanban-board', ...common }));
 
-document.querySelectorAll('#kaizen-widget .cards-container')
-.forEach(c => new Sortable(c, { group:'kaizen-board', ...common, onEnd:handleDragEnd }));
+    document.querySelectorAll('#kaizen-widget .cards-container')
+        .forEach(c => new Sortable(c, { group:'kaizen-board', ...common }));
 }
 async function handleDragEnd({item,to,from,oldIndex}){
 if(to===from){ updateAllColumnCounts(); return; }
@@ -2898,31 +3865,51 @@ updateAllColumnCounts();
   };
 })();
 
-function setupEventListeners(){
-document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
-document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
-document.addEventListener('click', handleDeleteClick);
+function setupEventListeners() {
+    // Formularios Kanban y Kaizen
+    document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+    document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+    
+    // Click global (para borrar tarjetas)
+    document.addEventListener('click', handleDeleteClick);
 
-const rot=document.getElementById('rotativas-widget');
-// GW
-rot.addEventListener('change', handleGwTick);
-rot.addEventListener('keydown',(e)=>{
-  const note = e.target.closest('.gw-note') ? e.target : null;
-  if (!note) return;
+    // --- CORRECCIÓN CRÍTICA PARA GW (Gemba Walk) ---
+    // Ya no buscamos el ID 'rotativas-widget' porque lo borramos.
+    // Usamos delegación de eventos en el documento.
+    
+    // 1. Checkbox de completado
+   ('change', (e) => {
+        // La función handleGwTick ya verifica si es un checkbox válido
+        if (typeof handleGwTick === 'function') {
+            handleGwTick(e);
+        }
+    });
 
-  if (e.key === 'Enter'){
-    e.preventDefault();
-    const id = note.id.replace('gw-note-','');
-    updateTaskNote(id, note.value).catch(console.error);
-    note.blur();
-  }
-  if (e.key === 'Escape'){
-    e.preventDefault();
-    note.blur();
-  }
-});
+    // 2. Notas (Enter y Escape)
+    document.addEventListener('keydown', (e) => {
+        const note = e.target.closest('.gw-note') ? e.target : null;
+        if (!note) return;
 
-rot.addEventListener('blur',(e)=>{ if(e.target.classList.contains('gw-note')){ const id=e.target.id.replace('gw-note-',''); updateTaskNote(id,e.target.value).catch(console.error); } }, true);
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const id = note.id.replace('gw-note-', '');
+            // Verificamos que la función exista antes de llamar
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, note.value).catch(console.error);
+            note.blur();
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            note.blur();
+        }
+    });
+
+    // 3. Notas (Al perder el foco / Blur)
+    document.addEventListener('blur', (e) => {
+        if (e.target.classList && e.target.classList.contains('gw-note')) {
+            const id = e.target.id.replace('gw-note-', '');
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, e.target.value).catch(console.error);
+        }
+    }, true); 
 }
 
 async function handleKanbanSubmit(e){
@@ -3144,6 +4131,32 @@ if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)
   const metric = String(data.metric||'').trim().toLowerCase();
   const tab    = String(data.tab||'').trim();
 
+  
+  
+
+
+  if (data.metric === 'fiix_backlog') {
+      setKpiValue('fiix-backlog', null, data.value); // null porque no puse meta de fecha
+      return;
+  }
+  if (data.metric === 'fiix_urgent') {
+      setKpiValue('fiix-urgent', null, data.value);
+      // Alerta visual si hay urgencias
+      const tile = document.getElementById('tile-fiix-urgent');
+      if(tile) {
+          if(Number(data.value) > 0) tile.style.backgroundColor = '#fef2f2'; // Rojo suave
+          else tile.style.backgroundColor = '#fff';
+      }
+      return;
+  }
+  if (data.metric === 'fiix_cost') {
+      // Formatear dinero
+      const val = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(data.value);
+      setKpiValue('fiix-cost', null, val);
+      return;
+  }
+
+  
   // Coste total (ya lo tenías)
   if (metric === 'total cost' && (!tab || tab === 'MAD WFS4')){
     let v = data.value;
@@ -5262,7 +6275,6 @@ document.addEventListener('DOMContentLoaded', () => {
   try { hydrateKpiTotalCost?.(); } catch(e){ console.warn('hydrateKpiTotalCost', e); }
   try { initEhsSimple?.(); } catch(e){ console.warn('initEhsSimple', e); }
   try { init5S?.(); } catch(e){ console.warn('init5S', e); }
-  try { loadIncidentes?.(); } catch(e){ console.warn('loadIncidentes', e); }
 });
 
 // ===== Limpieza opcional =====
@@ -5661,493 +6673,773 @@ document.addEventListener('change', (e) => {
   render();
 })();
 
-// === INIT GLOBAL (corre una vez cuando el DOM está listo) ===
-  document.addEventListener('DOMContentLoaded', () => {
-    try { initHeaderTimer?.(); } catch(e){}
-    try { initTeamRoster?.(); } catch(e){}
-    try { initFullscreenToggles?.(); } catch(e){}
-    try { setupEventListeners?.(); } catch(e){}
-    try { makeColumnsSortable?.(); } catch(e){}
-    // Si tienes un loader de tareas, lánzalo aquí también:
-    // try { loadAllTasks?.(); } catch(e){}
-  });
+// ... (El código anterior de initOpsUpdates y demás se mantiene igual) ...
 
-  // ====== UTILIDADES FALTANTES ======
-function formatPercent(v){
-  if (v == null || isNaN(v)) return '—';
-  return new Intl.NumberFormat('es-ES',{ maximumFractionDigits:1 }).format(Number(v));
-}
-function setKpiValue(idValue, idMeta, text){
-  const v = document.getElementById(idValue);
-  const m = document.getElementById(idMeta);
-  if (v) v.textContent = text ?? '—';
-  if (m) m.textContent = `Actualizado: ${new Date().toLocaleString('es-ES')}`;
-}
-function updateAllColumnCounts(){
-  // Kanban rápida
-  document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
-    const cnt = col.querySelectorAll('.cards-container > .card').length;
-    const badge = col.querySelector('.column-title .count');
-    if (badge) badge.textContent = `(${cnt})`;
-  });
-  // Kaizen
-  document.querySelectorAll('#kaizen-widget .kanban-column').forEach(col=>{
-    const cnt = col.querySelectorAll('.cards-container > .card').length;
-    const badge = col.querySelector('.column-title .count');
-    if (badge) badge.textContent = `(${cnt})`;
-  });
-}
-function renderGwTask(t, domId){
-  // Render mínimo de GW para que no reviente al cargar top-3
-  const host = document.getElementById('gw-tasks-dynamic-container');
-  if (!host) return;
-  let el = document.getElementById(domId);
-  if (!el){
-    el = document.createElement('div');
-    el.id = domId;
-    el.className = 'gw-task-item';
-    host.appendChild(el);
-  }
-  el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-      <label style="font-weight:700">${(t.title || t.task || 'Tarea GW')}</label>
-      <input type="checkbox" ${t.is_completed ? 'checked':''} />
-    </div>
-    <textarea id="gw-note-${t.id}" class="gw-note" ${t.is_completed ? '' : 'disabled'}
-      placeholder="Nota...">${t.note || ''}</textarea>
-  `;
-}
-async function loadAllTasks(){
-  try{
-    const items = await fetchTasksBootstrap();
-    (items||[]).forEach(processTaskUpdate);
-    makeColumnsSortable();
-    updateAllColumnCounts();
-  }catch(e){ console.warn('loadAllTasks falló', e); }
-}
-// Incidentes: render mínimo para tabla JSON {columns, rows}
-function renderIncidentes(data){
-  const tbl = document.getElementById('incidentes-pdf-table') || document.getElementById('incidentes-table');
-  if (!tbl || !data) return;
-  const cols = data.columns || (data.rows && data.rows.length ? Object.keys(data.rows[0]) : []);
-  const rows = data.rows || [];
-  tbl.innerHTML = `
-    <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')}</tbody>
-  `;
-}
-async function loadIncidentes(){
-  try{
-    const r = await fetch('/api/incidents-table', { cache:'no-store' });
-    const data = await r.json();
-    renderIncidentes(data);
-  }catch(e){ console.warn('loadIncidentes falló', e); }
-}
-// Spotlight routing (placeholder para evitar errores)
-function updateSpotlightRouting(){ /* no-op por ahora */ }
+// =========================================================
+//  LÓGICA DE FLUJO GUIADO, RESET Y PANTALLA FINAL
+// =========================================================
 
-// ====== COMPLETAR renderKaizenCard (estaba truncada) ======
-function renderKaizenCard(task, elementId){
-  const safeStatus=(task.status||'Proyectos').replace(/\s+/g,'-');
-  const columnId=`kaizen-${safeStatus}`;
-  const column=document.getElementById(columnId); if(!column) return;
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. CONFIGURACIÓN DEL FLUJO (Orden y Checkbox asociado)
+    const WIDGET_MAP = [
+        { id: 'team-widget',        check: 'c1', label: '1. Dotación' },
+        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+        { id: 'prev-shift-widget',  check: 'c3', label: '3. Turno Anterior' },
+        { id: 'seguridad-widget',   check: 'c4', label: '4. Seguridad' },
+        { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
+        { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
+        { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
+    ];
 
-  let card=document.getElementById(elementId);
-  if(!card){ card=document.createElement('div'); card.id=elementId; }
-  card.className='card'; card.dataset.status=safeStatus;
-  card.dataset.taskType='kaizen';  
-  if(card.parentElement!==column) column.prepend(card);
+    // 2. INYECTAR BARRAS DE NAVEGACIÓN
+    function injectNavigation() {
+        WIDGET_MAP.forEach((step, index) => {
+            const widget = document.getElementById(step.id);
+            if (!widget || widget.querySelector('.widget-nav-bar')) return;
 
-  let dueHuman=''; 
-  if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('es-ES'); }
-
-  card.innerHTML=`
-    ${GRIP}
-    <div class="card-content">
-      <div class="card-title" data-edit="title">${esc(task.title || '')}</div>
-      <div class="card-details">
-        ${task.assigned_to ? `Responsable: ${esc(task.assigned_to)}` : 'Responsable: —'}
-        ${dueHuman ? ` • Fecha máx: ${dueHuman}` : ''}
-      </div>
-    </div>
-    <div class="card-actions">
-      <button class="delete-card-btn" title="Eliminar"></button>
-    </div>
-  `;
-  ensureFullscreenBtn(card);
-
-  // Edición rápida
-  const id = task.id;
-  const titleEl = card.querySelector('[data-edit="title"]');
-  titleEl?.addEventListener('click', async ()=>{
-    const prev = titleEl.textContent.trim();
-    const next = (prompt('Nuevo título', prev) || '').trim();
-    if (next && next !== prev){
-      try { await updateTaskOnServer(id, { title: next }); } 
-      catch { alert('No se pudo actualizar el título'); }
+            const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
+            const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
+            
+            const navBar = document.createElement('div');
+            navBar.className = 'widget-nav-bar';
+            navBar.innerHTML = `
+                <div class="nav-group">
+                    <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
+                        ⬅ Anterior
+                    </button>
+                </div>
+                <div class="nav-group" style="font-size:0.9rem; color:#64748b;">
+                    ${step.label} (${index + 1}/${WIDGET_MAP.length})
+                </div>
+                <div class="nav-group">
+                    <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
+                    <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
+                        ✅ OK y Siguiente ➡
+                    </button>
+                </div>
+            `;
+            widget.prepend(navBar);
+        });
     }
-  });
-}
+    injectNavigation();
 
-
- 
-  // Reloj/turno en cabecera
-  function guessShift(){
-    const h = new Date().getHours();
-    return (h>=6 && h<14) ? "Mañana" : (h>=14 && h<22) ? "Tarde" : "Noche";
-  }
-  function paintNowAndShift(){
-    const nowEl = document.getElementById("now-header");
-    const badge = document.getElementById("shift-badge-header");
-    if (nowEl)  nowEl.textContent = new Date().toLocaleString("es-ES",{dateStyle:"full", timeStyle:"short"});
-    const shift = (window.TEAM_STATE?.shift) || guessShift();
-    if (badge){ badge.textContent = shift; badge.dataset.shift = shift; }
-  }
-
-  // Ayuda contextual + salto a widget desde Checklist
-  function wireBriefExplain(){
-    const host = document.getElementById("brief-check");
-    const box  = document.getElementById("brief-check-explain");
-    if (!host || !box) return;
-    const txt = box.querySelector(".br-explain-text");
-    host.querySelectorAll(".check-card").forEach(card=>{
-      const help = card.dataset.help || "";
-      card.addEventListener("mouseenter", ()=> { if (txt) txt.textContent = help || "—"; });
-      card.addEventListener("focus",      ()=> { if (txt) txt.textContent = help || "—"; });
-      card.addEventListener("click",      ()=> {
-        const id = card.dataset.target;
-        if (!id) return;
-        const el = document.getElementById(id);
-        if (el){
-          el.scrollIntoView({behavior:"smooth", block:"center"});
-          el.requestFullscreen?.({navigationUI:"hide"}).catch(()=>{});
-        }
-      });
-    });
-  }
-
-  // WebSocket -> delega en processTaskUpdate de main
-  function startWS(){
-    const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
-    const ws = new WebSocket(url);
-    ws.onmessage = (ev)=>{
-      try{ const msg = JSON.parse(ev.data); processTaskUpdate?.(msg); }catch{}
-    };
-    ws.onclose = ()=> setTimeout(startWS, 2000);
-  }
-
-  // Escalado UI persistente
-  (function initUIScale(){
-    const KEY = "ui_scale_v1";
-    const sel = document.getElementById("scale-select");
-    if (!sel) return;
-    const apply = v => document.documentElement.style.setProperty("--ui-scale", v);
-    const saved = localStorage.getItem(KEY) || sel.value || "1.15";
-    apply(saved); sel.value = saved;
-    sel.addEventListener("change", e=>{ localStorage.setItem(KEY, e.target.value); apply(e.target.value); });
-  })();
-
-  // Bootstrap
-  document.addEventListener("DOMContentLoaded", async ()=>{
-    window.STATION_OVERRIDE = (window.STATION_OVERRIDE || "MAD").toUpperCase();
-
-    initFullscreenToggles?.();
-    initHeaderTimer?.();
-    hydrateKpiTotalCost?.();
-    makeColumnsSortable?.();
-    setupEventListeners?.();
-    wireBriefExplain();
-    paintNowAndShift();
-    setInterval(paintNowAndShift, 30_000);
-
-    // primer volcado (tareas/KPIs/incidentes)
-    try{
-      const items = await fetchTasksBootstrap?.();
-      (items||[]).forEach(processTaskUpdate);
-    }catch(e){ console.warn("Bootstrap tasks failed", e); }
-
-    try{ await loadIncidentes?.(); }catch{}
-
-    // WS vivo
-    startWS();
-  });
-
-  // ============ UTILIDADES FALTANTES ============
-// % sin multiplicar (ya llega 0–100 del backend)
-function formatPercent(v){
-  const n = Number(v);
-  if (!Number.isFinite(n)) return '—';
-  return new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(n);
-}
-function setKpiValue(valId, metaId, txt){
-  const v = document.getElementById(valId);
-  const m = document.getElementById(metaId);
-  if (!v) return;
-  v.textContent = txt ?? '—';
-  if (m) m.textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES');
-  const host = v.closest('.kpi-tile,.kpi-widget') || v;
-  host.classList.remove('flash'); void host.offsetWidth; host.classList.add('flash');
-}
-function updateAllColumnCounts(){
-  document.querySelectorAll('#kanban-widget .kanban-column, #kaizen-widget .kanban-column')
-    .forEach(col=>{
-      const count = col.querySelectorAll('.cards-container > .card').length;
-      const badge = col.querySelector('.column-title .count');
-      if (badge) badge.textContent = `(${count})`;
-    });
-}
-// Incidentes (tabla genérica)
-function renderIncidentes(data){
-  const table = document.getElementById('incidentes-table');
-  if (!table) return;
-  table.innerHTML = '';
-  const cols = (data.columns && data.columns.length) ? data.columns
-                : (Array.isArray(data.rows) && data.rows[0] ? Object.keys(data.rows[0]) : []);
-  if (!cols.length) { table.innerHTML = '<thead><tr><th>—</th></tr></thead><tbody><tr><td>Sin datos</td></tr></tbody>'; return; }
-  const thead = `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>`;
-  const tbody = `<tbody>${
-    (data.rows||[]).map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')
-  }</tbody>`;
-  table.innerHTML = thead + tbody;
-}
-// GW: tarjeta simple (tick + nota)
-function renderGwTask(t, domId){
-  const host = document.getElementById('gw-tasks-dynamic-container');
-  if (!host) return;
-  let el = document.getElementById(domId);
-  if (!el){ el = document.createElement('div'); el.id = domId; host.appendChild(el); }
-  el.className = 'gw-task-item' + (t.is_completed ? ' completed' : '');
-  const safeTitle = esc(t.title || t.name || 'Tarea');
-  const note = esc(t.note || '');
-  el.innerHTML = `
-    <input type="checkbox" ${t.is_completed?'checked':''} aria-label="Completar">
-    <label style="font-weight:600">${safeTitle}</label>
-    <textarea class="gw-note" id="gw-note-${t.id}" ${t.is_completed?'':'disabled'}
-      placeholder="Nota…">${note}</textarea>
-  `;
-}
-// Spotlight guía desde checklist → widget
-function updateSpotlightRouting(){
-  // Señal visual suave: nada intrusivo
-  document.querySelectorAll('.spotlight-blink').forEach(n=>n.classList.remove('spotlight-blink'));
-}
-// Ayudas del checklist (tooltip + click abre el widget)
-(function wireChecklistHints(){
-  const explain = document.getElementById('brief-check-explain');
-  document.querySelectorAll('#brief-check .check-card').forEach(card=>{
-    card.addEventListener('mouseenter', ()=>{
-      const txt = card.dataset.help || '';
-      if (explain){ explain.querySelector('.br-explain-text').textContent = txt || '—'; }
-    });
-    card.addEventListener('click', ()=>{
-      const target = card.dataset.target;
-      if (target) openWidgetFromChecklist(target);
-    });
-  });
-})();
-// Hora/turno header
-(function paintHeaderTick(){
-  const elNow = document.getElementById('now-header');
-  const elShiftTop = document.getElementById('shift-badge-header');
-  const elShiftChip = document.getElementById('shift-badge');
-  function guessShift(){
-    const h = new Date().getHours();
-    if (h >= 6 && h < 14) return 'Mañana';
-    if (h >= 14 && h < 22) return 'Tarde';
-    return 'Noche';
-  }
-  function paint(){
-    const now = new Date();
-    if (elNow) elNow.textContent = now.toLocaleString('es-ES', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
-    const shift = window.TEAM_STATE?.shift || guessShift();
-    [elShiftTop, elShiftChip].forEach(chip=>{
-      if (!chip) return;
-      chip.textContent = shift;
-      chip.dataset.shift = shift;
-    });
-  }
-  paint(); setInterval(paint, 15_000);
-})();
-
-// ============ CARGA DE DATOS / API ============
-// Incidentes (tabla de backend en vivo)
-async function loadIncidentes(){
-  const meta = document.getElementById('incidentes-meta');
-  try{
-    // intenta endpoint estándar
-    let res = await fetch('/api/incidents', { cache:'no-store' });
-    if (res.status === 404) res = await fetch('/api/incidents-table?limit=200', { cache:'no-store' });
-    const data = await res.json();
-    renderIncidentes(data);
-    if (meta) meta.textContent = 'Actualizado: ' + new Date().toLocaleString('es-ES');
-  }catch(err){
-    console.warn('Incidentes no disponibles:', err);
-    if (meta) meta.textContent = 'No disponible';
-  }
-}
-
-// Bootstrap de tareas (Kanban/Kaizen/OPS/GW)
-async function loadAllTasks(){
-  try{
-    const items = await fetchTasksBootstrap();
-    if (Array.isArray(items)){
-      items.forEach(it=>{
-        // Normaliza estación si procede
-        if (isForThisStation(it)) processTaskUpdate(it);
-        if (it.task_type === 'gw_task') GW_MAP.set(it.id, it);
-      });
-      renderGwTop3();
-      updateAllColumnCounts();
-    }
-  }catch(e){
-    console.warn('No se pudieron cargar tareas:', e);
-  }
-}
-
-// ============ WEBSOCKET EN TIEMPO REAL ============
-(function initWS(){
-  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
-  try{
-    const ws = new WebSocket(url);
-    ws.addEventListener('open', ()=>console.log('[WS] Conectado'));
-    ws.addEventListener('message', (ev)=>{
-      try{
-        const msg = JSON.parse(ev.data);
-        // admite lotes
-        const arr = Array.isArray(msg) ? msg : [msg];
-        arr.forEach(m => processTaskUpdate(m));
-      }catch(err){ console.warn('WS parse', err); }
-    });
-    ws.addEventListener('close', ()=>console.log('[WS] Cerrado'));
-    ws.addEventListener('error', ()=>console.log('[WS] Error'));
-    // reconexión simple
-    window.addEventListener('offline', ()=> ws.close());
-  }catch(e){ console.warn('WS no disponible', e); }
-})();
-
-// ============ INICIALIZACIÓN ============
-(async function init(){
-  try { initHeaderTimer?.(); } catch{};
-  try { initTeamRoster?.(); } catch{};
-  try { hydrateKpiTotalCost?.(); } catch{};
-  try { initFullscreenToggles?.(); } catch{};
-  try { makeColumnsSortable?.(); } catch{};
-  try { setupEventListeners?.(); } catch{};
-  await loadAllTasks();
-  await loadIncidentes();
-  updateAllColumnCounts();
-})();
-
-/* ===== Briefing: Generar Resumen con SUPERVISOR ===== */
-/* ===== Briefing: Generar Resumen con SUPERVISOR y KANBAN ===== */
-(function wireBriefingGenerate(){
-  const btn = document.querySelector('header .header-controls .btn-primary');
-  if (!btn) return;
-
-  // --- 1. Recolectar TODOS los datos ---
-  function buildPayload(){
-    const team = (window.TEAM_STATE || {});
-    
-    // CAPTURA DEL SUPERVISOR
-    const supInput = document.getElementById('briefing-supervisor');
-    const supervisorVal = supInput ? supInput.value.trim() : "No especificado";
-
-    // Lista de nombres
-    const peopleList = team.people || [];
-    const attMap = team.attendance || {};
-    
-    const rosterList = peopleList.map(p => {
-        const name = p.nombre_completo || "Sin Nombre";
-        const isPresent = attMap[name] === true;
-        return `${name} (${isPresent ? "Presente" : "Ausente"})`;
-    });
-    
-    const rosterString = rosterList.length > 0 ? rosterList.join(", ") : "Sin datos de equipo";
-
-    // === NUEVO: Recolectar datos del KANBAN (Feedback Directo) ===
-    const kanbanItems = [];
-    // Recorremos las columnas en orden lógico
-    ['Abiertas', 'En-Curso', 'Cerradas', 'Vencidas'].forEach(status => {
-        // Nota: los IDs del DOM son 'kanban_rapida-Abiertas', etc.
-        const col = document.getElementById(`kanban_rapida-${status}`);
-        if(col) {
-            col.querySelectorAll('.card').forEach(card => {
-                const title = card.querySelector('.card-title')?.textContent?.trim() || 'Tarea';
-                const resp = card.querySelector('.assignee')?.textContent?.trim() || '';
-                // Formato: [Abiertas] Título (Responsable)
-                kanbanItems.push(`[${status.toUpperCase()}] ${title} ${resp ? '('+resp+')' : ''}`);
+    // 3. LÓGICA DE RESET DEL CRONÓMETRO Y CHECKLIST
+    const resetBtn = document.getElementById('timer-reset');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (!confirm("¿Reiniciar turno? Se borrarán los checks y el tiempo.")) return;
+            
+            // A. Reset visual checkboxes
+            document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+            
+            // B. Borrar localStorage específico del checklist
+            Object.keys(localStorage).forEach(k => {
+                if(k.includes('brief_check')) localStorage.removeItem(k);
             });
+            
+            // C. Recalcular spotlight (volver al paso 1)
+            if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+            
+            // D. Reset texto meta
+            const meta = document.getElementById('brief-check-meta');
+            if(meta) meta.textContent = "—";
+
+            console.log("♻️ Checklist reiniciado.");
+        });
+    }
+});
+
+// --- FUNCIONES GLOBALES (Window) PARA LOS BOTONES ONCLICK ---
+
+window.navTo = function(targetId) {
+    if (!targetId) return;
+    // Salir de pantalla completa anterior si la hay
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+
+    setTimeout(() => {
+        const el = document.getElementById(targetId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Intentar fullscreen nativo, si falla, usar CSS zoom
+            if (el.requestFullscreen) {
+                el.requestFullscreen({ navigationUI: 'hide' }).catch(() => el.classList.add('widget--zoomed'));
+            } else {
+                el.classList.add('widget--zoomed');
+            }
         }
-    });
-    const kanbanString = kanbanItems.length > 0 ? kanbanItems.join(" | ") : "Sin feedback registrado";
-    // =============================================================
+    }, 100);
+};
 
-    // Datos básicos
-    return {
-      station: (window.STATION_OVERRIDE || 'MAD').toUpperCase(),
-      date: (() => {
-          const d = new Date();
-          const day = String(d.getDate()).padStart(2, '0');
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const year = String(d.getFullYear()).slice(-2); // Coge solo los 2 últimos dígitos
-          return `${day}/${month}/${year}`;
-      })(),
-      shift: document.getElementById('shift-badge-header')?.textContent || 'General', 
-      timer: document.getElementById('timer-display')?.textContent || '00:00:00',
-      supervisor: supervisorVal,
-      briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
-      roster_details: rosterString,
-      prev_shift_note: document.getElementById('prev-shift-note')?.innerText || 'Sin novedades',
-      
-      // Añadimos el nuevo campo
-      kanban_details: kanbanString, 
+window.exitFlow = function() {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.widget--zoomed').forEach(el => el.classList.remove('widget--zoomed'));
+    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+};
 
-      // Listas para procesar en backend
-      ops_updates: Array.from(document.querySelectorAll('#ops-list .ops-item')).map(c => ({
-          title: c.querySelector('.ops-title')?.textContent?.trim() || '',
-          impact: c.querySelector('.ops-impact')?.textContent?.trim() || ''
-      })),
-      
-      kpis: {
-        "UPH": document.getElementById('kpi-uph')?.textContent?.trim() || '-',
-        "Costes": document.getElementById('kpi-total-cost')?.textContent?.trim() || '-'
-      },
-      
-      checklist: {}, kanban_counts: {}, roster_stats: "", present_names: []
-    };
-  }
+window.markOkAndNext = function(checkName, nextId) {
+    // 1. Marcar OK
+    if (checkName) {
+        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
+        if (radio) {
+            radio.checked = true;
+            // Disparar eventos para persistencia y spotlight
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            radio.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
 
-  // --- 2. Envío ---
-  btn.addEventListener('click', async ()=>{
+    // 2. Navegar
+    if (nextId) {
+        navTo(nextId);
+    } else {
+        // Fin del flujo
+        exitFlow();
+        // Scroll suave al botón de generar
+        document.querySelector('header').scrollIntoView({behavior:'smooth'});
+        // Pequeño feedback
+        setTimeout(() => alert("🎉 Checklist completado. Ahora puedes generar el resumen."), 300);
+    }
+};
+
+
+/* =================================================
+   PANTALLA MODO INFO (POST-BRIEFING)
+   ================================================= */
+
+window.openPostBriefingMode = function() {
+    console.log("🚀 Activando Modo Info...");
+    const screen = document.getElementById('post-briefing-screen');
+    if (!screen) return console.error("Falta #post-briefing-screen en el HTML");
+
+    // 1. Rellenar datos
+    const prev = document.getElementById('prev-shift-note')?.innerText || "Sin datos";
+    document.getElementById('pb-prev-content').innerHTML = `<p style="font-size:1.1rem">${prev}</p>`;
+
+    const ops = document.querySelectorAll('#ops-list .ops-item .ops-title');
+    let opsHtml = '<ul style="padding-left:20px">';
+    if (ops.length === 0) opsHtml += "<li>Sin actualizaciones activas</li>";
+    ops.forEach(el => opsHtml += `<li style="margin-bottom:8px">${el.innerText}</li>`);
+    opsHtml += "</ul>";
+    document.getElementById('pb-ops-content').innerHTML = opsHtml;
+
+    const uph = document.getElementById('kpi-uph')?.innerText || "-";
+    const cost = document.getElementById('kpi-total-cost')?.innerText || "-";
+    document.getElementById('pb-val-uph').textContent = uph;
+    document.getElementById('pb-val-cost').textContent = cost;
+
+    const tips = document.getElementById('sec-random-list')?.innerHTML || "";
+    const risks = document.querySelectorAll('#sec-cards .ops-item .ops-title');
+    let secHtml = `<ul style="padding-left:20px; margin-bottom:15px">${tips}</ul>`;
+    if(risks.length > 0){
+        secHtml += `<strong style="color:#b91c1c">Riesgos activos:</strong><ul style="padding-left:20px">`;
+        risks.forEach(r => secHtml += `<li>${r.innerText}</li>`);
+        secHtml += "</ul>";
+    }
+    document.getElementById('pb-sec-content').innerHTML = secHtml;
+
+    // 2. Mostrar
+    screen.style.display = 'flex';
+    if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(e => console.log(e));
+    }
+};
+
+window.closePostBriefingMode = function() {
+    document.getElementById('post-briefing-screen').style.display = 'none';
+    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+};
+
+/* ===== TRIGGER: Generar Resumen (CORREGIDO) ===== */
+/* ===== TRIGGER: Generar Resumen (CON SEGURIDAD) ===== */
+/* ===== Generar Resumen Completo ===== */
+/* ===== Generar Resumen Completo ===== */
+/* ===== GENERAR RESUMEN (Guardar Excel + Reset) ===== */
+/* ===== GENERAR RESUMEN (REPARADO: Guardado Excel + Limpieza Eventos) ===== */
+(function wireBriefingGenerate(){
+  // 1. Buscamos el botón original
+  const oldBtn = document.querySelector('header .header-controls .btn-primary');
+  if (!oldBtn) return;
+
+  // 2. TRUCO DE LIMPIEZA CRÍTICO: 
+  // Clonamos el botón y reemplazamos el original. 
+  // Esto ELIMINA todos los eventos "fantasmas" o duplicados anteriores.
+  const btn = oldBtn.cloneNode(true);
+  oldBtn.parentNode.replaceChild(btn, oldBtn);
+
+  // 3. Asignamos la lógica única y correcta
+  btn.addEventListener('click', async (e)=>{
+    e.preventDefault(); 
+    
+    const supInput = document.getElementById('briefing-supervisor');
+    
+    // --- PASO 1: VALIDACIÓN ---
+    if (!supInput || !supInput.value.trim()) {
+        alert("⚠️ ATENCIÓN: El campo 'Supervisor' es obligatorio para guardar.");
+        setTimeout(() => supInput?.focus(), 100);
+        return; // Detiene la ejecución aquí. No guarda, no resetea.
+    }
+
     const oldText = btn.textContent;
-    btn.textContent = 'Guardando...';
+    btn.textContent = 'Guardando Excel...';
     btn.disabled = true;
     
     try {
-      const payload = buildPayload();
-      console.log("📤 Enviando:", payload); 
+      // --- PASO 2: RECOPILAR DATOS ---
+      
+      // Datos del equipo
+      const team = window.TEAM_STATE || {};
+      const rosterList = (team.people || []).map(p => {
+          const isPresent = (team.attendance || {})[p.nombre_completo];
+          // Lógica simplificada: si está checked es presente, si no... depende de tu lógica
+          // Aquí asumimos que attendance guarda true/false
+          const status = isPresent === true ? 'Presente' : isPresent === false ? 'Ausente' : '?';
+          return `${p.nombre_completo} (${status})`;
+      }).join(", ");
 
+      // Texto del turno anterior (usando la nueva lógica de filas o fallback a la antigua)
+      let prevShiftText = "Sin novedades";
+      if (window.getPrevShiftText) {
+          prevShiftText = window.getPrevShiftText(); 
+      } else {
+          const oldNote = document.getElementById('prev-shift-note');
+          if (oldNote) prevShiftText = oldNote.innerText;
+      }
+
+      // Payload para el backend
+      const payload = {
+          station: (window.STATION_OVERRIDE || 'MAD'),
+          date: new Date().toLocaleDateString('es-ES'),
+          briefing_time: new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}),
+          shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+          
+          supervisor: supInput.value.trim(),
+          timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+          
+          roster_details: rosterList || "Sin datos de equipo",
+          prev_shift_note: prevShiftText,
+          
+          // Métricas extra si las necesitas
+          kanban_count: document.querySelectorAll('#kanban-widget .card').length || 0
+      };
+
+      console.log("📤 Enviando datos...", payload);
+
+      // --- PASO 3: ENVÍO AL SERVIDOR ---
       const res = await fetch('/api/briefing/summary', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Error servidor');
-      const respData = await res.json();
+      if (!res.ok) {
+          throw new Error(`Error del servidor: ${res.status}`);
+      }
       
-      alert("✅ Resumen guardado con éxito.\nSupervisor: " + payload.supervisor);
+      // --- PASO 4: ÉXITO Y RESETEO ---
+      // Solo llegamos aquí si el servidor respondió OK (200)
       
+      alert("✅ Información guardada correctamente en Excel.");
+
+      // A. Mostrar pantalla info (opcional)
+      if(window.openPostBriefingMode) window.openPostBriefingMode();
+
+      // B. Resetear Supervisor
+      supInput.value = "";
+      
+      // C. Resetear Cronómetro
+      if(window.resetFactoryTimer) window.resetFactoryTimer();
+      
+      // D. Resetear Checklist
+      document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
+          r.checked = false;
+          // Forzar evento change para limpiar localStorage y spotlight
+          r.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+      // Limpieza profunda de localStorage del checklist
+      Object.keys(localStorage).forEach(k => {
+          if(k.includes('brief_check')) localStorage.removeItem(k);
+      });
+      
+      // E. Resetear Turno Anterior (Nueva lista)
+      if(window.resetPrevShift) window.resetPrevShift();
+
+      // F. Salir de modos pantalla completa
+      if(window.exitFlow) window.exitFlow();
+      if(window.exitShiftMode) window.exitShiftMode();
+
     } catch (err) {
       console.error(err);
-      alert('Error al guardar.');
+      alert('❌ Error al guardar: ' + err.message);
+      // NO reseteamos nada si falla, para que puedas reintentar.
     } finally {
       btn.textContent = oldText;
       btn.disabled = false;
     }
   });
 })();
+// =========================================================
+//  LÓGICA FINAL: CAMBIO DE TURNO, NAVEGACIÓN Y VOZ
+// =========================================================
+
+// 1. SISTEMA DE VOZ (MICRÓFONO)
+(function initVoiceSystem() {
+    console.log("🎤 Inicializando sistema de voz...");
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    // Comprobaciones de seguridad
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+    if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
+    
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    let activeBtn = null;
+    let activeTarget = null;
+
+    recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
+    recognition.onend = () => { 
+        if (activeBtn) activeBtn.classList.remove('listening'); 
+        activeBtn = null; 
+        activeTarget = null; 
+    };
+
+    recognition.onresult = (event) => {
+        if (!activeTarget) return;
+        const transcript = event.results[0][0].transcript;
+        const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
+        
+        let currentText = isInput ? activeTarget.value : activeTarget.innerText;
+        currentText = currentText || "";
+        
+        const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
+        const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
+
+        if (isInput) activeTarget.value = currentText + finalText;
+        else activeTarget.innerText = currentText + finalText;
+
+        activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    recognition.onerror = (event) => {
+        if (activeBtn) activeBtn.classList.remove('listening');
+        if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
+    };
+
+    document.body.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-mic');
+        if (!btn) return;
+        e.preventDefault(); e.stopPropagation();
+
+        if (!isSecure) { alert("⚠️ El micrófono requiere HTTPS."); return; }
+        if (btn.classList.contains('listening')) { recognition.stop(); return; }
+
+        const targetId = btn.getAttribute('data-target');
+        const targetEl = document.getElementById(targetId);
+
+        if (targetEl) {
+            activeBtn = btn;
+            activeTarget = targetEl;
+            try { recognition.start(); } catch (err) { recognition.stop(); }
+        } else {
+            alert("Error: No encuentro el campo de texto destino.");
+        }
+    });
+})();
+
+// 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
+// 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
+(function initAutoShiftChange(){
+    let lastShift = null;
+
+    function checkTime() {
+        const h = new Date().getHours();
+        let currentShift = 'Noche';
+        if (h >= 6 && h < 14) currentShift = 'Mañana';
+        if (h >= 14 && h < 22) currentShift = 'Tarde';
+
+        if (lastShift === null) { lastShift = currentShift; return; }
+
+        if (currentShift !== lastShift) {
+            console.log(`🔄 CAMBIO DE TURNO DETECTADO: ${lastShift} -> ${currentShift}`);
+            lastShift = currentShift;
+            triggerShiftMode(currentShift);
+        }
+    }
+
+    window.triggerShiftMode = function(shiftName) {
+        // 1. ACTIVAR MODO TURNO (Clase unificada)
+        document.body.classList.add('shift-mode'); 
+        
+        // 2. Resetear Timer
+        const btnReset = document.getElementById('timer-reset');
+        if(btnReset) btnReset.click();
+        
+        // 3. Resetear Checks visuales
+        document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+        
+        // 4. Enfocar Checklist (Fake Fullscreen)
+        const checklist = document.getElementById('brief-check');
+        if(checklist) {
+            checklist.classList.add('shift-focus');
+            
+            // Cambiar título temporalmente para indicar cambio
+            const title = checklist.querySelector('.widget-title');
+            if(title) {
+                if(!title.dataset.original) title.dataset.original = title.innerHTML;
+                title.innerHTML = `COMIENZO TURNO: <span style="color:#dc2626">${(shiftName || 'NUEVO').toUpperCase()}</span>`;
+            }
+        }
+    };
+
+    // Función manual para salir y limpiar todo
+    window.exitShiftMode = function() {
+        // Quitar clases del body
+        document.body.classList.remove('shift-mode');
+        document.body.classList.remove('shift-active'); // Por si acaso
+        
+        // Quitar fullscreen del checklist
+        const checklist = document.getElementById('brief-check');
+        if(checklist) {
+            checklist.classList.remove('shift-focus');
+            // Restaurar título original
+            const title = checklist.querySelector('.widget-title');
+            if(title && title.dataset.original) {
+                title.innerHTML = title.dataset.original;
+            }
+        }
+    };
+
+    setInterval(checkTime, 1000);
+})();
+
+// 3. NAVEGACIÓN GUIADA (ZOOM + CRONO)
+window.navTo = function(targetId) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+
+    // Limpiar zooms previos
+    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    
+    // Activar modo tarjeta abierta (hace visible el crono encima)
+    document.body.classList.add('card-open');
+
+    // Zoom a la tarjeta
+    el.classList.add('widget--zoomed');
+    el.scrollTop = 0;
+};
+
+window.exitFlow = function() {
+    // Quitar zoom
+    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
+    // Quitar estado tarjeta abierta
+    document.body.classList.remove('card-open');
+
+    // Si estábamos en modo turno, volver al checklist fullscreen
+    if (document.body.classList.contains('shift-mode')) {
+        const checklist = document.getElementById('brief-check');
+        if(checklist) checklist.classList.add('shift-focus');
+    } else {
+        // Limpieza total
+        document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
+    }
+    
+    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+};
+
+window.markOkAndNext = function(checkName, nextId) {
+    // Marcar OK
+    if (checkName) {
+        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
+        if (radio) {
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+    // Navegar
+    if (nextId) {
+        navTo(nextId);
+    } else {
+        exitFlow();
+        alert("🎉 Checklist completado.");
+    }
+};
+
+// 4. GENERAR RESUMEN (TRIGGER)
+(function wireBriefingGenerate(){
+  const btn = document.querySelector('header .header-controls .btn-primary');
+  if (!btn) return;
+
+  btn.addEventListener('click', async ()=>{
+    const supInput = document.getElementById('briefing-supervisor');
+    if (!supInput || !supInput.value.trim()) {
+        alert("⚠️ El campo 'Supervisor' es obligatorio.");
+        supInput?.focus();
+        return;
+    }
+
+    const oldText = btn.textContent;
+    btn.textContent = 'Guardando...';
+    btn.disabled = true;
+    
+    try {
+      // Recoger datos básicos (simulado)
+      const payload = {
+          supervisor: supInput.value.trim(),
+          date: new Date().toISOString()
+      };
+
+      // Simular envío
+      // await fetch(...) 
+      
+      console.log("✅ Resumen generado:", payload);
+      
+      if(window.openPostBriefingMode) window.openPostBriefingMode();
+
+      // RESETEO COMPLETO
+      if(window.resetFactoryTimer) window.resetFactoryTimer();
+      supInput.value = "";
+      document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
+          r.checked = false;
+          r.dispatchEvent(new Event('change'));
+      });
+      // Salir del modo turno si estaba activo
+      window.exitShiftMode();
+
+    } catch (err) {
+      console.error(err);
+      alert('Error: ' + err.message);
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+    }
+  });
+})();
+
+// 5. INYECCIÓN DE NAVEGACIÓN EN TARJETAS
+document.addEventListener('DOMContentLoaded', () => {
+    const WIDGET_MAP = [
+        { id: 'team-widget',        check: 'c1', label: '1. Dotación' },
+        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+        { id: 'prev-shift-widget',  check: 'c3', label: '3. Turno Anterior' },
+        { id: 'seguridad-widget',   check: 'c4', label: '4. Seguridad' },
+        { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
+        { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
+        { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
+    ];
+
+    WIDGET_MAP.forEach((step, index) => {
+        const widget = document.getElementById(step.id);
+        if (!widget || widget.querySelector('.widget-nav-bar')) return;
+
+        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
+        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
+        
+        const navBar = document.createElement('div');
+        navBar.className = 'widget-nav-bar';
+        navBar.innerHTML = `
+            <div class="nav-group">
+                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
+                    ⬅ Anterior
+                </button>
+            </div>
+            <div class="nav-group" style="font-size:0.9rem; color:#64748b;">
+                ${step.label} (${index + 1}/${WIDGET_MAP.length})
+            </div>
+            <div class="nav-group">
+                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
+                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
+                    ✅ OK ➡
+                </button>
+            </div>
+        `;
+        widget.prepend(navBar);
+    });
+});
+
+/* ===== Lógica Turno Anterior (Filas Editables) ===== */
+(function initPrevShiftSystem(){
+    const input = document.getElementById('prev-input');
+    const btn = document.getElementById('prev-add-btn');
+    const list = document.getElementById('prev-list');
+    const KEY = 'prev_shift_items_v2';
+
+    if(!list) return;
+
+    function load() { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+    function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
+
+    function render() {
+        const items = load();
+        list.innerHTML = '';
+        items.forEach((text, idx) => {
+            const row = document.createElement('div');
+            row.className = 'prev-item'; // Estilo definido en tu CSS
+            row.innerHTML = `
+                <div class="prev-text" contenteditable="true" data-idx="${idx}">${text}</div>
+                <div class="prev-actions">
+                    <button class="prev-btn del-btn" data-idx="${idx}">🗑️</button>
+                </div>
+            `;
+            list.appendChild(row);
+        });
+    }
+
+    // Añadir
+    function add() {
+        const val = input.value.trim();
+        if(!val) return;
+        const items = load();
+        items.unshift(val); // Añadir al principio
+        save(items);
+        render();
+        input.value = '';
+    }
+
+    btn?.addEventListener('click', add);
+    input?.addEventListener('keydown', (e) => { if(e.key === 'Enter') add(); });
+
+    // Delegación: Borrar y Editar
+    list.addEventListener('click', (e) => {
+        if(e.target.closest('.del-btn')) {
+            const idx = e.target.closest('.del-btn').dataset.idx;
+            const items = load();
+            items.splice(idx, 1);
+            save(items);
+            render();
+        }
+    });
+
+    list.addEventListener('input', (e) => {
+        if(e.target.classList.contains('prev-text')) {
+            const idx = e.target.dataset.idx;
+            const items = load();
+            items[idx] = e.target.innerText;
+            save(items); // Guardado automático al editar
+        }
+    });
+
+    // Exponer función de reset para el botón Generar
+    window.resetPrevShift = function() {
+        localStorage.removeItem(KEY);
+        render();
+    };
+    
+    // Exponer getter para el resumen
+    window.getPrevShiftText = function() {
+        return load().join(' | ');
+    };
+
+    render();
+})();
+
+/* ===== NUEVO SISTEMA: Incidentes Manuales & Lecciones ===== */
+(function initManualIncidents() {
+    const KEY = 'incidents_manual_entries_v1';
+    const listEl = document.getElementById('incidents-list-container');
+    const form = document.getElementById('manual-inc-form');
+    
+    if (!listEl || !form) return;
+
+    // 1. Cargar datos
+    function load() {
+        try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } 
+        catch { return []; }
+    }
+
+    // 2. Guardar datos
+    function save(data) {
+        try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {}
+    }
+
+    // 3. Renderizar
+    function render() {
+        const items = load();
+        listEl.innerHTML = '';
+
+        if (items.length === 0) {
+            listEl.innerHTML = `
+                <div style="text-align:center; padding:20px; color:#9ca3af; font-style:italic;">
+                    No hay incidentes ni lecciones registradas hoy.
+                </div>`;
+            return;
+        }
+
+        // Ordenar: más recientes primero
+        items.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            // Clase según tipo
+            const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
+            const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
+            
+            card.className = `inc-card ${typeClass}`;
+            card.innerHTML = `
+                <div class="inc-header">
+                    <div>
+                        <span class="inc-badge">${badgeText}</span>
+                        <div class="inc-title" style="margin-top:4px;">${esc(item.title)}</div>
+                    </div>
+                    <button class="inc-del-btn" title="Eliminar" data-id="${item.id}">🗑️</button>
+                </div>
+                <div class="inc-desc">${esc(item.desc)}</div>
+                <div class="inc-meta">
+                    <span>${new Date(item.date).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})} - ${new Date(item.date).toLocaleDateString('es-ES')}</span>
+                </div>
+            `;
+            listEl.appendChild(card);
+        });
+    }
+
+    // 4. Añadir nuevo
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const type = document.getElementById('new-inc-type').value;
+        const title = document.getElementById('new-inc-title').value.trim();
+        const desc = document.getElementById('new-inc-desc').value.trim();
+
+        if (!title) return;
+
+        const newItem = {
+            id: Date.now().toString(),
+            type: type,
+            title: title,
+            desc: desc,
+            date: new Date().toISOString()
+        };
+
+        const items = load();
+        items.push(newItem);
+        save(items);
+        
+        // Limpiar form
+        document.getElementById('new-inc-title').value = '';
+        document.getElementById('new-inc-desc').value = '';
+        
+        render();
+    });
+
+    // 5. Borrar
+    listEl.addEventListener('click', (e) => {
+        if (e.target.classList.contains('inc-del-btn')) {
+            if(!confirm("¿Borrar este registro?")) return;
+            const id = e.target.dataset.id;
+            const items = load().filter(i => i.id !== id);
+            save(items);
+            render();
+        }
+    });
+
+    // Iniciar
+    render();
+})();
 </script>
 </body>
 </html>
+
 
 
 
