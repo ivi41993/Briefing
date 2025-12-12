@@ -3981,8 +3981,8 @@ el.classList.toggle('spotlight-blink', ids.includes(id));
 }
 function updateSpotlightRouting(){
 if (!rosterComplete()) return setSpotlight(['team-widget']);
-if (readC('c1')!=='OK') return setSpotlight(['prev-shift-widget']);
-if (readC('c2')!=='OK') return setSpotlight(['ops-updates-widget']);
+if (readC('c1')!=='OK') return setSpotlight(['ops-updates-widget']);
+if (readC('c2')!=='OK') return setSpotlight(['prev-shift-widget']);
 if (readC('c3')!=='OK') return setSpotlight(['team-widget']);
 if (readC('c4')!=='OK') return setSpotlight(['safety-daily-widget']);
 if (readC('c5')!=='OK') return setSpotlight(['incidentes-widget']);
@@ -4299,8 +4299,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
     const WIDGET_MAP = [
         { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },
-        { id: 'prev-shift-widget',  check: 'c1', label: '2. Turno Anterior' },   // Ahora es el paso 2
-        { id: 'ops-updates-widget', check: 'c2', label: '3. Actualizaciones' },  // Ahora es el paso 3
+        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+        { id: 'prev-shift-widget',  check: 'c1', label: '3. Turno Anterior' },   // Ahora es el paso 2
+        
         
         // El resto se queda igual
         { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
