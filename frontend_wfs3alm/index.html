@@ -3568,61 +3568,7 @@ updateTeamMeta(TEAM_STATE);
 updateTeamMeta(TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
-async function initTeamRoster(){
-    const listEl = document.getElementById('team-list');
-    
-    // 1. Datos de prueba (Hardcoded en el Frontend)
-    const testPeople = [
-        { nombre_completo: "PRUEBA Supervisor", horario: "07:00-15:00", observaciones: "Responsable", funcion_diaria: "Supervisión" },
-        { nombre_completo: "Juan Operario", horario: "07:00-15:00", observaciones: "Muelle 1", funcion_diaria: "Carga" },
-        { nombre_completo: "Maria Administrativa", horario: "08:00-16:00", observaciones: "Oficina", funcion_diaria: "Documentación" },
-        { nombre_completo: "Carlos Carretillero", horario: "07:00-15:00", observaciones: "Playa", funcion_diaria: "Ubicación" },
-        { nombre_completo: "Ana Seguridad", horario: "06:00-14:00", observaciones: "Entrada", funcion_diaria: "Control" },
-        { nombre_completo: "Luis Soporte", horario: "09:00-18:00", observaciones: "IT", funcion_diaria: "Sistemas" }
-    ];
 
-    // 2. Inicializamos el estado global con estos datos
-    window.TEAM_STATE = {
-        shift: "Mañana",        // Simulamos turno
-        sheet_date: new Date().toISOString().split('T')[0],
-        people: testPeople,
-        attendance: {},         // Se llenará al hacer clic
-        zones: {}
-    };
-
-    // 3. Renderizamos la lista visualmente usando tu función existente
-    if(listEl) {
-        // Marcamos algunos como presentes por defecto para que se vea "vivo"
-        window.TEAM_STATE.attendance["PRUEBA Supervisor"] = true;
-        window.TEAM_STATE.attendance["Juan Operario"] = true;
-        
-        renderRoster(listEl, testPeople, window.TEAM_STATE);
-        
-        // Añadimos un aviso visual de que son datos de prueba
-        const meta = document.getElementById('team-meta');
-        if(meta) {
-            meta.innerHTML += ' <span style="color:#f59e0b; font-weight:bold; background:#fffbeb; padding:2px 6px; border-radius:4px;">⚠️ MODO PRUEBA</span>';
-        }
-    }
-
-    // 4. Mantener la lógica del formulario de alta manual (por si quieres añadir más)
-    const form = document.getElementById('team-form');
-    if(form) {
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            const input = document.getElementById('team-name');
-            const name = input.value.trim();
-            if(!name) return;
-            
-            const newPerson = { nombre_completo: name, horario: "Extra", observaciones: "Manual" };
-            window.TEAM_STATE.people.push(newPerson);
-            window.TEAM_STATE.attendance[name] = true; // Presente al crear
-            
-            renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
-            input.value = '';
-        };
-    }
-}
 
 /* === FIX 1: Eliminar el date-picker estático de cabecera === */
 (function removeHeaderStaticDate(){
