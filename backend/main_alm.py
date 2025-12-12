@@ -4199,6 +4199,7 @@ class BriefingSnapshot(BaseModel):
     kpis: Dict[str, Any] = {}
     roster_details: str = ""
     prev_shift_note: str = ""
+    safety_incidents: List[Dict[str, Any]] = [] 
     
     # Campos opcionales para evitar errores
     present_names: List[str] = []
