@@ -3562,44 +3562,34 @@ updateTeamMeta(TEAM_STATE);
 updateTeamMeta(TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
+/* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
 async function initTeamRoster(){
     const listEl = document.getElementById('team-list');
     
-    // 1. Datos de prueba (Hardcoded en el Frontend)
-    const testPeople = [
-        { nombre_completo: "PRUEBA Supervisor", horario: "07:00-15:00", observaciones: "Responsable", funcion_diaria: "Supervisión" },
-        { nombre_completo: "Juan Operario", horario: "07:00-15:00", observaciones: "Muelle 1", funcion_diaria: "Carga" },
-        { nombre_completo: "Maria Administrativa", horario: "08:00-16:00", observaciones: "Oficina", funcion_diaria: "Documentación" },
-        { nombre_completo: "Carlos Carretillero", horario: "07:00-15:00", observaciones: "Playa", funcion_diaria: "Ubicación" },
-        { nombre_completo: "Ana Seguridad", horario: "06:00-14:00", observaciones: "Entrada", funcion_diaria: "Control" },
-        { nombre_completo: "Luis Soporte", horario: "09:00-18:00", observaciones: "IT", funcion_diaria: "Sistemas" }
-    ];
-
-    // 2. Inicializamos el estado global con estos datos
+    // 1. Inicializar estado VACÍO
     window.TEAM_STATE = {
-        shift: "Mañana",        // Simulamos turno
+        shift: "Mañana", 
         sheet_date: new Date().toISOString().split('T')[0],
-        people: testPeople,
-        attendance: {},         // Se llenará al hacer clic
+        people: [],         // Array vacío, sin datos falsos
+        attendance: {},
         zones: {}
     };
 
-    // 3. Renderizamos la lista visualmente usando tu función existente
+    // 2. Renderizar solo la TARJETA DE AVISO
     if(listEl) {
-        // Marcamos algunos como presentes por defecto para que se vea "vivo"
-        window.TEAM_STATE.attendance["PRUEBA Supervisor"] = true;
-        window.TEAM_STATE.attendance["Juan Operario"] = true;
+        listEl.innerHTML = `
+            <div style="padding: 15px; text-align: center; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; color: #856404; margin-bottom: 10px;">
+                <strong>⚠️ Atención</strong><br>
+                Procedimiento manual activo.<br>
+                <span style="font-size:0.85rem">Añada el personal uno a uno usando el botón +.</span>
+            </div>`;
         
-        renderRoster(listEl, testPeople, window.TEAM_STATE);
-        
-        // Añadimos un aviso visual de que son datos de prueba
+        // Actualizar el meta info
         const meta = document.getElementById('team-meta');
-        if(meta) {
-            meta.innerHTML += ' <span style="color:#f59e0b; font-weight:bold; background:#fffbeb; padding:2px 6px; border-radius:4px;">⚠️ MODO PRUEBA</span>';
-        }
+        if(meta) meta.textContent = "Modo Manual";
     }
 
-    // 4. Mantener la lógica del formulario de alta manual (por si quieres añadir más)
+    // 3. Mantener la lógica del formulario de alta manual (funcional)
     const form = document.getElementById('team-form');
     if(form) {
         form.onsubmit = (e) => {
@@ -3608,11 +3598,16 @@ async function initTeamRoster(){
             const name = input.value.trim();
             if(!name) return;
             
+            // Añadir persona real al estado
             const newPerson = { nombre_completo: name, horario: "Extra", observaciones: "Manual" };
             window.TEAM_STATE.people.push(newPerson);
-            window.TEAM_STATE.attendance[name] = true; // Presente al crear
             
+            // Marcar presente por defecto al añadir manualmente
+            window.TEAM_STATE.attendance[name] = true; 
+            
+            // Re-renderizar la lista completa (esto borrará el aviso amarillo y mostrará la lista)
             renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
+            
             input.value = '';
         };
     }
@@ -7444,6 +7439,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
