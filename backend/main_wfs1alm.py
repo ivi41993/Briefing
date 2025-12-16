@@ -494,7 +494,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
     url = os.getenv("EXCEL_WEBHOOK_URL_WFS1ALM") 
     if not url:
         # Fallback si se desea, pero mejor aislar
-        url = os.getenv("EXCEL_WEBHOOK_URL")
+        url = os.getenv("EXCEL_WEBHOOK_URLALM")
     
     if not url: 
         print("⚠️ EXCEL_WEBHOOK_URL_WFS1 no configurada.")
