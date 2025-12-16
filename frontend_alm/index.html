@@ -6644,14 +6644,12 @@ window.closePostBriefingMode = function() {
 /* ===== TRIGGER: Generar Resumen (CORREGIDO) ===== */
 /* ===== TRIGGER: Generar Resumen (CON SEGURIDAD) ===== */
 /* ===== Generar Resumen Completo ===== */
-/* ===== Generar Resumen Completo ===== */
-/* ===== GENERAR RESUMEN (Guardar Excel + Reset) ===== */
-/* ===== GENERAR RESUMEN (REPARADO: Recoge OPS + Guardado Excel) ===== */
+/* ===== GENERAR RESUMEN (CORREGIDO: Recoge OPS + Guardado Excel) ===== */
 (function wireBriefingGenerate(){
   const oldBtn = document.querySelector('header .header-controls .btn-primary');
   if (!oldBtn) return;
 
-  // Clonar para limpiar eventos anteriores
+  // Clonar para limpiar eventos anteriores y evitar duplicados
   const btn = oldBtn.cloneNode(true);
   oldBtn.parentNode.replaceChild(btn, oldBtn);
 
@@ -6676,7 +6674,7 @@ window.closePostBriefingMode = function() {
       const rosterList = (team.people || []).map(p => {
           const isPresent = (team.attendance || {})[p.nombre_completo];
           const status = isPresent === true ? '✅' : '❌';
-          return `${p.nombre_completo} ${status}`;
+          return `${p.nombre_completo} (${status})`;
       }).join(", ");
 
       // 2. Texto del turno anterior
@@ -6689,11 +6687,13 @@ window.closePostBriefingMode = function() {
       }
 
       // 3. RECOPILAR ACTUALIZACIONES OPERATIVAS (Corrección Clave)
+      // Buscamos las tarjetas generadas en el DOM y extraemos sus datos
       let opsData = [];
       const opsNodes = document.querySelectorAll('#ops-list .ops-item');
       opsNodes.forEach(node => {
-          const title = node.querySelector('.ops-title')?.innerText || '';
-          const impact = node.querySelector('.ops-impact')?.innerText || 'Medio';
+          const title = node.querySelector('.ops-title')?.innerText.trim() || '';
+          const impact = node.querySelector('.ops-impact')?.innerText.trim() || 'Medio';
+          // Solo añadimos si tiene título (evita vacíos)
           if(title) {
               opsData.push({ title: title, impact: impact });
           }
@@ -6702,7 +6702,6 @@ window.closePostBriefingMode = function() {
       // 4. Incidentes de Seguridad
       let safetyIncidentsPayload = [];
       try {
-           // Intentar leer del localStorage del nuevo sistema de incidentes manuales
            const rawSafety = localStorage.getItem('incidents_manual_entries_v1') || '[]';
            safetyIncidentsPayload = JSON.parse(rawSafety);
       } catch (e) {}
@@ -6719,7 +6718,7 @@ window.closePostBriefingMode = function() {
           
           roster_details: rosterList || "Sin datos de equipo",
           prev_shift_note: prevShiftText,
-          ops_updates: opsData,  // <--- Ahora sí enviamos los datos recogidos
+          ops_updates: opsData,            // <--- Aquí enviamos los datos leídos del DOM
           safety_incidents: safetyIncidentsPayload,
           
           kanban_count: document.querySelectorAll('#kanban-widget .card').length || 0
@@ -6741,10 +6740,11 @@ window.closePostBriefingMode = function() {
 
       if(window.openPostBriefingMode) window.openPostBriefingMode();
 
-      // Reset UI
+      // Reset UI y contadores
       supInput.value = "";
       if(window.resetFactoryTimer) window.resetFactoryTimer();
       
+      // Limpiar checks
       document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
           r.checked = false;
           r.dispatchEvent(new Event('change', {bubbles:true}));
