@@ -6288,216 +6288,7 @@ document.addEventListener('change', (e) => {
 });
 
 /* ========= OPS ultra-simple: CRUD local + render inmediato ========= */
-(function(){
-  const KEY = 'ops_updates_v1';        // localStorage
-  const listEl   = document.getElementById('ops-list');
-  const btnAdd   = document.getElementById('ops-add');
-  const dlg      = document.getElementById('ops-dialog');
-  const form     = document.getElementById('ops-form');
 
-  const fId      = document.getElementById('ops-id');
-  const fTitle   = document.getElementById('ops-title');
-  const fImpact  = document.getElementById('ops-impact');
-  const fScope   = document.getElementById('ops-scope-field');
-  const fOwner   = document.getElementById('ops-owner');
-  const fFrom    = document.getElementById('ops-from');
-  const fTo      = document.getElementById('ops-to');
-
-  const qInput   = document.getElementById('ops-q');
-  const prioSel  = document.getElementById('ops-prio');
-  const scopeSel = document.getElementById('ops-scope');
-
-  // Estado en memoria
-  let items = load();
-
-  // ---- Persistencia local ----
-  function load(){
-    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
-    catch { return []; }
-  }
-  function save(){
-    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch {}
-  }
-
-  // ---- Utilidades ----
-  function uid(){ return Math.random().toString(36).slice(2,10); }
- 
-  function humanDate(iso){ if(!iso) return '—'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('es-ES'); }
-
-  // ---- CRUD ----
-  function create(data){
-    const it = {
-      id: uid(),
-      title: data.title.trim(),
-      impact: data.impact || 'Medio',
-      scope: data.scope || 'General',
-      owner: data.owner || '',
-      valid_from: data.valid_from || '',
-      valid_to: data.valid_to || '',
-      created_at: new Date().toISOString(),
-      station: (window.STATION_OVERRIDE || window.STATION_CODE || 'MAD')
-    };
-    items.unshift(it);
-    save();
-    render();
-  }
-
-  function update(id, patch){
-    const i = items.findIndex(x => x.id === id);
-    if (i < 0) return;
-    items[i] = { ...items[i], ...patch };
-    save();
-    render();
-  }
-
-  function remove(id){
-    items = items.filter(x => x.id !== id);
-    save();
-    render();
-  }
-
-  // ---- Filtro ----
-  function getFiltered(){
-    const q = (qInput?.value || '').toLowerCase().trim();
-    const pr = prioSel?.value || '';
-    const sc = scopeSel?.value || '';
-    return items.filter(it => {
-      const okQ  = !q || (it.title.toLowerCase().includes(q) || it.owner.toLowerCase().includes(q));
-      const okP  = !pr || it.impact === pr;
-      const okSc = !sc || it.scope === sc;
-      return okQ && okP && okSc;
-    });
-  }
-
-  // ---- Render ----
-  function render(){
-    if (!listEl) return;
-    const data = getFiltered();
-    listEl.innerHTML = '';
-    if (!data.length){
-      listEl.innerHTML = '<div style="color:var(--text-muted)">Sin actualizaciones.</div>';
-      return;
-    }
-
-    data.forEach(it => {
-      const card = document.createElement('div');
-      card.className = 'ops-item';
-      card.dataset.id = it.id;
-
-      // etiqueta de impacto con clases existentes
-      const impactClass = `ops-impact ${it.impact}`;
-      const owner = it.owner ? esc(it.owner) : '—';
-
-      card.innerHTML = `
-        <div class="ops-head">
-          <div class="ops-title" style="cursor:pointer;" data-action="edit-title" title="Editar título">
-            ${esc(it.title)}
-          </div>
-          <div class="ops-flags">
-            <span class="${impactClass}">${esc(it.impact)}</span>
-            <span class="ops-scope">${esc(it.scope)}</span>
-          </div>
-        </div>
-
-        <div class="ops-meta">
-          <span>Responsable: <strong data-action="edit-owner" style="cursor:pointer" title="Editar responsable">${owner}</strong></span>
-          <span>Vigencia: ${humanDate(it.valid_from)} → ${humanDate(it.valid_to)}</span>
-          <span>Alta: ${humanDate(it.created_at)}</span>
-        </div>
-
-        <div class="ops-actions">
-          <button class="ops-btn" data-action="edit">Editar</button>
-          <button class="ops-btn" data-action="dates">Fechas</button>
-          <button class="ops-btn" data-action="delete">Eliminar</button>
-        </div>
-      `;
-
-      listEl.appendChild(card);
-    });
-  }
-
-  // ---- Dialog helpers ----
-  function openDialog(data){
-    fId.value     = data?.id || '';
-    fTitle.value  = data?.title || '';
-    fImpact.value = data?.impact || 'Medio';
-    fScope.value  = data?.scope || 'General';
-    fOwner.value  = data?.owner || '';
-    fFrom.value   = data?.valid_from || '';
-    fTo.value     = data?.valid_to || '';
-    dlg.showModal();
-  }
-
-  // ---- Eventos UI ----
-  btnAdd?.addEventListener('click', () => openDialog(null));
-
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const payload = {
-      title: fTitle.value,
-      impact: fImpact.value,
-      scope: fScope.value,
-      owner: fOwner.value,
-      valid_from: fFrom.value,
-      valid_to: fTo.value
-    };
-    const id = fId.value.trim();
-    if (!payload.title) return;
-
-    if (id) update(id, payload);
-    else    create(payload);
-
-    dlg.close();
-  });
-
-  listEl?.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    const card = e.target.closest('.ops-item');
-    if (!btn || !card) return;
-    const id = card.dataset.id;
-    const action = btn.dataset.action;
-
-    const cur = items.find(x => x.id === id);
-
-    // Acciones rápidas
-    if (action === 'delete'){
-      if (confirm('¿Eliminar esta actualización?')) remove(id);
-      return;
-    }
-    if (action === 'edit'){
-      openDialog(cur);
-      return;
-    }
-    if (action === 'dates'){
-      // Solo abre fechas sin tocar otros campos
-      openDialog({ ...cur, title: cur.title, owner: cur.owner });
-      return;
-    }
-    if (action === 'edit-title'){
-      const next = prompt('Nuevo título', cur.title || '') || '';
-      if (next && next !== cur.title) update(id, { title: next });
-      return;
-    }
-    if (action === 'edit-owner'){
-      const prev = cur.owner || '';
-      const next = prompt('Responsable (@usuario o nombre)', prev) ?? prev;
-      if (next !== prev) update(id, { owner: next });
-      return;
-    }
-  });
-
-  [qInput, prioSel, scopeSel].forEach(el => el?.addEventListener('input', render));
-  [prioSel, scopeSel].forEach(el => el?.addEventListener('change', render));
-
-  // Primer pintado
-  render();
-
-  // Exponer por si lo quieres usar desde fuera (p. ej., checklist)
-  window.OPS = {
-    create, update, remove, list: () => [...items],
-    import: arr => { if (Array.isArray(arr)) { items = arr; save(); render(); } }
-  };
-})();
 
 /* ===================== OPS UPDATES (SOLUCIÓN BORRADO) ===================== */
 (function initOpsUpdates(){
@@ -6856,28 +6647,24 @@ window.closePostBriefingMode = function() {
 /* ===== Generar Resumen Completo ===== */
 /* ===== GENERAR RESUMEN (Guardar Excel + Reset) ===== */
 /* ===== GENERAR RESUMEN (REPARADO: Guardado Excel + Limpieza Eventos) ===== */
+/* ===== GENERAR RESUMEN (REPARADO: Recoge OPS + Guardado Excel) ===== */
 (function wireBriefingGenerate(){
-  // 1. Buscamos el botón original
   const oldBtn = document.querySelector('header .header-controls .btn-primary');
   if (!oldBtn) return;
 
-  // 2. TRUCO DE LIMPIEZA CRÍTICO: 
-  // Clonamos el botón y reemplazamos el original. 
-  // Esto ELIMINA todos los eventos "fantasmas" o duplicados anteriores.
+  // Clonar para limpiar eventos anteriores
   const btn = oldBtn.cloneNode(true);
   oldBtn.parentNode.replaceChild(btn, oldBtn);
 
-  // 3. Asignamos la lógica única y correcta
   btn.addEventListener('click', async (e)=>{
     e.preventDefault(); 
     
     const supInput = document.getElementById('briefing-supervisor');
     
-    // --- PASO 1: VALIDACIÓN ---
     if (!supInput || !supInput.value.trim()) {
         alert("⚠️ ATENCIÓN: El campo 'Supervisor' es obligatorio para guardar.");
         setTimeout(() => supInput?.focus(), 100);
-        return; // Detiene la ejecución aquí. No guarda, no resetea.
+        return; 
     }
 
     const oldText = btn.textContent;
@@ -6885,19 +6672,15 @@ window.closePostBriefingMode = function() {
     btn.disabled = true;
     
     try {
-      // --- PASO 2: RECOPILAR DATOS ---
-      
-      // Datos del equipo
+      // 1. Datos del equipo
       const team = window.TEAM_STATE || {};
       const rosterList = (team.people || []).map(p => {
           const isPresent = (team.attendance || {})[p.nombre_completo];
-          // Lógica simplificada: si está checked es presente, si no... depende de tu lógica
-          // Aquí asumimos que attendance guarda true/false
-          const status = isPresent === true ? 'Presente' : isPresent === false ? 'Ausente' : '?';
-          return `${p.nombre_completo} (${status})`;
+          const status = isPresent === true ? '✅' : '❌';
+          return `${p.nombre_completo} ${status}`;
       }).join(", ");
 
-      // Texto del turno anterior (usando la nueva lógica de filas o fallback a la antigua)
+      // 2. Texto del turno anterior
       let prevShiftText = "Sin novedades";
       if (window.getPrevShiftText) {
           prevShiftText = window.getPrevShiftText(); 
@@ -6906,7 +6689,26 @@ window.closePostBriefingMode = function() {
           if (oldNote) prevShiftText = oldNote.innerText;
       }
 
-      // Payload para el backend
+      // 3. RECOPILAR ACTUALIZACIONES OPERATIVAS (Corrección Clave)
+      let opsData = [];
+      const opsNodes = document.querySelectorAll('#ops-list .ops-item');
+      opsNodes.forEach(node => {
+          const title = node.querySelector('.ops-title')?.innerText || '';
+          const impact = node.querySelector('.ops-impact')?.innerText || 'Medio';
+          if(title) {
+              opsData.push({ title: title, impact: impact });
+          }
+      });
+
+      // 4. Incidentes de Seguridad
+      let safetyIncidentsPayload = [];
+      try {
+           // Intentar leer del localStorage del nuevo sistema de incidentes manuales
+           const rawSafety = localStorage.getItem('incidents_manual_entries_v1') || '[]';
+           safetyIncidentsPayload = JSON.parse(rawSafety);
+      } catch (e) {}
+
+      // 5. Payload para el backend
       const payload = {
           station: (window.STATION_OVERRIDE || 'MAD'),
           date: new Date().toLocaleDateString('es-ES'),
@@ -6918,14 +6720,14 @@ window.closePostBriefingMode = function() {
           
           roster_details: rosterList || "Sin datos de equipo",
           prev_shift_note: prevShiftText,
+          ops_updates: opsData,  // <--- Ahora sí enviamos los datos recogidos
+          safety_incidents: safetyIncidentsPayload,
           
-          // Métricas extra si las necesitas
           kanban_count: document.querySelectorAll('#kanban-widget .card').length || 0
       };
 
       console.log("📤 Enviando datos...", payload);
 
-      // --- PASO 3: ENVÍO AL SERVIDOR ---
       const res = await fetch('/api/briefing/summary', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
@@ -6936,42 +6738,29 @@ window.closePostBriefingMode = function() {
           throw new Error(`Error del servidor: ${res.status}`);
       }
       
-      // --- PASO 4: ÉXITO Y RESETEO ---
-      // Solo llegamos aquí si el servidor respondió OK (200)
-      
       alert("✅ Información guardada correctamente en Excel.");
 
-      // A. Mostrar pantalla info (opcional)
       if(window.openPostBriefingMode) window.openPostBriefingMode();
 
-      // B. Resetear Supervisor
+      // Reset UI
       supInput.value = "";
-      
-      // C. Resetear Cronómetro
       if(window.resetFactoryTimer) window.resetFactoryTimer();
       
-      // D. Resetear Checklist
       document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
           r.checked = false;
-          // Forzar evento change para limpiar localStorage y spotlight
           r.dispatchEvent(new Event('change', {bubbles:true}));
       });
-      // Limpieza profunda de localStorage del checklist
       Object.keys(localStorage).forEach(k => {
           if(k.includes('brief_check')) localStorage.removeItem(k);
       });
       
-      // E. Resetear Turno Anterior (Nueva lista)
       if(window.resetPrevShift) window.resetPrevShift();
-
-      // F. Salir de modos pantalla completa
       if(window.exitFlow) window.exitFlow();
       if(window.exitShiftMode) window.exitShiftMode();
 
     } catch (err) {
       console.error(err);
       alert('❌ Error al guardar: ' + err.message);
-      // NO reseteamos nada si falla, para que puedas reintentar.
     } finally {
       btn.textContent = oldText;
       btn.disabled = false;
