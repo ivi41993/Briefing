@@ -491,7 +491,7 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
 # -----------------------------------
 
 async def send_to_excel_online(data: BriefingSnapshot):
-    url = os.getenv("EXCEL_WEBHOOK_URL_WFS1ALM")
+    url = os.getenv("EXCEL_WEBHOOK_URLALM")
     if not url: return
 
     # 1. Formatear Actualizaciones Operativas
