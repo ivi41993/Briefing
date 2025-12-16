@@ -82,27 +82,27 @@ ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 # Modelos de Datos
 # -----------------------------------
 class BriefingSnapshot(BaseModel):
-    station: Optional[str] = STATION_NAME  # Usa la variable dinámica
+    station: Optional[str] = "MAD"
     date: str
     shift: str
     timer: str
-    supervisor: str = "No especificado"
+    supervisor: str = "No especificado"  # <--- NUEVO CAMPO
+    briefing_time: Optional[str] = None 
     checklist: Dict[str, str] = {}
     kpis: Dict[str, Any] = {}
     roster_details: str = ""
     prev_shift_note: str = ""
+    safety_incidents: List[Dict[str, Any]] = [] 
+    
+    # Campos opcionales para evitar errores
     present_names: List[str] = []
     ops_updates: List[Dict[str, Any]] = []
-    
-    # --- AÑADIR ESTO ---
-    safety_incidents: List[Dict[str, Any]] = [] 
-    # -------------------
-    briefing_time: Optional[str] = None 
     kanban_counts: Dict[str, int] = {}
-    kanban_details: str = ""
+    kanban_details: str = "" 
     roster_stats: str = ""
 
-    class Config: extra = "allow"
+    class Config:
+        extra = "allow"
 
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
