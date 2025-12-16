@@ -1172,6 +1172,25 @@ pointer-events: none;
     .pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
     #post-briefing-screen { overflow-y: auto; }
 }
+
+/* Asa de arrastre MEJORADA PARA TÁCTIL */
+.drag-handle{
+    align-self:stretch;
+    display:flex; align-items:center; justify-content:center;
+    padding: 12px; /* AUMENTADO de 6px a 12px para dedos gordos */
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--bg-card);
+    cursor:grab;
+    opacity:.7;
+    
+    /* ESTA ES LA CLAVE PARA ANDROID/IOS: */
+    touch-action: none; /* Evita que el navegador intente hacer scroll al tocar aquí */
+    -webkit-user-select: none;
+    user-select: none;
+}
+.card:active .drag-handle{ cursor:grabbing; opacity:1; background: #f3f4f6; }
+.drag-handle svg{ width:20px; height:20px; } /* Icono un poco más grande */
 </style>
 </head>
 <body>
