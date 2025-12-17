@@ -4031,16 +4031,20 @@ processTaskUpdate(task);            // pinta ya
 return task;
 }
 
+/* Función para actualizar tareas en el servidor */
 async function updateTaskOnServer(id, data){
-const r = await fetch(`/api/tasks/${id}`,{
-method:'PUT',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify(data)
-});
-if(!r.ok) throw new Error('update failed');
-const task = await r.json();
-processTaskUpdate(task);            // re-render por si cambió categoría/fechas/etc.
-return task;
+  // CAMBIO IMPORTANTE: Usamos PATCH en vez de PUT
+  // PUT solo sirve para mover de columna. PATCH sirve para editar contenido.
+  const r = await fetch(`/api/tasks/${id}`, {
+    method: 'PATCH', 
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  
+  if (!r.ok) throw new Error('update failed');
+  const task = await r.json();
+  processTaskUpdate(task);
+  return task;
 }
 
 async function deleteTaskOnServer(id, taskType){
@@ -4360,12 +4364,20 @@ function renderOpsCard(task){
   dlg.addEventListener('cancel', (e)=>{ e.preventDefault(); dlg.close(); });
 
   // Cerrar clicando fuera del cuadro
-  dlg.addEventListener('click', (e)=>{
+  // Cerrar clicando fuera del cuadro (CORREGIDO)
+  dlg.addEventListener('click', (e) => {
+    // 1. Si el clic viene de dentro del formulario (inputs, selects, labels), IGNORAR.
+    // Esto evita que al pulsar un desplegable se cierre el modal.
+    if (e.target.closest('#ops-form')) return;
+
+    // 2. Solo si se hace clic en el fondo gris (backdrop), verificamos coordenadas
     const box = form.getBoundingClientRect();
     const inside = (
       e.clientX >= box.left && e.clientX <= box.right &&
       e.clientY >= box.top  && e.clientY <= box.bottom
     );
+    
+    // Si realmente fue fuera, cerramos
     if (!inside) dlg.close();
   });
 })();
@@ -6399,7 +6411,8 @@ document.addEventListener('change', (e) => {
 
     try {
         if (id) {
-            const up = await apiAction(`/api/tasks/${id}`, 'PUT', payload);
+            // CORRECCIÓN: Usar PATCH para editar datos
+            const up = await apiAction(`/api/tasks/${id}`, 'PATCH', payload);
             // Actualizar solo esta tarjeta en el DOM
             const old = document.getElementById(`ops-${id}`);
             if(old) old.remove();
