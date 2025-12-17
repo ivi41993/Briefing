@@ -28,6 +28,8 @@ from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconne
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+# --- NUEVO IMPORT PARA SQL ---
+from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
 # ==========================================
 # CONFIGURACIÓN WFS1 (AISLAMIENTO)
@@ -43,12 +45,7 @@ ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "t
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx")
 
 # === RUTAS DE DATOS ESPECÍFICAS WFS1 ===
-TASKS_DB = os.getenv("TASKS_DB_WFS2", "./data/tasks_wfs2.json")
-INCIDENTS_DB = os.getenv("INCIDENTS_DB_WFS2", "./data/incidents_table_wfs2.json")
-ATTENDANCE_DB = os.getenv("ATTENDANCE_DB_WFS2", "./data/attendance_wfs2.json")
-ROSTER_DB = os.getenv("ROSTER_DB_WFS2", "./data/roster_store_wfs2.json")
-BRIEFING_DB = os.getenv("BRIEFING_DB_WFS2", "./data/briefings_wfs2.json")
-SUMMARIES_DB = os.getenv("SUMMARIES_DB_WFS2", "./data/summaries_wfs2.json")
+
 
 # Configuración GitHub / Almacenamiento
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
@@ -275,31 +272,160 @@ def merge_preserve_server(existing: dict | None, incoming: dict | None) -> dict:
     return sanitize_task(base)
 
 # Cargas de disco
+
+# ==========================================
+# 🧱 NUEVA CAPA DE DATOS SQL (COPIAR Y PEGAR)
+# ==========================================
+
+# 1. TAREAS (Tasks)
 def load_tasks_from_disk():
-    global tasks_in_memory_store, sp_last_update_ts
-    arr = store_read_json(TASKS_DB, [])
-    tasks_in_memory_store.clear()
-    for t in arr:
-        t = sanitize_task(t)
-        if t.get("id"): tasks_in_memory_store[t["id"]] = t
-    print(f"🗂️ [WFS2] Cargadas {len(tasks_in_memory_store)} tareas")
+    global tasks_in_memory_store
+    db = SessionLocal()
+    try:
+        tasks_db = db.query(TaskDB).all()
+        tasks_in_memory_store.clear()
+        for t in tasks_db:
+            # Mezclamos datos planos con extra_data para el frontend
+            task_dict = t.extra_data.copy() if t.extra_data else {}
+            task_dict.update({
+                "id": t.id,
+                "title": t.title,
+                "status": t.status,
+                "task_type": t.task_type,
+                "is_completed": t.is_completed,
+                "created_at": t.created_at
+            })
+            tasks_in_memory_store[t.id] = task_dict
+        print(f"🗂️ [SQL] Cargadas {len(tasks_in_memory_store)} tareas.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Tasks Load: {e}")
+    finally:
+        db.close()
 
 def save_tasks_to_disk():
-    store_write_json(TASKS_DB, list(tasks_in_memory_store.values()), "Update tasks WFS2")
+    db = SessionLocal()
+    try:
+        # Estrategia simple: Upsert manual
+        for t_id, t_data in tasks_in_memory_store.items():
+            extra = t_data.copy()
+            # Quitamos las columnas fijas para dejar solo lo 'extra'
+            for k in ["id", "title", "status", "task_type", "is_completed", "created_at"]:
+                extra.pop(k, None)
+            
+            existing = db.query(TaskDB).filter(TaskDB.id == t_id).first()
+            if existing:
+                existing.title = t_data.get("title")
+                existing.status = t_data.get("status")
+                existing.task_type = t_data.get("task_type")
+                existing.is_completed = t_data.get("is_completed", False)
+                existing.extra_data = extra
+            else:
+                new_task = TaskDB(
+                    id=t_id,
+                    title=t_data.get("title"),
+                    status=t_data.get("status"),
+                    task_type=t_data.get("task_type"),
+                    is_completed=t_data.get("is_completed", False),
+                    created_at=t_data.get("created_at"),
+                    extra_data=extra
+                )
+                db.add(new_task)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Tasks Save: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
+# 2. INCIDENTES (Incidents)
 def load_incidents_from_disk():
     global latest_incidents_table
-    latest_incidents_table.update(store_read_json(INCIDENTS_DB, {}) or {})
+    db = SessionLocal()
+    try:
+        last = db.query(IncidentDB).order_by(IncidentDB.id.desc()).first()
+        if last and last.data:
+            latest_incidents_table.update(last.data)
+            if not latest_incidents_table.get("version"):
+                 latest_incidents_table["version"] = last.version
+            print(f"🗂️ [SQL] Incidentes cargados (v{last.version}).")
+    except Exception as e:
+        print(f"⚠️ Error SQL Incidents Load: {e}")
+    finally:
+        db.close()
 
 def save_incidents_to_disk():
-    store_write_json(INCIDENTS_DB, latest_incidents_table, "Update incidents WFS2")
+    db = SessionLocal()
+    try:
+        new_entry = IncidentDB(
+            data=latest_incidents_table,
+            version=int(latest_incidents_table.get("version", 1))
+        )
+        db.add(new_entry)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Incidents Save: {e}")
+    finally:
+        db.close()
 
+# 3. ASISTENCIA (Attendance)
 def load_attendance_from_disk():
     global attendance_store
-    attendance_store.update(store_read_json(ATTENDANCE_DB, {}) or {})
+    db = SessionLocal()
+    try:
+        records = db.query(AttendanceDB).all()
+        attendance_store.clear()
+        for r in records:
+            attendance_store[r.shift_key] = r.data
+        print(f"🗂️ [SQL] Asistencia cargada: {len(attendance_store)} registros.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Attendance Load: {e}")
+    finally:
+        db.close()
 
 def save_attendance_to_disk():
-    store_write_json(ATTENDANCE_DB, attendance_store, "Update attendance WFS2")
+    db = SessionLocal()
+    try:
+        for key, data in attendance_store.items():
+            existing = db.query(AttendanceDB).filter(AttendanceDB.shift_key == key).first()
+            if existing:
+                existing.data = data
+            else:
+                db.add(AttendanceDB(shift_key=key, data=data))
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Attendance Save: {e}")
+    finally:
+        db.close()
+
+# 4. BRIEFING (Briefings)
+def _append_briefing(data: dict):
+    db = SessionLocal()
+    try:
+        new_br = BriefingDB(
+            id=data.get("id", str(uuid.uuid4())),
+            date=str(data.get("date_iso", "")),
+            shift=data.get("shift", ""),
+            full_snapshot=data
+        )
+        db.add(new_br)
+        db.commit()
+        print(f"✅ [SQL] Briefing guardado.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Briefing Save: {e}")
+    finally:
+        db.close()
+
+def _load_last_briefing() -> dict:
+    db = SessionLocal()
+    try:
+        last = db.query(BriefingDB).order_by(BriefingDB.created_at.desc()).first()
+        if last and last.full_snapshot:
+            return last.full_snapshot
+    except Exception:
+        pass
+    finally:
+        db.close()
+    return _last_briefing_cache or {}
 
 def load_roster_from_disk():
     global roster_store
@@ -308,8 +434,7 @@ def load_roster_from_disk():
 def save_roster_to_disk():
     store_write_json(ROSTER_DB, roster_store, "Update roster WFS2")
 
-def _append_briefing(data: dict):
-    store_append_json(BRIEFING_DB, data, "Append briefing WFS2")
+
 
 def _append_summary(data: dict):
     store_append_json(SUMMARIES_DB, data, "Append summary WFS2")
@@ -555,7 +680,8 @@ def _compute_briefing_metrics(sections, duration):
 # -----------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Iniciando WFS2 Dashboard...")
+    print("🚀 Iniciando WFS2B Dashboard...")
+    init_db()
     load_tasks_from_disk()
     load_incidents_from_disk()
     load_attendance_from_disk()
