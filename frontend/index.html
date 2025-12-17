@@ -4031,23 +4031,20 @@ processTaskUpdate(task);            // pinta ya
 return task;
 }
 
+/* Función para actualizar tareas en el servidor */
 async function updateTaskOnServer(id, data){
-const r = await fetch(`/api/tasks/${id}`,{
-method:'PUT',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify(data)
-});
-if(!r.ok) throw new Error('update failed');
-const task = await r.json();
-processTaskUpdate(task);            // re-render por si cambió categoría/fechas/etc.
-return task;
-}
-
-async function deleteTaskOnServer(id, taskType){
-const r = await fetch(`/api/tasks/${id}`,{ method:'DELETE' });
-if(!r.ok) throw new Error('delete failed');
-// elimina local sin esperar WS
-processTaskUpdate({ id, action:'delete', task_type: taskType || 'kanban_rapida' });
+  // CAMBIO IMPORTANTE: Usamos PATCH en vez de PUT
+  // PUT solo sirve para mover de columna. PATCH sirve para editar contenido.
+  const r = await fetch(`/api/tasks/${id}`, {
+    method: 'PATCH', 
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  
+  if (!r.ok) throw new Error('update failed');
+  const task = await r.json();
+  processTaskUpdate(task);
+  return task;
 }
 
 
@@ -7232,6 +7229,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
