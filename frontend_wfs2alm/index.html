@@ -2310,6 +2310,20 @@ body.card-open #timer-reset {
     background: none; border: none; cursor: pointer; opacity: 0.6; font-size: 1rem; 
 }
 .inc-del-btn:hover { opacity: 1; transform: scale(1.1); }
+/* Botones pequeños para editar/borrar personas */
+.btn-tiny {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-left: 4px;
+    line-height: 1;
+    transition: background 0.2s;
+}
+.btn-tiny:hover { background: #f3f4f6; }
+.btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
 </style>
 </head>
 <body>
@@ -3460,109 +3474,98 @@ console.error('PUT /api/roster/zone falló', e);
 }
 
 function renderRoster(listEl, people, state){
-if(!listEl) return;
-TEAM_STATE = state || TEAM_STATE || {};
-TEAM_STATE.people     = people || [];
-TEAM_STATE.attendance = (state && state.attendance) ? state.attendance : (TEAM_STATE.attendance || {});
-TEAM_STATE.zones      = (state && state.zones) ? state.zones : (TEAM_STATE.zones || {});  // ← zonas
+    if (!listEl) return;
+    TEAM_STATE = state || TEAM_STATE || {};
+    TEAM_STATE.people = people || [];
+    TEAM_STATE.attendance = state?.attendance || TEAM_STATE.attendance || {};
+    TEAM_STATE.zones = state?.zones || TEAM_STATE.zones || {};
 
-listEl.innerHTML = '';
+    listEl.innerHTML = '';
 
-if(!TEAM_STATE.people.length){
-listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del informe actual.</div>';
-updateTeamMeta(TEAM_STATE);
-return;
-}
+    if (!TEAM_STATE.people.length){
+        listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster actual.</div>';
+        updateTeamMeta(TEAM_STATE);
+        return;
+    }
 
-const ZONES = ['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'];
+    const ZONES = ['Isla','Dorada','Muelle Imp','Muelle Exp','Import','Export'];
 
-TEAM_STATE.people.forEach((p, idx)=>{
-const full   = p.nombre_completo || '—';
-const horario= p.horario || '';
-const obs    = p.observaciones || '';
-const presentVal = (TEAM_STATE.attendance||{})[full];
-const yesChecked = presentVal === true  ? 'checked' : '';
-const noChecked  = presentVal === false ? 'checked' : '';
-const zone   = (TEAM_STATE.zones||{})[full] || '';
+    TEAM_STATE.people.forEach((p, idx)=>{
+        const full = p.nombre_completo || '—';
+        const horario = p.horario || '';
+        const obs = p.observaciones || '';
+        const presentVal = (TEAM_STATE.attendance||{})[full];
+        const yesChecked = presentVal === true  ? 'checked' : '';
+        const noChecked  = presentVal === false ? 'checked' : '';
+        const zone = (TEAM_STATE.zones||{})[full] || '';
 
-const row = document.createElement('div');
-row.className = 'team-row';
-row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px;gap:10px;';
+        const row = document.createElement('div');
+        row.className='team-row';
+        row.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px;gap:10px;';
 
-const left = document.createElement('div');
-left.className = 'team-left';
-left.innerHTML =
-`<span class="team-name" style="font-weight:600">${esc(full)}</span>` +
-(horario? ` <small class="meta">• ${esc(horario)}</small>`:'') +
-(obs?     ` <small class="meta">• ${esc(obs)}</small>`:'') +
-(zone?    ` <span class="chip-zone" data-zone-chip="${esc(full)}">${esc(zone)}</span>` : '');
+        const left = document.createElement('div');
+        left.className='team-left';
+        left.innerHTML =
+        `<div style="display:flex; align-items:center; gap:4px;">
+            <span class="team-name" style="font-weight:600">${esc(full)}</span>
+            <!-- BOTONES DE ACCIÓN -->
+            <button class="btn-tiny action-edit" data-idx="${idx}" title="Editar nombre">✏️</button>
+            <button class="btn-tiny action-del" data-idx="${idx}" title="Eliminar persona">🗑️</button>
+         </div>` +
+        (horario?` <small class="meta">• ${esc(horario)}</small>`:'')+
+        (obs?    ` <small class="meta">• ${esc(obs)}</small>`:'')+
+        (zone?   ` <span class="chip-zone" data-zone-chip="${esc(full)}">${esc(zone)}</span>`:'');
 
-const right = document.createElement('div');
-right.className = 'team-right';
-right.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
-right.innerHTML = `
-  <div class="presence-toggle" role="group" aria-label="Presencia">
-    <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
-    <label for="att-${idx}-y" class="yes">✓ Presente</label>
+        const right = document.createElement('div');
+        right.className='team-right';
+        right.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+        right.innerHTML = `
+           <div class="presence-toggle" role="group" aria-label="Presencia">
+             <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+             <label for="att-${idx}-y" class="yes">✓</label>
+             <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+             <label for="att-${idx}-n" class="no">✕</label>
+           </div>
+           <select class="zone-select" data-person="${esc(full)}" title="Zona">
+             <option value="" ${zone?'':'selected'} disabled>Zona</option>
+             ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
+           </select>
+         `;
 
-    <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
-    <label for="att-${idx}-n" class="no">✕ Ausente</label>
-  </div>
+        row.appendChild(left);
+        row.appendChild(right);
+        listEl.appendChild(row);
+    });
 
-  <select class="zone-select" data-person="${esc(full)}" title="Zona">
-    <option value="" ${zone? '' : 'selected'} disabled>Zona…</option>
-    ${['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'].map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
-  </select>
-`;
+    // Listeners de Presencia y Zona se mantienen igual (delegación implícita o re-attach)
+    listEl.querySelectorAll('.att-radio').forEach(inp=>{
+        inp.addEventListener('change', e=>{
+            const person=e.target.dataset.person;
+            const present=e.target.value==='yes';
+            TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+            TEAM_STATE.attendance[person]=present;
+            updateTeamMeta(TEAM_STATE);
+            updatePresenceOnServer(person, present);
+            updateSpotlightRouting?.();
+        });
+    });
 
-row.appendChild(left);
-row.appendChild(right);
-listEl.appendChild(row);
-});
+    listEl.querySelectorAll('.zone-select').forEach(sel=>{
+        sel.addEventListener('change', e=>{
+            const person=e.target.dataset.person;
+            const zone=e.target.value || '';
+            TEAM_STATE.zones = TEAM_STATE.zones || {};
+            TEAM_STATE.zones[person]=zone;
+            updateZoneOnServer(person, zone);
+            updateTeamMeta(TEAM_STATE);
+        });
+    });
 
-
-// Eventos de presencia
-// Eventos de presencia (✓ / ✕)
-listEl.querySelectorAll('.att-radio').forEach(inp=>{
-inp.addEventListener('change', (e)=>{
-const person  = e.target.dataset.person;
-const present = e.target.value === 'yes';
-TEAM_STATE.attendance = TEAM_STATE.attendance || {};
-TEAM_STATE.attendance[person] = present;
-updateTeamMeta(TEAM_STATE);
-updatePresenceOnServer(person, present);
-updateSpotlightRouting?.();  // refresca el flujo de parpadeo
-});
-});
-
-
-// Eventos de zona
-listEl.querySelectorAll('.zone-select').forEach(sel=>{
-sel.addEventListener('change', (e)=>{
-const person = e.target.dataset.person;
-const zone   = e.target.value || '';
-TEAM_STATE.zones = TEAM_STATE.zones || {};
-TEAM_STATE.zones[person] = zone;
-
-// Actualiza la chip de zona en la parte izquierda
-const chip = listEl.querySelector(`.chip-zone[data-zone-chip="${CSS.escape(person)}"]`);
-if (chip){
-chip.textContent = zone;
-}else if (zone){
-// si no existía, añádela
-const host = e.target.closest('.team-row')?.querySelector('.team-left');
-if (host) host.insertAdjacentHTML('beforeend', ` <span class="chip-zone" data-zone-chip="${esc(person)}">${esc(zone)}</span>`);
-}
-
-updateZoneOnServer(person, zone);
-updateTeamMeta(TEAM_STATE);
-});
-});
-
-updateTeamMeta(TEAM_STATE);
+    updateTeamMeta(TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
+/* ===== Equipo: Inicialización MODO MANUAL (Con Editar/Eliminar) ===== */
 async function initTeamRoster(){
     const listEl = document.getElementById('team-list');
     
@@ -3570,12 +3573,12 @@ async function initTeamRoster(){
     window.TEAM_STATE = {
         shift: "Mañana", 
         sheet_date: new Date().toISOString().split('T')[0],
-        people: [],         // Array vacío, sin datos falsos
+        people: [],         
         attendance: {},
         zones: {}
     };
 
-    // 2. Renderizar solo la TARJETA DE AVISO
+    // 2. Renderizar TARJETA DE AVISO inicial
     if(listEl) {
         listEl.innerHTML = `
             <div style="padding: 15px; text-align: center; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; color: #856404; margin-bottom: 10px;">
@@ -3583,13 +3586,11 @@ async function initTeamRoster(){
                 Procedimiento manual activo.<br>
                 <span style="font-size:0.85rem">Añada el personal uno a uno usando el botón +.</span>
             </div>`;
-        
-        // Actualizar el meta info
         const meta = document.getElementById('team-meta');
         if(meta) meta.textContent = "Modo Manual";
     }
 
-    // 3. Mantener la lógica del formulario de alta manual (funcional)
+    // 3. Alta Manual
     const form = document.getElementById('team-form');
     if(form) {
         form.onsubmit = (e) => {
@@ -3598,18 +3599,70 @@ async function initTeamRoster(){
             const name = input.value.trim();
             if(!name) return;
             
-            // Añadir persona real al estado
+            // Evitar duplicados
+            if (window.TEAM_STATE.people.some(p => p.nombre_completo === name)) {
+                alert("Esta persona ya está en la lista.");
+                return;
+            }
+
             const newPerson = { nombre_completo: name, horario: "Extra", observaciones: "Manual" };
             window.TEAM_STATE.people.push(newPerson);
-            
-            // Marcar presente por defecto al añadir manualmente
             window.TEAM_STATE.attendance[name] = true; 
             
-            // Re-renderizar la lista completa (esto borrará el aviso amarillo y mostrará la lista)
             renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
-            
             input.value = '';
         };
+    }
+
+    // 4. Lógica de EDITAR y ELIMINAR (Delegación de eventos)
+    if(listEl) {
+        listEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+
+            const idx = parseInt(btn.dataset.idx);
+            if (isNaN(idx)) return;
+
+            // --- ELIMINAR ---
+            if (btn.classList.contains('action-del')) {
+                if(confirm("¿Eliminar a esta persona del turno?")) {
+                    const personName = window.TEAM_STATE.people[idx].nombre_completo;
+                    
+                    // Borrar del array
+                    window.TEAM_STATE.people.splice(idx, 1);
+                    // Limpiar referencias en asistencia y zonas
+                    delete window.TEAM_STATE.attendance[personName];
+                    delete window.TEAM_STATE.zones[personName];
+
+                    renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
+                }
+            }
+
+            // --- EDITAR ---
+            if (btn.classList.contains('action-edit')) {
+                const person = window.TEAM_STATE.people[idx];
+                const oldName = person.nombre_completo;
+                
+                const newName = prompt("Editar nombre:", oldName);
+                
+                if (newName && newName.trim() !== "" && newName !== oldName) {
+                    // Actualizar nombre
+                    person.nombre_completo = newName.trim();
+
+                    // Migrar datos de asistencia y zona al nuevo nombre
+                    if (window.TEAM_STATE.attendance[oldName] !== undefined) {
+                        window.TEAM_STATE.attendance[newName] = window.TEAM_STATE.attendance[oldName];
+                        delete window.TEAM_STATE.attendance[oldName];
+                    }
+                    if (window.TEAM_STATE.zones[oldName] !== undefined) {
+                        window.TEAM_STATE.zones[newName] = window.TEAM_STATE.zones[oldName];
+                        delete window.TEAM_STATE.zones[oldName];
+                    }
+
+                    renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
+                }
+            }
+        });
     }
 }
 
