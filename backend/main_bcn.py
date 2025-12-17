@@ -18,7 +18,162 @@ import pandas as pd
 import re
 import shlex
 from dataclasses import dataclass, field
+# --- NUEVO IMPORT PARA SQL ---
+from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
+# ==========================================
+# 🧱 NUEVA CAPA DE DATOS SQL (COPIAR Y PEGAR)
+# ==========================================
+
+# 1. TAREAS (Tasks)
+def load_tasks_from_disk():
+    global tasks_in_memory_store
+    db = SessionLocal()
+    try:
+        tasks_db = db.query(TaskDB).all()
+        tasks_in_memory_store.clear()
+        for t in tasks_db:
+            # Mezclamos datos planos con extra_data para el frontend
+            task_dict = t.extra_data.copy() if t.extra_data else {}
+            task_dict.update({
+                "id": t.id,
+                "title": t.title,
+                "status": t.status,
+                "task_type": t.task_type,
+                "is_completed": t.is_completed,
+                "created_at": t.created_at
+            })
+            tasks_in_memory_store[t.id] = task_dict
+        print(f"🗂️ [SQL] Cargadas {len(tasks_in_memory_store)} tareas.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Tasks Load: {e}")
+    finally:
+        db.close()
+
+def save_tasks_to_disk():
+    db = SessionLocal()
+    try:
+        # Estrategia simple: Upsert manual
+        for t_id, t_data in tasks_in_memory_store.items():
+            extra = t_data.copy()
+            # Quitamos las columnas fijas para dejar solo lo 'extra'
+            for k in ["id", "title", "status", "task_type", "is_completed", "created_at"]:
+                extra.pop(k, None)
+            
+            existing = db.query(TaskDB).filter(TaskDB.id == t_id).first()
+            if existing:
+                existing.title = t_data.get("title")
+                existing.status = t_data.get("status")
+                existing.task_type = t_data.get("task_type")
+                existing.is_completed = t_data.get("is_completed", False)
+                existing.extra_data = extra
+            else:
+                new_task = TaskDB(
+                    id=t_id,
+                    title=t_data.get("title"),
+                    status=t_data.get("status"),
+                    task_type=t_data.get("task_type"),
+                    is_completed=t_data.get("is_completed", False),
+                    created_at=t_data.get("created_at"),
+                    extra_data=extra
+                )
+                db.add(new_task)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Tasks Save: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# 2. INCIDENTES (Incidents)
+def load_incidents_from_disk():
+    global latest_incidents_table
+    db = SessionLocal()
+    try:
+        last = db.query(IncidentDB).order_by(IncidentDB.id.desc()).first()
+        if last and last.data:
+            latest_incidents_table.update(last.data)
+            if not latest_incidents_table.get("version"):
+                 latest_incidents_table["version"] = last.version
+            print(f"🗂️ [SQL] Incidentes cargados (v{last.version}).")
+    except Exception as e:
+        print(f"⚠️ Error SQL Incidents Load: {e}")
+    finally:
+        db.close()
+
+def save_incidents_to_disk():
+    db = SessionLocal()
+    try:
+        new_entry = IncidentDB(
+            data=latest_incidents_table,
+            version=int(latest_incidents_table.get("version", 1))
+        )
+        db.add(new_entry)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Incidents Save: {e}")
+    finally:
+        db.close()
+
+# 3. ASISTENCIA (Attendance)
+def load_attendance_from_disk():
+    global attendance_store
+    db = SessionLocal()
+    try:
+        records = db.query(AttendanceDB).all()
+        attendance_store.clear()
+        for r in records:
+            attendance_store[r.shift_key] = r.data
+        print(f"🗂️ [SQL] Asistencia cargada: {len(attendance_store)} registros.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Attendance Load: {e}")
+    finally:
+        db.close()
+
+def save_attendance_to_disk():
+    db = SessionLocal()
+    try:
+        for key, data in attendance_store.items():
+            existing = db.query(AttendanceDB).filter(AttendanceDB.shift_key == key).first()
+            if existing:
+                existing.data = data
+            else:
+                db.add(AttendanceDB(shift_key=key, data=data))
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Attendance Save: {e}")
+    finally:
+        db.close()
+
+# 4. BRIEFING (Briefings)
+def _append_briefing(data: dict):
+    db = SessionLocal()
+    try:
+        new_br = BriefingDB(
+            id=data.get("id", str(uuid.uuid4())),
+            date=str(data.get("date_iso", "")),
+            shift=data.get("shift", ""),
+            full_snapshot=data
+        )
+        db.add(new_br)
+        db.commit()
+        print(f"✅ [SQL] Briefing guardado.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Briefing Save: {e}")
+    finally:
+        db.close()
+
+def _load_last_briefing() -> dict:
+    db = SessionLocal()
+    try:
+        last = db.query(BriefingDB).order_by(BriefingDB.created_at.desc()).first()
+        if last and last.full_snapshot:
+            return last.full_snapshot
+    except Exception:
+        pass
+    finally:
+        db.close()
+    return _last_briefing_cache or {}
 
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
@@ -259,7 +414,7 @@ from pydantic import BaseModel, Field
 import tempfile
 from pathlib import Path
 
-TASKS_DB = os.getenv("TASKS_DB", "./data/tasks_bcn.json")
+
 
 def _atomic_write_json(path: str, data: list[dict]):
     p = Path(path)
@@ -276,29 +431,9 @@ def _atomic_write_json(path: str, data: list[dict]):
         except Exception:
             pass
 
-def save_tasks_to_disk():
-    try:
-        payload = [sanitize_task(t) for t in tasks_in_memory_store.values()]
-        _atomic_write_json(TASKS_DB, payload)
-        # print(f"💾 Guardadas {len(payload)} tareas en {TASKS_DB}")
-    except Exception as e:
-        print("⚠️ Error guardando tareas:", repr(e))
 
-def load_tasks_from_disk():
-    try:
-        p = Path(TASKS_DB)
-        if not p.exists():
-            return
-        with p.open("r", encoding="utf-8") as fh:
-            arr = json.load(fh)
-        tasks_in_memory_store.clear()
-        for t in arr or []:
-            t = sanitize_task(t)
-            if t.get("id") and t.get("task_type"):
-                tasks_in_memory_store[t["id"]] = t
-        print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas desde {TASKS_DB}")
-    except Exception as e:
-        print("⚠️ Error leyendo tareas:", repr(e))
+
+
 
 # -----------------------------------
 # Utilidades
@@ -1688,6 +1823,7 @@ def api_external_status():
 
 @app.on_event("startup")
 async def _startup_ext():
+    init_db()
     load_tasks_from_disk()
     load_persons_from_disk()
     app.state._roster = asyncio.create_task(_roster_watcher())
@@ -1984,6 +2120,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
