@@ -6404,7 +6404,8 @@ document.addEventListener('change', (e) => {
 
     try {
         if (id) {
-            const up = await apiAction(`/api/tasks/${id}`, 'PUT', payload);
+            // CORRECCIÓN: Usar PATCH para editar datos
+            const up = await apiAction(`/api/tasks/${id}`, 'PATCH', payload);
             // Actualizar solo esta tarjeta en el DOM
             const old = document.getElementById(`ops-${id}`);
             if(old) old.remove();
@@ -7229,6 +7230,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
