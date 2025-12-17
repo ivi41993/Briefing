@@ -1,28 +1,315 @@
-version: "3.9"
+version: "3.8"
+
 services:
-  wfs-dashboard:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: registry.empresa.local/wfs/wfs-dashboard:1.0.0
-    container_name: wfs-dashboard
-    restart: unless-stopped
-    env_file:
-      - ./backend/.env
-    environment:
-      # Fuerza TZ dentro del contenedor (además de .env)
-      - TZ=Europe/Madrid
+  # ==========================================
+  # 🚦 TRAEFIK (El guardia de tráfico)
+  # ==========================================
+  traefik:
+    image: traefik:v2.10
+    restart: always
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
     ports:
-      - "8000:8000"   # o solo interno si usas proxy inverso
+      - "80:80"     # Acceso Web Público
+      - "8080:8080" # Panel de Control (http://localhost:8080)
     volumes:
-      # Persistencia de datos
-      - wfs_data:/data
-      # Certificados corporativos si usas CAFILE
-      - ./certs:/certs:ro
-      # MUY IMPORTANTE: montar el build estático en /app/frontend
-      - ./frontend:/app/frontend:ro
-      # Montar el Excel de roster si lo gestionáis fuera
-      - ./roster/roster.xlsx:/data/roster.xlsx:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - internal_net
+
+  # ==========================================
+  # 🗄️ BASE DE DATOS (MariaDB)
+  # ==========================================
+  db:
+    image: mariadb:10.6
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d # Crea las 10 bases de datos al inicio
+    networks:
+      - internal_net
+
+  # ==========================================
+  # 🐍 SERVICIOS PYTHON (Backends)
+  # ==========================================
+
+  # 1. MAIN (Madrid)
+  api-main:
+    build: ./backend
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_main
+      # Mapeo: main.py espera 'EXCEL_WEBHOOK_URL'
+      - EXCEL_WEBHOOK_URL=${MAIN_WEBHOOK}
+      - API_KEY=${MAIN_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.main.rule=PathPrefix(`/api/main`)"
+      - "traefik.http.middlewares.strip-main.stripprefix.prefixes=/api/main"
+      - "traefik.http.routers.main.middlewares=strip-main"
+      - "traefik.http.services.main.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 2. ALM
+  api-alm:
+    build: ./backend
+    restart: always
+    command: uvicorn main_alm:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_alm
+      # Mapeo: main_alm.py espera 'EXCEL_WEBHOOK_URLALM'
+      - EXCEL_WEBHOOK_URLALM=${ALM_WEBHOOK}
+      - API_KEY=${ALM_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alm.rule=PathPrefix(`/api/alm`)"
+      - "traefik.http.middlewares.strip-alm.stripprefix.prefixes=/api/alm"
+      - "traefik.http.routers.alm.middlewares=strip-alm"
+      - "traefik.http.services.alm.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 3. BCN
+  api-bcn:
+    build: ./backend
+    restart: always
+    command: uvicorn main_bcn:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_bcn
+      # Mapeo: main_bcn.py espera 'EXCEL_WEBHOOK_URL_BCN'
+      - EXCEL_WEBHOOK_URL_BCN=${BCN_WEBHOOK}
+      - API_KEY=${BCN_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bcn.rule=PathPrefix(`/api/bcn`)"
+      - "traefik.http.middlewares.strip-bcn.stripprefix.prefixes=/api/bcn"
+      - "traefik.http.routers.bcn.middlewares=strip-bcn"
+      - "traefik.http.services.bcn.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 4. BCN ALM
+  api-bcnalm:
+    build: ./backend
+    restart: always
+    command: uvicorn main_bcnalm:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_bcnalm
+      # Mapeo: main_bcnalm.py espera 'EXCEL_WEBHOOK_URL_BCNALM'
+      - EXCEL_WEBHOOK_URL_BCNALM=${BCNALM_WEBHOOK}
+      - API_KEY=${BCNALM_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bcnalm.rule=PathPrefix(`/api/bcnalm`)"
+      - "traefik.http.middlewares.strip-bcnalm.stripprefix.prefixes=/api/bcnalm"
+      - "traefik.http.routers.bcnalm.middlewares=strip-bcnalm"
+      - "traefik.http.services.bcnalm.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 5. VLC
+  api-vlc:
+    build: ./backend
+    restart: always
+    command: uvicorn main_vlc:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_vlc
+      # Asumimos patrón estándar: _VLC
+      - EXCEL_WEBHOOK_URL_VLC=${VLC_WEBHOOK}
+      - API_KEY=${VLC_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vlc.rule=PathPrefix(`/api/vlc`)"
+      - "traefik.http.middlewares.strip-vlc.stripprefix.prefixes=/api/vlc"
+      - "traefik.http.routers.vlc.middlewares=strip-vlc"
+      - "traefik.http.services.vlc.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 6. WFS1
+  api-wfs1:
+    build: ./backend
+    restart: always
+    command: uvicorn main_wfs1:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_wfs1
+      # Mapeo: main_wfs1.py espera 'EXCEL_WEBHOOK_URL_WFS1'
+      - EXCEL_WEBHOOK_URL_WFS1=${WFS1_WEBHOOK}
+      - API_KEY=${WFS1_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wfs1.rule=PathPrefix(`/api/wfs1`)"
+      - "traefik.http.middlewares.strip-wfs1.stripprefix.prefixes=/api/wfs1"
+      - "traefik.http.routers.wfs1.middlewares=strip-wfs1"
+      - "traefik.http.services.wfs1.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 7. WFS1 ALM
+  api-wfs1alm:
+    build: ./backend
+    restart: always
+    command: uvicorn main_wfs1alm:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_wfs1alm
+      # Asumimos patrón estándar: _WFS1ALM
+      - EXCEL_WEBHOOK_URL_WFS1ALM=${WFS1ALM_WEBHOOK}
+      - API_KEY=${WFS1ALM_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wfs1alm.rule=PathPrefix(`/api/wfs1alm`)"
+      - "traefik.http.middlewares.strip-wfs1alm.stripprefix.prefixes=/api/wfs1alm"
+      - "traefik.http.routers.wfs1alm.middlewares=strip-wfs1alm"
+      - "traefik.http.services.wfs1alm.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 8. WFS2
+  api-wfs2:
+    build: ./backend
+    restart: always
+    command: uvicorn main_wfs2:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_wfs2
+      # Asumimos patrón estándar: _WFS2
+      - EXCEL_WEBHOOK_URL_WFS2=${WFS2_WEBHOOK}
+      - API_KEY=${WFS2_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wfs2.rule=PathPrefix(`/api/wfs2`)"
+      - "traefik.http.middlewares.strip-wfs2.stripprefix.prefixes=/api/wfs2"
+      - "traefik.http.routers.wfs2.middlewares=strip-wfs2"
+      - "traefik.http.services.wfs2.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 9. WFS2 ALM
+  api-wfs2alm:
+    build: ./backend
+    restart: always
+    command: uvicorn main_wfs2alm:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_wfs2alm
+      # Asumimos patrón estándar: _WFS2ALM
+      - EXCEL_WEBHOOK_URL_WFS2ALM=${WFS2ALM_WEBHOOK}
+      - API_KEY=${WFS2ALM_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wfs2alm.rule=PathPrefix(`/api/wfs2alm`)"
+      - "traefik.http.middlewares.strip-wfs2alm.stripprefix.prefixes=/api/wfs2alm"
+      - "traefik.http.routers.wfs2alm.middlewares=strip-wfs2alm"
+      - "traefik.http.services.wfs2alm.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 10. WFS3
+  api-wfs3:
+    build: ./backend
+    restart: always
+    command: uvicorn main_wfs3:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_wfs3
+      # Asumimos patrón estándar: _WFS3
+      - EXCEL_WEBHOOK_URL_WFS3=${WFS3_WEBHOOK}
+      - API_KEY=${WFS3_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wfs3.rule=PathPrefix(`/api/wfs3`)"
+      - "traefik.http.middlewares.strip-wfs3.stripprefix.prefixes=/api/wfs3"
+      - "traefik.http.routers.wfs3.middlewares=strip-wfs3"
+      - "traefik.http.services.wfs3.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # 11. WFS3 ALM
+  api-wfs3alm:
+    build: ./backend
+    restart: always
+    command: uvicorn main_wfs3alm:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=db_wfs3alm
+      # Asumimos patrón estándar: _WFS3ALM
+      - EXCEL_WEBHOOK_URL_WFS3ALM=${WFS3ALM_WEBHOOK}
+      - API_KEY=${WFS3ALM_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wfs3alm.rule=PathPrefix(`/api/wfs3alm`)"
+      - "traefik.http.middlewares.strip-wfs3alm.stripprefix.prefixes=/api/wfs3alm"
+      - "traefik.http.routers.wfs3alm.middlewares=strip-wfs3alm"
+      - "traefik.http.services.wfs3alm.loadbalancer.server.port=8000"
+    networks:
+      - internal_net
+
+  # ==========================================
+  # 🖼️ FRONTEND UNIFICADO (Nginx)
+  # ==========================================
+  frontend:
+    image: nginx:alpine
+    restart: always
+    volumes:
+      - ./nginx_multisite.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mapeos de carpetas locales a Nginx
+      - ./frontend:/usr/share/nginx/html/main:ro
+      - ./frontend_alm:/usr/share/nginx/html/alm:ro
+      - ./frontend_bcn:/usr/share/nginx/html/bcn:ro
+      - ./frontend_bcnalm:/usr/share/nginx/html/bcnalm:ro
+      - ./frontend_vlc:/usr/share/nginx/html/vlc:ro
+      - ./frontend_wfs1:/usr/share/nginx/html/wfs1:ro
+      - ./frontend_wfs1alm:/usr/share/nginx/html/wfs1alm:ro
+      - ./frontend_wfs2:/usr/share/nginx/html/wfs2:ro
+      - ./frontend_wfs2alm:/usr/share/nginx/html/wfs2alm:ro
+      - ./frontend_wfs3:/usr/share/nginx/html/wfs3:ro
+      - ./frontend_wfs3alm:/usr/share/nginx/html/wfs3alm:ro
+    labels:
+      - "traefik.enable=true"
+      # Atrapa todo lo que no son APIs (rutas web)
+      - "traefik.http.routers.front.rule=PathPrefix(`/`)"
+      - "traefik.http.services.front.loadbalancer.server.port=80"
+    networks:
+      - internal_net
 
 volumes:
-  wfs_data:
+  db_data:
+
+networks:
+  internal_net:
