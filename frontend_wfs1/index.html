@@ -4231,60 +4231,7 @@ default: console.warn('task_type desconocido:', data.task_type);
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
-/* ===== OPS: renderer + wiring diálogo ===== */
-function renderOpsCard(task){
-  const list = document.getElementById('ops-list');
-  if (!list) return;
 
-  const idStr = getTaskId(task);
-  // Asegura que el objeto queda con su ID normalizado para siguientes acciones
-  task.id = idStr;
-
-  let el = document.getElementById(`ops-${idStr}`);
-  if (!el){
-    el = document.createElement('div');
-    el.id = `ops-${idStr}`;
-    el.className = 'ops-item';
-    el.dataset.id = idStr;
-    el.dataset.taskType = 'ops_update';
-    list.prepend(el);
-  }else{
-    el.dataset.id = idStr;
-    el.dataset.taskType = 'ops_update';
-  }
-
-  const title   = task.title || '';
-  const impact  = task.impact || task.priority || 'Medio';
-  const scope   = task.scope  || task.area || 'General';
-  const owner   = task.owner  || task.assigned_to || '';
-  const fromISO = task.from   || task.valid_from  || task.start_date || '';
-  const toISO   = task.to     || task.valid_to    || task.end_date   || '';
-  const meta    = [
-    fromISO ? `Desde: ${new Date(fromISO).toLocaleDateString('es-ES')}` : null,
-    toISO   ? `Hasta: ${new Date(toISO).toLocaleDateString('es-ES')}`   : null,
-    task.station ? `Estación: ${task.station}` : null,
-  ].filter(Boolean).join(' • ');
-
-  el.innerHTML = `
-    <div class="ops-head">
-      <div class="ops-title">${esc(title)}</div>
-      <div class="ops-flags">
-        <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
-        <span class="ops-scope">${esc(scope)}</span>
-      </div>
-    </div>
-    <div class="ops-meta">${meta || '—'}</div>
-    <div class="ops-actions">
-      <button class="ops-btn ops-edit-btn" data-id="${idStr}" data-task-type="ops_update">Editar</button>
-      <button class="ops-btn ops-pin ${task.pinned ? 'on':''}" data-id="${idStr}" data-task-type="ops_update">Pin</button>
-      <button class="ops-btn ops-delete-btn" title="Eliminar" data-id="${idStr}" data-task-type="ops_update">Eliminar</button>
-    </div>
-    <div class="ops-ack">
-      <div class="ops-ack-bar"><span style="width:${Math.max(0, Math.min(100, Number(task.ack_pct||0)))}%"></span></div>
-      <small>Ack: ${Number(task.ack_pct||0)}%</small>
-    </div>
-  `;
-}
 
 (function wireOpsDialog(){
   const btnAdd = document.getElementById('ops-add');
@@ -6298,9 +6245,7 @@ document.addEventListener('change', (e) => {
   }
 });
 
-/* ========= OPS ultra-simple: CRUD local + render inmediato ========= */
-
-/* ===================== OPS UPDATES (SOLUCIÓN BORRADO) ===================== */
+/* ===================== OPS UPDATES (SOLUCIÓN UNIFICADA Y CORREGIDA) ===================== */
 (function initOpsUpdates(){
   const LIST   = document.getElementById('ops-list');
   const DIALOG = document.getElementById('ops-dialog');
@@ -6323,49 +6268,31 @@ document.addEventListener('change', (e) => {
         opts.body = JSON.stringify(data);
     }
     const r = await fetch(url, opts);
-    if(method === 'DELETE' && r.status === 404) return true; // Ya borrado
+    if(method === 'DELETE' && r.status === 404) return true; 
     if(!r.ok) throw new Error(`Error ${method}`);
     return method === 'DELETE' ? true : await r.json();
   }
 
-  // --- 2. RENDER (Solo carga inicial y filtros) ---
-  async function render(){
-    try {
-        const items = await (await fetch('/api/tasks?task_type=ops_update', {cache:'no-store'})).json();
-        const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
-        
-        // Filtros
-        const q = (Q?.value || '').toLowerCase();
-        const p = (FILT_PRIO?.value || '');
-        const s = (FILT_SCOPE?.value || '');
+  // --- 2. RENDERIZADOR GLOBAL (Sustituye al antiguo) ---
+  // Hacemos esta función global para que processTaskUpdate la use
+  window.renderOpsCard = function(it) {
+    if(!LIST) return;
 
-        const filtered = items.filter(it => {
-            // Estación
-            if (it.station && it.station.toUpperCase() !== station) return false;
-            // Texto/Impacto/Scope
-            const txt = (it.title + ' ' + (it.scope||'')).toLowerCase();
-            return (!q || txt.includes(q)) && (!p || it.impact === p) && (!s || it.scope === s);
-        });
+    // 1. Evitar duplicados: Si ya existe, la borramos para repintar
+    const existing = document.getElementById(`ops-${it.id}`);
+    if (existing) existing.remove();
 
-        LIST.innerHTML = '';
-        if (filtered.length === 0) {
-            LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones.</div>';
-            return;
-        }
-        filtered.forEach(createCardDOM);
-    } catch(e) { console.warn('Error render ops', e); }
-  }
-
-  function createCardDOM(it) {
+    // 2. Crear tarjeta moderna (Estilo Vivid)
     const el = document.createElement('div');
     el.className = 'ops-item';
-    el.id = `ops-${it.id}`; // ID único para el DOM
+    el.id = `ops-${it.id}`; // ID único en el DOM
     el.dataset.id = it.id;
     
     const impact = it.impact || 'Medio';
     const scope = it.scope || 'General';
     const owner = it.owner || '—';
     const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString() : '';
+    const ackPct = Number(it.ack_pct || 0);
 
     el.innerHTML = `
       <div class="ops-head">
@@ -6379,17 +6306,56 @@ document.addEventListener('change', (e) => {
         <span>Resp: ${esc(owner)}</span>
         <span style="margin-left:auto;font-size:0.75rem;color:#999;">${dateStr}</span>
       </div>
-      <div class="ops-actions">
+      
+      <!-- Barra de Acuse (Visual) -->
+      <div class="ops-ack" style="margin-top:5px; padding:5px; background:#f9fafb; border-radius:6px;">
+        <div class="ops-ack-bar" style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden; width:100%;">
+            <span style="display:block; height:100%; width:${ackPct}%; background:${ackPct===100?'#10b981':'#3b82f6'};"></span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#6b7280; margin-top:2px;">
+           <span>Progreso</span>
+           <span>Ack: ${ackPct}%</span>
+        </div>
+      </div>
+
+      <div class="ops-actions" style="margin-top:8px;">
         <button class="ops-btn" data-action="edit">Editar</button>
         <button class="ops-btn" data-action="delete" style="color:#b91c1c;">Eliminar</button>
       </div>
     `;
-    LIST.appendChild(el);
+    
+    // Insertar al principio
+    LIST.prepend(el);
+  };
+
+  // --- 3. CARGA INICIAL ---
+  async function loadInitial(){
+    try {
+        const items = await (await fetch('/api/tasks?task_type=ops_update', {cache:'no-store'})).json();
+        const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
+        
+        LIST.innerHTML = ''; // Limpiar lista inicial
+        
+        const filtered = items.filter(it => {
+            if (it.station && it.station.toUpperCase() !== station) return false;
+            return true;
+        });
+
+        if (filtered.length === 0) {
+            LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones.</div>';
+            return;
+        }
+        
+        // Renderizar usando la función global
+        // Invertimos para que al hacer prepend queden en orden correcto (más nuevo arriba)
+        filtered.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(window.renderOpsCard);
+        
+    } catch(e) { console.warn('Error render ops', e); }
   }
 
-  // --- 3. EVENTOS CRUD ---
+  // --- 4. EVENTOS CRUD ---
   
-  // GUARDAR
+  // GUARDAR (NUEVO O EDICIÓN)
   BTN_SAVE?.addEventListener('click', async (e) => {
     e.preventDefault();
     const id = document.getElementById('ops-id').value;
@@ -6408,25 +6374,26 @@ document.addEventListener('change', (e) => {
     BTN_SAVE.textContent = '...'; BTN_SAVE.disabled = true;
 
     try {
+        let resultTask;
         if (id) {
-            // CORRECCIÓN: Usar PATCH para editar datos
-            const up = await apiAction(`/api/tasks/${id}`, 'PATCH', payload);
-            // Actualizar solo esta tarjeta en el DOM
-            const old = document.getElementById(`ops-${id}`);
-            if(old) old.remove();
-            createCardDOM(up);
+            // Edición: PATCH
+            resultTask = await apiAction(`/api/tasks/${id}`, 'PATCH', payload);
         } else {
-            const neo = await apiAction('/api/tasks', 'POST', payload);
-            // Quitar mensaje vacío si existe
-            if(LIST.innerText.includes('No hay')) LIST.innerHTML = '';
-            createCardDOM(neo);
+            // Creación: POST
+            resultTask = await apiAction('/api/tasks', 'POST', payload);
+            // Quitar mensaje de vacío si existe
+            if(LIST.innerHTML.includes('No hay')) LIST.innerHTML = '';
         }
+        
+        // Renderizar inmediatamente la respuesta del servidor
+        window.renderOpsCard(resultTask);
         closeDialog();
+        
     } catch(err) { alert(err.message); }
     finally { BTN_SAVE.textContent = 'Guardar'; BTN_SAVE.disabled = false; }
   });
 
-  // BORRAR / EDITAR
+  // DELEGACIÓN DE EVENTOS (EDITAR / BORRAR)
   LIST.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
@@ -6434,35 +6401,42 @@ document.addEventListener('change', (e) => {
     const id = card.dataset.id;
 
     if (btn.dataset.action === 'delete') {
-        if(confirm('¿Borrar?')){
-            card.style.opacity = '0.3'; // Feedback visual inmediato
+        if(confirm('¿Borrar actualización?')){
+            card.style.opacity = '0.3';
             try {
                 await apiAction(`/api/tasks/${id}`, 'DELETE');
-                card.remove(); // <--- SOLO BORRA ESTA LÍNEA DEL DOM
-                if(!LIST.children.length) render();
+                card.remove(); 
+                if(!LIST.children.length) LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones.</div>';
             } catch(err) {
                 card.style.opacity = '1';
                 alert('Error al borrar');
             }
         }
     } else if (btn.dataset.action === 'edit') {
-        const title = card.querySelector('.ops-title').textContent;
-        const impact = card.querySelector('.ops-impact').textContent;
-        const scope = card.querySelector('.ops-scope').textContent;
-        const owner = card.querySelector('.ops-meta span').textContent.replace('Resp: ','');
-        openDialog({id, title, impact, scope, owner});
+        // Cargar datos para editar
+        try {
+             // Pequeño fetch para asegurar datos frescos o leer del DOM
+             const title = card.querySelector('.ops-title').textContent;
+             const impact = card.querySelector('.ops-impact').textContent;
+             const scope = card.querySelector('.ops-scope').textContent;
+             const owner = card.querySelector('.ops-meta span').textContent.replace('Resp: ','');
+             
+             openDialog({id, title, impact, scope, owner});
+        } catch(e) {
+             console.error(e);
+        }
     }
   });
 
-  // --- DIALOGOS Y FILTROS ---
+  // --- DIALOGOS ---
   function openDialog(d){
     FORM.reset();
     document.getElementById('ops-id').value = d?.id || '';
     if(d){
-        document.getElementById('ops-title').value = d.title;
-        document.getElementById('ops-impact').value = d.impact;
-        document.getElementById('ops-scope-field').value = d.scope;
-        document.getElementById('ops-owner').value = d.owner;
+        document.getElementById('ops-title').value = d.title || '';
+        document.getElementById('ops-impact').value = d.impact || 'Medio';
+        document.getElementById('ops-scope-field').value = d.scope || 'General';
+        document.getElementById('ops-owner').value = d.owner || '';
     }
     try{ DIALOG.showModal(); }catch{ DIALOG.setAttribute('open',true); }
   }
@@ -6470,9 +6444,26 @@ document.addEventListener('change', (e) => {
 
   BTN_ADD?.addEventListener('click', ()=>openDialog());
   FORM.querySelector('[value="cancel"]')?.addEventListener('click', (e)=>{ e.preventDefault(); closeDialog(); });
-  [Q, FILT_PRIO, FILT_SCOPE].forEach(el=>el?.addEventListener('input', render));
 
-  render();
+  // FILTROS (Visuales)
+  function applyFilters(){
+     const q = (Q?.value || '').toLowerCase();
+     const p = (FILT_PRIO?.value || '');
+     const s = (FILT_SCOPE?.value || '');
+
+     LIST.querySelectorAll('.ops-item').forEach(card => {
+         const txt = card.innerText.toLowerCase();
+         const impact = card.querySelector('.ops-impact').textContent;
+         const scope = card.querySelector('.ops-scope').textContent;
+
+         const matches = txt.includes(q) && (!p || impact === p) && (!s || scope === s);
+         card.style.display = matches ? '' : 'none';
+     });
+  }
+  [Q, FILT_PRIO, FILT_SCOPE].forEach(el=>el?.addEventListener('input', applyFilters));
+
+  // Iniciar carga
+  loadInitial();
 })();
 
 // ... (El código anterior de initOpsUpdates y demás se mantiene igual) ...
