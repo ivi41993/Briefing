@@ -29,6 +29,14 @@ from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconne
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+# ... tus imports actuales ...
+from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+
+# Inicializar DB al arrancar
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+    # ... resto de tu startup (connectors, etc) ...
 
 async def send_to_excel_online(data: BriefingSnapshot):
     url = os.getenv("EXCEL_WEBHOOK_URL")
@@ -346,11 +354,6 @@ import tempfile
 from pathlib import Path
 
 # Donde defines rutas
-TASKS_DB = os.getenv("GH_FILE_TASKS") or os.getenv("TASKS_DB", "./data/tasks.json")
-INCIDENTS_DB = os.getenv("INCIDENTS_DB", "./data/incidents_table.json")
-ATTENDANCE_DB = os.getenv("ATTENDANCE_DB", "./data/attendance.json")
-ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster_store.json")
-BRIEFING_DB = os.getenv("BRIEFING_DB", "./data/briefings.json")
 SUMMARIES_DIR   = os.getenv("SUMMARIES_DIR", "./data/summaries")
 SUMMARIES_INDEX = os.getenv("SUMMARIES_INDEX", "./data/summaries_index.json")
 # === Resúmenes operativos ===
@@ -371,23 +374,36 @@ def _get_summary(summary_id: str) -> dict | None:
     return None
 
 def save_tasks_to_disk():
+    # Guardamos TODO el diccionario de memoria en SQL
+    db = SessionLocal()
     try:
-        payload = [sanitize_task(t) for t in tasks_in_memory_store.values()]
-        store_write_json(TASKS_DB, payload, message="Update tasks.json")
-    except Exception as e:
-        print("⚠️ Error guardando tareas:", repr(e))
+        # Opción bruta pero segura: borrar y reinsertar (o usar merge/upsert)
+        # Para simplificar ahora, haremos un upsert básico en bucle
+        for t_id, t_data in tasks_in_memory_store.items():
+            # Separamos los campos principales de los extra
+            extra = t_data.copy()
+            for k in ["id", "title", "status", "task_type", "is_completed", "created_at"]:
+                extra.pop(k, None)
 
-def save_incidents_to_disk():
-    try:
-        store_write_json(INCIDENTS_DB, latest_incidents_table, message="Update incidents_table.json")
-    except Exception as e:
-        print("⚠️ Error guardando incidents_table:", repr(e))
+            new_task = TaskDB(
+                id=t_id,
+                title=t_data.get("title"),
+                status=t_data.get("status"),
+                task_type=t_data.get("task_type"),
+                is_completed=t_data.get("is_completed", False),
+                created_at=t_data.get("created_at"),
+                extra_data=extra # Aquí va todo lo demás (notas, etc)
+            )
+            db.merge(new_task) # Merge actualiza si existe, crea si no
 
-def save_attendance_to_disk():
-    try:
-        store_write_json(ATTENDANCE_DB, attendance_store, message="Update attendance.json")
+        db.commit()
     except Exception as e:
-        print("⚠️ Error guardando asistencia:", repr(e))
+        print(f"⚠️ Error guardando tareas en SQL: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 
 def save_roster_to_disk():
     try:
@@ -396,8 +412,41 @@ def save_roster_to_disk():
         print("⚠️ Error guardando roster_store:", repr(e))
 
 # En el POST /api/briefing usa append unificado:
+# Reemplaza a _append_briefing
 def _append_briefing(data: dict):
-    store_append_json(BRIEFING_DB, data, message="Append briefings.json")
+    db = SessionLocal()
+    try:
+        # data es un dict (pydantic .dict()), lo guardamos en la columna JSON
+        new_br = BriefingDB(
+            id=data.get("id", str(uuid.uuid4())),
+            date=str(data.get("date_iso", "")), # Guardamos fecha aparte para búsquedas rápidas
+            shift=data.get("shift", ""),
+            full_snapshot=data
+        )
+        db.add(new_br)
+        db.commit()
+        print(f"✅ Briefing guardado en SQL: {new_br.id}")
+    except Exception as e:
+        print(f"⚠️ Error guardando Briefing SQL: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# Reemplaza a _load_last_briefing
+def _load_last_briefing() -> dict:
+    # Intenta cargar de SQL, si falla o está vacío, devuelve caché o dict vacío
+    db = SessionLocal()
+    try:
+        # Ordenamos por fecha de creación descendente
+        last = db.query(BriefingDB).order_by(BriefingDB.created_at.desc()).first()
+        if last and last.full_snapshot:
+            return last.full_snapshot
+    except Exception:
+        pass
+    finally:
+        db.close()
+    
+    return _last_briefing_cache or {}
 
 
 def _atomic_write_json(path: str, data: list[dict]):
@@ -707,19 +756,7 @@ def store_append_json(path: str, item: dict, message: str | None = None):
     store_write_json(path, arr, message=message or f"Append {Path(path).name}")
 
 
-def _load_last_briefing() -> dict:
-    """
-    Devuelve el último briefing persistido (si existe) o el cache en memoria.
-    """
-    p = Path(BRIEFING_DB)
-    if p.exists():
-        try:
-            arr = json.load(p.open("r", encoding="utf-8")) or []
-            if isinstance(arr, list) and arr:
-                return arr[-1]
-        except Exception:
-            pass
-    return _last_briefing_cache or {}
+
 
 from datetime import date  # si no lo tienes ya
 
@@ -2311,33 +2348,100 @@ def _read_json_any(path: str, default: Any):
     # (opcional) puedes eliminar esta función y usar store_read_json directamente
     return store_read_json(path, default)
 
+# ANTES: leía JSON
+# AHORA: lee SQL
 def load_tasks_from_disk():
-    global tasks_in_memory_store, sp_last_update_ts
-    arr = store_read_json(TASKS_DB, [])
-    tasks_in_memory_store.clear()
-    for t in arr or []:
-        t = sanitize_task(t)
-        if t.get("id") and t.get("task_type"):
-            tasks_in_memory_store[t["id"]] = t
-    print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas (backend={STORAGE_BACKEND}).")
-    if tasks_in_memory_store and not sp_last_update_ts:
-        sp_last_update_ts = time.time()
+    global tasks_in_memory_store
+    db = SessionLocal()
+    try:
+        tasks_db = db.query(TaskDB).all()
+        tasks_in_memory_store.clear()
+        for t in tasks_db:
+            # Reconstruimos el diccionario plano para que tu frontend no note cambios
+            task_dict = t.extra_data.copy() if t.extra_data else {}
+            task_dict.update({
+                "id": t.id,
+                "title": t.title,
+                "status": t.status,
+                "task_type": t.task_type,
+                "is_completed": t.is_completed,
+                "created_at": t.created_at
+            })
+            tasks_in_memory_store[t.id] = task_dict
+        print(f"🗂️ Cargadas {len(tasks_in_memory_store)} tareas desde SQL.")
+    except Exception as e:
+        print(f"⚠️ Error cargando SQL: {e}")
+    finally:
+        db.close()
 
 def load_incidents_from_disk():
     global latest_incidents_table
-    obj = store_read_json(INCIDENTS_DB, {}) or {}
-    if isinstance(obj, dict) and "columns" in obj and "rows" in obj:
-        latest_incidents_table.update(obj)
-        if not latest_incidents_table.get("version"):
-            latest_incidents_table["version"] = 1
-        print(f"🗂️ Incidentes: {len(latest_incidents_table.get('rows', []))} filas (backend={STORAGE_BACKEND}).")
+    db = SessionLocal()
+    try:
+        # Obtenemos el registro más reciente por ID descendente
+        last_record = db.query(IncidentDB).order_by(IncidentDB.id.desc()).first()
+        if last_record and last_record.data:
+            latest_incidents_table.update(last_record.data)
+            # Aseguramos que la versión en memoria coincida o sea coherente
+            if not latest_incidents_table.get("version"):
+                 latest_incidents_table["version"] = last_record.version
+            print(f"🗂️ Incidentes cargados desde SQL (ID: {last_record.id}).")
+        else:
+            print("🗂️ No hay incidentes en SQL todavía. Iniciando vacío.")
+    except Exception as e:
+        print(f"⚠️ Error cargando Incidentes SQL: {e}")
+    finally:
+        db.close()
+
+def save_incidents_to_disk():
+    # Guardamos una instantánea nueva
+    db = SessionLocal()
+    try:
+        new_entry = IncidentDB(
+            data=latest_incidents_table,
+            version=int(latest_incidents_table.get("version", 1))
+        )
+        db.add(new_entry)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error guardando Incidentes SQL: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 def load_attendance_from_disk():
     global attendance_store
-    attendance_store = store_read_json(ATTENDANCE_DB, {}) or {}
-    if not isinstance(attendance_store, dict):
-        attendance_store = {}
-    print(f"🗂️ Asistencia cargada ({len(attendance_store)} claves) (backend={STORAGE_BACKEND}).")
+    db = SessionLocal()
+    try:
+        records = db.query(AttendanceDB).all()
+        attendance_store.clear()
+        for r in records:
+            # Reconstruimos el diccionario en memoria
+            attendance_store[r.shift_key] = r.data
+        print(f"🗂️ Asistencia cargada: {len(attendance_store)} turnos registrados.")
+    except Exception as e:
+        print(f"⚠️ Error cargando Asistencia SQL: {e}")
+    finally:
+        db.close()
+
+def save_attendance_to_disk():
+    # Guardamos cada turno modificado
+    db = SessionLocal()
+    try:
+        for key, persons_dict in attendance_store.items():
+            # Buscamos si ya existe ese turno en DB
+            existing = db.query(AttendanceDB).filter(AttendanceDB.shift_key == key).first()
+            if existing:
+                existing.data = persons_dict # Actualizamos JSON
+            else:
+                new_att = AttendanceDB(shift_key=key, data=persons_dict)
+                db.add(new_att)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error guardando Asistencia SQL: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 def load_roster_from_disk():
     global roster_store
@@ -4594,6 +4698,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
