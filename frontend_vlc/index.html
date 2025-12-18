@@ -3,18 +3,52 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8" />
-<title>Factory Floor Dashboard - VLC WH</title>
+<title>Factory Floor Dashboard - VLC</title>
 
-<!-- Fuentes -->
+<script>
+    (function() {
+        // 1. Detectar dónde estamos (Ej: /bcn/)
+        let path = window.location.pathname;
+        if (!path.endsWith('/')) path += '/';
+        const BASE_PATH = path; 
+
+        // 2. Arreglar automáticamente las llamadas al servidor (/api -> /bcn/api)
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options) {
+            if (typeof url === 'string') {
+                // Si el código intenta ir a la raíz (/api), lo redirigimos a la carpeta (/bcn/api)
+                if (url.startsWith('/api/')) {
+                    url = BASE_PATH + url.substring(1); // quita la primera barra
+                } else if (url.startsWith('api/')) {
+                    url = BASE_PATH + url;
+                }
+            }
+            return originalFetch(url, options);
+        };
+
+        // 3. Arreglar el WebSocket automáticamente
+        window.ORIGINAL_WS_URL = null;
+        const OriginalWebSocket = window.WebSocket;
+        window.WebSocket = function(url) {
+            // Si intenta conectar a la raíz, lo forzamos a la carpeta
+            if (url.includes('/ws') && !url.includes(BASE_PATH)) {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                url = `${protocol}//${window.location.host}${BASE_PATH}ws`;
+            }
+            return new OriginalWebSocket(url);
+        };
+    })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
-:root{ --ui-scale: 1; }                  /* 1 = 100% */
+/* TUS ESTILOS ORIGINALES INTACTOS */
+:root{ --ui-scale: 1; }              /* 1 = 100% */
 html{ font-size: calc(16px * var(--ui-scale)); }
 @media (min-width: 1600px){
-:root{ --ui-scale: 1.15; }             /* TVs grandes: sube ligeramente por defecto */
+:root{ --ui-scale: 1.15; }           /* TVs grandes: sube ligeramente por defecto */
 }
 
 :root{
@@ -267,18 +301,18 @@ vertical-align:middle; background:rgba(255,255,255,.7);
 }
 
 /* KANBAN: fondo por categoría */
-#kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
-#kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
+#kanban-widget .card.cat-seguridad       { background: var(--cat-seg); }
+#kanban-widget .card.cat-incidencias     { background: var(--cat-inc); }
 #kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
-#kanban-widget .card.cat-calidad       { background: var(--cat-cal); }
-#kanban-widget .card.cat-servicio      { background: var(--cat-ser); }
+#kanban-widget .card.cat-calidad         { background: var(--cat-cal); }
+#kanban-widget .card.cat-servicio        { background: var(--cat-ser); }
 
 #kanban-widget .cat-chip{ font-weight:800; }
-#kanban-widget .cat-chip.is-seguridad   { background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
+#kanban-widget .cat-chip.is-seguridad    { background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }
 #kanban-widget .cat-chip.is-incidencias { background:#fff1e6; color:#7a3800; border-color:#ffd7b5; }
 #kanban-widget .cat-chip.is-mantenimiento{background:#eaf8f0; color:#065f46; border-color:#b7f0d3; }
-#kanban-widget .cat-chip.is-calidad     { background:#fce7ff; color:#6b21a8; border-color:#f0abfc; }
-#kanban-widget .cat-chip.is-servicio    { background:#fef9c3; color:#854d0e; border-color:#fde68a; }
+#kanban-widget .cat-chip.is-calidad      { background:#fce7ff; color:#6b21a8; border-color:#f0abfc; }
+#kanban-widget .cat-chip.is-servicio     { background:#fef9c3; color:#854d0e; border-color:#fde68a; }
 
 /* 5S & GW */
 .checkbox-item{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.9rem; }
@@ -922,9 +956,9 @@ border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px
 }
 
 /* Colores por prioridad */
-.ops-item[data-priority="Alta"]   { border-left-color:#ef4444; }
-.ops-item[data-priority="Media"]  { border-left-color:#f59e0b; }
-.ops-item[data-priority="Baja"]   { border-left-color:#10b981; }
+.ops-item[data-priority="Alta"]    { border-left-color:#ef4444; }
+.ops-item[data-priority="Media"]   { border-left-color:#f59e0b; }
+.ops-item[data-priority="Baja"]    { border-left-color:#10b981; }
 
 /* Animación al crear */
 @keyframes ops-pop {
@@ -970,9 +1004,9 @@ border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px
 cursor:pointer; font-weight:700; font-size:.85rem;
 }
 
-.ops-line-card[data-priority="Alta"]  { border-left-color:#ef4444; }
+.ops-line-card[data-priority="Alta"]   { border-left-color:#ef4444; }
 .ops-line-card[data-priority="Media"] { border-left-color:#f59e0b; }
-.ops-line-card[data-priority="Baja"]  { border-left-color:#10b981; }
+.ops-line-card[data-priority="Baja"]   { border-left-color:#10b981; }
 
 .ops-line-card.is-archived{
 opacity:.65; background:#fafafa; border-style:dashed;
@@ -1051,11 +1085,11 @@ font-weight:700; font-size:.82rem; cursor:pointer;
 .card{ scroll-snap-align:start; }
 
 /* Kanban: refuerzo de contraste por categoría (borde izq.) */
-#kanban-widget .card.cat-seguridad     { border-left:6px solid #ef4444; }
-#kanban-widget .card.cat-incidencias   { border-left:6px solid #f59e0b; }
+#kanban-widget .card.cat-seguridad       { border-left:6px solid #ef4444; }
+#kanban-widget .card.cat-incidencias     { border-left:6px solid #f59e0b; }
 #kanban-widget .card.cat-mantenimiento { border-left:6px solid #10b981; }
-#kanban-widget .card.cat-calidad       { border-left:6px solid #a855f7; }
-#kanban-widget .card.cat-servicio      { border-left:6px solid #eab308; }
+#kanban-widget .card.cat-calidad         { border-left:6px solid #a855f7; }
+#kanban-widget .card.cat-servicio        { border-left:6px solid #eab308; }
 
 /* Píldora de categoría coherente (por si no hay chip en título) */
 #kanban-widget .card .cat-chip{ background:#fff; border-color:#e5e7eb; }
@@ -1172,6 +1206,25 @@ pointer-events: none;
     .pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
     #post-briefing-screen { overflow-y: auto; }
 }
+
+/* Asa de arrastre MEJORADA PARA TÁCTIL */
+.drag-handle{
+    align-self:stretch;
+    display:flex; align-items:center; justify-content:center;
+    padding: 12px; /* AUMENTADO de 6px a 12px para dedos gordos */
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--bg-card);
+    cursor:grab;
+    opacity:.7;
+    
+    /* ESTA ES LA CLAVE PARA ANDROID/IOS: */
+    touch-action: none; /* Evita que el navegador intente hacer scroll al tocar aquí */
+    -webkit-user-select: none;
+    user-select: none;
+}
+.card:active .drag-handle{ cursor:grabbing; opacity:1; background: #f3f4f6; }
+.drag-handle svg{ width:20px; height:20px; } /* Icono un poco más grande */
 </style>
 </head>
 <body>
@@ -1194,7 +1247,6 @@ Modo presentación
 
 
 <div class="dashboard-3col">
-<!-- HEADER -->
 <header>
 <div class="header-left">
 <h1>Factory Floor Dashboard - VLC</h1>
@@ -1202,7 +1254,6 @@ Modo presentación
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
 
-<!-- Cronómetro -->
 <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
 <div class="timer-face" id="timer-face">
 <div class="timer-display" id="timer-display" title="Toca para iniciar/pausar">00:00:00</div>
@@ -1212,9 +1263,7 @@ Modo presentación
 </div>
 
 <div class="header-controls">
-    <!-- Input para el Supervisor (ID necesario para que el script lo capture) -->
-    <!-- Input del Supervisor con el ID que busca el script -->
-<input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
+    <input type="text" id="briefing-supervisor" placeholder="Nombre Supervisor" 
            style="padding: 8px 12px; border: 1px solid #e6e8ec; border-radius: 8px; font-size: 0.9rem; min-width: 200px;">
      <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar nombre">
         🎙️
@@ -1225,13 +1274,11 @@ Modo presentación
 </div>
 </header>
 
-<!-- IZQUIERDA: EQUIPO -->
 <section class="col-left">
 <div class="widget" id="team-widget">
 <h2 class="widget-title">1) Equipo / Turno VLC</h2>
 <small class="kpi-text" id="team-meta">—</small>
 
-<!-- Alta manual rápida (local / opcional) -->
 <form id="team-form" class="team-form" autocomplete="off"
 style="display:flex; gap:8px; align-items:center; margin:8px 0;">
 <input type="text" id="team-name" placeholder="Añadir persona…" required
@@ -1239,7 +1286,6 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/
 <button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
 </form>
 
-<!-- Subida Excel roster -->
 <form id="roster-upload-form"
 style="display:flex; gap:8px; align-items:center; margin:8px 0;">
 <input type="file" id="roster-file" accept=".xlsx,.xls" required
@@ -1254,9 +1300,7 @@ style="display:flex; flex-direction:column; gap:6px;"></div>
 </div>
 </section>
 
-<!-- CENTRO -->
 <section class="col-middle">
-<!-- CHECKLIST BRIEFING -->
 <div class="widget" id="brief-check">
 <div id="brief-check-explain" class="br-explain" aria-live="polite">
 <span class="br-explain-ico" aria-hidden="true">
@@ -1352,7 +1396,6 @@ data-target="kanban-widget">
 <small class="kpi-text" id="brief-check-meta">—</small>
 </div>
 
-<!-- ACTUALIZACIONES OPERATIVAS -->
 <div class="widget" id="ops-updates-widget">
 <h2 class="widget-title">2) Actualizaciones operativas</h2>
 <div class="ops-toolbar" aria-label="Filtros actualizaciones operativas">
@@ -1375,13 +1418,11 @@ data-target="kanban-widget">
 </div>
 
 <div class="ops-grid">
-<!-- Columna izquierda: secciones -->
 <div class="ops-card">
 <strong>Secciones</strong>
 <div id="ops-sections"></div>
 </div>
 
-<!-- Columna derecha: líneas rápidas -->
 <div class="ops-card">
 <strong>Lista rápida (líneas)</strong>
 <div id="ops-quicklines"
@@ -1398,12 +1439,10 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 
 
 
-<!-- SEGURIDAD Y PROTECCIÓN (diario + manual) -->
 <div class="widget" id="safety-daily-widget">
 <h2 class="widget-title">4) Seguridad y protección — Diario</h2>
 
 <div class="safety-grid">
-<!-- Columna izquierda: 2 tips diarios -->
 <div class="safety-card">
 <strong>Recordatorios de hoy</strong>
 <div id="safety-tips" class="tips"></div>
@@ -1414,14 +1453,12 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 <small class="kpi-text" id="safety-meta">—</small>
 </div>
 
-<!-- Columna derecha: alta manual de incidentes -->
 <div class="safety-card">
 <strong>Alta manual de incidentes</strong>
 <form id="safety-form" class="incident-form" autocomplete="off">
     <input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
     <textarea id="safety-desc" rows="3" placeholder="Descripción breve..." required></textarea>
     
-    <!-- AÑADIR ESTO: Input de fecha -->
     <label style="font-size:0.85rem; color:var(--text-muted); display:flex; align-items:center; gap:8px; margin:5px 0;">
         Vigente hasta:
         <input type="date" id="safety-valid-until" style="padding:6px; border:1px solid var(--border); border-radius:8px;">
@@ -1439,7 +1476,6 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 </div>
 
 
-<!-- INCIDENTES / PULSE / ENABLON -->
 <div class="widget" id="incidentes-widget">
 <h2 class="widget-title">
 <span>5) Incidentes / Seguridad VLC</span>
@@ -1491,7 +1527,6 @@ data-placeholder="Extintores, botiquines, DESA, salidas de emergencia…"></div>
 </div>
 
 
-<!-- Subida PDF -->
 <form id="incidents-pdf-form"
 style="display:flex; gap:8px; align-items:center; margin:8px 0;">
 <input type="file" id="incidents-pdf-file" accept="application/pdf" required
@@ -1510,12 +1545,9 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 </div>
 </div>
 
-<!-- KPIs CENTRO -->
-<!-- 6) KPIs Operativos & Estándares (AHORA CON 5S Y GW INTEGRADO) -->
 <div class="widget kpi-widget" id="kpi-center">
   <h2 class="widget-title">6) KPIs Operativos & Estándares</h2>
 
-  <!-- PARTE SUPERIOR: KPIs Numéricos -->
   <div class="kpi-grid">
     <div class="kpi-tile">
       <div class="kpi-label">Uniwin</div>
@@ -1544,20 +1576,16 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
     </div>
   </div>
 
-  <!-- SEPARADOR -->
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
 
-  <!-- PARTE INFERIOR: 5S y GW -->
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
     
-    <!-- COLUMNA 5S -->
     <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <strong style="font-size:0.95rem;">Estado 5S</strong>
         <small id="s5-meta" class="kpi-text">—</small>
       </div>
       
-      <!-- Botones 5S -->
       <div id="s5-strip" class="s5-compact" role="group" aria-label="Estado 5S" style="justify-content: center;">
         <button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
         <button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
@@ -1567,13 +1595,11 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
       </div>
     </div>
 
-    <!-- COLUMNA GW -->
     <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
         <strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
       </div>
 
-      <!-- Formulario GW -->
       <form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
         <input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
         <button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Subir</button>
@@ -1584,7 +1610,6 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
   </div>
 </div>
 
-<!-- KANBAN FEEDBACK DIRECTO -->
 <div class="widget" id="kanban-widget">
 <h2 class="widget-title">7) Feedback directo VLC</h2>
 <div class="board-container kanban">
@@ -1606,7 +1631,6 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 </div>
 </div>
 
-<!-- Alta Kanban BCN -->
 <form class="new-item-form" id="new-kanban-form"
 style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
                 display:grid; grid-template-columns: 1fr 1fr auto 1fr auto;
@@ -1635,7 +1659,6 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 </form>
 </div>
 
-<!-- KAIZEN (Ahora fuera del split, ocupa todo el ancho) -->
 <div class="widget" id="kaizen-widget" style="margin-top: 20px;">
   <h2 class="widget-title">KAIZEN (Proyectos de mejora)</h2>
   
@@ -1646,7 +1669,6 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
     <button type="submit" class="btn-primary">Añadir</button>
   </form>
 
-  <!-- Le quitamos la clase 'compact' si quieres ver 3 columnas anchas -->
   <div class="board-container kaizen" style="margin-top:12px;">
     <div class="kanban-column">
       <h3 class="column-title"><span>Proyectos</span><span class="count">(0)</span></h3>
@@ -1666,13 +1688,10 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 
 </section>
 
-<!-- DERECHA -->
 <section class="col-right">
-<!-- Busca esto y añade el botón dentro del H2 -->
 <div class="widget" id="prev-shift-widget">
   <h2 class="widget-title">
       3) Información Turno Anterior VLC
-      <!-- AÑADIR ESTE BOTÓN -->
       <button type="button" class="btn-mic" data-target="prev-shift-note" title="Dictar nota">
           🎙️
       </button>
@@ -1691,9 +1710,7 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
   <h2 class="widget-title">Días sin incidentes</h2>
   <div class="ehs-month" id="ehs-month">—</div>
   
-  <!-- REEMPLAZAR todo el div class="ehs-controls" por esto: -->
   <div id="ehs-spin" class="ehs-controls" role="spinbutton" style="justify-content: center;">
-      <!-- Solo el número, sin botones. Doble clic para resetear -->
       <div class="ehs-big" id="ehs-days" title="Doble clic para reiniciar a 0 si hubo incidente" style="cursor:pointer;">0</div>
   </div>
 </div>
@@ -1701,7 +1718,6 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 </div>
 
 
-<!-- PANTALLA MODO INFO (Post-Briefing) -->
 <div id="post-briefing-screen">
     <div class="pb-header">
         <div class="pb-title">🚀 MODO OPERATIVO - VLC INFORMACIÓN</div>
@@ -1709,17 +1725,14 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
     </div>
 
     <div class="pb-grid">
-        <!-- 1. Turno Anterior -->
         <div class="pb-card">
             <div class="pb-card-title">↩️ Highlights Turno Anterior</div>
             <div id="pb-prev-content" class="pb-content"></div>
         </div>
-        <!-- 2. Operativa -->
         <div class="pb-card">
             <div class="pb-card-title">🚧 Actualizaciones Operativas</div>
             <div id="pb-ops-content" class="pb-content"></div>
         </div>
-        <!-- 3. KPIs -->
         <div class="pb-card">
             <div class="pb-card-title">📊 KPIs del Turno</div>
             <div id="pb-kpi-content" class="pb-content">
@@ -1735,7 +1748,6 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
                 </div>
             </div>
         </div>
-        <!-- 4. Seguridad -->
         <div class="pb-card">
             <div class="pb-card-title">🛡️ Seguridad y Riesgos</div>
             <div id="pb-sec-content" class="pb-content"></div>
@@ -1743,17 +1755,15 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
     </div>
 </div>
     
-<!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
 /* Estación actual (VLC por título o ?station=) */
-const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ'];
+const STATIONS_KNOWN = ['MAD','VLC','VLC','SVQ'];
+// FORZAR VLC SI NO VIENE EN URL
 const STATION_CODE = (
 (new URLSearchParams(location.search).get('station') || '')
-.toUpperCase()
-||
-((document.title.match(/\b(MAD|BCN|VLC|SVQ)\b/i) || ['','BCN'])[1]).toUpperCase()
+.toUpperCase() || 'VLC'
 );
 
 
@@ -2303,7 +2313,7 @@ function initEhsSimple(){
     const now = new Date();
     if(monthEl) monthEl.textContent = now.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
 
-    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_vlc_v1';
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_VLC_v1';
 
     function render() {
         const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
@@ -2402,7 +2412,7 @@ function countPresent(att){ return Object.values(att||{}).filter(Boolean).length
 
 async function fetchServerRoster(){
 try{
-const r = await fetch('/api/roster/current', {
+const r = await fetch('api/roster/current', {
 cache:'no-store',
 headers:{'Accept':'application/json'}
 });
@@ -2426,7 +2436,7 @@ meta.textContent = `${shift} • ${win} • Presentes ${present}/${total}`;
 
 async function updatePresenceOnServer(person, present){
 try{
-await fetch('/api/roster/presence',{
+await fetch('api/roster/presence',{
 method:'PUT',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify({
@@ -2439,7 +2449,7 @@ shift: TEAM_STATE?.shift || null
 }
 async function updateZoneOnServer(person, zone){
 try{
-await fetch('/api/roster/zone',{
+await fetch('api/roster/zone',{
 method:'PUT',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify({
@@ -2596,7 +2606,7 @@ const fd=new FormData();
 fd.append('file', f);
 status.textContent='Subiendo…';
 try{
-const res=await fetch('/api/roster/upload',{method:'POST',body:fd});
+const res=await fetch('api/roster/upload',{method:'POST',body:fd});
 const data=await res.json().catch(()=>({}));
 if(!res.ok) throw new Error(data.detail||'Error al subir');
 status.textContent = `OK: ${data.people_count||'-'} personas • Hoja: ${data.sheet_loaded||'—'} • Fecha: ${data.sheet_date||'—'}`;
@@ -2656,7 +2666,7 @@ station: STATION_CODE,
 date:   TEAM_STATE?.sheet_date || null,
 shift:  TEAM_STATE?.shift || computeShift().name
 };
-const res = await fetch('/api/roster/add', {
+const res = await fetch('api/roster/add', {
 method:'POST',
 headers:{'Content-Type':'application/json'},
 body: JSON.stringify(payload)
@@ -2706,8 +2716,8 @@ updateSpotlightRouting?.();
 Prev shift note (local)
 ========================== */
 (function(){
-const KEY='prev_shift_note_vlc_v1';
-const KEY_WHEN='prev_shift_note_vlc_saved_v1';
+const KEY='prev_shift_note_bcn_v1';
+const KEY_WHEN='prev_shift_note_bcn_saved_v1';
 const el=document.getElementById('prev-shift-note');
 const hint=document.getElementById('prev-shift-saved-hint');
 if (!el) return;
@@ -2797,7 +2807,7 @@ top3.slice().reverse().forEach(t=>renderGwTask(t, `task-${t.id}`));
 /* ==========================
 Incidentes / PDF
 ========================== */
-const INC_CACHE_KEY='incidents_cache_vlc_v1';
+const INC_CACHE_KEY='incidents_cache_bcn_v1';
 function cacheIncidentes(state){
 try{ localStorage.setItem(INC_CACHE_KEY, JSON.stringify(state)); }catch(e){}
 }
@@ -2886,7 +2896,7 @@ const cached = getCachedIncidentes();
 if (cached) renderIncidentes(cached);
 
 try{
-const r = await fetch('/api/incidents-table',{cache:'no-store'});
+const r = await fetch('api/incidents-table',{cache:'no-store'});
 if (!r.ok) throw new Error('GET /api/incidents-table');
 const data = await r.json();
 if (data.columns && data.rows){
@@ -2918,7 +2928,7 @@ const fd=new FormData();
 fd.append('file', f);
 status.textContent='Subiendo…';
 try{
-const res=await fetch('/api/incidents-table',{method:'POST',body:fd});
+const res=await fetch('api/incidents-table',{method:'POST',body:fd});
 const data=await res.json().catch(()=>({}));
 if(!res.ok) throw new Error(data.detail||'Error al subir');
 status.textContent=`OK: ${Array.isArray(data.rows)?data.rows.length:'-'} filas`;
@@ -2939,10 +2949,10 @@ Incidentes (edición local)
 ========================== */
 (function initIncidentEditableFields(){
 const FIELDS = [
-['incident-remember', 'inc_vlc_remember_v1'],
-['incident-what',     'inc_vlc_what_v1'],
-['incident-who',      'inc_vlc_who_v1'],
-['incident-where',    'inc_vlc_where_v1']
+['incident-remember', 'inc_bcn_remember_v1'],
+['incident-what',      'inc_bcn_what_v1'],
+['incident-who',       'inc_bcn_who_v1'],
+['incident-where',     'inc_bcn_where_v1']
 ];
 
 FIELDS.forEach(([id, key])=>{
@@ -3408,7 +3418,7 @@ if (tile) flash(tile);
 Tasks API helpers
 ========================== */
 async function createTaskOnServer(data){
-const r=await fetch('/api/tasks',{
+const r=await fetch('api/tasks',{
 method:'POST',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify(data)
@@ -3419,7 +3429,7 @@ processTaskUpdate(task);
 return task;
 }
 async function updateTaskOnServer(id,data){
-const r=await fetch(`/api/tasks/${id}`,{
+const r=await fetch(`api/tasks/${id}`,{
 method:'PUT',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify(data)
@@ -3430,12 +3440,12 @@ processTaskUpdate(task);
 return task;
 }
 async function deleteTaskOnServer(id, taskType){
-const r=await fetch(`/api/tasks/${id}`,{method:'DELETE'});
+const r=await fetch(`api/tasks/${id}`,{method:'DELETE'});
 if (!r.ok) throw new Error('delete failed');
 processTaskUpdate({id,action:'delete',task_type:taskType||'kanban_rapida'});
 }
 async function updateTaskCompletion(id,done){
-const r=await fetch(`/api/tasks/${id}/complete`,{
+const r=await fetch(`api/tasks/${id}/complete`,{
 method:'PUT',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify({is_completed:done})
@@ -3443,7 +3453,7 @@ body:JSON.stringify({is_completed:done})
 if (!r.ok) throw new Error('tick failed');
 }
 async function updateTaskNote(id,note){
-const r=await fetch(`/api/tasks/${id}/note`,{
+const r=await fetch(`api/tasks/${id}/note`,{
 method:'PUT',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify({note:note??''})
@@ -3912,7 +3922,7 @@ Checklist compact (persist)
 const host=document.getElementById('brief-check');
 if (!host) return;
 const meta=document.getElementById('brief-check-meta');
-const KEY='brief_check_vlc_v1';
+const KEY='brief_check_bcn_v1';
 
 function save(){
 const data={};
@@ -4087,9 +4097,9 @@ async function loadBoardsInitial(){
 try{
 const qs = 'station='+encodeURIComponent(STATION_CODE);
 const [kanRes,kaiRes,gwRes] = await Promise.all([
-fetch('/api/tasks?task_type=kanban_rapida&'+qs,{cache:'no-store'}),
-fetch('/api/tasks?task_type=kaizen&'+qs,{cache:'no-store'}),
-fetch('/api/tasks?task_type=gw_task&'+qs,{cache:'no-store'})
+fetch('api/tasks?task_type=kanban_rapida&'+qs,{cache:'no-store'}),
+fetch('api/tasks?task_type=kaizen&'+qs,{cache:'no-store'}),
+fetch('api/tasks?task_type=gw_task&'+qs,{cache:'no-store'})
 ]);
 const [kan,kai,gw] = await Promise.all([
 kanRes.json().catch(()=>[]),
@@ -4298,9 +4308,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
     const WIDGET_MAP = [
-        { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },  // Ahora es el paso 2
-        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },  // Ahora es el paso 3
-        { id: 'prev-shift-widget',  check: 'c1', label: '3. Turno Anterior' },
+        { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },
+        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
+        { id: 'prev-shift-widget',  check: 'c1', label: '3. Turno Anterior' },   // Ahora es el paso 2
+        
+        
         // El resto se queda igual
         { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
         { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
@@ -4372,17 +4384,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("♻️ Turno VLC reiniciado.");
         });
     }
-            
-            Object.keys(localStorage).forEach(k => {
-                if(k.includes('brief_check')) localStorage.removeItem(k);
-            });
-            
-            const meta = document.getElementById('brief-check-meta');
-            if(meta) meta.textContent = "Checklist reiniciado";
-            
-            if(window.updateSpotlightRouting) window.updateSpotlightRouting();
-            console.log("♻️ Turno VLC reiniciado.");
-        });
     
 
     // 3. Botón Generar Resumen
@@ -4475,7 +4476,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     safety_incidents: safetyIncidentsPayload
                 };
 
-                const res = await fetch('/api/briefing/summary', {
+                const res = await fetch('api/briefing/summary', {
                     method: 'POST', headers: {'Content-Type':'application/json'},
                     body: JSON.stringify(payload)
                 });
@@ -4525,7 +4526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try { updateSpotlightRouting(); } catch(e){}
     
     console.log("Dashboard VLC inicializado correctamente.");
-
+});
 </script>
 </body>
 </html>
