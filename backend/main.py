@@ -3091,7 +3091,6 @@ class FiixConnector:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Iniciando sistema...")
-    init_db()
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
@@ -4696,6 +4695,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
