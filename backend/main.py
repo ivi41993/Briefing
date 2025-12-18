@@ -30,7 +30,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 # ... tus imports actuales ...
-from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+
 
 # Inicializar DB al arrancar
 
@@ -4696,6 +4696,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
