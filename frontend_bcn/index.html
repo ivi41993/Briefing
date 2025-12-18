@@ -790,22 +790,135 @@ document.body.addEventListener('click', (e)=>{
 });
 
 // === GENERAR RESUMEN ===
-document.querySelector('.header-controls .btn-primary').addEventListener('click', async ()=>{
-    const sup = document.getElementById('briefing-supervisor').value;
-    if(!sup) { alert("Falta supervisor"); return; }
-    
-    const payload = {
-        station: STATION_CODE,
-        supervisor: sup,
-        shift: document.getElementById('shift-badge-header').textContent,
-        // ... recopilar resto de datos ...
-    };
-    
+// === GENERAR RESUMEN (CORREGIDO Y COMPLETO) ===
+document.querySelector('.header-controls .btn-primary').addEventListener('click', async () => {
+    const btn = document.querySelector('.header-controls .btn-primary');
+    const supInput = document.getElementById('briefing-supervisor');
+    const supVal = supInput ? supInput.value.trim() : '';
+
+    // 1. Validación básica
+    if (!supVal) {
+        alert("⚠️ Por favor, indica el nombre del Supervisor.");
+        if(supInput) supInput.focus();
+        return;
+    }
+
+    btn.textContent = 'Enviando...';
+    btn.disabled = true;
+
     try {
-        await apiFetch('api/briefing/summary', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-        alert("Resumen guardado");
-        window.openPostBriefingMode();
-    } catch(e) { alert("Error al guardar"); }
+        // 2. RECOPILACIÓN DE DATOS (Scrapeo del DOM)
+        
+        // A. Fecha y Hora
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('es-ES'); // dd/mm/yyyy
+        const timeStr = now.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
+
+        // B. Roster (Lista de personas)
+        const rosterList = (window.TEAM_STATE && window.TEAM_STATE.people) 
+            ? window.TEAM_STATE.people.map(p => {
+                const isP = window.TEAM_STATE.attendance[p.nombre_completo];
+                return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
+              }).join(", ") 
+            : "Sin datos";
+
+        // C. Kanban (Resumen de tarjetas)
+        const kanbanSummary = [];
+        document.querySelectorAll('.board-container.kanban .card').forEach(c => {
+            const title = c.querySelector('.card-title')?.innerText || '';
+            const status = c.closest('.cards-container')?.dataset.status || 'Unknown';
+            kanbanSummary.push(`[${status}] ${title}`);
+        });
+
+        // D. Actualizaciones Operativas
+        const opsData = [];
+        const opsContainer = document.getElementById('ops-lines-list');
+        if (opsContainer) {
+            Array.from(opsContainer.children).forEach(card => {
+                opsData.push({
+                    title: card.querySelector('.ops-line-title')?.innerText || '',
+                    priority: card.dataset.priority || 'General'
+                });
+            });
+        }
+
+        // E. Incidentes de Seguridad (leemos del LocalStorage para asegurar)
+        let safetyIncidents = [];
+        try {
+            // Usamos la clave dinámica generada anteriormente
+            const safeKey = `safety_manual_incidents_${STATION_CODE}_v1`; 
+            safetyIncidents = JSON.parse(localStorage.getItem(safeKey) || '[]');
+        } catch (e) {}
+
+        // F. KPIs
+        const kpis = {
+            "UPH": document.getElementById('kpi-uph')?.innerText || "-",
+            "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
+            "Backlog": document.getElementById('kpi-backlog')?.innerText || "-"
+        };
+
+        // G. Checklist (Leemos qué radios están marcados)
+        const checklist = {};
+        document.querySelectorAll('.check-actions input:checked').forEach(inp => {
+            checklist[inp.name] = inp.value; // ej: c1: "OK"
+        });
+
+        // 3. CONSTRUCCIÓN DEL PAYLOAD (Objeto JSON completo)
+        const payload = {
+            station: STATION_CODE,            // BCN, MAD, VLC...
+            date: dateStr,                    // "18/12/2025"
+            briefing_time: timeStr,           // "14:30"
+            shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+            supervisor: supVal,
+            timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+            
+            // Bloques de datos
+            checklist: checklist,
+            kpis: kpis,
+            roster_details: rosterList,
+            prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
+            kanban_details: kanbanSummary.join(" | "),
+            ops_updates: opsData,
+            safety_incidents: safetyIncidents
+        };
+
+        console.log("📤 Enviando Payload:", payload); // Para depurar en consola
+
+        // 4. ENVÍO AL SERVIDOR (Usando apiFetch)
+        const res = await apiFetch('api/briefing/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            // Intentar leer el error del servidor (el 422 suele decir qué campo falla)
+            const errData = await res.json().catch(() => ({}));
+            console.error("Error Servidor:", errData);
+            throw new Error(errData.detail ? JSON.stringify(errData.detail) : 'Error validación servidor');
+        }
+
+        // 5. ÉXITO
+        alert("✅ Resumen guardado correctamente.");
+        
+        // Rellenar y abrir el modal de Info
+        document.getElementById('pb-val-uph').innerText = kpis.UPH;
+        document.getElementById('pb-val-cost').innerText = kpis.Costes;
+        document.getElementById('pb-prev-content').innerText = payload.prev_shift_note;
+        // (Aquí podrías rellenar más datos del modal si quieres)
+        
+        if(window.openPostBriefingMode) window.openPostBriefingMode();
+        
+        // Limpiar
+        if(supInput) supInput.value = '';
+
+    } catch (e) {
+        console.error(e);
+        alert("❌ Error al guardar: " + e.message);
+    } finally {
+        btn.textContent = 'Generar Resumen';
+        btn.disabled = false;
+    }
 });
 
 window.openPostBriefingMode = () => document.getElementById('post-briefing-screen').classList.add('active');
