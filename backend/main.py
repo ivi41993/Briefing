@@ -29,7 +29,7 @@ from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconne
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-# ... tus imports actuales ...
+from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
 
 # Inicializar DB al arrancar
@@ -3091,6 +3091,7 @@ class FiixConnector:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Iniciando sistema...")
+    init_db()
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
@@ -4695,6 +4696,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
