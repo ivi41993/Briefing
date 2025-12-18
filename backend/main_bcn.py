@@ -804,7 +804,7 @@ class ConnectionManager:
 
 async def send_to_excel_online(data: BriefingSnapshot):
     # BUSCAMOS LA VARIABLE ESPECÍFICA DE BCN O LA GENÉRICA
-    url = os.getenv("EXCEL_WEBHOOK_URL_BCN") 
+    url = os.getenv("BCN_WEBHOOK") 
     if not url:
         url = os.getenv("EXCEL_WEBHOOK_URL")
     
@@ -2120,6 +2120,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
