@@ -32,7 +32,7 @@ API_KEY = os.getenv("API_KEY")
 # Configuración específica WFS3
 STATION_NAME = "WFS3 MAD ALM"
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
-
+ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster.json")
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx") # Puede ser compartido o único
 
 # Configuración GitHub (Reutilizable o específica según variable de entorno)
