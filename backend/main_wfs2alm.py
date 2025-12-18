@@ -51,7 +51,7 @@ ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx")
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
 USE_DISK = (STORAGE_BACKEND == "file")
 USE_GITHUB = (STORAGE_BACKEND == "github")
-
+ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster.json")
 INCIDENTS_VISIBLE_LIMIT = int(os.getenv("INCIDENTS_VISIBLE_LIMIT", "3"))
 SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 
