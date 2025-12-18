@@ -29,7 +29,19 @@ from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconne
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+# --- PEGA ESTO EN SU LUGAR ---
+import sys
+import os
+
+# Truco: Añadimos la carpeta donde está este archivo (backend) al sistema de búsqueda de Python
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    # Intenta importar normal (funciona en local si estás dentro de la carpeta)
+    from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+except ImportError:
+    # Si falla, intenta importar asumiendo que 'backend' es un paquete (funciona en Render desde raíz)
+    from backend.database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
 
 # Inicializar DB al arrancar
@@ -4696,6 +4708,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
