@@ -155,7 +155,12 @@ load_dotenv()
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
 USE_DISK    = (STORAGE_BACKEND == "file")
 USE_GITHUB  = (STORAGE_BACKEND == "github")
+# --- RECUPERAR ESTA VARIABLE QUE SE BORRÓ ---
+import os
 
+# Define la ruta para el archivo de roster (Turnos/Cuadrante)
+ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster.json") 
+# --------------------------------------------
 INCIDENTS_VISIBLE_LIMIT = int(os.getenv("INCIDENTS_VISIBLE_LIMIT", "3"))
 
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
