@@ -43,7 +43,7 @@ ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
 ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "true"
 # Excel de turnos (puede ser compartido o específico)
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx")
-
+ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster.json")
 # === RUTAS DE DATOS ESPECÍFICAS WFS1 ===
 
 # Configuración GitHub / Almacenamiento
