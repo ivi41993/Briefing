@@ -65,7 +65,7 @@ EXT_VERIFY_MODE = os.getenv("EXT_VERIFY_MODE", "TRUSTSTORE").upper()
 EXT_CAFILE = os.getenv("EXT_CAFILE", "").strip()
 EXT_USER_AGENT = os.getenv("EXT_USER_AGENT", "Mozilla/5.0")
 EXT_REFERER = os.getenv("EXT_REFERER", "").strip()
-
+ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster.json")
 # Configuración Enablon
 ENA_URL = os.getenv("ENA_URL") or os.getenv("ENABLON_URL")
 ENA_COOKIE = os.getenv("ENA_COOKIE") or os.getenv("ENABLON_COOKIE")
