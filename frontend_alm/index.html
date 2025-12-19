@@ -6825,12 +6825,14 @@ window.closePostBriefingMode = function() {
 /* =========================================================
    1. CORRECTOR DE RUTAS PARA SISTEMA FUSION
    ========================================================= */
+/* =========================================================
+   1. SISTEMA DE FUSION Y CONFIGURACION DE RUTAS
+   ========================================================= */
 (function() {
     let path = window.location.pathname;
     if (!path.endsWith('/')) path += '/';
     const BASE_PATH = path; 
 
-    // Corregir Fetch
     const originalFetch = window.fetch;
     window.fetch = function(url, options) {
         if (typeof url === 'string' && (url.startsWith('api/') || url.startsWith('/api/'))) {
@@ -6840,7 +6842,6 @@ window.closePostBriefingMode = function() {
         return originalFetch(url, options);
     };
 
-    // Corregir WebSockets
     const OriginalWebSocket = window.WebSocket;
     window.WebSocket = function(url) {
         if (url.includes('/ws') && !url.includes(BASE_PATH)) {
@@ -6849,137 +6850,166 @@ window.closePostBriefingMode = function() {
         }
         return new OriginalWebSocket(url);
     };
-    console.log("📍 WFS4 MAD - Base path activa:", BASE_PATH);
+    console.log("📍 WFS4 MAD - Base path:", BASE_PATH);
 })();
 
 /* =========================================================
-   2. RECOLECCIÓN Y ENVÍO DE DATOS (GENERAR RESUMEN)
+   2. GENERAR RESUMEN (LOGICA BCN - RECOLECCION TOTAL)
    ========================================================= */
-async function generateAndSendSummary() {
-    const btn = document.querySelector('header .header-controls .btn-primary');
+async function generateAndSaveFinalBriefing() {
+    const btnGen = document.querySelector('header .header-controls .btn-primary');
     const supInput = document.getElementById('briefing-supervisor');
     
     if (!supInput || !supInput.value.trim()) {
-        alert("⚠️ El nombre del Supervisor es obligatorio.");
-        supInput.focus();
+        alert("⚠️ El nombre del Supervisor es obligatorio para enviar a Excel.");
+        supInput?.focus();
         return;
     }
 
-    btn.textContent = 'Enviando...';
-    btn.disabled = true;
+    const oldText = btnGen.textContent;
+    btnGen.textContent = 'Guardando en Excel...';
+    btnGen.disabled = true;
 
     try {
-        // A. Recoger Roster del estado global
+        // A. Recoger Roster (Personal)
         const team = window.TEAM_STATE || { people: [], attendance: {} };
-        const rosterList = team.people.map(p => {
+        const rosterDetails = team.people.map(p => {
             const isP = team.attendance[p.nombre_completo] === true;
             return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
-        }).join(", ") || "Sin personal registrado";
+        }).join(", ") || "Sin datos";
 
-        // B. Recoger Actualizaciones Operativas (OPS) desde el DOM
-        let opsData = [];
-        document.querySelectorAll('#ops-list .ops-item').forEach(card => {
-            opsData.push({
-                title: card.querySelector('.ops-title')?.innerText || '',
-                impact: card.querySelector('.ops-impact')?.innerText || 'Medio'
-            });
-        });
+        // B. Recoger Highlights (Turno Anterior)
+        const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
+                                .map(el => el.innerText).join(" | ") || "Sin novedades";
 
-        // C. Recoger Seguridad (Tips automáticos + Manuales)
-        let safetyEntries = [];
-        // Tips de la lista
-        document.querySelectorAll('#sec-random-list li').forEach(li => {
-            safetyEntries.push({ title: "Recordatorio Diario", desc: li.innerText });
-        });
-        // Incidentes manuales del localStorage
-        const manualSec = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]');
-        manualSec.forEach(inc => {
-            safetyEntries.push({ title: inc.title, desc: inc.desc });
-        });
+        // C. Recoger OPS Updates (🚧)
+        const opsNodes = document.querySelectorAll('#ops-list .ops-item');
+        const opsText = Array.from(opsNodes).map(node => {
+            const t = node.querySelector('.ops-title')?.innerText || '';
+            const i = node.querySelector('.ops-impact')?.innerText || 'Medio';
+            return `[${i}] ${t}`;
+        }).join(" | ") || "Sin actualizaciones";
 
-        // D. Construir Payload
+        // D. Recoger Seguridad e Incidentes (🛡️)
+        const safetyTips = Array.from(document.querySelectorAll('#sec-random-list li')).map(li => li.innerText);
+        const manualIncidents = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]');
+        const manualText = manualIncidents.map(inc => `[${inc.type.toUpperCase()}] ${inc.title}: ${inc.desc}`).join(" | ");
+        const safetyFinal = [...safetyTips, manualText].filter(t => t).join(" | ") || "Sin novedades";
+
+        // E. Preparar Payload para Power Automate
         const payload = {
-            station: "WFS4-MAD",
-            date: new Date().toLocaleDateString('es-ES'),
-            shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+            station: "WFS4 MAD",
+            fecha: new Date().toLocaleDateString('es-ES'),
+            turno: document.getElementById('shift-badge-header')?.innerText || 'General',
+            hora_briefing: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
             timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-            briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
             supervisor: supInput.value.trim(),
-            roster_details: rosterList,
-            prev_shift_note: window.getPrevShiftText ? window.getPrevShiftText() : "Sin datos",
-            kpis: {
-                "UPH": document.getElementById('kpi-uph')?.innerText || "-",
-                "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
-            },
-            ops_updates: opsData,
-            safety_incidents: safetyEntries
+            equipo: rosterDetails,
+            notas_turno_ant: highlights,
+            kpi_uph: document.getElementById('kpi-uph')?.innerText || "-",
+            kpi_costes: document.getElementById('kpi-total-cost')?.innerText || "-",
+            actualizaciones_ops: opsText,
+            incidentes_seguridad: safetyFinal
         };
 
-        // E. Enviar al servidor
+        // F. Envío al Servidor
         const res = await fetch('api/briefing/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error("Error en el servidor");
+        if (!res.ok) throw new Error('Error al conectar con el servidor');
 
-        alert("✅ Resumen enviado a Excel correctamente.");
+        alert("✅ Resumen WFS4 guardado correctamente en Excel.");
         
-        // F. Acciones Post-Envío
+        // G. Post-acciones
         if(window.openPostBriefingMode) window.openPostBriefingMode();
         if(window.resetFactoryTimer) window.resetFactoryTimer();
         supInput.value = "";
 
-    } catch (err) {
-        console.error(err);
-        alert("❌ Error al enviar: " + err.message);
+    } catch (e) {
+        console.error("❌ Error en resumen:", e);
+        alert("Error al enviar: " + e.message);
     } finally {
-        btn.textContent = 'Generar Resumen';
-        btn.disabled = false;
+        btnGen.textContent = oldText;
+        btnGen.disabled = false;
     }
 }
 
 /* =========================================================
-   3. INICIALIZACIÓN DE EVENTOS Y SISTEMAS RESTANTES
+   3. INICIALIZADOR DE EVENTOS Y FUNCIONES (PRESERVAR TODO)
    ========================================================= */
 document.addEventListener('DOMContentLoaded', () => {
-    // Vincular botón principal
-    const btnGen = document.querySelector('header .header-controls .btn-primary');
-    if (btnGen) btnGen.onclick = generateAndSendSummary;
+    console.log('🚀 Iniciando Dashboard WFS4 MAD...');
 
-    // Inicializar sistema de voz (Micrófono)
-    initVoiceSystem();
-    
-    // El resto de inicializadores que ya tenías...
-    try { initHeaderTimer(); } catch(e){}
+    // A. Vincular botón generar (SOLO UNA VEZ)
+    const btnGen = document.querySelector('header .header-controls .btn-primary');
+    if (btnGen) {
+        btnGen.onclick = generateAndSaveFinalBriefing; 
+    }
+
+    // B. Lanzar todos los módulos originales del código
     try { initDateTimeAndShift(); } catch(e){}
-    // ... etc
+    try { initHeaderTimer(); } catch(e){}
+    try { setupEventListeners(); } catch(e){} // Kanban, Kaizen, Delete
+    try { makeColumnsSortable(); } catch(e){}
+    try { hydrateKpiTotalCost(); } catch(e){}
+    try { loadBoardsInitial(); } catch(e){}
+    try { loadIncidentes(); } catch(e){}
+    try { connectWebSocket(); } catch(e){}
+    try { initTeamRoster(); } catch(e){}
+    try { initEhsSimple(); } catch(e){}
+    try { initFullscreenToggles(); } catch(e){}
+    try { init5S(); } catch(e){}
+    try { initPrevShiftSystem(); } catch(e){} // Highlights
+    try { initManualIncidents(); } catch(e){} // Seguridad manual
+    try { initAutoShiftChange(); } catch(e){} // Detección de turno
+    try { initVoiceSystem(); } catch(e){}      // Micrófono
+    try { initOpsUpdates(); } catch(e){}       // Vivid Ops Updates
 });
 
+/* =========================================================
+   4. FUNCIONES DE APOYO (MICRÓFONO, VOZ, ETC.)
+   ========================================================= */
 function initVoiceSystem() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
     const recognition = new SpeechRecognition();
     recognition.lang = 'es-ES';
-
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('.btn-mic');
         if (!btn) return;
         const target = document.getElementById(btn.dataset.target);
-        
-        btn.classList.add('listening');
-        recognition.start();
-
-        recognition.onresult = (event) => {
-            const text = event.results[0][0].transcript;
-            if (target.tagName === 'INPUT') target.value += (target.value ? ' ' : '') + text;
-            else target.innerText += (target.innerText ? ' ' : '') + text;
-            target.dispatchEvent(new Event('input', { bubbles: true }));
-        };
-        recognition.onend = () => btn.classList.remove('listening');
+        if (target) {
+            recognition.start();
+            btn.classList.add('listening');
+            recognition.onresult = (ev) => {
+                const text = ev.results[0][0].transcript;
+                if (target.tagName === 'INPUT') target.value += (target.value ? ' ' : '') + text;
+                else target.innerText += (target.innerText ? ' ' : '') + text;
+                target.dispatchEvent(new Event('input', { bubbles: true }));
+            };
+            recognition.onend = () => btn.classList.remove('listening');
+        }
     });
 }
+
+function initAutoShiftChange(){
+    let lastShift = null;
+    setInterval(() => {
+        const h = new Date().getHours();
+        let currentShift = h >= 6 && h < 14 ? 'Mañana' : h >= 14 && h < 22 ? 'Tarde' : 'Noche';
+        if (lastShift !== null && currentShift !== lastShift) {
+            if(window.triggerShiftMode) window.triggerShiftMode(currentShift);
+        }
+        lastShift = currentShift;
+    }, 10000);
+}
+
+// Nota: Asegúrate de que las funciones de inicialización 
+// (initPrevShiftSystem, initManualIncidents, initOpsUpdates) 
+// estén definidas en tu código previo para que este bloque las llame.
 </script>
 </body>
 </html>
