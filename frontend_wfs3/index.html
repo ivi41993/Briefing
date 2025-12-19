@@ -6188,31 +6188,48 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
   
 /* Init */
-document.addEventListener('DOMContentLoaded', ()=>{
-console.log('Inicializando dashboard...');
-// Dentro de document.addEventListener('DOMContentLoaded', () => { ...
-const btnResumen = document.querySelector('header .header-controls .btn-primary');
-if (btnResumen) {
-    btnResumen.onclick = generateAndSendToExcel;
-}
-try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/Hora:', e); }
-try{ initHeaderTimer(); }catch(e){ console.error('Timer:', e); }  // AÑADIR ESTA LÍNEA
-try{
-setupEventListeners();
-makeColumnsSortable();
-hydrateKpiTotalCost();
-loadBoardsInitial();
-loadIncidentes();
-connectWebSocket();
-initTeamRoster();
-initEhsSimple();
-initFullscreenToggles();
-init5S();
-}catch(e){ console.warn('Bootstrap parcial', e); }
-try{ initBriefing(); }catch(e){ console.error('initBriefing:', e); }
-updateSpotlightRouting?.();
+/* =========================================================
+   4. INICIALIZACIÓN FINAL (CORREGIDA)
+   ========================================================= */
+document.addEventListener('DOMContentLoaded', () => {
+    const btnResumen = document.querySelector('header .header-controls .btn-primary');
+    if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
 
-console.log('Dashboard inicializado correctamente');
+    // LLAMADAS CRÍTICAS
+    try { initDateTimeAndShift(); } catch(e){}
+    try { initHeaderTimer(); } catch(e){}
+    try { setupEventListeners(); } catch(e){} 
+    try { makeColumnsSortable(); } catch(e){}
+    try { hydrateKpiTotalCost(); } catch(e){}
+    try { loadBoardsInitial(); } catch(e){}
+    try { loadIncidentes(); } catch(e){}
+    try { connectWebSocket(); } catch(e){}
+    try { initTeamRoster(); } catch(e){}
+    try { initEhsSimple(); } catch(e){}
+    try { initFullscreenToggles(); } catch(e){}
+    try { init5S(); } catch(e){}
+    
+    // --- ESTAS DOS LÍNEAS SON LAS QUE HACEN QUE FUNCIONE EL + Y EL CHECKLIST ---
+    try { initPrevShiftSystem(); } catch(e){ console.error("Error al iniciar Highlights:", e); }
+    try { if(window.updateSpotlightRouting) window.updateSpotlightRouting(); } catch(e){}
+    
+    try { initManualIncidents(); } catch(e){} 
+    try { initAutoShiftChange(); } catch(e){} 
+
+    // Voz (Simplificado)
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(SR) {
+        const r = new SR(); r.lang = 'es-ES';
+        document.body.addEventListener('click', e => {
+            const btn = e.target.closest('.btn-mic');
+            if(btn) { 
+                const target = document.getElementById(btn.dataset.target);
+                r.start(); btn.classList.add('listening');
+                r.onresult = ev => { target.value += " " + ev.results[0][0].transcript; target.dispatchEvent(new Event('input')); };
+                r.onend = () => btn.classList.remove('listening');
+            }
+        });
+    }
 });
 
 /* ===== Protocolo de Incidentes (editable) ===== */
