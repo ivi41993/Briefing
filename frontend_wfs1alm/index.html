@@ -3108,8 +3108,10 @@ h1.textContent = h1.textContent.replace(/(MAD|BCN|VLC|SVQ)/i, STATION_CODE);
 // Función $$ ya existe, mantenerla
 function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
   /* ===== Cronómetro Header (Con botón Comenzar) ===== */
+/* ===== Cronómetro Header (Con botón Comenzar) ===== */
 (function(){
-    const KEY='header_big_timer_v1';
+    // Ahora la llave será única, por ejemplo: header_big_timer_WFS1ALM_v1
+    const KEY = 'header_big_timer_' + (window.STATION_OVERRIDE || 'GENERIC') + '_v1';
     let running=false, startedAt=0, elapsed=0, tick=null;
 
     const display = document.getElementById('timer-display');
