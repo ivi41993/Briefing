@@ -6693,11 +6693,12 @@ window.closePostBriefingMode = function() {
 };
 
 /* ===== GENERAR RESUMEN (CORREGIDO: Recoge OPS + Guardado Excel) ===== */
+/* ===== GENERAR RESUMEN (CORREGIDO Y OPTIMIZADO) ===== */
 (function wireBriefingGenerate(){
   const oldBtn = document.querySelector('header .header-controls .btn-primary');
   if (!oldBtn) return;
 
-  // Clonar para limpiar eventos anteriores y evitar duplicados
+  // Clonar para limpiar eventos anteriores
   const btn = oldBtn.cloneNode(true);
   oldBtn.parentNode.replaceChild(btn, oldBtn);
 
@@ -6706,27 +6707,28 @@ window.closePostBriefingMode = function() {
     
     const supInput = document.getElementById('briefing-supervisor');
     
+    // Validación de seguridad
     if (!supInput || !supInput.value.trim()) {
-        alert("⚠️ ATENCIÓN: El campo 'Supervisor' es obligatorio para guardar.");
+        alert("⚠️ ATENCIÓN: El campo 'Supervisor' es obligatorio para generar el resumen y guardar en base de datos.");
         setTimeout(() => supInput?.focus(), 100);
         return; 
     }
 
     const oldText = btn.textContent;
-    btn.textContent = 'Guardando Excel...';
+    btn.textContent = 'Guardando datos...';
     btn.disabled = true;
     
     try {
-      // 1. Datos del equipo
+      // 1. Datos del equipo (Asistencia)
       const team = window.TEAM_STATE || {};
       const rosterList = (team.people || []).map(p => {
           const isPresent = (team.attendance || {})[p.nombre_completo];
-          const status = isPresent === true ? '✅' : '❌';
+          const status = isPresent === true ? 'Presente' : 'Ausente';
           return `${p.nombre_completo} (${status})`;
-      }).join(", ");
+      }).join(" | ");
 
       // 2. Texto del turno anterior
-      let prevShiftText = "Sin novedades";
+      let prevShiftText = "";
       if (window.getPrevShiftText) {
           prevShiftText = window.getPrevShiftText(); 
       } else {
@@ -6734,79 +6736,59 @@ window.closePostBriefingMode = function() {
           if (oldNote) prevShiftText = oldNote.innerText;
       }
 
-      // 3. RECOPILAR ACTUALIZACIONES OPERATIVAS (Corrección Clave)
-      // Buscamos las tarjetas generadas en el DOM y extraemos sus datos
+      // 3. RECOPILAR ACTUALIZACIONES OPERATIVAS DESDE EL DOM
+      // Esto garantiza que capturamos lo que el usuario ve en pantalla
       let opsData = [];
       const opsNodes = document.querySelectorAll('#ops-list .ops-item');
       opsNodes.forEach(node => {
-          const title = node.querySelector('.ops-title')?.innerText.trim() || '';
-          const impact = node.querySelector('.ops-impact')?.innerText.trim() || 'Medio';
-          // Solo añadimos si tiene título (evita vacíos)
+          const title = node.querySelector('.ops-title')?.innerText.trim();
+          const impact = node.querySelector('.ops-impact')?.innerText.trim();
+          const scope = node.querySelector('.ops-scope')?.innerText.trim();
           if(title) {
-              opsData.push({ title: title, impact: impact });
+              opsData.push({ title, impact, scope });
           }
       });
 
-      // 4. Incidentes de Seguridad
-      let safetyIncidentsPayload = [];
+      // 4. Recopilar Incidentes manuales del localStorage
+      let manualIncidents = [];
       try {
-           const rawSafety = localStorage.getItem('incidents_manual_entries_v1') || '[]';
-           safetyIncidentsPayload = JSON.parse(rawSafety);
-      } catch (e) {}
+           manualIncidents = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]');
+      } catch (e) { console.error("Error leyendo incidentes locales", e); }
 
-      // 5. Payload para el backend
+      // 5. Preparar el Payload para enviar al servidor
       const payload = {
           station: (window.STATION_OVERRIDE || 'MAD'),
-          date: new Date().toLocaleDateString('es-ES'),
-          briefing_time: new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}),
-          shift: document.getElementById('shift-badge-header')?.innerText || 'General',
-          
           supervisor: supInput.value.trim(),
+          shift: document.getElementById('shift-badge-header')?.innerText || 'General',
           timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-          
-          roster_details: rosterList || "Sin datos de equipo",
-          prev_shift_note: prevShiftText,
-          ops_updates: opsData,            // <--- Aquí enviamos los datos leídos del DOM
-          safety_incidents: safetyIncidentsPayload,
-          
-          kanban_count: document.querySelectorAll('#kanban-widget .card').length || 0
+          roster_summary: rosterList || "Sin datos de asistencia",
+          prev_shift_summary: prevShiftText || "Sin novedades",
+          ops_updates: opsData,
+          incidents_manual: manualIncidents,
+          timestamp: new Date().toISOString()
       };
 
-      console.log("📤 Enviando datos...", payload);
-
-      const res = await fetch('api/briefing/summary', {
+      // 6. Envío al servidor (API endpoint para guardar en Excel/DB)
+      const res = await fetch('/api/briefing/summary', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) {
-          throw new Error(`Error del servidor: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`Error en el servidor: ${res.status}`);
       
-      alert("✅ Información guardada correctamente en Excel.");
+      const responseData = await res.json();
+      alert("✅ Datos guardados y resumen generado con éxito.");
 
+      // 7. Abrir la pantalla de visualización post-briefing (Modo Lectura)
       if(window.openPostBriefingMode) window.openPostBriefingMode();
 
-      // Reset UI y contadores
-      supInput.value = "";
+      // 8. Limpiar para el siguiente turno
       if(window.resetFactoryTimer) window.resetFactoryTimer();
+      supInput.value = "";
       
-      // Limpiar checks
-      document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
-          r.checked = false;
-          r.dispatchEvent(new Event('change', {bubbles:true}));
-      });
-      Object.keys(localStorage).forEach(k => {
-          if(k.includes('brief_check')) localStorage.removeItem(k);
-      });
-      
-      if(window.resetPrevShift) window.resetPrevShift();
-      if(window.exitFlow) window.exitFlow();
-      if(window.exitShiftMode) window.exitShiftMode();
-
     } catch (err) {
-      console.error(err);
+      console.error("Error al generar resumen:", err);
       alert('❌ Error al guardar: ' + err.message);
     } finally {
       btn.textContent = oldText;
@@ -7275,6 +7257,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
