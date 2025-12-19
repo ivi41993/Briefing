@@ -2911,7 +2911,7 @@ body.card-open #timer-reset {
     </div>
 </div>
 <script>
-  window.STATION_OVERRIDE = 'MAD';
+  window.STATION_OVERRIDE = 'ALM';
 </script>
 
   
@@ -7053,7 +7053,7 @@ async function generateAndSendToExcel() {
         }));
 
         const payload = {
-            station: "ALM WH",
+            station: "ALM",
             date: new Date().toLocaleDateString('es-ES'),
             shift: document.getElementById('shift-badge-header')?.innerText || 'General',
             timer: document.getElementById('timer-display')?.innerText || '00:00:00',
