@@ -6787,10 +6787,21 @@ window.openPostBriefingMode = function() {
     const screen = document.getElementById('post-briefing-screen');
     if (!screen) return console.error("Falta #post-briefing-screen en el HTML");
 
-    // 1. Rellenar datos
-    const prev = document.getElementById('prev-shift-note')?.innerText || "Sin datos";
-    document.getElementById('pb-prev-content').innerHTML = `<p style="font-size:1.1rem">${prev}</p>`;
+    // --- 1. RECOGER HIGHLIGHTS (NUEVA LÓGICA DE LISTA) ---
+    const prevItems = document.querySelectorAll('#prev-list .prev-text');
+    let prevHtml = '<ul style="padding-left:20px; font-size:1.1rem; line-height:1.6;">';
+    
+    if (prevItems.length === 0) {
+        prevHtml += "<li>Sin novedades registradas</li>";
+    } else {
+        prevItems.forEach(el => {
+            prevHtml += `<li style="margin-bottom:10px;">${el.innerText}</li>`;
+        });
+    }
+    prevHtml += "</ul>";
+    document.getElementById('pb-prev-content').innerHTML = prevHtml;
 
+    // --- 2. RECOGER ACTUALIZACIONES OPERATIVAS ---
     const ops = document.querySelectorAll('#ops-list .ops-item .ops-title');
     let opsHtml = '<ul style="padding-left:20px">';
     if (ops.length === 0) opsHtml += "<li>Sin actualizaciones activas</li>";
@@ -6798,11 +6809,13 @@ window.openPostBriefingMode = function() {
     opsHtml += "</ul>";
     document.getElementById('pb-ops-content').innerHTML = opsHtml;
 
+    // --- 3. RECOGER KPIs ---
     const uph = document.getElementById('kpi-uph')?.innerText || "-";
     const cost = document.getElementById('kpi-total-cost')?.innerText || "-";
     document.getElementById('pb-val-uph').textContent = uph;
     document.getElementById('pb-val-cost').textContent = cost;
 
+    // --- 4. RECOGER SEGURIDAD ---
     const tips = document.getElementById('sec-random-list')?.innerHTML || "";
     const risks = document.querySelectorAll('#sec-cards .ops-item .ops-title');
     let secHtml = `<ul style="padding-left:20px; margin-bottom:15px">${tips}</ul>`;
@@ -6813,7 +6826,7 @@ window.openPostBriefingMode = function() {
     }
     document.getElementById('pb-sec-content').innerHTML = secHtml;
 
-    // 2. Mostrar
+    // 2. Mostrar pantalla
     screen.style.display = 'flex';
     if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(e => console.log(e));
