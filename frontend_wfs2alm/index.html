@@ -5090,15 +5090,89 @@ function setKpiValue(idValue, idMeta, valueText){
 
 
 /* Turno anterior editable */
-(function initPrevShiftEditable(){
-const KEY_NOTE='prev_shift_note_v1', KEY_WHEN='prev_shift_note_saved_at_v1';
-const el=document.getElementById('prev-shift-note'), hint=document.getElementById('prev-shift-saved-hint'); if(!el) return;
-try{ const s=localStorage.getItem(KEY_NOTE); if(s!==null) el.textContent=s; const w=localStorage.getItem(KEY_WHEN); if(w) hint.textContent=`Guardado: ${new Date(w).toLocaleString('es-ES')}`; }catch{}
-let t; const save=()=>{ try{ const plain=el.textContent||''; localStorage.setItem(KEY_NOTE,plain); const now=new Date().toISOString(); localStorage.setItem(KEY_WHEN,now); hint.textContent=`Guardado: ${new Date(now).toLocaleString('es-ES')}`; }catch{} };
-el.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(save,500); });
-el.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){ e.preventDefault(); save(); } if(e.key==='Escape') el.blur(); });
-el.addEventListener('blur', save);
-})();
+/* ===== Turno Anterior: Sistema de Lista por Ubicación ===== */
+function initPrevShiftSystem() {
+    const btn = document.getElementById('prev-add-btn');
+    const input = document.getElementById('prev-input');
+    const listEl = document.getElementById('prev-list');
+    
+    if (!btn || !input || !listEl) return;
+
+    // Llave única por ubicación para evitar mezcla de datos
+    const KEY = 'prev_highlights_' + (window.STATION_OVERRIDE || 'GENERIC') + '_v1';
+
+    const loadItems = () => {
+        try {
+            return JSON.parse(localStorage.getItem(KEY) || '[]');
+        } catch (e) { return []; }
+    };
+
+    const saveItems = (items) => {
+        localStorage.setItem(KEY, JSON.stringify(items));
+    };
+
+    const render = () => {
+        const items = loadItems();
+        listEl.innerHTML = '';
+        
+        if (items.length === 0) {
+            listEl.innerHTML = '<div style="color:#9ca3af; text-align:center; padding:10px;">No hay highlights registrados.</div>';
+            return;
+        }
+
+        // Renderizar de más nuevo a más viejo
+        [...items].reverse().forEach((text, revIdx) => {
+            const originalIdx = items.length - 1 - revIdx;
+            const div = document.createElement('div');
+            div.className = 'prev-item';
+            div.innerHTML = `
+                <div class="prev-text">${esc(text)}</div>
+                <div class="prev-actions">
+                    <button class="prev-btn" onclick="removePrevItem(${originalIdx})">🗑️</button>
+                </div>
+            `;
+            listEl.appendChild(div);
+        });
+    };
+
+    // Función para añadir
+    const addItem = () => {
+        const val = input.value.trim();
+        if (!val) return;
+        
+        const items = loadItems();
+        items.push(val);
+        saveItems(items);
+        
+        input.value = '';
+        render();
+        input.focus();
+    };
+
+    // Click en botón +
+    btn.onclick = (e) => {
+        e.preventDefault();
+        addItem();
+    };
+
+    // Enter en el input
+    input.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addItem();
+        }
+    };
+
+    // Exponer función de borrado globalmente
+    window.removePrevItem = (idx) => {
+        const items = loadItems();
+        items.splice(idx, 1);
+        saveItems(items);
+        render();
+    };
+
+    render();
+}
 
 /* ===== 5S compacto (localStorage) ===== */
 const S5_KEYS = [
@@ -6114,31 +6188,48 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
   
 /* Init */
-document.addEventListener('DOMContentLoaded', ()=>{
-console.log('Inicializando dashboard...');
-// Dentro de document.addEventListener('DOMContentLoaded', () => { ...
-const btnResumen = document.querySelector('header .header-controls .btn-primary');
-if (btnResumen) {
-    btnResumen.onclick = generateAndSendToExcel;
-}
-try{ initDateTimeAndShift(); }catch(e){ console.error('Fecha/Hora:', e); }
-try{ initHeaderTimer(); }catch(e){ console.error('Timer:', e); }  // AÑADIR ESTA LÍNEA
-try{
-setupEventListeners();
-makeColumnsSortable();
-hydrateKpiTotalCost();
-loadBoardsInitial();
-loadIncidentes();
-connectWebSocket();
-initTeamRoster();
-initEhsSimple();
-initFullscreenToggles();
-init5S();
-}catch(e){ console.warn('Bootstrap parcial', e); }
-try{ initBriefing(); }catch(e){ console.error('initBriefing:', e); }
-updateSpotlightRouting?.();
+/* =========================================================
+   4. INICIALIZACIÓN FINAL (CORREGIDA)
+   ========================================================= */
+document.addEventListener('DOMContentLoaded', () => {
+    const btnResumen = document.querySelector('header .header-controls .btn-primary');
+    if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
 
-console.log('Dashboard inicializado correctamente');
+    // LLAMADAS CRÍTICAS
+    try { initDateTimeAndShift(); } catch(e){}
+    try { initHeaderTimer(); } catch(e){}
+    try { setupEventListeners(); } catch(e){} 
+    try { makeColumnsSortable(); } catch(e){}
+    try { hydrateKpiTotalCost(); } catch(e){}
+    try { loadBoardsInitial(); } catch(e){}
+    try { loadIncidentes(); } catch(e){}
+    try { connectWebSocket(); } catch(e){}
+    try { initTeamRoster(); } catch(e){}
+    try { initEhsSimple(); } catch(e){}
+    try { initFullscreenToggles(); } catch(e){}
+    try { init5S(); } catch(e){}
+    
+    // --- ESTAS DOS LÍNEAS SON LAS QUE HACEN QUE FUNCIONE EL + Y EL CHECKLIST ---
+    try { initPrevShiftSystem(); } catch(e){ console.error("Error al iniciar Highlights:", e); }
+    try { if(window.updateSpotlightRouting) window.updateSpotlightRouting(); } catch(e){}
+    
+    try { initManualIncidents(); } catch(e){} 
+    try { initAutoShiftChange(); } catch(e){} 
+
+    // Voz (Simplificado)
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(SR) {
+        const r = new SR(); r.lang = 'es-ES';
+        document.body.addEventListener('click', e => {
+            const btn = e.target.closest('.btn-mic');
+            if(btn) { 
+                const target = document.getElementById(btn.dataset.target);
+                r.start(); btn.classList.add('listening');
+                r.onresult = ev => { target.value += " " + ev.results[0][0].transcript; target.dispatchEvent(new Event('input')); };
+                r.onend = () => btn.classList.remove('listening');
+            }
+        });
+    }
 });
 
 /* ===== Protocolo de Incidentes (editable) ===== */
