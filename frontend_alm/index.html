@@ -6919,10 +6919,7 @@ window.markOkAndNext = function(checkName, nextId) {
 
 
 /* =========================================================
-   1. SISTEMA DE FUSION: CORRECTOR DE RUTAS
-   ========================================================= */
-/* =========================================================
-   1. SISTEMA DE FUSION: CORRECTOR DE RUTAS
+   1. SISTEMA DE FUSION: CORRECTOR DE RUTAS (BASE_PATH)
    ========================================================= */
 (function() {
     let path = window.location.pathname;
@@ -6946,27 +6943,24 @@ window.markOkAndNext = function(checkName, nextId) {
         }
         return new OriginalWebSocket(url);
     };
+    console.log("📍 ALM Warehouse - Base detectada:", BASE_PATH);
 })();
 
 /* =========================================================
-   2. TARJETA 5: INCIDENTES (FIX RECARGA Y ALMACENAMIENTO)
+   2. TARJETA 5: INCIDENTES (SOLUCIÓN DEFINITIVA BUG RELOAD)
    ========================================================= */
-/* =========================================================
-   2. TARJETA 5: INCIDENTES (SOLUCIÓN DEFINITIVA AL BUG)
-   ========================================================= */
-(function initManualIncidents() {
+function initManualIncidents() {
     const KEY = 'incidents_manual_entries_v1';
     const listEl = document.getElementById('incidents-list-container');
     const form = document.getElementById('manual-inc-form');
-    
     if (!listEl || !form) return;
 
-    function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } }
-    function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
-
-    function render() {
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } };
+    const save = (data) => { localStorage.setItem(KEY, JSON.stringify(data)); };
+    
+    const render = () => {
         const items = load();
-        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay registros hoy.</div>';
+        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay incidentes registrados hoy.</div>';
         items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
             const card = document.createElement('div');
             const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
@@ -6983,56 +6977,43 @@ window.markOkAndNext = function(checkName, nextId) {
                 <div class="inc-desc">${esc(item.desc)}</div>`;
             listEl.appendChild(card);
         });
-    }
+    };
 
-    // Usamos addEventListener con preventDefault al principio de todo
-    form.addEventListener('submit', function(e) {
+    form.onsubmit = function(e) {
         e.preventDefault(); 
-        e.stopPropagation();
-
-        const typeVal = document.getElementById('new-inc-type').value;
-        const titleVal = document.getElementById('new-inc-title').value.trim();
-        const descVal = document.getElementById('new-inc-desc').value.trim();
-
-        if (!titleVal) return;
-
+        e.stopPropagation(); // BLOQUEO TOTAL DE RECARGA
         const items = load();
         items.push({ 
-            id: "ID-" + Date.now(), 
-            type: typeVal, 
-            title: titleVal, 
-            desc: descVal, 
+            id: Date.now().toString(), 
+            type: document.getElementById('new-inc-type').value, 
+            title: document.getElementById('new-inc-title').value.trim(), 
+            desc: document.getElementById('new-inc-desc').value.trim(), 
             date: new Date().toISOString() 
         });
-        
         save(items);
-        this.reset(); // Limpia el formulario
+        form.reset();
         render();
-        console.log("Registro añadido:", typeVal);
-    });
+    };
 
     listEl.onclick = function(e) {
         const btn = e.target.closest('.inc-del-btn');
-        if (btn) {
-            e.preventDefault();
-            if (confirm("¿Borrar?")) {
-                save(load().filter(i => i.id !== btn.dataset.id));
-                render();
-            }
+        if (btn && confirm("¿Borrar registro?")) {
+            save(load().filter(i => i.id !== btn.dataset.id));
+            render();
         }
     };
     render();
-})();
+}
 
 /* =========================================================
-   3. GENERAR RESUMEN (MAPEADO EXACTO PARA MADRID - FIX 422)
+   3. GENERAR RESUMEN (MAPEADO PARA ALM - SIN ERRORES 422)
    ========================================================= */
 async function generateAndSendToExcel() {
     const btn = document.querySelector('header .header-controls .btn-primary');
     const supInput = document.getElementById('briefing-supervisor');
     
     if (!supInput || !supInput.value.trim()) {
-        alert("⚠️ ATENCIÓN: El campo 'Supervisor' es obligatorio.");
+        alert("⚠️ El nombre del Supervisor es obligatorio.");
         supInput.focus();
         return;
     }
@@ -7044,35 +7025,35 @@ async function generateAndSendToExcel() {
         // A. Card 1: Equipo
         const team = window.TEAM_STATE || { people: [], attendance: {} };
         const rosterDetails = team.people.map(p => {
-            const isP = team.attendance[p.name] === true;
-            return `${p.name} (${isP ? "✅" : "❌"})`;
+            const name = p.name || p.nombre_completo;
+            const isP = team.attendance[name] === true;
+            return `${name} (${isP ? "✅" : "❌"})`;
         }).join(", ") || "Sin datos";
 
         // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
                                 .map(el => el.innerText).join(" | ");
 
-        // C. Card 2: Actualizaciones Operativas (OPS)
-        const opsData = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(node => ({
+        // C. Card 2: Actualizaciones Operativas (Desde el DOM)
+        const opsNodes = document.querySelectorAll('#ops-list .ops-item');
+        const opsData = Array.from(opsNodes).map(node => ({
             title: node.querySelector('.ops-title')?.innerText || '',
-            impact: node.querySelector('.ops-impact')?.innerText || 'Medio',
-            scope: node.querySelector('.ops-scope')?.innerText || 'General'
+            impact: node.querySelector('.ops-impact')?.innerText || 'Medio'
         }));
 
-        // D. Card 4 y 5: SEGURIDAD TOTAL (Tips + Riesgos Card 4 + Incidentes Card 5)
+        // D. SEGURIDAD TOTAL (Card 4 + Card 5)
         const safetyTips = Array.from(document.querySelectorAll('#sec-random-list li')).map(li => ({
             title: "Recordatorio Diario", desc: li.innerText
         }));
         const card4Risks = JSON.parse(localStorage.getItem('sec_cards_v1') || '[]').map(c => ({
-            title: "Riesgo Card 4", desc: `${c.title} (Resp: ${c.owner})`
+            title: "Riesgo Detectado", desc: `${c.title} (Resp: ${c.owner})`
         }));
         const card5Manual = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]').map(i => ({
             title: i.type.toUpperCase(), desc: `${i.title}: ${i.desc}`
         }));
 
-        // E. PAYLOAD EXACTO PARA BriefingSnapshot (Python)
         const payload = {
-            station: "WFS4 MAD WH",
+            station: "ALM WH",
             date: new Date().toLocaleDateString('es-ES'),
             shift: document.getElementById('shift-badge-header')?.innerText || 'General',
             timer: document.getElementById('timer-display')?.innerText || '00:00:00',
@@ -7084,10 +7065,10 @@ async function generateAndSendToExcel() {
                 "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
                 "Backlog": document.getElementById('fiix-backlog')?.innerText || "-"
             },
-            roster_details: rosterDetails, // CAMPO REQUERIDO POR PYTHON
-            prev_shift_note: highlights,  // CAMPO REQUERIDO POR PYTHON
+            roster_details: rosterDetails, // Mapeo exacto para el server
+            prev_shift_note: highlights,  // Mapeo exacto para el server
             ops_updates: opsData,
-            safety_incidents: [...safetyTips, ...card4Risks, ...card5Manual] // UNIÓN DE TARJETA 4 Y 5
+            safety_incidents: [...safetyTips, ...card4Risks, ...card5Manual] // UNIÓN TOTAL
         };
 
         const res = await fetch('api/briefing/summary', {
@@ -7098,14 +7079,14 @@ async function generateAndSendToExcel() {
 
         if (!res.ok) throw new Error(`Error ${res.status}`);
 
-        alert("✅ Resumen enviado a Excel y guardado correctamente.");
+        alert("✅ Resumen ALM enviado a Excel correctamente.");
         if(window.openPostBriefingMode) window.openPostBriefingMode();
         if(window.resetFactoryTimer) window.resetFactoryTimer();
         supInput.value = "";
 
     } catch (err) {
         console.error(err);
-        alert("❌ Error en el servidor. Revisa los datos.");
+        alert("❌ Error al enviar. Revisa la conexión.");
     } finally {
         btn.textContent = 'Generar Resumen';
         btn.disabled = false;
@@ -7113,30 +7094,41 @@ async function generateAndSendToExcel() {
 }
 
 /* =========================================================
-   4. INICIALIZACIÓN FINAL (UNIFICADA)
+   4. INICIALIZACIÓN FINAL (Funcionalidades Originales)
    ========================================================= */
 document.addEventListener('DOMContentLoaded', () => {
-    // Vincular el botón una sola vez (esto evita el doble almacenamiento)
+    // Vincular botón principal
     const btnResumen = document.querySelector('header .header-controls .btn-primary');
     if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
 
+    // Lanzar módulos originales
+    try { initDateTimeAndShift(); } catch(e){}
     try { initHeaderTimer(); } catch(e){}
+    try { setupEventListeners(); } catch(e){} 
+    try { makeColumnsSortable(); } catch(e){}
+    try { hydrateKpiTotalCost(); } catch(e){}
+    try { loadBoardsInitial(); } catch(e){}
+    try { loadIncidentes(); } catch(e){}
+    try { connectWebSocket(); } catch(e){}
+    try { initTeamRoster(); } catch(e){}
     try { initEhsSimple(); } catch(e){}
-    try { init5S(); } catch(e){}
     try { initFullscreenToggles(); } catch(e){}
+    try { init5S(); } catch(e){}
+    try { initPrevShiftSystem(); } catch(e){} 
+    try { initManualIncidents(); } catch(e){} 
+    try { initAutoShiftChange(); } catch(e){} 
     
-    // Sistema de Voz
+    // Voz
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(SR) {
         const r = new SR(); r.lang = 'es-ES';
         document.body.addEventListener('click', e => {
-            const btnMic = e.target.closest('.btn-mic');
-            if(btnMic) { 
-                const target = document.getElementById(btnMic.dataset.target);
-                r.start();
-                btnMic.classList.add('listening');
+            const btn = e.target.closest('.btn-mic');
+            if(btn) { 
+                const target = document.getElementById(btn.dataset.target);
+                r.start(); btn.classList.add('listening');
                 r.onresult = ev => { target.value += " " + ev.results[0][0].transcript; target.dispatchEvent(new Event('input')); };
-                r.onend = () => btnMic.classList.remove('listening');
+                r.onend = () => btn.classList.remove('listening');
             }
         });
     }
