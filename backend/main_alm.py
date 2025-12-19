@@ -29,32 +29,13 @@ from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, Br
 
 async def send_to_excel_online(data: BriefingSnapshot):
     url = os.getenv("EXCEL_WEBHOOK_URLALM")
-    if not url: return
-
-    # 1. Formatear Actualizaciones Operativas
-    # Inicializamos siempre la variable antes del IF
-    ops_text = "Sin actualizaciones"
-    if data.ops_updates:
-        ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
-        ops_text = " | ".join(ops_lines)
-
-    # 2. Formatear Incidentes de Seguridad (NUEVO)
-    # CORRECCIÓN: Inicializamos la variable aquí, fuera de cualquier IF, para evitar el NameError
-    safety_text = "Sin incidentes manuales"
     
-    if data.safety_incidents:
-        safe_lines = []
-        for inc in data.safety_incidents:
-            # En MAD usas title y desc
-            titulo = str(inc.get('title', 'Sin título'))
-            desc = str(inc.get('desc', ''))
-            safe_lines.append(f"[{titulo}] {desc}")
-        # Si hay líneas, actualizamos la variable
-        if safe_lines:
-            safety_text = " | ".join(safe_lines)
+    if not url: 
+        print("❌ ERROR: No se encontró la URL 'EXCEL_WEBHOOK_URLALM' en el entorno.")
+        return
 
-    # 3. Payload
-    # Ahora safety_text siempre existe, tenga incidentes o no
+    # ... (tu lógica de formateo de texto) ...
+
     payload = {
         "fecha": str(data.date),
         "turno": str(data.shift),
@@ -70,13 +51,19 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "incidentes_seguridad": str(safety_text) 
     }
 
-    print(f"📤 Payload Excel: {json.dumps(payload)}")
+    print(f"📤 Intentando enviar a Excel Online...")
     
     try:
         async with httpx.AsyncClient() as client:
-            await client.post(url, json=payload, timeout=15.0)
+            response = await client.post(url, json=payload, timeout=15.0)
+            # Esto nos dirá si Power Automate aceptó el paquete
+            print(f"✅ Respuesta Excel: {response.status_code} - {response.text}")
+            
+            if response.status_code != 200:
+                print(f"⚠️ El Webhook recibió los datos pero devolvió un error.")
+                
     except Exception as e:
-        print(f"Error Excel: {e}")
+        print(f"❌ Error crítico en la conexión con Excel: {e}")
 
 def generate_html_report(data: BriefingSnapshot) -> str:
     """Genera un HTML bonito y autocontenido con los datos del briefing."""
