@@ -1,6 +1,40 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script>
+    (function() {
+        // 1. Detectar dónde estamos (Ej: /bcn/)
+        let path = window.location.pathname;
+        if (!path.endsWith('/')) path += '/';
+        const BASE_PATH = path; 
+
+        // 2. Arreglar automáticamente las llamadas al servidor (/api -> /bcn/api)
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options) {
+            if (typeof url === 'string') {
+                // Si el código intenta ir a la raíz (/api), lo redirigimos a la carpeta (/bcn/api)
+                if (url.startsWith('/api/')) {
+                    url = BASE_PATH + url.substring(1); // quita la primera barra
+                } else if (url.startsWith('api/')) {
+                    url = BASE_PATH + url;
+                }
+            }
+            return originalFetch(url, options);
+        };
+
+        // 3. Arreglar el WebSocket automáticamente
+        window.ORIGINAL_WS_URL = null;
+        const OriginalWebSocket = window.WebSocket;
+        window.WebSocket = function(url) {
+            // Si intenta conectar a la raíz, lo forzamos a la carpeta
+            if (url.includes('/ws') && !url.includes(BASE_PATH)) {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                url = `${protocol}//${window.location.host}${BASE_PATH}ws`;
+            }
+            return new OriginalWebSocket(url);
+        };
+    })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8" />
 <title>Dashboard - WFS4 MAD OPS</title>
@@ -7257,6 +7291,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
