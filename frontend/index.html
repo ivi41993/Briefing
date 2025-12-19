@@ -6724,108 +6724,7 @@ window.closePostBriefingMode = function() {
 
 /* ===== GENERAR RESUMEN (CORREGIDO: Recoge OPS + Guardado Excel) ===== */
 /* ===== GENERAR RESUMEN (CORREGIDO Y OPTIMIZADO) ===== */
-(function wireBriefingGenerate(){
-  const oldBtn = document.querySelector('header .header-controls .btn-primary');
-  if (!oldBtn) return;
 
-  // Clonar para limpiar eventos anteriores
-  const btn = oldBtn.cloneNode(true);
-  oldBtn.parentNode.replaceChild(btn, oldBtn);
-
-  btn.addEventListener('click', async (e)=>{
-    e.preventDefault(); 
-    
-    const supInput = document.getElementById('briefing-supervisor');
-    
-    // Validación de seguridad
-    if (!supInput || !supInput.value.trim()) {
-        alert("⚠️ ATENCIÓN: El campo 'Supervisor' es obligatorio para generar el resumen y guardar en base de datos.");
-        setTimeout(() => supInput?.focus(), 100);
-        return; 
-    }
-
-    const oldText = btn.textContent;
-    btn.textContent = 'Guardando datos...';
-    btn.disabled = true;
-    
-    try {
-      // 1. Datos del equipo (Asistencia)
-      const team = window.TEAM_STATE || {};
-      const rosterList = (team.people || []).map(p => {
-          const isPresent = (team.attendance || {})[p.nombre_completo];
-          const status = isPresent === true ? 'Presente' : 'Ausente';
-          return `${p.nombre_completo} (${status})`;
-      }).join(" | ");
-
-      // 2. Texto del turno anterior
-      let prevShiftText = "";
-      if (window.getPrevShiftText) {
-          prevShiftText = window.getPrevShiftText(); 
-      } else {
-          const oldNote = document.getElementById('prev-shift-note');
-          if (oldNote) prevShiftText = oldNote.innerText;
-      }
-
-      // 3. RECOPILAR ACTUALIZACIONES OPERATIVAS DESDE EL DOM
-      // Esto garantiza que capturamos lo que el usuario ve en pantalla
-      let opsData = [];
-      const opsNodes = document.querySelectorAll('#ops-list .ops-item');
-      opsNodes.forEach(node => {
-          const title = node.querySelector('.ops-title')?.innerText.trim();
-          const impact = node.querySelector('.ops-impact')?.innerText.trim();
-          const scope = node.querySelector('.ops-scope')?.innerText.trim();
-          if(title) {
-              opsData.push({ title, impact, scope });
-          }
-      });
-
-      // 4. Recopilar Incidentes manuales del localStorage
-      let manualIncidents = [];
-      try {
-           manualIncidents = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]');
-      } catch (e) { console.error("Error leyendo incidentes locales", e); }
-
-      // 5. Preparar el Payload para enviar al servidor
-      const payload = {
-          station: (window.STATION_OVERRIDE || 'MAD'),
-          supervisor: supInput.value.trim(),
-          shift: document.getElementById('shift-badge-header')?.innerText || 'General',
-          timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-          roster_summary: rosterList || "Sin datos de asistencia",
-          prev_shift_summary: prevShiftText || "Sin novedades",
-          ops_updates: opsData,
-          incidents_manual: manualIncidents,
-          timestamp: new Date().toISOString()
-      };
-
-      // 6. Envío al servidor (API endpoint para guardar en Excel/DB)
-      const res = await fetch('/api/briefing/summary', {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) throw new Error(`Error en el servidor: ${res.status}`);
-      
-      const responseData = await res.json();
-      alert("✅ Datos guardados y resumen generado con éxito.");
-
-      // 7. Abrir la pantalla de visualización post-briefing (Modo Lectura)
-      if(window.openPostBriefingMode) window.openPostBriefingMode();
-
-      // 8. Limpiar para el siguiente turno
-      if(window.resetFactoryTimer) window.resetFactoryTimer();
-      supInput.value = "";
-      
-    } catch (err) {
-      console.error("Error al generar resumen:", err);
-      alert('❌ Error al guardar: ' + err.message);
-    } finally {
-      btn.textContent = oldText;
-      btn.disabled = false;
-    }
-  });
-})();
 // =========================================================
 //  LÓGICA FINAL: CAMBIO DE TURNO, NAVEGACIÓN Y VOZ
 // =========================================================
@@ -7015,280 +6914,39 @@ window.markOkAndNext = function(checkName, nextId) {
     }
 };
 
-// 4. GENERAR RESUMEN (TRIGGER)
-(function wireBriefingGenerate(){
-  const btn = document.querySelector('header .header-controls .btn-primary');
-  if (!btn) return;
 
-  btn.addEventListener('click', async ()=>{
-    const supInput = document.getElementById('briefing-supervisor');
-    if (!supInput || !supInput.value.trim()) {
-        alert("⚠️ El campo 'Supervisor' es obligatorio.");
-        supInput?.focus();
-        return;
-    }
 
-    const oldText = btn.textContent;
-    btn.textContent = 'Guardando...';
-    btn.disabled = true;
-    
-    try {
-      // Recoger datos básicos (simulado)
-      const payload = {
-          supervisor: supInput.value.trim(),
-          date: new Date().toISOString()
-      };
 
-      // Simular envío
-      // await fetch(...) 
-      
-      console.log("✅ Resumen generado:", payload);
-      
-      if(window.openPostBriefingMode) window.openPostBriefingMode();
 
-      // RESETEO COMPLETO
-      if(window.resetFactoryTimer) window.resetFactoryTimer();
-      supInput.value = "";
-      document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
-          r.checked = false;
-          r.dispatchEvent(new Event('change'));
-      });
-      // Salir del modo turno si estaba activo
-      window.exitShiftMode();
-
-    } catch (err) {
-      console.error(err);
-      alert('Error: ' + err.message);
-    } finally {
-      btn.textContent = oldText;
-      btn.disabled = false;
-    }
-  });
-})();
-
-// 5. INYECCIÓN DE NAVEGACIÓN EN TARJETAS
-document.addEventListener('DOMContentLoaded', () => {
-    const WIDGET_MAP = [
-        { id: 'team-widget',        check: 'c1', label: '1. Dotación' },
-        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
-        { id: 'prev-shift-widget',  check: 'c3', label: '3. Turno Anterior' },
-        { id: 'seguridad-widget',   check: 'c4', label: '4. Seguridad' },
-        { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
-        { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
-        { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
-    ];
-
-    WIDGET_MAP.forEach((step, index) => {
-        const widget = document.getElementById(step.id);
-        if (!widget || widget.querySelector('.widget-nav-bar')) return;
-
-        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
-        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
-        
-        const navBar = document.createElement('div');
-        navBar.className = 'widget-nav-bar';
-        navBar.innerHTML = `
-            <div class="nav-group">
-                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
-                    ⬅ Anterior
-                </button>
-            </div>
-            <div class="nav-group" style="font-size:0.9rem; color:#64748b;">
-                ${step.label} (${index + 1}/${WIDGET_MAP.length})
-            </div>
-            <div class="nav-group">
-                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
-                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
-                    ✅ OK ➡
-                </button>
-            </div>
-        `;
-        widget.prepend(navBar);
-    });
-});
-
-/* ===== Lógica Turno Anterior (Filas Editables) ===== */
-(function initPrevShiftSystem(){
-    const input = document.getElementById('prev-input');
-    const btn = document.getElementById('prev-add-btn');
-    const list = document.getElementById('prev-list');
-    const KEY = 'prev_shift_items_v2';
-
-    if(!list) return;
-
-    function load() { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
-    function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
-
-    function render() {
-        const items = load();
-        list.innerHTML = '';
-        items.forEach((text, idx) => {
-            const row = document.createElement('div');
-            row.className = 'prev-item'; // Estilo definido en tu CSS
-            row.innerHTML = `
-                <div class="prev-text" contenteditable="true" data-idx="${idx}">${text}</div>
-                <div class="prev-actions">
-                    <button class="prev-btn del-btn" data-idx="${idx}">🗑️</button>
-                </div>
-            `;
-            list.appendChild(row);
-        });
-    }
-
-    // Añadir
-    function add() {
-        const val = input.value.trim();
-        if(!val) return;
-        const items = load();
-        items.unshift(val); // Añadir al principio
-        save(items);
-        render();
-        input.value = '';
-    }
-
-    btn?.addEventListener('click', add);
-    input?.addEventListener('keydown', (e) => { if(e.key === 'Enter') add(); });
-
-    // Delegación: Borrar y Editar
-    list.addEventListener('click', (e) => {
-        if(e.target.closest('.del-btn')) {
-            const idx = e.target.closest('.del-btn').dataset.idx;
-            const items = load();
-            items.splice(idx, 1);
-            save(items);
-            render();
-        }
-    });
-
-    list.addEventListener('input', (e) => {
-        if(e.target.classList.contains('prev-text')) {
-            const idx = e.target.dataset.idx;
-            const items = load();
-            items[idx] = e.target.innerText;
-            save(items); // Guardado automático al editar
-        }
-    });
-
-    // Exponer función de reset para el botón Generar
-    window.resetPrevShift = function() {
-        localStorage.removeItem(KEY);
-        render();
-    };
-    
-    // Exponer getter para el resumen
-    window.getPrevShiftText = function() {
-        return load().join(' | ');
-    };
-
-    render();
-})();
-
-/* ===== NUEVO SISTEMA: Incidentes Manuales & Lecciones ===== */
-(function initManualIncidents() {
-    const KEY = 'incidents_manual_entries_v1';
-    const listEl = document.getElementById('incidents-list-container');
-    const form = document.getElementById('manual-inc-form');
-    
-    if (!listEl || !form) return;
-
-    // 1. Cargar datos
-    function load() {
-        try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } 
-        catch { return []; }
-    }
-
-    // 2. Guardar datos
-    function save(data) {
-        try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {}
-    }
-
-    // 3. Renderizar
-    function render() {
-        const items = load();
-        listEl.innerHTML = '';
-
-        if (items.length === 0) {
-            listEl.innerHTML = `
-                <div style="text-align:center; padding:20px; color:#9ca3af; font-style:italic;">
-                    No hay incidentes ni lecciones registradas hoy.
-                </div>`;
-            return;
-        }
-
-        // Ordenar: más recientes primero
-        items.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        items.forEach(item => {
-            const card = document.createElement('div');
-            // Clase según tipo
-            const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
-            const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
-            
-            card.className = `inc-card ${typeClass}`;
-            card.innerHTML = `
-                <div class="inc-header">
-                    <div>
-                        <span class="inc-badge">${badgeText}</span>
-                        <div class="inc-title" style="margin-top:4px;">${esc(item.title)}</div>
-                    </div>
-                    <button class="inc-del-btn" title="Eliminar" data-id="${item.id}">🗑️</button>
-                </div>
-                <div class="inc-desc">${esc(item.desc)}</div>
-                <div class="inc-meta">
-                    <span>${new Date(item.date).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})} - ${new Date(item.date).toLocaleDateString('es-ES')}</span>
-                </div>
-            `;
-            listEl.appendChild(card);
-        });
-    }
-
-    // 4. Añadir nuevo
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const type = document.getElementById('new-inc-type').value;
-        const title = document.getElementById('new-inc-title').value.trim();
-        const desc = document.getElementById('new-inc-desc').value.trim();
-
-        if (!title) return;
-
-        const newItem = {
-            id: Date.now().toString(),
-            type: type,
-            title: title,
-            desc: desc,
-            date: new Date().toISOString()
-        };
-
-        const items = load();
-        items.push(newItem);
-        save(items);
-        
-        // Limpiar form
-        document.getElementById('new-inc-title').value = '';
-        document.getElementById('new-inc-desc').value = '';
-        
-        render();
-    });
-
-    // 5. Borrar
-    listEl.addEventListener('click', (e) => {
-        if (e.target.classList.contains('inc-del-btn')) {
-            if(!confirm("¿Borrar este registro?")) return;
-            const id = e.target.dataset.id;
-            const items = load().filter(i => i.id !== id);
-            save(items);
-            render();
-        }
-    });
-
-    // Iniciar
-    render();
-})();
 /* =========================================================
-   FUNCION: GENERAR Y ENVIAR RESUMEN AL EXCEL
+   1. SISTEMA DE FUSION: CORRECTOR DE RUTAS
    ========================================================= */
+(function() {
+    let path = window.location.pathname;
+    if (!path.endsWith('/')) path += '/';
+    const BASE_PATH = path; 
+
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+        if (typeof url === 'string' && (url.startsWith('api/') || url.startsWith('/api/'))) {
+            const cleanUrl = url.startsWith('/') ? url.substring(1) : url;
+            url = BASE_PATH + cleanUrl;
+        }
+        return originalFetch(url, options);
+    };
+
+    const OriginalWebSocket = window.WebSocket;
+    window.WebSocket = function(url) {
+        if (url.includes('/ws') && !url.includes(BASE_PATH)) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            url = `${protocol}//${window.location.host}${BASE_PATH}ws`;
+        }
+        return new OriginalWebSocket(url);
+    };
+})();
+
 /* =========================================================
-   FUNCION: GENERAR Y ENVIAR RESUMEN (FIX 422)
+   2. GENERAR RESUMEN (MAPEADO EXACTO PARA MADRID)
    ========================================================= */
 async function generateAndSendToExcel() {
     const btn = document.querySelector('header .header-controls .btn-primary');
@@ -7304,32 +6962,42 @@ async function generateAndSendToExcel() {
     btn.disabled = true;
 
     try {
-        // 1. Recoger Roster (Personal)
+        // A. Card 1: Equipo (Roster)
         const team = window.TEAM_STATE || { people: [], attendance: {} };
         const rosterDetails = team.people.map(p => {
             const isP = team.attendance[p.name] === true;
             return `${p.name} (${isP ? "✅" : "❌"})`;
-        }).join(", ");
+        }).join(", ") || "Sin datos";
 
-        // 2. Recoger Highlights del Turno Anterior
+        // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
                                 .map(el => el.innerText).join(" | ");
 
-        // 3. Recoger OPS Updates como LISTA DE OBJETOS (Importante para evitar error 422)
+        // C. Card 2: Actualizaciones Operativas (OPS)
         const opsData = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(node => ({
             title: node.querySelector('.ops-title')?.innerText || '',
             impact: node.querySelector('.ops-impact')?.innerText || 'Medio',
             scope: node.querySelector('.ops-scope')?.innerText || 'General'
         }));
 
-        // 4. Recoger Seguridad (Card 4 y 5) como LISTA DE OBJETOS
-        const manualIncidents = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]');
-        const safetyEntries = manualIncidents.map(inc => ({
-            title: inc.title,
-            desc: inc.desc // En tu HTML 'desc' es el detalle del incidente
+        // D. Card 4 y 5: SEGURIDAD (Aquí es donde fallaba)
+        // 1. Tips automáticos del día
+        const safetyTips = Array.from(document.querySelectorAll('#sec-random-list li')).map(li => ({
+            title: "Recordatorio Diario",
+            desc: li.innerText
+        }));
+        // 2. Riesgos manuales de Card 4
+        const card4Risks = JSON.parse(localStorage.getItem('sec_cards_v1') || '[]').map(c => ({
+            title: "Riesgo Detectado",
+            desc: `${c.title} (Resp: ${c.owner})`
+        }));
+        // 3. Incidentes de Card 5
+        const card5Incidents = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]').map(i => ({
+            title: i.type === 'incident' ? "INCIDENTE" : "LECCIÓN APRENDIDA",
+            desc: `${i.title}: ${i.desc}`
         }));
 
-        // 5. Preparar Payload EXACTO como lo pide el BriefingSnapshot de Python
+        // E. Preparar Payload EXACTO según BriefingSnapshot de Python
         const payload = {
             station: "WFS4 MAD OPS",
             date: new Date().toLocaleDateString('es-ES'),
@@ -7337,22 +7005,21 @@ async function generateAndSendToExcel() {
             timer: document.getElementById('timer-display')?.innerText || '00:00:00',
             briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
             supervisor: supInput.value.trim(),
-            checklist: {}, // Opcional, pero se envía como objeto
+            checklist: {}, 
             kpis: {
                 "UPH": document.getElementById('kpi-uph')?.innerText || "-",
                 "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
-                "OTIF": document.getElementById('kpi-otif')?.innerText || "-"
+                "Backlog": document.getElementById('fiix-backlog')?.innerText || "-"
             },
-            roster_details: rosterDetails,
-            prev_shift_note: highlights,
-            ops_updates: opsData,            // Enviado como Lista de Diccionarios
-            safety_incidents: safetyEntries,  // Enviado como Lista de Diccionarios
-            kanban_details: ""               // Opcional
+            roster_details: rosterDetails,   // Nombre clave para Python
+            prev_shift_note: highlights,    // Nombre clave para Python
+            ops_updates: opsData,           // Lista de objetos
+            safety_incidents: [...safetyTips, ...card4Risks, ...card5Incidents], // UNIÓN TOTAL
+            kanban_details: ""
         };
 
-        console.log("📤 Enviando Payload:", payload);
+        console.log("📤 Enviando a Excel:", payload);
 
-        // 6. Envío al Servidor
         const res = await fetch('api/briefing/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7360,9 +7027,9 @@ async function generateAndSendToExcel() {
         });
 
         if (!res.ok) {
-            const errorData = await res.json();
-            console.error("Detalle del error 422:", errorData);
-            throw new Error(`Error en el servidor: ${res.status}`);
+            const err = await res.json();
+            console.error("Detalle error 422:", err);
+            throw new Error(`Error ${res.status}`);
         }
 
         alert("✅ Resumen enviado a Excel y guardado correctamente.");
@@ -7372,16 +7039,48 @@ async function generateAndSendToExcel() {
         supInput.value = "";
 
     } catch (err) {
-        console.error("❌ Error al generar resumen:", err);
-        alert("Error: " + err.message);
+        console.error("❌ Error:", err);
+        alert("Error al enviar resumen. Revisa la consola.");
     } finally {
         btn.textContent = 'Generar Resumen';
         btn.disabled = false;
     }
 }
+
+/* =========================================================
+   3. INICIALIZACIÓN FINAL
+   ========================================================= */
+document.addEventListener('DOMContentLoaded', () => {
+    // Vincular el botón una sola vez
+    const btnResumen = document.querySelector('header .header-controls .btn-primary');
+    if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
+
+    // Lanzar módulos
+    try { initHeaderTimer(); } catch(e){}
+    try { initEhsSimple(); } catch(e){}
+    try { init5S(); } catch(e){}
+    try { initFullscreenToggles(); } catch(e){}
+    
+    // Iniciar sistema de voz
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(SR) {
+        const r = new SR(); r.lang = 'es-ES';
+        document.body.addEventListener('click', e => {
+            const btnMic = e.target.closest('.btn-mic');
+            if(btnMic) { 
+                const target = document.getElementById(btnMic.dataset.target);
+                r.start();
+                btnMic.classList.add('listening');
+                r.onresult = ev => { target.value += " " + ev.results[0][0].transcript; target.dispatchEvent(new Event('input')); };
+                r.onend = () => btnMic.classList.remove('listening');
+            }
+        });
+    }
+});
 </script>
 </body>
 </html>
+
 
 
 
