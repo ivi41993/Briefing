@@ -6822,460 +6822,164 @@ window.closePostBriefingMode = function() {
 //  LÓGICA FINAL: CAMBIO DE TURNO, NAVEGACIÓN Y VOZ
 // =========================================================
 
-// 1. SISTEMA DE VOZ (MICRÓFONO)
-(function initVoiceSystem() {
-    console.log("🎤 Inicializando sistema de voz...");
+/* =========================================================
+   1. CORRECTOR DE RUTAS PARA SISTEMA FUSION
+   ========================================================= */
+(function() {
+    let path = window.location.pathname;
+    if (!path.endsWith('/')) path += '/';
+    const BASE_PATH = path; 
+
+    // Corregir Fetch
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+        if (typeof url === 'string' && (url.startsWith('api/') || url.startsWith('/api/'))) {
+            const cleanUrl = url.startsWith('/') ? url.substring(1) : url;
+            url = BASE_PATH + cleanUrl;
+        }
+        return originalFetch(url, options);
+    };
+
+    // Corregir WebSockets
+    const OriginalWebSocket = window.WebSocket;
+    window.WebSocket = function(url) {
+        if (url.includes('/ws') && !url.includes(BASE_PATH)) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            url = `${protocol}//${window.location.host}${BASE_PATH}ws`;
+        }
+        return new OriginalWebSocket(url);
+    };
+    console.log("📍 WFS4 MAD - Base path activa:", BASE_PATH);
+})();
+
+/* =========================================================
+   2. RECOLECCIÓN Y ENVÍO DE DATOS (GENERAR RESUMEN)
+   ========================================================= */
+async function generateAndSendSummary() {
+    const btn = document.querySelector('header .header-controls .btn-primary');
+    const supInput = document.getElementById('briefing-supervisor');
+    
+    if (!supInput || !supInput.value.trim()) {
+        alert("⚠️ El nombre del Supervisor es obligatorio.");
+        supInput.focus();
+        return;
+    }
+
+    btn.textContent = 'Enviando...';
+    btn.disabled = true;
+
+    try {
+        // A. Recoger Roster del estado global
+        const team = window.TEAM_STATE || { people: [], attendance: {} };
+        const rosterList = team.people.map(p => {
+            const isP = team.attendance[p.nombre_completo] === true;
+            return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
+        }).join(", ") || "Sin personal registrado";
+
+        // B. Recoger Actualizaciones Operativas (OPS) desde el DOM
+        let opsData = [];
+        document.querySelectorAll('#ops-list .ops-item').forEach(card => {
+            opsData.push({
+                title: card.querySelector('.ops-title')?.innerText || '',
+                impact: card.querySelector('.ops-impact')?.innerText || 'Medio'
+            });
+        });
+
+        // C. Recoger Seguridad (Tips automáticos + Manuales)
+        let safetyEntries = [];
+        // Tips de la lista
+        document.querySelectorAll('#sec-random-list li').forEach(li => {
+            safetyEntries.push({ title: "Recordatorio Diario", desc: li.innerText });
+        });
+        // Incidentes manuales del localStorage
+        const manualSec = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]');
+        manualSec.forEach(inc => {
+            safetyEntries.push({ title: inc.title, desc: inc.desc });
+        });
+
+        // D. Construir Payload
+        const payload = {
+            station: "WFS4-MAD",
+            date: new Date().toLocaleDateString('es-ES'),
+            shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+            timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+            briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
+            supervisor: supInput.value.trim(),
+            roster_details: rosterList,
+            prev_shift_note: window.getPrevShiftText ? window.getPrevShiftText() : "Sin datos",
+            kpis: {
+                "UPH": document.getElementById('kpi-uph')?.innerText || "-",
+                "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
+            },
+            ops_updates: opsData,
+            safety_incidents: safetyEntries
+        };
+
+        // E. Enviar al servidor
+        const res = await fetch('api/briefing/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Error en el servidor");
+
+        alert("✅ Resumen enviado a Excel correctamente.");
+        
+        // F. Acciones Post-Envío
+        if(window.openPostBriefingMode) window.openPostBriefingMode();
+        if(window.resetFactoryTimer) window.resetFactoryTimer();
+        supInput.value = "";
+
+    } catch (err) {
+        console.error(err);
+        alert("❌ Error al enviar: " + err.message);
+    } finally {
+        btn.textContent = 'Generar Resumen';
+        btn.disabled = false;
+    }
+}
+
+/* =========================================================
+   3. INICIALIZACIÓN DE EVENTOS Y SISTEMAS RESTANTES
+   ========================================================= */
+document.addEventListener('DOMContentLoaded', () => {
+    // Vincular botón principal
+    const btnGen = document.querySelector('header .header-controls .btn-primary');
+    if (btnGen) btnGen.onclick = generateAndSendSummary;
+
+    // Inicializar sistema de voz (Micrófono)
+    initVoiceSystem();
+    
+    // El resto de inicializadores que ya tenías...
+    try { initHeaderTimer(); } catch(e){}
+    try { initDateTimeAndShift(); } catch(e){}
+    // ... etc
+});
+
+function initVoiceSystem() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
-    // Comprobaciones de seguridad
-    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-    if (!SpeechRecognition) return console.warn("❌ API de voz no soportada.");
-    
+    if (!SpeechRecognition) return;
     const recognition = new SpeechRecognition();
     recognition.lang = 'es-ES';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    let activeBtn = null;
-    let activeTarget = null;
-
-    recognition.onstart = () => { if (activeBtn) activeBtn.classList.add('listening'); };
-    recognition.onend = () => { 
-        if (activeBtn) activeBtn.classList.remove('listening'); 
-        activeBtn = null; 
-        activeTarget = null; 
-    };
-
-    recognition.onresult = (event) => {
-        if (!activeTarget) return;
-        const transcript = event.results[0][0].transcript;
-        const isInput = activeTarget.tagName === 'INPUT' || activeTarget.tagName === 'TEXTAREA';
-        
-        let currentText = isInput ? activeTarget.value : activeTarget.innerText;
-        currentText = currentText || "";
-        
-        const prefix = (currentText.length > 0 && !currentText.endsWith(' ')) ? ' ' : '';
-        const finalText = prefix + transcript.charAt(0).toUpperCase() + transcript.slice(1);
-
-        if (isInput) activeTarget.value = currentText + finalText;
-        else activeTarget.innerText = currentText + finalText;
-
-        activeTarget.dispatchEvent(new Event('input', { bubbles: true }));
-    };
-
-    recognition.onerror = (event) => {
-        if (activeBtn) activeBtn.classList.remove('listening');
-        if (event.error === 'not-allowed') alert("⚠️ Permiso denegado. Pulsa el candado 🔒 de la URL.");
-    };
 
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('.btn-mic');
         if (!btn) return;
-        e.preventDefault(); e.stopPropagation();
-
-        if (!isSecure) { alert("⚠️ El micrófono requiere HTTPS."); return; }
-        if (btn.classList.contains('listening')) { recognition.stop(); return; }
-
-        const targetId = btn.getAttribute('data-target');
-        const targetEl = document.getElementById(targetId);
-
-        if (targetEl) {
-            activeBtn = btn;
-            activeTarget = targetEl;
-            try { recognition.start(); } catch (err) { recognition.stop(); }
-        } else {
-            alert("Error: No encuentro el campo de texto destino.");
-        }
-    });
-})();
-
-// 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
-// 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
-(function initAutoShiftChange(){
-    let lastShift = null;
-
-    function checkTime() {
-        const h = new Date().getHours();
-        let currentShift = 'Noche';
-        if (h >= 6 && h < 14) currentShift = 'Mañana';
-        if (h >= 14 && h < 22) currentShift = 'Tarde';
-
-        if (lastShift === null) { lastShift = currentShift; return; }
-
-        if (currentShift !== lastShift) {
-            console.log(`🔄 CAMBIO DE TURNO DETECTADO: ${lastShift} -> ${currentShift}`);
-            lastShift = currentShift;
-            triggerShiftMode(currentShift);
-        }
-    }
-
-    window.triggerShiftMode = function(shiftName) {
-        // 1. ACTIVAR MODO TURNO (Clase unificada)
-        document.body.classList.add('shift-mode'); 
+        const target = document.getElementById(btn.dataset.target);
         
-        // 2. Resetear Timer
-        const btnReset = document.getElementById('timer-reset');
-        if(btnReset) btnReset.click();
-        
-        // 3. Resetear Checks visuales
-        document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
-        
-        // 4. Enfocar Checklist (Fake Fullscreen)
-        const checklist = document.getElementById('brief-check');
-        if(checklist) {
-            checklist.classList.add('shift-focus');
-            
-            // Cambiar título temporalmente para indicar cambio
-            const title = checklist.querySelector('.widget-title');
-            if(title) {
-                if(!title.dataset.original) title.dataset.original = title.innerHTML;
-                title.innerHTML = `COMIENZO TURNO: <span style="color:#dc2626">${(shiftName || 'NUEVO').toUpperCase()}</span>`;
-            }
-        }
-    };
+        btn.classList.add('listening');
+        recognition.start();
 
-    // Función manual para salir y limpiar todo
-    window.exitShiftMode = function() {
-        // Quitar clases del body
-        document.body.classList.remove('shift-mode');
-        document.body.classList.remove('shift-active'); // Por si acaso
-        
-        // Quitar fullscreen del checklist
-        const checklist = document.getElementById('brief-check');
-        if(checklist) {
-            checklist.classList.remove('shift-focus');
-            // Restaurar título original
-            const title = checklist.querySelector('.widget-title');
-            if(title && title.dataset.original) {
-                title.innerHTML = title.dataset.original;
-            }
-        }
-    };
-
-    setInterval(checkTime, 1000);
-})();
-
-// 3. NAVEGACIÓN GUIADA (ZOOM + CRONO)
-window.navTo = function(targetId) {
-    const el = document.getElementById(targetId);
-    if (!el) return;
-
-    // Limpiar zooms previos
-    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-    
-    // Activar modo tarjeta abierta (hace visible el crono encima)
-    document.body.classList.add('card-open');
-
-    // Zoom a la tarjeta
-    el.classList.add('widget--zoomed');
-    el.scrollTop = 0;
-};
-
-window.exitFlow = function() {
-    // Quitar zoom
-    document.querySelectorAll('.widget--zoomed').forEach(w => w.classList.remove('widget--zoomed'));
-    // Quitar estado tarjeta abierta
-    document.body.classList.remove('card-open');
-
-    // Si estábamos en modo turno, volver al checklist fullscreen
-    if (document.body.classList.contains('shift-mode')) {
-        const checklist = document.getElementById('brief-check');
-        if(checklist) checklist.classList.add('shift-focus');
-    } else {
-        // Limpieza total
-        document.querySelectorAll('.shift-focus').forEach(w => w.classList.remove('shift-focus'));
-    }
-    
-    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
-};
-
-window.markOkAndNext = function(checkName, nextId) {
-    // Marcar OK
-    if (checkName) {
-        const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
-        if (radio) {
-            radio.checked = true;
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-    }
-    // Navegar
-    if (nextId) {
-        navTo(nextId);
-    } else {
-        exitFlow();
-        alert("🎉 Checklist completado.");
-    }
-};
-
-// 4. GENERAR RESUMEN (TRIGGER)
-(function wireBriefingGenerate(){
-  const btn = document.querySelector('header .header-controls .btn-primary');
-  if (!btn) return;
-
-  btn.addEventListener('click', async ()=>{
-    const supInput = document.getElementById('briefing-supervisor');
-    if (!supInput || !supInput.value.trim()) {
-        alert("⚠️ El campo 'Supervisor' es obligatorio.");
-        supInput?.focus();
-        return;
-    }
-
-    const oldText = btn.textContent;
-    btn.textContent = 'Guardando...';
-    btn.disabled = true;
-    
-    try {
-      // Recoger datos básicos (simulado)
-      const payload = {
-          supervisor: supInput.value.trim(),
-          date: new Date().toISOString()
-      };
-
-      // Simular envío
-      // await fetch(...) 
-      
-      console.log("✅ Resumen generado:", payload);
-      
-      if(window.openPostBriefingMode) window.openPostBriefingMode();
-
-      // RESETEO COMPLETO
-      if(window.resetFactoryTimer) window.resetFactoryTimer();
-      supInput.value = "";
-      document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => {
-          r.checked = false;
-          r.dispatchEvent(new Event('change'));
-      });
-      // Salir del modo turno si estaba activo
-      window.exitShiftMode();
-
-    } catch (err) {
-      console.error(err);
-      alert('Error: ' + err.message);
-    } finally {
-      btn.textContent = oldText;
-      btn.disabled = false;
-    }
-  });
-})();
-
-// 5. INYECCIÓN DE NAVEGACIÓN EN TARJETAS
-document.addEventListener('DOMContentLoaded', () => {
-    const WIDGET_MAP = [
-        { id: 'team-widget',        check: 'c1', label: '1. Dotación' },
-        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
-        { id: 'prev-shift-widget',  check: 'c3', label: '3. Turno Anterior' },
-        { id: 'seguridad-widget',   check: 'c4', label: '4. Seguridad' },
-        { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
-        { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
-        { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
-    ];
-
-    WIDGET_MAP.forEach((step, index) => {
-        const widget = document.getElementById(step.id);
-        if (!widget || widget.querySelector('.widget-nav-bar')) return;
-
-        const prevStep = index > 0 ? WIDGET_MAP[index - 1] : null;
-        const nextStep = index < WIDGET_MAP.length - 1 ? WIDGET_MAP[index + 1] : null;
-        
-        const navBar = document.createElement('div');
-        navBar.className = 'widget-nav-bar';
-        navBar.innerHTML = `
-            <div class="nav-group">
-                <button class="btn-nav" onclick="navTo('${prevStep ? prevStep.id : ''}')" ${!prevStep?'disabled':''}>
-                    ⬅ Anterior
-                </button>
-            </div>
-            <div class="nav-group" style="font-size:0.9rem; color:#64748b;">
-                ${step.label} (${index + 1}/${WIDGET_MAP.length})
-            </div>
-            <div class="nav-group">
-                <button class="btn-nav home" onclick="exitFlow()">Salir ✖</button>
-                <button class="btn-nav next-ok" onclick="markOkAndNext('${step.check}', '${nextStep ? nextStep.id : ''}')">
-                    ✅ OK ➡
-                </button>
-            </div>
-        `;
-        widget.prepend(navBar);
-    });
-});
-
-/* ===== Lógica Turno Anterior (Filas Editables) ===== */
-(function initPrevShiftSystem(){
-    const input = document.getElementById('prev-input');
-    const btn = document.getElementById('prev-add-btn');
-    const list = document.getElementById('prev-list');
-    const KEY = 'prev_shift_items_v2';
-
-    if(!list) return;
-
-    function load() { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
-    function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
-
-    function render() {
-        const items = load();
-        list.innerHTML = '';
-        items.forEach((text, idx) => {
-            const row = document.createElement('div');
-            row.className = 'prev-item'; // Estilo definido en tu CSS
-            row.innerHTML = `
-                <div class="prev-text" contenteditable="true" data-idx="${idx}">${text}</div>
-                <div class="prev-actions">
-                    <button class="prev-btn del-btn" data-idx="${idx}">🗑️</button>
-                </div>
-            `;
-            list.appendChild(row);
-        });
-    }
-
-    // Añadir
-    function add() {
-        const val = input.value.trim();
-        if(!val) return;
-        const items = load();
-        items.unshift(val); // Añadir al principio
-        save(items);
-        render();
-        input.value = '';
-    }
-
-    btn?.addEventListener('click', add);
-    input?.addEventListener('keydown', (e) => { if(e.key === 'Enter') add(); });
-
-    // Delegación: Borrar y Editar
-    list.addEventListener('click', (e) => {
-        if(e.target.closest('.del-btn')) {
-            const idx = e.target.closest('.del-btn').dataset.idx;
-            const items = load();
-            items.splice(idx, 1);
-            save(items);
-            render();
-        }
-    });
-
-    list.addEventListener('input', (e) => {
-        if(e.target.classList.contains('prev-text')) {
-            const idx = e.target.dataset.idx;
-            const items = load();
-            items[idx] = e.target.innerText;
-            save(items); // Guardado automático al editar
-        }
-    });
-
-    // Exponer función de reset para el botón Generar
-    window.resetPrevShift = function() {
-        localStorage.removeItem(KEY);
-        render();
-    };
-    
-    // Exponer getter para el resumen
-    window.getPrevShiftText = function() {
-        return load().join(' | ');
-    };
-
-    render();
-})();
-
-/* ===== NUEVO SISTEMA: Incidentes Manuales & Lecciones ===== */
-(function initManualIncidents() {
-    const KEY = 'incidents_manual_entries_v1';
-    const listEl = document.getElementById('incidents-list-container');
-    const form = document.getElementById('manual-inc-form');
-    
-    if (!listEl || !form) return;
-
-    // 1. Cargar datos
-    function load() {
-        try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } 
-        catch { return []; }
-    }
-
-    // 2. Guardar datos
-    function save(data) {
-        try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {}
-    }
-
-    // 3. Renderizar
-    function render() {
-        const items = load();
-        listEl.innerHTML = '';
-
-        if (items.length === 0) {
-            listEl.innerHTML = `
-                <div style="text-align:center; padding:20px; color:#9ca3af; font-style:italic;">
-                    No hay incidentes ni lecciones registradas hoy.
-                </div>`;
-            return;
-        }
-
-        // Ordenar: más recientes primero
-        items.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        items.forEach(item => {
-            const card = document.createElement('div');
-            // Clase según tipo
-            const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
-            const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
-            
-            card.className = `inc-card ${typeClass}`;
-            card.innerHTML = `
-                <div class="inc-header">
-                    <div>
-                        <span class="inc-badge">${badgeText}</span>
-                        <div class="inc-title" style="margin-top:4px;">${esc(item.title)}</div>
-                    </div>
-                    <button class="inc-del-btn" title="Eliminar" data-id="${item.id}">🗑️</button>
-                </div>
-                <div class="inc-desc">${esc(item.desc)}</div>
-                <div class="inc-meta">
-                    <span>${new Date(item.date).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})} - ${new Date(item.date).toLocaleDateString('es-ES')}</span>
-                </div>
-            `;
-            listEl.appendChild(card);
-        });
-    }
-
-    // 4. Añadir nuevo
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const type = document.getElementById('new-inc-type').value;
-        const title = document.getElementById('new-inc-title').value.trim();
-        const desc = document.getElementById('new-inc-desc').value.trim();
-
-        if (!title) return;
-
-        const newItem = {
-            id: Date.now().toString(),
-            type: type,
-            title: title,
-            desc: desc,
-            date: new Date().toISOString()
+        recognition.onresult = (event) => {
+            const text = event.results[0][0].transcript;
+            if (target.tagName === 'INPUT') target.value += (target.value ? ' ' : '') + text;
+            else target.innerText += (target.innerText ? ' ' : '') + text;
+            target.dispatchEvent(new Event('input', { bubbles: true }));
         };
-
-        const items = load();
-        items.push(newItem);
-        save(items);
-        
-        // Limpiar form
-        document.getElementById('new-inc-title').value = '';
-        document.getElementById('new-inc-desc').value = '';
-        
-        render();
+        recognition.onend = () => btn.classList.remove('listening');
     });
-
-    // 5. Borrar
-    listEl.addEventListener('click', (e) => {
-        if (e.target.classList.contains('inc-del-btn')) {
-            if(!confirm("¿Borrar este registro?")) return;
-            const id = e.target.dataset.id;
-            const items = load().filter(i => i.id !== id);
-            save(items);
-            render();
-        }
-    });
-
-    // Iniciar
-    render();
-})();
+}
 </script>
 </body>
 </html>
