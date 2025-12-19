@@ -6951,6 +6951,9 @@ window.markOkAndNext = function(checkName, nextId) {
 /* =========================================================
    2. TARJETA 5: INCIDENTES (FIX RECARGA Y ALMACENAMIENTO)
    ========================================================= */
+/* =========================================================
+   2. TARJETA 5: INCIDENTES (SOLUCIÓN DEFINITIVA AL BUG)
+   ========================================================= */
 (function initManualIncidents() {
     const KEY = 'incidents_manual_entries_v1';
     const listEl = document.getElementById('incidents-list-container');
@@ -6963,14 +6966,16 @@ window.markOkAndNext = function(checkName, nextId) {
 
     function render() {
         const items = load();
-        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay incidentes registrados hoy.</div>';
+        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay registros hoy.</div>';
         items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
             const card = document.createElement('div');
-            card.className = `inc-card ${item.type === 'incident' ? 'type-incident' : 'type-lesson'}`;
+            const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
+            const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
+            card.className = `inc-card ${typeClass}`;
             card.innerHTML = `
                 <div class="inc-header">
                     <div>
-                        <span class="inc-badge">${item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN'}</span>
+                        <span class="inc-badge">${badgeText}</span>
                         <div class="inc-title" style="margin-top:4px;">${esc(item.title)}</div>
                     </div>
                     <button type="button" class="inc-del-btn" data-id="${item.id}">🗑️</button>
@@ -6980,26 +6985,40 @@ window.markOkAndNext = function(checkName, nextId) {
         });
     }
 
-    form.onsubmit = function(e) {
-        e.preventDefault(); // EVITA RECARGA DE PAGINA
+    // Usamos addEventListener con preventDefault al principio de todo
+    form.addEventListener('submit', function(e) {
+        e.preventDefault(); 
+        e.stopPropagation();
+
+        const typeVal = document.getElementById('new-inc-type').value;
+        const titleVal = document.getElementById('new-inc-title').value.trim();
+        const descVal = document.getElementById('new-inc-desc').value.trim();
+
+        if (!titleVal) return;
+
         const items = load();
         items.push({ 
-            id: Date.now().toString(), 
-            type: document.getElementById('new-inc-type').value, 
-            title: document.getElementById('new-inc-title').value.trim(), 
-            desc: document.getElementById('new-inc-desc').value.trim(), 
+            id: "ID-" + Date.now(), 
+            type: typeVal, 
+            title: titleVal, 
+            desc: descVal, 
             date: new Date().toISOString() 
         });
+        
         save(items);
-        form.reset();
+        this.reset(); // Limpia el formulario
         render();
-    };
+        console.log("Registro añadido:", typeVal);
+    });
 
     listEl.onclick = function(e) {
         const btn = e.target.closest('.inc-del-btn');
-        if (btn && confirm("¿Borrar?")) {
-            save(load().filter(i => i.id !== btn.dataset.id));
-            render();
+        if (btn) {
+            e.preventDefault();
+            if (confirm("¿Borrar?")) {
+                save(load().filter(i => i.id !== btn.dataset.id));
+                render();
+            }
         }
     };
     render();
@@ -7125,6 +7144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
