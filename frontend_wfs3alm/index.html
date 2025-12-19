@@ -5164,11 +5164,21 @@ function initPrevShiftSystem() {
     };
 
     // Exponer función de borrado globalmente
+    // Añade esto cerca de initPrevShiftSystem si no lo tienes así
     window.removePrevItem = (idx) => {
-        const items = loadItems();
-        items.splice(idx, 1);
-        saveItems(items);
-        render();
+        const KEY = 'prev_highlights_' + (window.STATION_OVERRIDE || 'GENERIC') + '_v1';
+        try {
+            let items = JSON.parse(localStorage.getItem(KEY) || '[]');
+            items.splice(idx, 1);
+            localStorage.setItem(KEY, JSON.stringify(items));
+            
+            // Buscamos el initPrevShiftSystem para que repinte la lista
+            if (typeof initPrevShiftSystem === 'function') {
+                initPrevShiftSystem();
+            }
+        } catch (e) {
+            console.error("Error al borrar highlight:", e);
+        }
     };
 
     render();
@@ -7134,11 +7144,16 @@ async function generateAndSendToExcel() {
     btn.disabled = true;
 
     try {
-        // A. Card 1: Equipo
+        // A. Card 1: Equipo (CORREGIDO)
         const team = window.TEAM_STATE || { people: [], attendance: {} };
         const rosterDetails = team.people.map(p => {
-            const isP = team.attendance[p.name] === true;
-            return `${p.name} (${isP ? "✅" : "❌"})`;
+            // Usamos nombre_completo que es lo que guarda el sistema manual y el excel
+            const name = p.nombre_completo || p.name || "Desconocido"; 
+            
+            // Verificamos presencia usando la misma variable name
+            const isP = team.attendance[name] === true;
+            
+            return `${name} (${isP ? "✅" : "❌"})`;
         }).join(", ") || "Sin datos";
 
         // B. Card 3: Highlights Turno Anterior
