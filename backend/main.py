@@ -48,7 +48,7 @@ except ImportError:
 
 
 async def send_to_excel_online(data: BriefingSnapshot):
-    url = os.getenv("MAIN_WEEBHOOK")
+    url = os.getenv("MAIN_WEBHOOK")
     if not url: return
 
     # 1. Formatear Actualizaciones Operativas
@@ -4708,6 +4708,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
