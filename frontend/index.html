@@ -7287,6 +7287,9 @@ document.addEventListener('DOMContentLoaded', () => {
 /* =========================================================
    FUNCION: GENERAR Y ENVIAR RESUMEN AL EXCEL
    ========================================================= */
+/* =========================================================
+   FUNCION: GENERAR Y ENVIAR RESUMEN (FIX 422)
+   ========================================================= */
 async function generateAndSendToExcel() {
     const btn = document.querySelector('header .header-controls .btn-primary');
     const supInput = document.getElementById('briefing-supervisor');
@@ -7297,79 +7300,89 @@ async function generateAndSendToExcel() {
         return;
     }
 
-    const oldText = btn.textContent;
     btn.textContent = 'Enviando...';
     btn.disabled = true;
 
     try {
-        // A. Recoger Roster (Personal)
+        // 1. Recoger Roster (Personal)
         const team = window.TEAM_STATE || { people: [], attendance: {} };
         const rosterDetails = team.people.map(p => {
             const isP = team.attendance[p.name] === true;
             return `${p.name} (${isP ? "✅" : "❌"})`;
-        }).join(", ") || "Sin datos";
+        }).join(", ");
 
-        // B. Recoger Highlights (Turno Anterior - Card 3)
+        // 2. Recoger Highlights del Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
-                                .map(el => el.innerText).join(" | ") || "Sin novedades";
+                                .map(el => el.innerText).join(" | ");
 
-        // C. Recoger Actualizaciones Operativas (OPS - Card 2)
-        const opsNodes = document.querySelectorAll('#ops-list .ops-item');
-        const opsText = Array.from(opsNodes).map(node => {
-            const t = node.querySelector('.ops-title')?.innerText || '';
-            const i = node.querySelector('.ops-impact')?.innerText || 'Medio';
-            return `[${i}] ${t}`;
-        }).join(" | ") || "Sin actualizaciones";
+        // 3. Recoger OPS Updates como LISTA DE OBJETOS (Importante para evitar error 422)
+        const opsData = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(node => ({
+            title: node.querySelector('.ops-title')?.innerText || '',
+            impact: node.querySelector('.ops-impact')?.innerText || 'Medio',
+            scope: node.querySelector('.ops-scope')?.innerText || 'General'
+        }));
 
-        // D. Recoger Seguridad e Incidentes (Card 4 y 5)
-        const safetyTips = Array.from(document.querySelectorAll('#sec-random-list li')).map(li => li.innerText);
+        // 4. Recoger Seguridad (Card 4 y 5) como LISTA DE OBJETOS
         const manualIncidents = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]');
-        const manualText = manualIncidents.map(inc => `[${inc.type.toUpperCase()}] ${inc.title}: ${inc.desc}`).join(" | ");
-        const safetyFinal = [...safetyTips, manualText].filter(t => t).join(" | ") || "Sin novedades";
+        const safetyEntries = manualIncidents.map(inc => ({
+            title: inc.title,
+            desc: inc.desc // En tu HTML 'desc' es el detalle del incidente
+        }));
 
-        // E. Preparar Payload (Nombres de campos exactos para Power Automate)
+        // 5. Preparar Payload EXACTO como lo pide el BriefingSnapshot de Python
         const payload = {
-            station: "WFS4 MAD",
-            fecha: new Date().toLocaleDateString('es-ES'),
-            turno: document.getElementById('shift-badge-header')?.innerText || 'General',
+            station: "WFS4 MAD OPS",
+            date: new Date().toLocaleDateString('es-ES'),
+            shift: document.getElementById('shift-badge-header')?.innerText || 'General',
             timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-            hora_briefing: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
+            briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
             supervisor: supInput.value.trim(),
-            equipo: rosterDetails,
-            notas_turno_ant: highlights,
-            kpi_uph: document.getElementById('kpi-uph')?.innerText || "-",
-            kpi_costes: document.getElementById('kpi-total-cost')?.innerText || "-",
-            actualizaciones_ops: opsText,
-            incidentes_seguridad: safetyFinal
+            checklist: {}, // Opcional, pero se envía como objeto
+            kpis: {
+                "UPH": document.getElementById('kpi-uph')?.innerText || "-",
+                "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
+                "OTIF": document.getElementById('kpi-otif')?.innerText || "-"
+            },
+            roster_details: rosterDetails,
+            prev_shift_note: highlights,
+            ops_updates: opsData,            // Enviado como Lista de Diccionarios
+            safety_incidents: safetyEntries,  // Enviado como Lista de Diccionarios
+            kanban_details: ""               // Opcional
         };
 
-        // F. Envío al Servidor (Ajustado para Sistema de Fusión)
+        console.log("📤 Enviando Payload:", payload);
+
+        // 6. Envío al Servidor
         const res = await fetch('api/briefing/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error('Error en la respuesta del servidor');
+        if (!res.ok) {
+            const errorData = await res.json();
+            console.error("Detalle del error 422:", errorData);
+            throw new Error(`Error en el servidor: ${res.status}`);
+        }
 
-        alert("✅ Resumen enviado a Excel correctamente.");
+        alert("✅ Resumen enviado a Excel y guardado correctamente.");
         
-        // G. Abrir modo info y limpiar
         if(window.openPostBriefingMode) window.openPostBriefingMode();
         if(window.resetFactoryTimer) window.resetFactoryTimer();
         supInput.value = "";
 
     } catch (err) {
-        console.error(err);
-        alert("❌ Error al guardar: " + err.message);
+        console.error("❌ Error al generar resumen:", err);
+        alert("Error: " + err.message);
     } finally {
-        btn.textContent = oldText;
+        btn.textContent = 'Generar Resumen';
         btn.disabled = false;
     }
 }
 </script>
 </body>
 </html>
+
 
 
 
