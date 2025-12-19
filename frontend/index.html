@@ -6921,6 +6921,9 @@ window.markOkAndNext = function(checkName, nextId) {
 /* =========================================================
    1. SISTEMA DE FUSION: CORRECTOR DE RUTAS
    ========================================================= */
+/* =========================================================
+   1. SISTEMA DE FUSION: CORRECTOR DE RUTAS
+   ========================================================= */
 (function() {
     let path = window.location.pathname;
     if (!path.endsWith('/')) path += '/';
@@ -6946,7 +6949,64 @@ window.markOkAndNext = function(checkName, nextId) {
 })();
 
 /* =========================================================
-   2. GENERAR RESUMEN (MAPEADO EXACTO PARA MADRID)
+   2. TARJETA 5: INCIDENTES (FIX RECARGA Y ALMACENAMIENTO)
+   ========================================================= */
+(function initManualIncidents() {
+    const KEY = 'incidents_manual_entries_v1';
+    const listEl = document.getElementById('incidents-list-container');
+    const form = document.getElementById('manual-inc-form');
+    
+    if (!listEl || !form) return;
+
+    function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } }
+    function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
+
+    function render() {
+        const items = load();
+        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay incidentes registrados hoy.</div>';
+        items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+            const card = document.createElement('div');
+            card.className = `inc-card ${item.type === 'incident' ? 'type-incident' : 'type-lesson'}`;
+            card.innerHTML = `
+                <div class="inc-header">
+                    <div>
+                        <span class="inc-badge">${item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN'}</span>
+                        <div class="inc-title" style="margin-top:4px;">${esc(item.title)}</div>
+                    </div>
+                    <button type="button" class="inc-del-btn" data-id="${item.id}">🗑️</button>
+                </div>
+                <div class="inc-desc">${esc(item.desc)}</div>`;
+            listEl.appendChild(card);
+        });
+    }
+
+    form.onsubmit = function(e) {
+        e.preventDefault(); // EVITA RECARGA DE PAGINA
+        const items = load();
+        items.push({ 
+            id: Date.now().toString(), 
+            type: document.getElementById('new-inc-type').value, 
+            title: document.getElementById('new-inc-title').value.trim(), 
+            desc: document.getElementById('new-inc-desc').value.trim(), 
+            date: new Date().toISOString() 
+        });
+        save(items);
+        form.reset();
+        render();
+    };
+
+    listEl.onclick = function(e) {
+        const btn = e.target.closest('.inc-del-btn');
+        if (btn && confirm("¿Borrar?")) {
+            save(load().filter(i => i.id !== btn.dataset.id));
+            render();
+        }
+    };
+    render();
+})();
+
+/* =========================================================
+   3. GENERAR RESUMEN (MAPEADO EXACTO PARA MADRID - FIX 422)
    ========================================================= */
 async function generateAndSendToExcel() {
     const btn = document.querySelector('header .header-controls .btn-primary');
@@ -6962,7 +7022,7 @@ async function generateAndSendToExcel() {
     btn.disabled = true;
 
     try {
-        // A. Card 1: Equipo (Roster)
+        // A. Card 1: Equipo
         const team = window.TEAM_STATE || { people: [], attendance: {} };
         const rosterDetails = team.people.map(p => {
             const isP = team.attendance[p.name] === true;
@@ -6980,24 +7040,18 @@ async function generateAndSendToExcel() {
             scope: node.querySelector('.ops-scope')?.innerText || 'General'
         }));
 
-        // D. Card 4 y 5: SEGURIDAD (Aquí es donde fallaba)
-        // 1. Tips automáticos del día
+        // D. Card 4 y 5: SEGURIDAD TOTAL (Tips + Riesgos Card 4 + Incidentes Card 5)
         const safetyTips = Array.from(document.querySelectorAll('#sec-random-list li')).map(li => ({
-            title: "Recordatorio Diario",
-            desc: li.innerText
+            title: "Recordatorio Diario", desc: li.innerText
         }));
-        // 2. Riesgos manuales de Card 4
         const card4Risks = JSON.parse(localStorage.getItem('sec_cards_v1') || '[]').map(c => ({
-            title: "Riesgo Detectado",
-            desc: `${c.title} (Resp: ${c.owner})`
+            title: "Riesgo Card 4", desc: `${c.title} (Resp: ${c.owner})`
         }));
-        // 3. Incidentes de Card 5
-        const card5Incidents = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]').map(i => ({
-            title: i.type === 'incident' ? "INCIDENTE" : "LECCIÓN APRENDIDA",
-            desc: `${i.title}: ${i.desc}`
+        const card5Manual = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]').map(i => ({
+            title: i.type.toUpperCase(), desc: `${i.title}: ${i.desc}`
         }));
 
-        // E. Preparar Payload EXACTO según BriefingSnapshot de Python
+        // E. PAYLOAD EXACTO PARA BriefingSnapshot (Python)
         const payload = {
             station: "WFS4 MAD OPS",
             date: new Date().toLocaleDateString('es-ES'),
@@ -7011,14 +7065,11 @@ async function generateAndSendToExcel() {
                 "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
                 "Backlog": document.getElementById('fiix-backlog')?.innerText || "-"
             },
-            roster_details: rosterDetails,   // Nombre clave para Python
-            prev_shift_note: highlights,    // Nombre clave para Python
-            ops_updates: opsData,           // Lista de objetos
-            safety_incidents: [...safetyTips, ...card4Risks, ...card5Incidents], // UNIÓN TOTAL
-            kanban_details: ""
+            roster_details: rosterDetails, // CAMPO REQUERIDO POR PYTHON
+            prev_shift_note: highlights,  // CAMPO REQUERIDO POR PYTHON
+            ops_updates: opsData,
+            safety_incidents: [...safetyTips, ...card4Risks, ...card5Manual] // UNIÓN DE TARJETA 4 Y 5
         };
-
-        console.log("📤 Enviando a Excel:", payload);
 
         const res = await fetch('api/briefing/summary', {
             method: 'POST',
@@ -7026,21 +7077,16 @@ async function generateAndSendToExcel() {
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) {
-            const err = await res.json();
-            console.error("Detalle error 422:", err);
-            throw new Error(`Error ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Error ${res.status}`);
 
         alert("✅ Resumen enviado a Excel y guardado correctamente.");
-        
         if(window.openPostBriefingMode) window.openPostBriefingMode();
         if(window.resetFactoryTimer) window.resetFactoryTimer();
         supInput.value = "";
 
     } catch (err) {
-        console.error("❌ Error:", err);
-        alert("Error al enviar resumen. Revisa la consola.");
+        console.error(err);
+        alert("❌ Error en el servidor. Revisa los datos.");
     } finally {
         btn.textContent = 'Generar Resumen';
         btn.disabled = false;
@@ -7048,20 +7094,19 @@ async function generateAndSendToExcel() {
 }
 
 /* =========================================================
-   3. INICIALIZACIÓN FINAL
+   4. INICIALIZACIÓN FINAL (UNIFICADA)
    ========================================================= */
 document.addEventListener('DOMContentLoaded', () => {
-    // Vincular el botón una sola vez
+    // Vincular el botón una sola vez (esto evita el doble almacenamiento)
     const btnResumen = document.querySelector('header .header-controls .btn-primary');
     if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
 
-    // Lanzar módulos
     try { initHeaderTimer(); } catch(e){}
     try { initEhsSimple(); } catch(e){}
     try { init5S(); } catch(e){}
     try { initFullscreenToggles(); } catch(e){}
     
-    // Iniciar sistema de voz
+    // Sistema de Voz
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(SR) {
         const r = new SR(); r.lang = 'es-ES';
@@ -7080,6 +7125,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
