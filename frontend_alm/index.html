@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8" />
-<title>Dashboard - WFS4 MAD OPS</title>
+<title>Dashboard - WFS4 MAD WH</title>
 
 <!-- Fuentes -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2345,7 +2345,7 @@ body.card-open #timer-reset {
 <!-- HEADER -->
 <header>
 <div class="header-left">
-<h1>Factory Floor Dashboard - WFS4 MAD OPS</h1>
+<h1>Factory Floor Dashboard - WFS4 MAD WH</h1>
 <div id="now-header" role="status" aria-live="polite">—</div>
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
@@ -7072,7 +7072,7 @@ async function generateAndSendToExcel() {
 
         // E. PAYLOAD EXACTO PARA BriefingSnapshot (Python)
         const payload = {
-            station: "WFS4 MAD OPS",
+            station: "WFS4 MAD WH",
             date: new Date().toLocaleDateString('es-ES'),
             shift: document.getElementById('shift-badge-header')?.innerText || 'General',
             timer: document.getElementById('timer-display')?.innerText || '00:00:00',
