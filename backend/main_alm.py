@@ -34,7 +34,22 @@ async def send_to_excel_online(data: BriefingSnapshot):
         print("❌ ERROR: No se encontró la URL 'EXCEL_WEBHOOK_URLALM' en el entorno.")
         return
 
-    # ... (tu lógica de formateo de texto) ...
+    # 1. Formatear Actualizaciones Operativas
+    ops_text = "Sin actualizaciones"
+    if data.ops_updates:
+        ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
+        ops_text = " | ".join(ops_lines)
+
+    # 2. Formatear Incidentes de Seguridad (NUEVO)
+    safety_text = "Sin incidentes manuales"
+    if data.safety_incidents:
+        safe_lines = []
+        for inc in data.safety_incidents:
+            # En MAD usas title y desc (owner)
+            titulo = str(inc.get('title', 'Sin título'))
+            desc = str(inc.get('desc', ''))
+            safe_lines.append(f"[{titulo}] {desc}")
+        safety_text = " | ".join(safe_lines)
 
     payload = {
         "fecha": str(data.date),
