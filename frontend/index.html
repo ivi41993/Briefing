@@ -6774,7 +6774,7 @@ window.closePostBriefingMode = function() {
 
       console.log("📤 Enviando datos...", payload);
 
-      const res = await fetch('/api/briefing/summary', {
+      const res = await fetch('api/briefing/summary', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify(payload)
@@ -7275,6 +7275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
