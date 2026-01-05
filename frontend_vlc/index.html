@@ -1249,7 +1249,7 @@ Modo presentación
 <div class="dashboard-3col">
 <header>
 <div class="header-left">
-<h1>Factory Floor Dashboard - VLC</h1>
+<h1>Factory Floor Dashboard - </h1>
 <div id="now-header">—</div>
 <span id="shift-badge-header" class="shift-chip">—</span>
 </div>
@@ -1276,7 +1276,7 @@ Modo presentación
 
 <section class="col-left">
 <div class="widget" id="team-widget">
-<h2 class="widget-title">1) Equipo / Turno VLC</h2>
+<h2 class="widget-title">1) Equipo / Turno </h2>
 <small class="kpi-text" id="team-meta">—</small>
 
 <form id="team-form" class="team-form" autocomplete="off"
@@ -1317,7 +1317,7 @@ style="display:flex; flex-direction:column; gap:6px;"></div>
 
 <div class="check-grid">
 <div class="check-card" tabindex="0"
-data-help="Revisa incidencias y puntos clave del turno anterior (VLC)."
+data-help="Revisa incidencias y puntos clave del turno anterior ()."
 data-target="prev-shift-widget">
 <span class="check-title">1) Highlights del turno anterior</span>
 <div class="check-actions" role="group" aria-label="Bloque 1">
@@ -1338,7 +1338,7 @@ data-target="ops-updates-widget">
 </div>
 
 <div class="check-card" tabindex="0"
-data-help="Dotación, ausencias y zonas VLC."
+data-help="Dotación, ausencias y zonas ."
 data-target="team-widget">
 <span class="check-title">3) Dotación y recursos</span>
 <div class="check-actions" role="group" aria-label="Bloque 3">
@@ -1349,7 +1349,7 @@ data-target="team-widget">
 </div>
 
 <div class="check-card" tabindex="0"
-data-help="Seguridad: EPIs, accesos, consignas específicas VLC."
+data-help="Seguridad: EPIs, accesos, consignas específicas ."
 data-target="safety-daily-widget">
 <span class="check-title">4) Seguridad y protección</span>
 <div class="check-actions" role="group" aria-label="Bloque 4">
@@ -1371,9 +1371,9 @@ data-target="incidentes-widget">
 </div>
 
 <div class="check-card" tabindex="0"
-data-help="KPIs VLC: flujos, mantenimiento, servicio."
+data-help="KPIs : flujos, mantenimiento, servicio."
 data-target="kpi-center">
-<span class="check-title">6) Revisión KPIs VLC</span>
+<span class="check-title">6) Revisión KPIs </span>
 <div class="check-actions" role="group" aria-label="Bloque 6">
 <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
 <input id="c6no" type="radio" name="c6" value="NO"><label for="c6no">NO</label>
@@ -1382,7 +1382,7 @@ data-target="kpi-center">
 </div>
 
 <div class="check-card" tabindex="0"
-data-help="Feedback del equipo VLC → acciones Kanban rápida."
+data-help="Feedback del equipo  → acciones Kanban rápida."
 data-target="kanban-widget">
 <span class="check-title">7) Feedback → Acciones</span>
 <div class="check-actions" role="group" aria-label="Bloque 7">
@@ -1478,7 +1478,7 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 
 <div class="widget" id="incidentes-widget">
 <h2 class="widget-title">
-<span>5) Incidentes / Seguridad VLC</span>
+<span>5) Incidentes / Seguridad </span>
 </h2>
 
 <div id="incident-remember"
@@ -1611,7 +1611,7 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
 </div>
 
 <div class="widget" id="kanban-widget">
-<h2 class="widget-title">7) Feedback directo VLC</h2>
+<h2 class="widget-title">7) Feedback directo </h2>
 <div class="board-container kanban">
 <div class="kanban-column">
 <h3 class="column-title"><span>Abiertas</span><span class="count">(0)</span></h3>
@@ -1691,7 +1691,7 @@ style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);
 <section class="col-right">
 <div class="widget" id="prev-shift-widget">
   <h2 class="widget-title">
-      3) Información Turno Anterior VLC
+      3) Información Turno Anterior 
       <button type="button" class="btn-mic" data-target="prev-shift-note" title="Dictar nota">
           🎙️
       </button>
@@ -1720,7 +1720,7 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 
 <div id="post-briefing-screen">
     <div class="pb-header">
-        <div class="pb-title">🚀 MODO OPERATIVO - VLC INFORMACIÓN</div>
+        <div class="pb-title">🚀 MODO OPERATIVO -  INFORMACIÓN</div>
         <button class="pb-close-btn" onclick="closePostBriefingMode()">✖ Volver al Dashboard</button>
     </div>
 
@@ -1758,9 +1758,9 @@ data-placeholder="Escribe aquí lo más relevante del turno anterior…"></div>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
-/* Estación actual (VLC por título o ?station=) */
-const STATIONS_KNOWN = ['MAD','VLC','VLC','SVQ'];
-// FORZAR VLC SI NO VIENE EN URL
+/* Estación actual ( por título o ?station=) */
+const STATIONS_KNOWN = ['VLC','','','SVQ'];
+// FORZAR  SI NO VIENE EN URL
 const STATION_CODE = (
 (new URLSearchParams(location.search).get('station') || '')
 .toUpperCase() || 'VLC'
