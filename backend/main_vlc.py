@@ -483,41 +483,47 @@ async def fetch_roster_api_data(escala: str, fecha: str):
         return None
 
 def filter_api_people_by_shift(api_data: list, current_shift: str):
-    """
-    Filtra los datos de la API basándose en la horaInicio y el nombre del turno.
-    """
-    filtered_people = []
+    filtered = []
+    print(f"DEBUG: Procesando {len(api_data)} personas para el turno {current_shift}")
     
-    for item in api_data:
+    for p in api_data:
         try:
-            # Extraemos la hora (de "06:00:00" sacamos el 6)
-            h_inicio_str = item.get("horaInicio", "00:00")
-            h_inicio = int(h_inicio_str.split(":")[0])
+            # 1. Extraer la hora de "05/01/2026 14:00"
+            raw_h_inicio = p.get("horaInicio", "")
+            if not raw_h_inicio: continue
+            
+            # Dividimos por el espacio para separar fecha de hora: ["05/01/2026", "14:00"]
+            # Y luego dividimos por ":" para quedarnos con la hora: ["14", "00"]
+            h_inicio = int(raw_h_inicio.split(" ")[1].split(":")[0])
+            
+            # 2. Clasificar según la hora (Rangos VLC)
+            is_mañana = (4 <= h_inicio <= 11)
+            is_tarde  = (12 <= h_inicio <= 18)
+            is_noche  = (19 <= h_inicio <= 23 or h_inicio <= 3)
 
-            # Lógica de asignación de turnos (Ajustar rangos si es necesario)
-            is_mañana = (5 <= h_inicio <= 10)
-            is_tarde  = (13 <= h_inicio <= 16)
-            is_noche  = (21 <= h_inicio <= 23 or h_inicio <= 2)
-
-            # Validar si coincide con el turno que el sistema ha calculado
             match = False
             if current_shift == "Mañana" and is_mañana: match = True
             elif current_shift == "Tarde" and is_tarde: match = True
             elif current_shift == "Noche" and is_noche: match = True
 
             if match:
-                filtered_people.append({
-                    "nombre_completo": item.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": item.get("nomina"),
-                    "horario": f"{item.get('horaInicio')} - {item.get('horaFin')}",
-                    "observaciones": item.get("nombreGrupoTrabajo", ""),
-                    "funcion_diaria": item.get("nombreGrupoTrabajo", ""),
-                    "is_incidencia": item.get("IsIncidencias", False) # Importante para el index
+                # Extraemos solo la parte de la hora para el frontend (HH:MM)
+                hora_limpia = raw_h_inicio.split(" ")[1] if " " in raw_h_inicio else raw_h_inicio
+                hora_fin_limpia = p.get("horaFin", "").split(" ")[1] if " " in p.get("horaFin", "") else p.get("horaFin", "")
+
+                filtered.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{hora_limpia} - {hora_fin_limpia}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
                 })
         except Exception as e:
+            print(f"⚠️ Error parseando hora de {p.get('nombreApellidos')}: {e}")
             continue
             
-    return filtered_people
+    print(f"DEBUG: Filtrado completado. {len(filtered)} personas encontradas.")
+    return filtered
 # -----------------------------------
 # Lógica Roster
 # -----------------------------------
