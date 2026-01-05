@@ -2491,75 +2491,72 @@ shift: TEAM_STATE?.shift || null
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     TEAM_STATE = state || TEAM_STATE || {};
-    // Guardamos la lista completa original en el estado para poder re-filtrar si cambia la hora
     const allPeople = people || TEAM_STATE.people || [];
     TEAM_STATE.attendance = state?.attendance || TEAM_STATE.attendance || {};
     TEAM_STATE.zones = state?.zones || TEAM_STATE.zones || {};
 
-    // --- LÓGICA DE FILTRADO EN EL CLIENTE (INDEX) ---
+    // --- LÓGICA DE FILTRADO ROBUSTA ---
     const now = new Date();
-    const hNow = now.getHours(); // Hora actual del ordenador (0-23)
+    const hNow = now.getHours();
 
-    // 1. Determinar el turno actual del sistema según tu regla
+    // 1. Determinar el turno del sistema (en qué momento estamos ahora)
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
     else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
 
-    // 2. Filtrar la lista basándonos en la hora de inicio de la tarjeta
-    const filteredPeople = allPeople.filter(p => {
-        try {
-            // Extraer la hora de "05/01/2026 14:00" o "14:00"
-            const horarioStr = p.horario || "";
-            let horaInicio;
-            
-            if (horarioStr.includes(' ')) {
-                // Caso: "05/01/2026 14:00"
-                horaInicio = parseInt(horarioStr.split(' ')[1].split(':')[0]);
-            } else {
-                // Caso: "14:00"
-                horaInicio = parseInt(horarioStr.split(':')[0]);
-            }
+    // Función auxiliar para extraer horas de un string tipo "05/01/2026 14:00" o "14:00"
+    const extractHours = (str) => {
+        if (!str) return [];
+        // Busca todos los grupos de "número:número" en el texto
+        const times = str.match(/(\d{1,2}):(\d{2})/g);
+        if (!times) return [];
+        return times.map(t => parseInt(t.split(':')[0]));
+    };
 
-            // Regla de pertenencia:
-            // Mañana: empieza entre 6 y 13:59
-            // Tarde: empieza entre 14 y 21:59
-            // Noche: empieza entre 22 y 05:59
-            if (currentShiftLabel === "Mañana") return (horaInicio >= 6 && horaInicio < 14);
-            if (currentShiftLabel === "Tarde")  return (horaInicio >= 14 && horaInicio < 22);
-            if (currentShiftLabel === "Noche")  return (horaInicio >= 22 || horaInicio < 6);
-            
-            return false;
-        } catch (e) {
-            return true; // En caso de error de formato, lo mostramos por si acaso
+    // 2. FILTRADO: Si el inicio O el fin caen en la horquilla, se muestra
+    const filteredPeople = allPeople.filter(p => {
+        const hours = extractHours(p.horario);
+        if (hours.length === 0) return true; // Si no hay hora, lo mostramos por seguridad
+
+        const hInicio = hours[0];
+        const hFin = hours.length > 1 ? hours[1] : hInicio;
+
+        // Definimos los rangos de las horquillas
+        if (currentShiftLabel === "Mañana") {
+            // Aparece si empieza o termina entre las 06:00 y las 13:59
+            return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
         }
+        if (currentShiftLabel === "Tarde") {
+            // Aparece si empieza o termina entre las 14:00 y las 21:59
+            return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
+        }
+        if (currentShiftLabel === "Noche") {
+            // Aparece si empieza o termina entre las 22:00 y las 05:59
+            return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
+        }
+        return false;
     });
 
-    // Actualizamos la referencia para que las métricas (x/y presentes) sean correctas
     TEAM_STATE.people = filteredPeople;
-
     listEl.innerHTML = '';
 
+    // --- RENDERIZADO (IDÉNTICO AL ANTERIOR) ---
     if (filteredPeople.length === 0) {
-        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 20px; text-align: center;">
-            No hay personal que comience turno en el horario de <strong>${currentShiftLabel}</strong>.
+        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 20px; text-align: center; border: 1px dashed #cbd5e1; border-radius: 10px;">
+            No hay personal asignado que coincida con el horario de <strong>${currentShiftLabel}</strong>.
         </div>`;
         updateTeamMeta(TEAM_STATE);
         return;
     }
 
-    // --- RENDERIZADO DE LAS TARJETAS FILTRADAS ---
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
     filteredPeople.forEach((p, idx) => {
         const full = p.nombre_completo || '—';
-        // Limpiamos la fecha del horario para la vista: "05/01/2026 14:00" -> "14:00"
-        const horarioLimpio = p.horario.includes(' ') ? p.horario.split(' ')[1] : p.horario;
-        const grupo = p.observaciones || '';
+        // Limpiamos visualmente el horario para que no salga la fecha
+        const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
         const isIncidencia = p.is_incidencia === true;
-        
         const presentVal = (TEAM_STATE.attendance || {})[full];
-        const yesChecked = presentVal === true ? 'checked' : '';
-        const noChecked = presentVal === false ? 'checked' : '';
         const zone = (TEAM_STATE.zones || {})[full] || '';
 
         const row = document.createElement('div');
@@ -2583,15 +2580,15 @@ function renderRoster(listEl, people, state) {
                     <span style="font-weight:800; font-size:0.95rem; color:#1f2937;">${esc(full)}</span>
                 </div>
                 <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
-                    <small style="color:#64748b; font-weight:700; font-size:0.75rem;">🕒 ${esc(horarioLimpio)}</small>
-                    <small style="background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-size:0.7rem; font-weight:800; text-transform:uppercase;">${esc(grupo)}</small>
+                    <small style="color:#64748b; font-weight:700; font-size:0.75rem;">🕒 ${esc(hVisual)}</small>
+                    <small style="background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-size:0.7rem; font-weight:800; text-transform:uppercase;">${esc(p.observaciones)}</small>
                 </div>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid #f1f5f9; padding-top:8px;">
                 <div class="presence-toggle">
-                    <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+                    <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${presentVal===true?'checked':''}>
                     <label for="att-${idx}-y" class="yes" style="padding:4px 8px; font-size:0.75rem;">✓ OK</label>
-                    <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+                    <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${presentVal===false?'checked':''}>
                     <label for="att-${idx}-n" class="no" style="padding:4px 8px; font-size:0.75rem;">✕</label>
                 </div>
                 <select class="zone-select" data-person="${esc(full)}" 
