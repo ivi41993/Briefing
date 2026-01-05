@@ -483,46 +483,36 @@ async def fetch_roster_api_data(escala: str, fecha: str):
         return None
 
 def filter_api_people_by_shift(api_data: list, current_shift: str):
+    """
+    Versión sin segmentación: Muestra a TODA la plantilla de hoy
+    independientemente del turno actual.
+    """
     filtered = []
-    print(f"DEBUG: Procesando {len(api_data)} personas para el turno {current_shift}")
+    print(f"DEBUG: Procesando {len(api_data)} personas totales recibidas de la API...")
     
     for p in api_data:
         try:
-            # 1. Extraer la hora de "05/01/2026 14:00"
             raw_h_inicio = p.get("horaInicio", "")
-            if not raw_h_inicio: continue
+            raw_h_fin = p.get("horaFin", "")
             
-            # Dividimos por el espacio para separar fecha de hora: ["05/01/2026", "14:00"]
-            # Y luego dividimos por ":" para quedarnos con la hora: ["14", "00"]
-            h_inicio = int(raw_h_inicio.split(" ")[1].split(":")[0])
-            
-            # 2. Clasificar según la hora (Rangos VLC)
-            is_mañana = (4 <= h_inicio <= 11)
-            is_tarde  = (12 <= h_inicio <= 18)
-            is_noche  = (19 <= h_inicio <= 23 or h_inicio <= 3)
+            # Limpiamos la fecha de la hora para que el Dashboard se vea bien
+            # "05/01/2026 14:00" -> "14:00"
+            hora_inicio_limpia = raw_h_inicio.split(" ")[1] if " " in raw_h_inicio else raw_h_inicio
+            hora_fin_limpia = raw_h_fin.split(" ")[1] if " " in raw_h_fin else raw_h_fin
 
-            match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
-
-            if match:
-                # Extraemos solo la parte de la hora para el frontend (HH:MM)
-                hora_limpia = raw_h_inicio.split(" ")[1] if " " in raw_h_inicio else raw_h_inicio
-                hora_fin_limpia = p.get("horaFin", "").split(" ")[1] if " " in p.get("horaFin", "") else p.get("horaFin", "")
-
-                filtered.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
-                    "horario": f"{hora_limpia} - {hora_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
-                    "is_incidencia": p.get("IsIncidencias", False)
-                })
+            # Metemos a todos en la lista sin preguntar la hora
+            filtered.append({
+                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                "nomina": p.get("nomina"),
+                "horario": f"{hora_inicio_limpia} - {hora_fin_limpia}",
+                "observaciones": p.get("nombreGrupoTrabajo", ""),
+                "is_incidencia": p.get("IsIncidencias", False)
+            })
         except Exception as e:
-            print(f"⚠️ Error parseando hora de {p.get('nombreApellidos')}: {e}")
+            print(f"⚠️ Error procesando trabajador: {e}")
             continue
             
-    print(f"DEBUG: Filtrado completado. {len(filtered)} personas encontradas.")
+    print(f"DEBUG: Enviando {len(filtered)} personas al Dashboard.")
     return filtered
 # -----------------------------------
 # Lógica Roster
@@ -643,23 +633,20 @@ def filter_api_people_by_shift(api_data: list, current_shift: str):
     return filtered
 
 # --- 3. CONSTRUCTOR DE ESTADO (Prioridad API) ---
-async def _build_roster_state(force=False):
+async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Solo refrescamos si es forzado, si cambió el turno o si el cache está vacío
-    if not force and roster_cache.get("shift") == shift and roster_cache.get("people"):
-        return roster_cache
-
-    # Llamada a la API
+    # 1. Llamar a la API con POST
     api_date_str = sdate.strftime("%d/%m/%Y")
     raw_api_data = await fetch_roster_api_data("VLC", api_date_str)
     
-    if raw_api_data and isinstance(raw_api_data, list):
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        # LLamamos a la función que ahora NO filtra
         people = filter_api_people_by_shift(raw_api_data, shift)
         source = "api"
     else:
-        # Fallback a Excel si la API falla
+        # Fallback por si la API viene vacía
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
         source = "excel"
@@ -672,57 +659,18 @@ async def _build_roster_state(force=False):
         "window": {"from": start, "to": end},
         "source": source
     })
-
-    # IMPORTANTE: Esto avisa a todos los navegadores abiertos para que cambien la lista solos
-    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
-    return roster_cache
-
-async def _build_roster_state(force=False):
-    now = _now_local()
-    shift, sdate, start, end = _current_shift_info(now)
     
-    # 1. Intentar obtener datos de la API
-    # Formateamos la fecha a dd/mm/yyyy para la API
-    api_date_str = sdate.strftime("%d/%m/%Y")
-    
-    print(f"📡 Solicitando Roster API para {STATION_NAME} - {api_date_str} ({shift})")
-    raw_api_data = await fetch_roster_api_data(STATION_NAME, api_date_str)
-    
-    people = []
-    source = "excel"
-
-    if raw_api_data and isinstance(raw_api_data, list):
-        # 2. Si la API responde, filtramos por turno
-        people = filter_api_people_by_shift(raw_api_data, shift)
-        source = "api"
-        print(f"✅ Roster obtenido de API. {len(people)} personas en turno {shift}.")
-    else:
-        # 3. FALLBACK: Si la API falla, usamos el Excel
-        print("⚠️ API no disponible, usando Backup de Excel...")
-        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
-            source = "excel"
-
-    # Actualizamos el caché
-    roster_cache.update({
-        "sheet_date": sdate,
-        "shift": shift,
-        "people": people,
-        "sheet": "API_ONLINE" if source == "api" else "EXCEL_BACKUP",
-        "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}
-    })
-
-    # Notificamos al frontend VLC
+    # Notificar vía WebSocket
     await manager.broadcast({
-        "type": "roster_update",
-        **roster_cache,
-        "sheet_date": sdate.isoformat(),
+        "type": "roster_update", 
+        **roster_cache, 
+        "sheet_date": sdate.isoformat(), 
         "source": source
     })
     
     return roster_cache
+
+
 
 def _att_key(d, s): return f"{d.isoformat()}|{s}"
 
