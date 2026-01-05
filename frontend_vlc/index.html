@@ -2491,22 +2491,69 @@ shift: TEAM_STATE?.shift || null
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     TEAM_STATE = state || TEAM_STATE || {};
-    TEAM_STATE.people = people || [];
+    // Guardamos la lista completa original en el estado para poder re-filtrar si cambia la hora
+    const allPeople = people || TEAM_STATE.people || [];
     TEAM_STATE.attendance = state?.attendance || TEAM_STATE.attendance || {};
     TEAM_STATE.zones = state?.zones || TEAM_STATE.zones || {};
 
+    // --- LÓGICA DE FILTRADO EN EL CLIENTE (INDEX) ---
+    const now = new Date();
+    const hNow = now.getHours(); // Hora actual del ordenador (0-23)
+
+    // 1. Determinar el turno actual del sistema según tu regla
+    let currentShiftLabel = "Noche";
+    if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
+    else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
+
+    // 2. Filtrar la lista basándonos en la hora de inicio de la tarjeta
+    const filteredPeople = allPeople.filter(p => {
+        try {
+            // Extraer la hora de "05/01/2026 14:00" o "14:00"
+            const horarioStr = p.horario || "";
+            let horaInicio;
+            
+            if (horarioStr.includes(' ')) {
+                // Caso: "05/01/2026 14:00"
+                horaInicio = parseInt(horarioStr.split(' ')[1].split(':')[0]);
+            } else {
+                // Caso: "14:00"
+                horaInicio = parseInt(horarioStr.split(':')[0]);
+            }
+
+            // Regla de pertenencia:
+            // Mañana: empieza entre 6 y 13:59
+            // Tarde: empieza entre 14 y 21:59
+            // Noche: empieza entre 22 y 05:59
+            if (currentShiftLabel === "Mañana") return (horaInicio >= 6 && horaInicio < 14);
+            if (currentShiftLabel === "Tarde")  return (horaInicio >= 14 && horaInicio < 22);
+            if (currentShiftLabel === "Noche")  return (horaInicio >= 22 || horaInicio < 6);
+            
+            return false;
+        } catch (e) {
+            return true; // En caso de error de formato, lo mostramos por si acaso
+        }
+    });
+
+    // Actualizamos la referencia para que las métricas (x/y presentes) sean correctas
+    TEAM_STATE.people = filteredPeople;
+
     listEl.innerHTML = '';
 
-    if (!TEAM_STATE.people.length) {
-        listEl.innerHTML = '<div style="color:var(--text-muted); padding: 20px; text-align: center;">Sin personal para este turno.</div>';
+    if (filteredPeople.length === 0) {
+        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 20px; text-align: center;">
+            No hay personal que comience turno en el horario de <strong>${currentShiftLabel}</strong>.
+        </div>`;
+        updateTeamMeta(TEAM_STATE);
         return;
     }
 
+    // --- RENDERIZADO DE LAS TARJETAS FILTRADAS ---
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
-    TEAM_STATE.people.forEach((p, idx) => {
+    filteredPeople.forEach((p, idx) => {
         const full = p.nombre_completo || '—';
-        const horario = p.horario || '';
+        // Limpiamos la fecha del horario para la vista: "05/01/2026 14:00" -> "14:00"
+        const horarioLimpio = p.horario.includes(' ') ? p.horario.split(' ')[1] : p.horario;
         const grupo = p.observaciones || '';
         const isIncidencia = p.is_incidencia === true;
         
@@ -2517,12 +2564,9 @@ function renderRoster(listEl, people, state) {
 
         const row = document.createElement('div');
         row.className = 'team-row';
-        
-        // Estilo de tarjeta compacta pero con espacio
         const borderColor = isIncidencia ? '#dc2626' : 'var(--border)';
         const bgColor = isIncidencia ? '#fff1f2' : '#fff';
 
-        // Contenedor principal de la tarjeta
         row.style.cssText = `
             display: flex; flex-direction: column; 
             padding: 12px; border: 1px solid ${borderColor}; 
@@ -2532,44 +2576,36 @@ function renderRoster(listEl, people, state) {
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         `;
 
-        // PARTE SUPERIOR: Nombre e Info
-        const topInfo = `
+        row.innerHTML = `
             <div style="min-width: 0;">
                 <div style="display:flex; align-items:center; gap:5px; margin-bottom: 2px;">
                     ${isIncidencia ? '⚠️' : ''}
-                    <span style="font-weight:800; font-size:0.95rem; color:#1f2937; line-height:1.2; display:block;">${esc(full)}</span>
+                    <span style="font-weight:800; font-size:0.95rem; color:#1f2937;">${esc(full)}</span>
                 </div>
                 <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
-                    <small style="color:#64748b; font-weight:700; font-size:0.75rem;">🕒 ${esc(horario)}</small>
+                    <small style="color:#64748b; font-weight:700; font-size:0.75rem;">🕒 ${esc(horarioLimpio)}</small>
                     <small style="background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-size:0.7rem; font-weight:800; text-transform:uppercase;">${esc(grupo)}</small>
                 </div>
             </div>
-        `;
-
-        // PARTE INFERIOR: Acciones (Presencia + Zona)
-        const bottomActions = `
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid #f1f5f9; padding-top:8px;">
-                <div class="presence-toggle" style="flex-shrink:0;">
+                <div class="presence-toggle">
                     <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
                     <label for="att-${idx}-y" class="yes" style="padding:4px 8px; font-size:0.75rem;">✓ OK</label>
                     <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
                     <label for="att-${idx}-n" class="no" style="padding:4px 8px; font-size:0.75rem;">✕</label>
                 </div>
-                
                 <select class="zone-select" data-person="${esc(full)}" 
-                        style="flex:1; min-width:80px; padding:5px; border-radius:6px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
+                        style="flex:1; min-width:80px; padding:5px; border-radius:6px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700;">
                     <option value="" ${zone ? '' : 'selected'} disabled>Zona...</option>
                     ${ZONES.map(z => `<option value="${esc(z)}" ${z === zone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
                 </select>
             </div>
         `;
-
-        row.innerHTML = topInfo + bottomActions;
         listEl.appendChild(row);
     });
 
-    // Re-vincular eventos (igual que antes)
     attachRosterEvents(listEl);
+    updateTeamMeta(TEAM_STATE);
 }
 
 // Función auxiliar para no repetir código de eventos
