@@ -591,12 +591,84 @@ def _read_sheet_people(path, sheet, shift):
     return people
 
 def _now_local(): return datetime.now(ZoneInfo(ROSTER_TZ))
+# --- 1. CLASIFICACIÓN EXACTA DE TURNOS ---
 def _current_shift_info(now):
     hhmm = now.strftime("%H:%M")
-    if "06:00" <= hhmm < "14:00": return "Mañana", now.date(), "06:00", "14:00"
-    if "14:00" <= hhmm < "22:00": return "Tarde", now.date(), "14:00", "22:00"
-    sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY and hhmm < "06:00" else now.date()
+    # Mañana: de 06:00 a 13:59
+    if "06:00" <= hhmm < "14:00":
+        return "Mañana", now.date(), "06:00", "14:00"
+    # Tarde: de 14:00 a 21:59
+    if "14:00" <= hhmm < "22:00":
+        return "Tarde", now.date(), "14:00", "22:00"
+    # Noche: de 22:00 a 05:59
+    # Si es madrugada (antes de las 06:00), solemos usar la hoja del día anterior para el turno de noche
+    sheet_date = now.date() - timedelta(days=1) if hhmm < "06:00" else now.date()
     return "Noche", sheet_date, "22:00", "06:00"
+
+# --- 2. FILTRADO INTELIGENTE DE LA API ---
+def filter_api_people_by_shift(api_data: list, current_shift: str):
+    filtered = []
+    for p in api_data:
+        try:
+            # Sacamos la hora de inicio del trabajador (ej: "14:00")
+            h_inicio = int(p.get("horaInicio", "00").split(":")[0])
+            
+            # Clasificamos según la hora de entrada real contratada
+            # Mañana: entran entre las 04 y las 11
+            # Tarde: entran entre las 12 y las 18
+            # Noche: entran entre las 19 y las 03
+            es_gente_mañana = (4 <= h_inicio <= 11)
+            es_gente_tarde  = (12 <= h_inicio <= 18)
+            es_gente_noche  = (19 <= h_inicio <= 23 or h_inicio <= 3)
+
+            if (current_shift == "Mañana" and es_gente_mañana) or \
+               (current_shift == "Tarde" and es_gente_tarde) or \
+               (current_shift == "Noche" and es_gente_noche):
+                
+                filtered.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{p.get('horaInicio')} - {p.get('horaFin')}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except: continue
+    return filtered
+
+# --- 3. CONSTRUCTOR DE ESTADO (Prioridad API) ---
+async def _build_roster_state(force=False):
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # Solo refrescamos si es forzado, si cambió el turno o si el cache está vacío
+    if not force and roster_cache.get("shift") == shift and roster_cache.get("people"):
+        return roster_cache
+
+    # Llamada a la API
+    api_date_str = sdate.strftime("%d/%m/%Y")
+    raw_api_data = await fetch_roster_api_data("VLC", api_date_str)
+    
+    if raw_api_data and isinstance(raw_api_data, list):
+        people = filter_api_people_by_shift(raw_api_data, shift)
+        source = "api"
+    else:
+        # Fallback a Excel si la API falla
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+        source = "excel"
+
+    roster_cache.update({
+        "sheet_date": sdate,
+        "shift": shift,
+        "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end},
+        "source": source
+    })
+
+    # IMPORTANTE: Esto avisa a todos los navegadores abiertos para que cambien la lista solos
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
 
 async def _build_roster_state(force=False):
     now = _now_local()
