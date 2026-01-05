@@ -1225,6 +1225,33 @@ pointer-events: none;
 }
 .card:active .drag-handle{ cursor:grabbing; opacity:1; background: #f3f4f6; }
 .drag-handle svg{ width:20px; height:20px; } /* Icono un poco más grande */
+/* Hacer los botones de presencia más compactos */
+.presence-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f8fafc;
+}
+
+.presence-toggle label {
+    margin: 0;
+    border: none !important;
+    min-height: 32px !important; /* Altura reducida */
+    min-width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.presence-toggle label.yes { color: #166534; border-right: 1px solid var(--border) !important; }
+.presence-toggle label.no { color: #991b1b; }
+
+/* El select de zona no debe estirarse de más */
+.zone-select {
+    max-width: 140px;
+    cursor: pointer;
+}
 </style>
 </head>
 <body>
@@ -2471,19 +2498,17 @@ function renderRoster(listEl, people, state) {
     listEl.innerHTML = '';
 
     if (!TEAM_STATE.people.length) {
-        listEl.innerHTML = '<div style="color:var(--text-muted); padding: 20px; text-align: center;">Sin personal asignado para este turno.</div>';
-        updateTeamMeta(TEAM_STATE);
+        listEl.innerHTML = '<div style="color:var(--text-muted); padding: 20px; text-align: center;">Sin personal para este turno.</div>';
         return;
     }
 
-    // Corregido typo: 'Muelle' en lugar de 'Muele'
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
     TEAM_STATE.people.forEach((p, idx) => {
         const full = p.nombre_completo || '—';
         const horario = p.horario || '';
-        const grupo = p.observaciones || ''; // nombreGrupoTrabajo mapeado en el backend
-        const isIncidencia = p.is_incidencia === true; // Campo nuevo de la API
+        const grupo = p.observaciones || '';
+        const isIncidencia = p.is_incidencia === true;
         
         const presentVal = (TEAM_STATE.attendance || {})[full];
         const yesChecked = presentVal === true ? 'checked' : '';
@@ -2493,91 +2518,81 @@ function renderRoster(listEl, people, state) {
         const row = document.createElement('div');
         row.className = 'team-row';
         
-        // --- ESTILO DINÁMICO POR INCIDENCIA ---
+        // Estilo de tarjeta compacta pero con espacio
         const borderColor = isIncidencia ? '#dc2626' : 'var(--border)';
         const bgColor = isIncidencia ? '#fff1f2' : '#fff';
-        const shadow = isIncidencia ? '0 4px 12px rgba(220,38,38,0.1)' : '0 2px 4px rgba(0,0,0,0.05)';
 
+        // Contenedor principal de la tarjeta
         row.style.cssText = `
-            display:flex; align-items:center; justify-content:space-between; 
-            padding:10px 12px; border:1px solid ${borderColor}; 
-            border-left: 6px solid ${borderColor};
-            border-radius:10px; background:${bgColor}; 
-            margin-bottom:8px; gap:12px;
-            box-shadow: ${shadow};
-            transition: all 0.2s ease;
+            display: flex; flex-direction: column; 
+            padding: 12px; border: 1px solid ${borderColor}; 
+            border-left: 5px solid ${borderColor};
+            border-radius: 10px; background: ${bgColor}; 
+            margin-bottom: 10px; gap: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         `;
 
-        const left = document.createElement('div');
-        left.className = 'team-left';
-        left.style.cssText = 'flex: 1; min-width: 0;';
-        
-        left.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                ${isIncidencia ? '<span title="Incidencia detectada" style="font-size:1.2rem;">⚠️</span>' : ''}
-                <span class="team-name" style="font-weight:700; font-size:1rem; ${isIncidencia ? 'color:#b91c1c;' : ''}">${esc(full)}</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px; margin-top:4px; flex-wrap: wrap;">
-                <small class="meta" style="color:#64748b; font-weight:600; background:#f1f5f9; padding:2px 6px; border-radius:4px;">🕒 ${esc(horario)}</small>
-                <small class="meta" style="color:#475569; font-weight:700; border:1px solid #e2e8f0; padding:1px 6px; border-radius:4px; text-transform: uppercase; font-size:0.7rem;">${esc(grupo)}</small>
-                ${zone ? `<span class="chip-zone" data-zone-chip="${esc(full)}" style="margin:0;">${esc(zone)}</span>` : ''}
+        // PARTE SUPERIOR: Nombre e Info
+        const topInfo = `
+            <div style="min-width: 0;">
+                <div style="display:flex; align-items:center; gap:5px; margin-bottom: 2px;">
+                    ${isIncidencia ? '⚠️' : ''}
+                    <span style="font-weight:800; font-size:0.95rem; color:#1f2937; line-height:1.2; display:block;">${esc(full)}</span>
+                </div>
+                <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
+                    <small style="color:#64748b; font-weight:700; font-size:0.75rem;">🕒 ${esc(horario)}</small>
+                    <small style="background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-size:0.7rem; font-weight:800; text-transform:uppercase;">${esc(grupo)}</small>
+                </div>
             </div>
         `;
 
-        const right = document.createElement('div');
-        right.className = 'team-right';
-        right.style.cssText = 'display:flex; align-items:center; gap:12px;';
-        
-        right.innerHTML = `
-           <div class="presence-toggle" role="group" aria-label="Presencia" style="background:#f8fafc; border-radius:8px; padding:2px;">
-             <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
-             <label for="att-${idx}-y" class="yes" style="padding:6px 12px; font-size:0.8rem;">✓ OK</label>
-             <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
-             <label for="att-${idx}-n" class="no" style="padding:6px 12px; font-size:0.8rem;">✕ Ausente</label>
-           </div>
-           <select class="zone-select" data-person="${esc(full)}" title="Zona" style="padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-weight:600; font-size:0.85rem;">
-             <option value="" ${zone ? '' : 'selected'} disabled>Asignar Zona…</option>
-             ${ZONES.map(z => `<option value="${esc(z)}" ${z === zone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
-           </select>
-         `;
+        // PARTE INFERIOR: Acciones (Presencia + Zona)
+        const bottomActions = `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid #f1f5f9; padding-top:8px;">
+                <div class="presence-toggle" style="flex-shrink:0;">
+                    <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+                    <label for="att-${idx}-y" class="yes" style="padding:4px 8px; font-size:0.75rem;">✓ OK</label>
+                    <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+                    <label for="att-${idx}-n" class="no" style="padding:4px 8px; font-size:0.75rem;">✕</label>
+                </div>
+                
+                <select class="zone-select" data-person="${esc(full)}" 
+                        style="flex:1; min-width:80px; padding:5px; border-radius:6px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
+                    <option value="" ${zone ? '' : 'selected'} disabled>Zona...</option>
+                    ${ZONES.map(z => `<option value="${esc(z)}" ${z === zone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
+                </select>
+            </div>
+        `;
 
-        row.appendChild(left);
-        row.appendChild(right);
+        row.innerHTML = topInfo + bottomActions;
         listEl.appendChild(row);
     });
 
-    // --- EVENTOS (Se mantienen para persistencia) ---
+    // Re-vincular eventos (igual que antes)
+    attachRosterEvents(listEl);
+}
 
-    // Presencia
+// Función auxiliar para no repetir código de eventos
+function attachRosterEvents(listEl) {
     listEl.querySelectorAll('.att-radio').forEach(inp => {
         inp.addEventListener('change', e => {
             const person = e.target.dataset.person;
             const present = e.target.value === 'yes';
-            TEAM_STATE.attendance = TEAM_STATE.attendance || {};
             TEAM_STATE.attendance[person] = present;
-            updateTeamMeta(TEAM_STATE);
             updatePresenceOnServer(person, present);
-            if (window.updateSpotlightRouting) window.updateSpotlightRouting();
+            updateTeamMeta(TEAM_STATE);
         });
     });
 
-    // Zonas
     listEl.querySelectorAll('.zone-select').forEach(sel => {
         sel.addEventListener('change', e => {
             const person = e.target.dataset.person;
             const zone = e.target.value || '';
-            TEAM_STATE.zones = TEAM_STATE.zones || {};
             TEAM_STATE.zones[person] = zone;
-            
-            // Actualizar chip visualmente sin recargar todo
-            renderRoster(listEl, TEAM_STATE.people, TEAM_STATE);
-            
             updateZoneOnServer(person, zone);
             updateTeamMeta(TEAM_STATE);
         });
     });
-
-    updateTeamMeta(TEAM_STATE);
 }
 
 async function initTeamRoster(){
