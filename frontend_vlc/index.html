@@ -2581,37 +2581,47 @@ function renderRoster(listEl, people, state) {
 }
 
 async function initTeamRoster(){
-const list = document.getElementById('team-list');
+    const list = document.getElementById('team-list');
+    
+    // 1. Intentar cargar datos del servidor (API o Excel) inmediatamente
+    const data = await fetchServerRoster();
+    
+    if (data && data.people && data.people.length > 0) {
+        // Si hay gente, los renderizamos
+        renderRoster(list, data.people, data);
+    } else {
+        // Si no hay nadie (API caída y no hay Excel), mostramos el aviso manual
+        if(list) {
+            list.innerHTML = `
+                <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ffeeba; color: #856404;">
+                    <strong>⚠️ Modo Manual / Sin Datos</strong><br>
+                    No se han recibido datos de la API. Puedes añadir personal con el botón +.
+                </div>`;
+        }
+        window.TEAM_STATE = { people: [], attendance: {} };
+    }
 
-// Mensaje de aviso de procedimiento manual
-if(list) {
-list.innerHTML = `
-           <div style="padding: 15px; text-align: center; background: #fff3cd; border-radius: 8px; margin-bottom: 10px;">
-               <strong>⚠️ Atención VLC</strong><br>Procedimiento manual activo.
-           </div>`;
-}
+    // 2. Lógica para el formulario de alta manual (siempre activa por si falta alguien)
+    const form = document.getElementById('team-form');
+    if(form) {
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('team-name');
+            const name = nameInput.value.trim();
+            if(!name) return;
 
-// Inicializar estado vacío para permitir altas manuales
-window.TEAM_STATE = { people: [], attendance: {} };
-
-// Lógica para el formulario de alta manual
-const form = document.getElementById('team-form');
-if(form) {
-form.onsubmit = (e) => {
-e.preventDefault();
-const nameInput = document.getElementById('team-name');
-const name = nameInput.value.trim();
-if(!name) return;
-
-// Añadir persona localmente
-window.TEAM_STATE.people.push({ nombre_completo: name });
-// Marcar como presente por defecto
-window.TEAM_STATE.attendance[name] = true;
-
-renderLocalRoster();
-nameInput.value = '';
-};
-}
+            // Enviar al servidor para que sea persistente
+            const ok = await syncServerAdd(name);
+            if(!ok) {
+                // Si el servidor falla, al menos lo añadimos local para no bloquear
+                if(!window.TEAM_STATE) window.TEAM_STATE = { people: [], attendance: {} };
+                window.TEAM_STATE.people.push({ nombre_completo: name, horario: 'Manual', observaciones: 'ALTA MANUAL' });
+                window.TEAM_STATE.attendance[name] = true;
+                renderRoster(list, window.TEAM_STATE.people, window.TEAM_STATE);
+            }
+            nameInput.value = '';
+        };
+    }
 }
 
 /* Upload roster Excel */
