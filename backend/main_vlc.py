@@ -42,7 +42,8 @@ ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
 ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
 ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "true"
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx")
-
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 # === RUTAS DE DATOS ESPECÍFICAS VLC ===
 
 
