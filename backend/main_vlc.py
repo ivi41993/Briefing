@@ -451,69 +451,7 @@ class ConnectionManager:
         except: self.disconnect(websocket)
 
 manager = ConnectionManager()
-async def fetch_roster_api_data(escala: str, fecha: str):
-    """
-    Realiza la llamada POST a la API externa para obtener el personal.
-    """
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API Roster no configurada en .env")
-        return None
 
-    headers = {
-        "api-key": ROSTER_API_KEY,
-        "Accept": "application/json"
-    }
-    # Parámetros solicitados por tu API
-    payload = {
-        "escala": escala,
-        "fecha": fecha # Debe venir en formato dd/mm/yyyy
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # Según tu especificación: METHOD POST
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200:
-                return response.json()
-            else:
-                print(f"❌ Error API Roster ({response.status_code}): {response.text}")
-                return None
-    except Exception as e:
-        print(f"💥 Fallo de conexión con API Roster: {e}")
-        return None
-
-def filter_api_people_by_shift(api_data: list, current_shift: str):
-    """
-    Versión sin segmentación: Muestra a TODA la plantilla de hoy
-    independientemente del turno actual.
-    """
-    filtered = []
-    print(f"DEBUG: Procesando {len(api_data)} personas totales recibidas de la API...")
-    
-    for p in api_data:
-        try:
-            raw_h_inicio = p.get("horaInicio", "")
-            raw_h_fin = p.get("horaFin", "")
-            
-            # Limpiamos la fecha de la hora para que el Dashboard se vea bien
-            # "05/01/2026 14:00" -> "14:00"
-            hora_inicio_limpia = raw_h_inicio.split(" ")[1] if " " in raw_h_inicio else raw_h_inicio
-            hora_fin_limpia = raw_h_fin.split(" ")[1] if " " in raw_h_fin else raw_h_fin
-
-            # Metemos a todos en la lista sin preguntar la hora
-            filtered.append({
-                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                "nomina": p.get("nomina"),
-                "horario": f"{hora_inicio_limpia} - {hora_fin_limpia}",
-                "observaciones": p.get("nombreGrupoTrabajo", ""),
-                "is_incidencia": p.get("IsIncidencias", False)
-            })
-        except Exception as e:
-            print(f"⚠️ Error procesando trabajador: {e}")
-            continue
-            
-    print(f"DEBUG: Enviando {len(filtered)} personas al Dashboard.")
-    return filtered
 # -----------------------------------
 # Lógica Roster
 # -----------------------------------
@@ -633,20 +571,83 @@ def filter_api_people_by_shift(api_data: list, current_shift: str):
     return filtered
 
 # --- 3. CONSTRUCTOR DE ESTADO (Prioridad API) ---
+
+# 1. Función de llamada a la API (Copia exacta de tu lógica de VS Code)
+async def fetch_vlc_roster_from_api():
+    url = os.getenv("ROSTER_API_URL")
+    key = os.getenv("ROSTER_API_KEY")
+    
+    if not url or not key:
+        print("⚠️ Error: Credenciales de API no encontradas en el entorno.")
+        return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    # Formato dd/mm/yyyy requerido
+    fecha_formateada = ahora.strftime("%d/%m/%Y")
+
+    payload = {
+        "escala": "VLC",
+        "fecha": fecha_formateada
+    }
+    
+    headers = {
+        "api-key": key,
+        "Accept": "application/json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Usamos 'data=payload' para enviar como form-data, tal cual tu script exitoso
+            response = await client.post(url, headers=headers, data=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ API VLC: Recibidos {len(data)} trabajadores para hoy.")
+                return data
+            else:
+                print(f"❌ Error API VLC: Código {response.status_code}")
+                return None
+    except Exception as e:
+        print(f"💥 Error de conexión API VLC: {e}")
+        return None
+
+# 2. Procesador de datos (Limpia el formato de la hora para el Dashboard)
+def filter_api_people_by_shift(api_data: list, current_shift: str):
+    normalized = []
+    for p in api_data:
+        try:
+            # Entrada: "05/01/2026 14:00" -> Salida: "14:00"
+            raw_inicio = p.get("horaInicio", "")
+            raw_fin = p.get("horaFin", "")
+            
+            h_ini = raw_inicio.split(" ")[1] if " " in raw_inicio else raw_inicio
+            h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+
+            normalized.append({
+                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                "nomina": p.get("nomina"),
+                "horario": f"{h_ini} - {h_fin}",
+                "observaciones": p.get("nombreGrupoTrabajo", ""),
+                "is_incidencia": p.get("IsIncidencias", False)
+            })
+        except:
+            continue
+    return normalized
+
+# 3. Constructor de estado (Actualiza el Dashboard)
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # 1. Llamar a la API con POST
-    api_date_str = sdate.strftime("%d/%m/%Y")
-    raw_api_data = await fetch_roster_api_data("VLC", api_date_str)
+    # Intentamos API primero
+    raw_api_data = await fetch_vlc_roster_from_api()
     
     if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
-        # LLamamos a la función que ahora NO filtra
         people = filter_api_people_by_shift(raw_api_data, shift)
         source = "api"
     else:
-        # Fallback por si la API viene vacía
+        # Fallback a Excel si la API falla o viene vacía
+        print("ℹ️ Usando Excel de respaldo para VLC.")
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
         source = "excel"
@@ -660,17 +661,9 @@ async def _build_roster_state(force=False) -> dict:
         "source": source
     })
     
-    # Notificar vía WebSocket
-    await manager.broadcast({
-        "type": "roster_update", 
-        **roster_cache, 
-        "sheet_date": sdate.isoformat(), 
-        "source": source
-    })
-    
+    # Broadcast inmediato para que el Dashboard se refresque sin F5
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
-
-
 
 def _att_key(d, s): return f"{d.isoformat()}|{s}"
 
