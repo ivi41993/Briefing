@@ -450,7 +450,73 @@ class ConnectionManager:
         except: self.disconnect(websocket)
 
 manager = ConnectionManager()
+async def fetch_roster_api_data(escala: str, fecha: str):
+    """
+    Realiza la llamada POST a la API externa para obtener el personal.
+    """
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API Roster no configurada en .env")
+        return None
 
+    headers = {
+        "api-key": ROSTER_API_KEY,
+        "Accept": "application/json"
+    }
+    # Parámetros solicitados por tu API
+    payload = {
+        "escala": escala,
+        "fecha": fecha # Debe venir en formato dd/mm/yyyy
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Según tu especificación: METHOD POST
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"❌ Error API Roster ({response.status_code}): {response.text}")
+                return None
+    except Exception as e:
+        print(f"💥 Fallo de conexión con API Roster: {e}")
+        return None
+
+def filter_api_people_by_shift(api_data: list, current_shift: str):
+    """
+    Filtra los datos de la API basándose en la horaInicio y el nombre del turno.
+    """
+    filtered_people = []
+    
+    for item in api_data:
+        try:
+            # Extraemos la hora (de "06:00:00" sacamos el 6)
+            h_inicio_str = item.get("horaInicio", "00:00")
+            h_inicio = int(h_inicio_str.split(":")[0])
+
+            # Lógica de asignación de turnos (Ajustar rangos si es necesario)
+            is_mañana = (5 <= h_inicio <= 10)
+            is_tarde  = (13 <= h_inicio <= 16)
+            is_noche  = (21 <= h_inicio <= 23 or h_inicio <= 2)
+
+            # Validar si coincide con el turno que el sistema ha calculado
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
+
+            if match:
+                filtered_people.append({
+                    "nombre_completo": item.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": item.get("nomina"),
+                    "horario": f"{item.get('horaInicio')} - {item.get('horaFin')}",
+                    "observaciones": item.get("nombreGrupoTrabajo", ""),
+                    "funcion_diaria": item.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": item.get("IsIncidencias", False) # Importante para el index
+                })
+        except Exception as e:
+            continue
+            
+    return filtered_people
 # -----------------------------------
 # Lógica Roster
 # -----------------------------------
@@ -535,12 +601,48 @@ def _current_shift_info(now):
 async def _build_roster_state(force=False):
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
-    if not force and roster_cache.get("shift") == shift and roster_cache.get("sheet_date") == sdate:
-        return roster_cache
-    sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-    people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
-    roster_cache.update({"sheet_date": sdate, "shift": shift, "people": people, "sheet": sheet, "updated_at": datetime.utcnow().isoformat()+"Z", "window": {"from": start, "to": end}})
-    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    
+    # 1. Intentar obtener datos de la API
+    # Formateamos la fecha a dd/mm/yyyy para la API
+    api_date_str = sdate.strftime("%d/%m/%Y")
+    
+    print(f"📡 Solicitando Roster API para {STATION_NAME} - {api_date_str} ({shift})")
+    raw_api_data = await fetch_roster_api_data(STATION_NAME, api_date_str)
+    
+    people = []
+    source = "excel"
+
+    if raw_api_data and isinstance(raw_api_data, list):
+        # 2. Si la API responde, filtramos por turno
+        people = filter_api_people_by_shift(raw_api_data, shift)
+        source = "api"
+        print(f"✅ Roster obtenido de API. {len(people)} personas en turno {shift}.")
+    else:
+        # 3. FALLBACK: Si la API falla, usamos el Excel
+        print("⚠️ API no disponible, usando Backup de Excel...")
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+            source = "excel"
+
+    # Actualizamos el caché
+    roster_cache.update({
+        "sheet_date": sdate,
+        "shift": shift,
+        "people": people,
+        "sheet": "API_ONLINE" if source == "api" else "EXCEL_BACKUP",
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}
+    })
+
+    # Notificamos al frontend VLC
+    await manager.broadcast({
+        "type": "roster_update",
+        **roster_cache,
+        "sheet_date": sdate.isoformat(),
+        "source": source
+    })
+    
     return roster_cache
 
 def _att_key(d, s): return f"{d.isoformat()}|{s}"
