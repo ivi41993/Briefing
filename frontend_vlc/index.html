@@ -2491,59 +2491,42 @@ shift: TEAM_STATE?.shift || null
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     TEAM_STATE = state || TEAM_STATE || {};
-    const allPeople = people || TEAM_STATE.people || [];
-    TEAM_STATE.attendance = state?.attendance || TEAM_STATE.attendance || {};
-    TEAM_STATE.zones = state?.zones || TEAM_STATE.zones || {};
+    const allPeople = people || TEAM_STATE.allPeopleRaw || TEAM_STATE.people || [];
+    
+    // Guardamos la lista completa original si es la primera vez que llega
+    if (!TEAM_STATE.allPeopleRaw) TEAM_STATE.allPeopleRaw = allPeople;
+    
+    TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+    TEAM_STATE.zones = TEAM_STATE.zones || {};
 
-    // --- LÓGICA DE FILTRADO ROBUSTA ---
-    const now = new Date();
-    const hNow = now.getHours();
-
-    // 1. Determinar el turno del sistema (en qué momento estamos ahora)
+    // --- LÓGICA DE FILTRADO ---
+    const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
     else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
 
-    // Función auxiliar para extraer horas de un string tipo "05/01/2026 14:00" o "14:00"
     const extractHours = (str) => {
-        if (!str) return [];
-        // Busca todos los grupos de "número:número" en el texto
-        const times = str.match(/(\d{1,2}):(\d{2})/g);
+        const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
         if (!times) return [];
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // 2. FILTRADO: Si el inicio O el fin caen en la horquilla, se muestra
-    const filteredPeople = allPeople.filter(p => {
+    const filteredPeople = TEAM_STATE.allPeopleRaw.filter(p => {
         const hours = extractHours(p.horario);
-        if (hours.length === 0) return true; // Si no hay hora, lo mostramos por seguridad
-
-        const hInicio = hours[0];
-        const hFin = hours.length > 1 ? hours[1] : hInicio;
-
-        // Definimos los rangos de las horquillas
-        if (currentShiftLabel === "Mañana") {
-            // Aparece si empieza o termina entre las 06:00 y las 13:59
-            return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
-        }
-        if (currentShiftLabel === "Tarde") {
-            // Aparece si empieza o termina entre las 14:00 y las 21:59
-            return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
-        }
-        if (currentShiftLabel === "Noche") {
-            // Aparece si empieza o termina entre las 22:00 y las 05:59
-            return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
-        }
+        if (hours.length === 0) return true;
+        const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
+        if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
+        if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
+        if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
         return false;
     });
 
     TEAM_STATE.people = filteredPeople;
     listEl.innerHTML = '';
 
-    // --- RENDERIZADO (IDÉNTICO AL ANTERIOR) ---
     if (filteredPeople.length === 0) {
         listEl.innerHTML = `<div style="color:var(--text-muted); padding: 20px; text-align: center; border: 1px dashed #cbd5e1; border-radius: 10px;">
-            No hay personal asignado que coincida con el horario de <strong>${currentShiftLabel}</strong>.
+            No hay personal asignado para el horario de <strong>${currentShiftLabel}</strong>.
         </div>`;
         updateTeamMeta(TEAM_STATE);
         return;
@@ -2553,25 +2536,23 @@ function renderRoster(listEl, people, state) {
 
     filteredPeople.forEach((p, idx) => {
         const full = p.nombre_completo || '—';
-        // Limpiamos visualmente el horario para que no salga la fecha
         const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
+        const presentVal = TEAM_STATE.attendance[full]; // true, false o undefined
+        const zone = TEAM_STATE.zones[full] || '';
         const isIncidencia = p.is_incidencia === true;
-        const presentVal = (TEAM_STATE.attendance || {})[full];
-        const zone = (TEAM_STATE.zones || {})[full] || '';
 
         const row = document.createElement('div');
         row.className = 'team-row';
-        const borderColor = isIncidencia ? '#dc2626' : 'var(--border)';
-        const bgColor = isIncidencia ? '#fff1f2' : '#fff';
-
         row.style.cssText = `
-            display: flex; flex-direction: column; 
-            padding: 12px; border: 1px solid ${borderColor}; 
-            border-left: 5px solid ${borderColor};
-            border-radius: 10px; background: ${bgColor}; 
-            margin-bottom: 10px; gap: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; padding: 12px; 
+            border: 1px solid ${isIncidencia ? '#dc2626' : 'var(--border)'}; 
+            border-left: 5px solid ${isIncidencia ? '#dc2626' : 'var(--border)'};
+            border-radius: 10px; background: ${isIncidencia ? '#fff1f2' : '#fff'}; 
+            margin-bottom: 10px; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         `;
+
+        // CLAVE: Usamos el nombre de la persona en el "name" del radio para que sea único
+        const radioGroupName = `att_${full.replace(/\s+/g, '_')}`;
 
         row.innerHTML = `
             <div style="min-width: 0;">
@@ -2579,17 +2560,17 @@ function renderRoster(listEl, people, state) {
                     ${isIncidencia ? '⚠️' : ''}
                     <span style="font-weight:800; font-size:0.95rem; color:#1f2937;">${esc(full)}</span>
                 </div>
-                <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
+                <div style="display:flex; gap:5px; align-items:center;">
                     <small style="color:#64748b; font-weight:700; font-size:0.75rem;">🕒 ${esc(hVisual)}</small>
-                    <small style="background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-size:0.7rem; font-weight:800; text-transform:uppercase;">${esc(p.observaciones)}</small>
+                    <small style="background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-size:0.7rem; font-weight:800;">${esc(p.observaciones)}</small>
                 </div>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid #f1f5f9; padding-top:8px;">
                 <div class="presence-toggle">
-                    <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${presentVal===true?'checked':''}>
-                    <label for="att-${idx}-y" class="yes" style="padding:4px 8px; font-size:0.75rem;">✓ OK</label>
-                    <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${presentVal===false?'checked':''}>
-                    <label for="att-${idx}-n" class="no" style="padding:4px 8px; font-size:0.75rem;">✕</label>
+                    <input type="radio" name="${radioGroupName}" id="${radioGroupName}_y" class="att-radio" data-person="${esc(full)}" value="yes" ${presentVal === true ? 'checked' : ''}>
+                    <label for="${radioGroupName}_y" class="yes" style="padding:4px 10px; font-size:0.75rem;">✓ OK</label>
+                    <input type="radio" name="${radioGroupName}" id="${radioGroupName}_n" class="att-radio" data-person="${esc(full)}" value="no" ${presentVal === false ? 'checked' : ''}>
+                    <label for="${radioGroupName}_n" class="no" style="padding:4px 10px; font-size:0.75rem;">✕</label>
                 </div>
                 <select class="zone-select" data-person="${esc(full)}" 
                         style="flex:1; min-width:80px; padding:5px; border-radius:6px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700;">
@@ -2601,7 +2582,34 @@ function renderRoster(listEl, people, state) {
         listEl.appendChild(row);
     });
 
-    attachRosterEvents(listEl);
+    // Re-vincular eventos
+    listEl.querySelectorAll('.att-radio').forEach(inp => {
+        inp.addEventListener('change', e => {
+            const person = e.target.dataset.person;
+            const isPresent = e.target.value === 'yes';
+            
+            // Actualizar estado local
+            TEAM_STATE.attendance[person] = isPresent;
+            
+            // Persistencia en servidor
+            updatePresenceOnServer(person, isPresent);
+            
+            // Actualizar el contador de presentes arriba (x de y)
+            updateTeamMeta(TEAM_STATE);
+            
+            console.log(`Presence updated for ${person}: ${isPresent}`);
+        });
+    });
+
+    listEl.querySelectorAll('.zone-select').forEach(sel => {
+        sel.addEventListener('change', e => {
+            const person = e.target.dataset.person;
+            const zone = e.target.value;
+            TEAM_STATE.zones[person] = zone;
+            updateZoneOnServer(person, zone);
+        });
+    });
+
     updateTeamMeta(TEAM_STATE);
 }
 
@@ -4495,10 +4503,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const team = window.TEAM_STATE || {};
                 
                 // Roster
-                const rosterList = (team.people||[]).map(p => {
-                    const isP = (team.attendance||{})[p.nombre_completo] === true;
-                    return `${p.nombre_completo} (${isP ? "✅" : "❌"})`;
-                }).join(", ") || "Sin datos";
+                 const rosterList = (team.people || []).map(p => {
+                    const name = p.nombre_completo || "Desconocido";
+                    const isPresent = (team.attendance || {})[name];
+                    
+                    let statusIcon = "➖"; // Por defecto: No marcado
+                    if (isPresent === true) statusIcon = "✅";
+                    if (isPresent === false) statusIcon = "❌";
+                    
+                    return `${name} (${statusIcon})`;
+                }).join(", ") || "Sin personal en este turno";
 
                 // Kanban
                 const kanbanItems = [];
