@@ -2461,101 +2461,123 @@ shift: TEAM_STATE?.shift || null
 }catch(e){ console.error(e); }
 }
 
-function renderRoster(listEl, people, state){
-if (!listEl) return;
-TEAM_STATE = state || TEAM_STATE || {};
-TEAM_STATE.people = people || [];
-TEAM_STATE.attendance = state?.attendance || TEAM_STATE.attendance || {};
-TEAM_STATE.zones = state?.zones || TEAM_STATE.zones || {};
+function renderRoster(listEl, people, state) {
+    if (!listEl) return;
+    TEAM_STATE = state || TEAM_STATE || {};
+    TEAM_STATE.people = people || [];
+    TEAM_STATE.attendance = state?.attendance || TEAM_STATE.attendance || {};
+    TEAM_STATE.zones = state?.zones || TEAM_STATE.zones || {};
 
-listEl.innerHTML = '';
+    listEl.innerHTML = '';
 
-if (!TEAM_STATE.people.length){
-listEl.innerHTML = '<div style="color:var(--text-muted)">Sin datos del roster actual.</div>';
-updateTeamMeta(TEAM_STATE);
-return;
-}
+    if (!TEAM_STATE.people.length) {
+        listEl.innerHTML = '<div style="color:var(--text-muted); padding: 20px; text-align: center;">Sin personal asignado para este turno.</div>';
+        updateTeamMeta(TEAM_STATE);
+        return;
+    }
 
-const ZONES = ['Isla','Dorada','Muele Imp','Muele Exp','Import','Export'];
+    // Corregido typo: 'Muelle' en lugar de 'Muele'
+    const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
-TEAM_STATE.people.forEach((p,idx)=>{
-const full = p.nombre_completo || '—';
-const horario = p.horario || '';
-const obs = p.observaciones || '';
-const presentVal = (TEAM_STATE.attendance||{})[full];
-const yesChecked = presentVal === true  ? 'checked' : '';
-const noChecked  = presentVal === false ? 'checked' : '';
-const zone = (TEAM_STATE.zones||{})[full] || '';
+    TEAM_STATE.people.forEach((p, idx) => {
+        const full = p.nombre_completo || '—';
+        const horario = p.horario || '';
+        const grupo = p.observaciones || ''; // nombreGrupoTrabajo mapeado en el backend
+        const isIncidencia = p.is_incidencia === true; // Campo nuevo de la API
+        
+        const presentVal = (TEAM_STATE.attendance || {})[full];
+        const yesChecked = presentVal === true ? 'checked' : '';
+        const noChecked = presentVal === false ? 'checked' : '';
+        const zone = (TEAM_STATE.zones || {})[full] || '';
 
-const row = document.createElement('div');
-row.className='team-row';
-row.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px;gap:10px;';
+        const row = document.createElement('div');
+        row.className = 'team-row';
+        
+        // --- ESTILO DINÁMICO POR INCIDENCIA ---
+        const borderColor = isIncidencia ? '#dc2626' : 'var(--border)';
+        const bgColor = isIncidencia ? '#fff1f2' : '#fff';
+        const shadow = isIncidencia ? '0 4px 12px rgba(220,38,38,0.1)' : '0 2px 4px rgba(0,0,0,0.05)';
 
-const left = document.createElement('div');
-left.className='team-left';
-left.innerHTML =
-`<span class="team-name" style="font-weight:600">${esc(full)}</span>`+
-(horario?` <small class="meta">• ${esc(horario)}</small>`:'')+
-(obs?    ` <small class="meta">• ${esc(obs)}</small>`:'')+
-(zone?   ` <span class="chip-zone" data-zone-chip="${esc(full)}">${esc(zone)}</span>`:'');
+        row.style.cssText = `
+            display:flex; align-items:center; justify-content:space-between; 
+            padding:10px 12px; border:1px solid ${borderColor}; 
+            border-left: 6px solid ${borderColor};
+            border-radius:10px; background:${bgColor}; 
+            margin-bottom:8px; gap:12px;
+            box-shadow: ${shadow};
+            transition: all 0.2s ease;
+        `;
 
-const right = document.createElement('div');
-right.className='team-right';
-right.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
-right.innerHTML = `
-   <div class="presence-toggle" role="group" aria-label="Presencia">
-     <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
-     <label for="att-${idx}-y" class="yes">✓ Presente</label>
-     <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
-     <label for="att-${idx}-n" class="no">✕ Ausente</label>
-   </div>
-   <select class="zone-select" data-person="${esc(full)}" title="Zona">
-     <option value="" ${zone?'':'selected'} disabled>Zona…</option>
-     ${ZONES.map(z=>`<option value="${esc(z)}" ${z===zone?'selected':''}>${esc(z)}</option>`).join('')}
-   </select>
- `;
+        const left = document.createElement('div');
+        left.className = 'team-left';
+        left.style.cssText = 'flex: 1; min-width: 0;';
+        
+        left.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                ${isIncidencia ? '<span title="Incidencia detectada" style="font-size:1.2rem;">⚠️</span>' : ''}
+                <span class="team-name" style="font-weight:700; font-size:1rem; ${isIncidencia ? 'color:#b91c1c;' : ''}">${esc(full)}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; margin-top:4px; flex-wrap: wrap;">
+                <small class="meta" style="color:#64748b; font-weight:600; background:#f1f5f9; padding:2px 6px; border-radius:4px;">🕒 ${esc(horario)}</small>
+                <small class="meta" style="color:#475569; font-weight:700; border:1px solid #e2e8f0; padding:1px 6px; border-radius:4px; text-transform: uppercase; font-size:0.7rem;">${esc(grupo)}</small>
+                ${zone ? `<span class="chip-zone" data-zone-chip="${esc(full)}" style="margin:0;">${esc(zone)}</span>` : ''}
+            </div>
+        `;
 
-row.appendChild(left);
-row.appendChild(right);
-listEl.appendChild(row);
-});
+        const right = document.createElement('div');
+        right.className = 'team-right';
+        right.style.cssText = 'display:flex; align-items:center; gap:12px;';
+        
+        right.innerHTML = `
+           <div class="presence-toggle" role="group" aria-label="Presencia" style="background:#f8fafc; border-radius:8px; padding:2px;">
+             <input type="radio" name="att-${idx}" id="att-${idx}-y" class="att-radio" data-person="${esc(full)}" value="yes" ${yesChecked}>
+             <label for="att-${idx}-y" class="yes" style="padding:6px 12px; font-size:0.8rem;">✓ OK</label>
+             <input type="radio" name="att-${idx}" id="att-${idx}-n" class="att-radio" data-person="${esc(full)}" value="no" ${noChecked}>
+             <label for="att-${idx}-n" class="no" style="padding:6px 12px; font-size:0.8rem;">✕ Ausente</label>
+           </div>
+           <select class="zone-select" data-person="${esc(full)}" title="Zona" style="padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-weight:600; font-size:0.85rem;">
+             <option value="" ${zone ? '' : 'selected'} disabled>Asignar Zona…</option>
+             ${ZONES.map(z => `<option value="${esc(z)}" ${z === zone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
+           </select>
+         `;
 
-// Presencia
-listEl.querySelectorAll('.att-radio').forEach(inp=>{
-inp.addEventListener('change', e=>{
-const person=e.target.dataset.person;
-const present=e.target.value==='yes';
-TEAM_STATE.attendance = TEAM_STATE.attendance || {};
-TEAM_STATE.attendance[person]=present;
-updateTeamMeta(TEAM_STATE);
-updatePresenceOnServer(person, present);
-updateSpotlightRouting?.();
-});
-});
+        row.appendChild(left);
+        row.appendChild(right);
+        listEl.appendChild(row);
+    });
 
-// Zonas
-listEl.querySelectorAll('.zone-select').forEach(sel=>{
-sel.addEventListener('change', e=>{
-const person=e.target.dataset.person;
-const zone=e.target.value || '';
-TEAM_STATE.zones = TEAM_STATE.zones || {};
-TEAM_STATE.zones[person]=zone;
-// chip
-const chip = listEl.querySelector(`.chip-zone[data-zone-chip="${CSS.escape(person)}"]`);
-if (chip){
-chip.textContent = zone;
-}else if(zone){
-const host = e.target.closest('.team-row')?.querySelector('.team-left');
-if (host){
-host.insertAdjacentHTML('beforeend', ` <span class="chip-zone" data-zone-chip="${esc(person)}">${esc(zone)}</span>`);
-}
-}
-updateZoneOnServer(person, zone);
-updateTeamMeta(TEAM_STATE);
-});
-});
+    // --- EVENTOS (Se mantienen para persistencia) ---
 
-updateTeamMeta(TEAM_STATE);
+    // Presencia
+    listEl.querySelectorAll('.att-radio').forEach(inp => {
+        inp.addEventListener('change', e => {
+            const person = e.target.dataset.person;
+            const present = e.target.value === 'yes';
+            TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+            TEAM_STATE.attendance[person] = present;
+            updateTeamMeta(TEAM_STATE);
+            updatePresenceOnServer(person, present);
+            if (window.updateSpotlightRouting) window.updateSpotlightRouting();
+        });
+    });
+
+    // Zonas
+    listEl.querySelectorAll('.zone-select').forEach(sel => {
+        sel.addEventListener('change', e => {
+            const person = e.target.dataset.person;
+            const zone = e.target.value || '';
+            TEAM_STATE.zones = TEAM_STATE.zones || {};
+            TEAM_STATE.zones[person] = zone;
+            
+            // Actualizar chip visualmente sin recargar todo
+            renderRoster(listEl, TEAM_STATE.people, TEAM_STATE);
+            
+            updateZoneOnServer(person, zone);
+            updateTeamMeta(TEAM_STATE);
+        });
+    });
+
+    updateTeamMeta(TEAM_STATE);
 }
 
 async function initTeamRoster(){
