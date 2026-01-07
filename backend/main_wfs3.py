@@ -27,7 +27,12 @@ from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, Br
 # -----------------------------------
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
-
+# --- AÑADE ESTO EN LA SECCIÓN DE MODELOS DE main_wfs3.py ---
+class PresenceUpdate(BaseModel):
+    person: str
+    present: bool
+    date: Optional[str] = None    # ISO (YYYY-MM-DD), opcional
+    shift: Optional[str] = None   # "Mañana"|"Tarde"|"Noche", opcional
 # === RUTAS Y VARIABLES WFS3 (Aislamiento de datos) ===
 STATION_NAME = "WFS3"
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
