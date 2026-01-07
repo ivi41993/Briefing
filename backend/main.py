@@ -4425,37 +4425,36 @@ async def fetch_mad_roster_from_api():
         print(f"❌ Error API MAD: {e}")
     return None
 
-def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
+# ANTES: def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
+# DESPUÉS (Copia esta línea):
+def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
     """
-    Filtro para Madrid Nave 4:
-    Busca 'N4' en codDestino, descDestino y nombreGrupoTrabajo.
+    Filtra por turno y por identificador de nave (ej: 'N4', 'N3', etc.)
     """
     normalized = []
-    print(f"📡 Filtrando Nave 4 para el turno: {current_shift}")
-    
+    # Convertimos a mayúsculas para comparar sin errores
+    target = target_nave.upper() 
+
     for p in api_data:
         try:
-            # --- 1. DETECCIÓN DE NAVE 4 (Triple comprobación) ---
+            # --- FILTRO DE NAVE (Identificación robusta) ---
             cod = str(p.get("codDestino", "")).upper()
             desc = str(p.get("descDestino", "")).upper()
             grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
             
-            # Si pone N4 en el código, NAVE 4 en la descripción o N4 en el grupo... ¡Es de la nuestra!
-            es_de_nave4 = ("N4" in cod) or ("NAVE 4" in desc) or ("-N4" in grupo) or (grupo.endswith("N4"))
-            
-            if not es_de_nave4:
+            # Buscamos el identificador (ej: 'N4') en cualquiera de los 3 campos
+            if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # --- 2. FILTRO DE TURNO (HORAS) ---
+            # --- FILTRO DE TURNO (HORAS) ---
             raw_inicio = p.get("horaInicio", "")
             if not raw_inicio or " " not in raw_inicio:
                 continue
             
-            # Extraemos la hora de "07/01/2026 14:00" -> 14
             hora_completa = raw_inicio.split(" ")[1]
             h_inicio = int(hora_completa.split(":")[0])
             
-            # Definición de horquillas (puedes ajustarlas si Nave 4 tiene horarios raros)
+            # Horquillas de turno
             is_mañana = (4 <= h_inicio < 14)
             is_tarde  = (14 <= h_inicio < 22)
             is_noche  = (h_inicio >= 22 or h_inicio < 4)
@@ -4466,7 +4465,6 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
             elif current_shift == "Noche" and is_noche: match = True
 
             if match:
-                # Limpiamos el horario para el frontend
                 raw_fin = p.get("horaFin", "")
                 h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
 
@@ -4477,11 +4475,9 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
                     "observaciones": p.get("nombreGrupoTrabajo", ""),
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except Exception as e:
-            print(f"⚠️ Error procesando trabajador en MAD: {e}")
+        except:
             continue
             
-    print(f"✅ Nave 4: {len(normalized)} personas encontradas para el turno {current_shift}")
     return normalized
 
 # Modificación del constructor de estado
@@ -4494,7 +4490,7 @@ async def _build_roster_state(force=False) -> dict:
 
     if raw_api_data and isinstance(raw_api_data, list):
         # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
-        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "NAVE 4")
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
         source = "api"
     else:
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
@@ -4763,6 +4759,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
