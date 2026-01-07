@@ -179,7 +179,9 @@ ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/ba
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
 ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
 ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "true"
-
+# --- CONFIGURACIÓN API EXTERNA BCN ---
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 
 roster_cache: dict[str, Any] = {
@@ -1931,86 +1933,77 @@ def _current_shift_info(now):
     sheet_date = now.date() - timedelta(days=1) if hhmm < "06:00" and ROSTER_NIGHT_PREV_DAY else now.date()
     return "Noche", sheet_date, "22:00", "06:00"
 
+
+
+async def fetch_bcn_roster_from_api():
+    """Llamada POST a la API para obtener el personal de Barcelona"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API BCN no configurada.")
+        return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    payload = {
+        "escala": "BCN",
+        "fecha": ahora.strftime("%d/%m/%Y") # Formato dd/mm/yyyy
+    }
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ API BCN: Recibidos {len(data)} trabajadores.")
+                return data
+    except Exception as e:
+        print(f"❌ Error API BCN: {e}")
+    return None
+
+def filter_api_people_by_shift(api_data: list, current_shift: str):
+    """Procesador de datos para BCN"""
+    normalized = []
+    for p in api_data:
+        try:
+            # Limpiar "07/01/2026 14:00" -> "14:00"
+            raw_inicio = p.get("horaInicio", "")
+            raw_fin = p.get("horaFin", "")
+            h_ini = raw_inicio.split(" ")[1] if " " in raw_inicio else raw_inicio
+            h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+
+            normalized.append({
+                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                "nomina": p.get("nomina"),
+                "horario": f"{h_ini} - {h_fin}",
+                "observaciones": p.get("nombreGrupoTrabajo", ""),
+                "is_incidencia": p.get("IsIncidencias", False)
+            })
+        except: continue
+    return normalized
+
 async def _build_roster_state(force=False) -> dict:
-    p = Path(ROSTER_XLSX_PATH)
-    mtime = p.stat().st_mtime if p.exists() else None
     now = _now_local()
-    shift, sheet_date, start, end = _current_shift_info(now)
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # 1. Intentar API
+    raw_api_data = await fetch_bcn_roster_from_api()
+    people = []
+    source = "excel"
 
-    needs_reload = force or (mtime != roster_cache.get("file_mtime")) \
-                         or (sheet_date != roster_cache.get("sheet_date")) \
-                         or (shift != roster_cache.get("shift"))
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        people = filter_api_people_by_shift(raw_api_data, shift)
+        source = "api"
+    else:
+        # 2. Fallback a Excel
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
 
-    if needs_reload:
-        sheet = _sheet_name_for_date(sheet_date)  # <- si todavía lo tienes, ya no lo usaremos
-        # NUEVO: elegir hoja real por nombre dd-mm-aaaa (o la más cercana)
-        sheet_real, sheet_names = _find_sheet_for_date(ROSTER_XLSX_PATH, sheet_date)
-
-        if not sheet_real:
-            # No hay ninguna hoja con fecha parseable. No rompas; devuelve vacío y log legible.
-            sample = ", ".join(sheet_names[:15])
-            if len(sheet_names) > 15:
-                sample += ", …"
-            print(f"⚠️ No hay hoja para la fecha {sheet_date} (nombres vistos: {sample})")
-            people = []
-        else:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift)
-
-
-        
-        # === ADD: fusionar personas manuales con Excel ===
-        # === ADD: fusionar personas manuales con Excel ===
-        manual_today = [
-            d for d in manual_persons_store.values()
-            if d.get("fecha") == sheet_date.isoformat() and d.get("turno") == shift
-        ]
-
-        # índice por clave normalizada para detectar duplicados nombre/apellido
-        def _k(row: dict) -> str:
-            return f"{_norm(row.get('apellidos','')).lower()}|{_norm(row.get('nombre','')).lower()}"
-
-        excel_idx: Dict[str, int] = {_k(r): i for i, r in enumerate(people)}
-        for m in manual_today:
-            k = _k(m)
-            if k in excel_idx:
-                # ya está en Excel: mergea observaciones
-                i = excel_idx[k]
-                obs_old = _norm(people[i].get("observaciones",""))
-                obs_new = _norm(m.get("observaciones",""))
-                if obs_new and obs_new.lower() not in obs_old.lower():
-                    people[i]["observaciones"] = (obs_old + (" · " if obs_old and obs_new else "") + obs_new).strip(" ·")
-            else:
-                # no está: añadir como nueva fila con marca 'manual'
-                people.append({
-                    "apellidos": m["apellidos"],
-                    "nombre": m["nombre"],
-                    "nombre_completo": m.get("nombre_completo") or f"{m['apellidos']}, {m['nombre']}",
-                    "horario": m["horario"],
-                    "observaciones": m.get("observaciones","Incorporado (manual)"),
-                    "source": "manual",
-                })
-
-        roster_cache.update({
-            "file_mtime": mtime,
-            "sheet_date": sheet_date,
-            "shift": shift,
-            "people": people,
-            "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-            "window": {"from": start, "to": end},
-            "sheet": sheet_real,  # <- guarda el nombre real
-        })
-        await manager.broadcast({
-            "type": "roster_update",
-            "shift": shift,
-            "sheet": sheet_real,
-            "sheet_date": sheet_date.isoformat(),
-            "window": {"from": start, "to": end},
-            "count": len(people),
-            "people": people,
-            "source": "excel",
-            "updated_at": roster_cache["updated_at"],
-        })
-
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
 # === ADD: Endpoints Personas manuales ===
@@ -2120,6 +2113,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
