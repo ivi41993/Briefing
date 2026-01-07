@@ -129,7 +129,22 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, targ
                 })
         except: continue
     return normalized
+def _now_local():
+    return datetime.now(ZoneInfo(ROSTER_TZ))
 
+def _current_shift_info(now):
+    hhmm = now.strftime("%H:%M")
+    if "06:00" <= hhmm < "14:00":
+        return "Mañana", now.date(), "06:00", "14:00"
+    if "14:00" <= hhmm < "22:00":
+        return "Tarde", now.date(), "14:00", "22:00"
+    # Noche
+    if hhmm < "06:00":
+        sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY else now.date()
+    else:
+        sheet_date = now.date()
+    return "Noche", sheet_date, "22:00", "06:00"
+    
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
