@@ -3503,8 +3503,16 @@ console.error('PUT /api/roster/zone falló', e);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
-    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+
+    // 1. Inicialización del estado global para WFS3
+    if (!window.TEAM_STATE) {
+        window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
+    }
+
+    // 2. Guardar lista maestra si llega del servidor
+    if (people && people.length > 0) {
+        window.TEAM_STATE.allPeopleRaw = people;
+    }
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
     if (!masterList || masterList.length === 0) {
@@ -3512,64 +3520,98 @@ function renderRoster(listEl, people, state) {
         return;
     }
 
+    // 3. LÓGICA DE FILTRADO POR HORQUILLA DE TURNO (6-14, 14-22, 22-6)
     const hNow = new Date().getHours();
-    let shiftLabel = (hNow >= 6 && hNow < 14) ? "Mañana" : (hNow >= 14 && hNow < 22) ? "Tarde" : "Noche";
+    let currentShiftLabel = "Noche";
+    if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
+    else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
 
-    const filtered = masterList.filter(p => {
-        const times = (p.horario || "").match(/(\d{1,2}):(\d{2})/g);
-        if (!times) return true;
-        const hIni = parseInt(times[0].split(':')[0]);
-        const hFin = times.length > 1 ? parseInt(times[1].split(':')[0]) : hIni;
-        if (shiftLabel === "Mañana") return (hIni >= 6 && hIni < 14) || (hFin > 6 && hFin <= 14);
-        if (shiftLabel === "Tarde")  return (hIni >= 14 && hIni < 22) || (hFin > 14 && hFin <= 22);
-        if (shiftLabel === "Noche")  return (hIni >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
+    const extractHours = (str) => {
+        const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
+        if (!times) return [];
+        return times.map(t => parseInt(t.split(':')[0]));
+    };
+
+    const filteredPeople = masterList.filter(p => {
+        const hours = extractHours(p.horario);
+        if (hours.length === 0) return true;
+        const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
+        
+        if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
+        if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
+        if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
         return false;
     });
 
-    window.TEAM_STATE.people = filtered;
+    window.TEAM_STATE.people = filteredPeople;
     listEl.innerHTML = '';
+    const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
-    filtered.forEach((p, idx) => {
+    // 4. DIBUJAR LAS TARJETAS
+    filteredPeople.forEach((p, idx) => {
         const name = p.nombre_completo;
-        const group = p.observaciones || "SIN GRUPO";
+        const grupo = p.observaciones || "SIN GRUPO"; // nombreGrupoTrabajo mapeado en backend
+        const isIncidencia = p.is_incidencia === true;
+        const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
+        
         const currentAtt = window.TEAM_STATE.attendance[name]; 
-        const radioID = `wfs3_att_${idx}_${name.replace(/\s+/g, '_')}`;
+        const currentZone = window.TEAM_STATE.zones[name] || '';
+        const safeId = name.replace(/[^a-z0-9]/gi, '_');
 
         const row = document.createElement('div');
         row.className = 'team-row';
-        row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${p.is_incidencia ? '#dc2626':'#e2e8f0'}; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
+        row.style.cssText = `
+            display: flex; flex-direction: column; padding: 12px; border-radius: 12px; margin-bottom: 10px;
+            border: 1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'};
+            border-left: 6px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'};
+            background: ${isIncidencia ? '#fff1f2' : '#ffffff'};
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        `;
 
         row.innerHTML = `
-            <div style="min-width:0;">
-                <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${p.is_incidencia ? '⚠️ ':''}${esc(name)}</div>
-                <div style="display:flex; gap:6px; margin-top:4px; align-items:center;">
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario)}</span>
-                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(group)}</span>
+            <div style="min-width: 0;">
+                <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">
+                    ${isIncidencia ? '⚠️ ' : ''}${esc(name)}
+                </div>
+                <div style="display:flex; gap:6px; margin-top:4px; align-items:center; flex-wrap:wrap;">
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
+                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase; border: 1px solid #c7d2fe;">
+                        ${esc(grupo)}
+                    </span>
                 </div>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                 <div class="presence-toggle">
-                    <input type="radio" name="att_${radioID}" id="y_${radioID}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                    <label for="y_${radioID}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✓ OK</label>
-                    <input type="radio" name="att_${radioID}" id="n_${radioID}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                    <label for="n_${radioID}" class="no" style="padding:4px 10px; font-size:0.75rem;">✕</label>
+                    <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                    <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✓ OK</label>
+                    <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                    <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">✕</label>
                 </div>
-                <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700;">
-                    <option value="" disabled selected>Zona...</option>
-                    <option>Isla</option><option>Dorada</option><option>Muelle Imp</option><option>Muelle Exp</option>
+                <select class="zone-select" data-person="${esc(name)}" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
+                    <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
+                    ${ZONES.map(z => `<option value="${esc(z)}" ${z === currentZone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
                 </select>
-            </div>`;
+            </div>
+        `;
 
-        row.querySelectorAll('input[type="radio"]').forEach(r => {
-            r.addEventListener('click', () => {
-                const isP = r.value === 'yes';
-                window.TEAM_STATE.attendance[name] = isP;
-                updatePresenceOnServer(name, isP);
+        // Eventos para que no desaparezcan
+        row.querySelectorAll('input[type="radio"]').forEach(radio => {
+            radio.addEventListener('click', () => {
+                const isPresent = radio.value === 'yes';
+                window.TEAM_STATE.attendance[name] = isPresent;
+                updatePresenceOnServer(name, isPresent);
                 updateTeamMeta(window.TEAM_STATE);
             });
         });
+
+        row.querySelector('.zone-select').addEventListener('change', (e) => {
+            window.TEAM_STATE.zones[name] = e.target.value;
+            updateZoneOnServer(name, e.target.value);
+        });
+
         listEl.appendChild(row);
     });
+
     updateTeamMeta(window.TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
