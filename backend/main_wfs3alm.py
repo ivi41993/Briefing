@@ -186,24 +186,15 @@ async def _build_roster_state(force=False) -> dict:
 
 @app.get("/api/roster/current")
 async def get_roster_current():
-    # Esta es la ruta que te daba 404
     state = await _build_roster_state(force=False)
-    # Lógica de asistencia en memoria
-    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    shift = state.get("shift")
-    key = _att_key(state.get("sheet_date"), shift) if d_iso else None
-    att_map = attendance_store.get(key, {})
-    
     return {
-        "shift": shift,
+        "shift": state.get("shift"),
         "sheet": state.get("sheet"),
-        "sheet_date": d_iso,
+        "sheet_date": state.get("sheet_date").isoformat() if state.get("sheet_date") else None,
         "window": state.get("window"),
         "people": state.get("people", []),
-        "attendance": att_map,
-        "updated_at": state.get("updated_at")
+        "updated_at": state.get("updated_at"),
     }
-
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
     state = await _build_roster_state(force=False)
