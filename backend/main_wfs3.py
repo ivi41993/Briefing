@@ -72,41 +72,62 @@ roster_cache: dict[str, Any] = {
     "updated_at": None,
 }
 
-# --- 1. CONFIGURACIÓN API NAVE 3 ---
+# --- 1. CONFIGURACIÓN API MADRID - NAVE 3 ---
 ROSTER_API_URL = os.getenv("ROSTER_API_URL")
 ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
-STATION_CODE_API = "MAD" 
-TARGET_NAVE = "N3"  # <--- CAMBIADO A N3
+STATION_CODE_API = "MAD"  # Para la API, Madrid siempre es MAD
+TARGET_NAVE = "N3"        # Identificador para Nave 3
 
 def _att_key(d, s):
     if hasattr(d, 'isoformat'): return f"{d.isoformat()}|{s}"
     return f"{d}|{s}"
 
-# --- 2. LÓGICA DE FILTRADO NAVE 3 ---
+# --- 2. FUNCIÓN DE LLAMADA A LA API (LA QUE FALTA) ---
+async def fetch_roster_api_data(escala: str, fecha: str):
+    """Realiza la llamada POST a la API externa para obtener el personal"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ Error: ROSTER_API_URL o ROSTER_API_KEY no detectadas")
+        return None
+    
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    payload = {"escala": escala, "fecha": fecha} # fecha debe ser DD/MM/YYYY
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Enviamos como POST tal como requiere la documentación
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ API MAD: Datos recibidos para Nave 3.")
+                return data
+            else:
+                print(f"❌ Error API MAD: {response.status_code}")
+                return None
+    except Exception as e:
+        print(f"💥 Fallo de conexión API: {e}")
+        return None
+
+# --- 3. TRIPLE FILTRO NAVE 3 (Asegúrate de tenerlo también) ---
 def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target: str):
     normalized = []
-    target_up = target.upper() # "N3"
-
+    target_up = target.upper()
     for p in api_data:
         try:
-            # EXTRAER CAMPOS CLAVE
             cod = str(p.get("codDestino", "")).upper()
             desc = str(p.get("descDestino", "")).upper()
             grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
             
-            # TRIPLE FILTRO NAVE 3: Buscamos N3 o NAVE 3
-            es_de_esta_nave = (target_up in cod) or ("NAVE 3" in desc) or (target_up in grupo)
-            
-            if not es_de_esta_nave:
+            # Buscamos N3 en cualquiera de los tres campos
+            if target_up not in cod and "NAVE 3" not in desc and target_up not in grupo:
                 continue
 
-            # FILTRO DE TURNO (HORAS)
             raw_inicio = p.get("horaInicio", "")
             if not raw_inicio or " " not in raw_inicio: continue
             
             hora_completa = raw_inicio.split(" ")[1]
             h_inicio = int(hora_completa.split(":")[0])
             
+            # Horquillas Turno (6-14, 14-22, 22-6)
             is_mañana = (4 <= h_inicio < 14)
             is_tarde  = (14 <= h_inicio < 22)
             is_noche  = (h_inicio >= 22 or h_inicio < 4)
@@ -119,34 +140,38 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, targ
             if match:
                 raw_fin = p.get("horaFin", "")
                 h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
-
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
                     "nomina": p.get("nomina"),
                     "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""), # Aquí va el grupo
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
         except: continue
     return normalized
 
-# --- 3. CONSTRUCTOR DE ESTADO ---
+
+
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     api_date_str = sdate.strftime("%d/%m/%Y")
     
-    raw_api_data = await fetch_roster_api_data(STATION_CODE_API, api_date_str)
+    # Esta es la llamada que daba el NameError:
+    raw_api_data = await fetch_roster_api_data("MAD", api_date_str)
     
     people = []
-    source = "excel"
-    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
-        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, TARGET_NAVE)
+    if raw_api_data and isinstance(raw_api_data, list):
+        # Usamos el filtro de N3 que acabamos de definir arriba
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N3")
         source = "api"
     else:
+        # Fallback Excel si falla la API
         sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
+        source = "excel"
 
+    # Actualizar caché y notificar por WebSocket
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
