@@ -75,6 +75,118 @@ ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 
+# --- 1. MODELOS Y CONFIGURACIÓN NAVE 2 ---
+class PresenceUpdate(BaseModel):
+    person: str
+    present: bool
+    date: Optional[str] = None
+    shift: Optional[str] = None
+
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+STATION_CODE_API = "MAD" 
+TARGET_NAVE = "N2"  # <--- CONFIGURADO PARA NAVE 2
+
+def _att_key(d, s):
+    if hasattr(d, 'isoformat'): return f"{d.isoformat()}|{s}"
+    return f"{d}|{s}"
+
+# --- 2. FUNCIÓN DE LLAMADA A LA API (POST) ---
+async def fetch_roster_api_data(escala: str, fecha: str):
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API no configurada en variables de entorno")
+        return None
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    payload = {"escala": escala, "fecha": fecha} 
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+            return None
+    except Exception as e:
+        print(f"💥 Error API: {e}")
+        return None
+
+# --- 3. TRIPLE FILTRO NAVE 2 (Lógica Espejo) ---
+def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target: str):
+    normalized = []
+    target_up = target.upper() # "N2"
+    for p in api_data:
+        try:
+            cod = str(p.get("codDestino", "")).upper()
+            desc = str(p.get("descDestino", "")).upper()
+            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            
+            # Buscamos N2 o NAVE 2 en los tres campos clave
+            if target_up not in cod and "NAVE 2" not in desc and target_up not in grupo:
+                continue
+
+            raw_inicio = p.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio: continue
+            
+            hora_completa = raw_inicio.split(" ")[1]
+            h_inicio = int(hora_completa.split(":")[0])
+            
+            # Horquillas de turno
+            is_mañana = (4 <= h_inicio < 14)
+            is_tarde  = (14 <= h_inicio < 22)
+            is_noche  = (h_inicio >= 22 or h_inicio < 4)
+
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
+
+            if match:
+                raw_fin = p.get("horaFin", "")
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{hora_completa} - {h_fin_limpia}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except: continue
+    return normalized
+
+# --- 4. CONSTRUCTOR DE ESTADO Y ENDPOINTS ---
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    api_date_str = sdate.strftime("%d/%m/%Y")
+    raw_api_data = await fetch_roster_api_data(STATION_CODE_API, api_date_str)
+    
+    people = []
+    if raw_api_data and isinstance(raw_api_data, list):
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, TARGET_NAVE)
+        source = "api"
+    else:
+        sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
+        source = "excel"
+
+    roster_cache.update({"sheet_date": sdate, "shift": shift, "people": people, "updated_at": datetime.utcnow().isoformat() + "Z", "window": {"from": start, "to": end}, "source": source})
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
+
+@app.get("/api/roster/current")
+async def get_roster_current():
+    state = await _build_roster_state(force=False)
+    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
+    att_map = attendance_store.get(_att_key(state.get("sheet_date"), state.get("shift")), {})
+    return {"shift": state.get("shift"), "sheet_date": d_iso, "people": state.get("people", []), "attendance": att_map}
+
+@app.put("/api/roster/presence")
+async def put_roster_presence(upd: PresenceUpdate):
+    state = await _build_roster_state(force=False)
+    key = _att_key(state.get("sheet_date"), state.get("shift"))
+    if key not in attendance_store: attendance_store[key] = {}
+    attendance_store[key][upd.person] = upd.present
+    await manager.broadcast({"type": "presence_update", "person": upd.person, "present": upd.present, "shift": state.get("shift")})
+    return {"status": "ok"}
+
 # -----------------------------------
 # Modelos de Datos
 # -----------------------------------
@@ -718,41 +830,7 @@ app.add_middleware(
 # -----------------------------------
 # Endpoints API
 # -----------------------------------
-@app.get("/api/roster/current")
-async def get_roster_current():
-    state = await _build_roster_state(force=False)
-    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    shift = state.get("shift")
-    
-    # Mezclar con asistencia guardada
-    people = state.get("people", [])
-    key = _att_key(state.get("sheet_date"), shift) if d_iso else None
-    att_map = attendance_store.get(key, {})
-    
-    return {
-        "shift": shift,
-        "sheet": state.get("sheet"),
-        "sheet_date": d_iso,
-        "window": state.get("window"),
-        "people": people,
-        "attendance": att_map,
-        "updated_at": state.get("updated_at")
-    }
 
-@app.put("/api/roster/presence")
-async def put_roster_presence(upd: PresenceUpdate):
-    state = await _build_roster_state(force=False)
-    d = state.get("sheet_date")
-    s = state.get("shift")
-    if not d or not s: raise HTTPException(400, "No hay turno activo")
-    
-    key = _att_key(d, s)
-    attendance_store.setdefault(key, {})
-    attendance_store[key][upd.person] = upd.present
-    save_attendance_to_disk()
-    
-    await manager.broadcast({"type":"presence_update","sheet_date":d.isoformat(),"shift":s,"person":upd.person,"present":upd.present})
-    return {"ok": True}
 
 @app.get("/api/tasks")
 async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = None):
