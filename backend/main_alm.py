@@ -176,9 +176,10 @@ SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domin
 # Asegúrate de que estas variables estén en el panel de Render para cada app
 ROSTER_API_URL = os.getenv("ROSTER_API_URL") 
 ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
-
+STATION_CODE_API = "MAD"  # Para la API externa, la escala siempre es MAD
+NAVE_TARGET = "N4"        # El identificador que buscamos en el grupo de trabajo
+# Helper necesario para gestionar la asistencia en memoria
 def _att_key(d, s):
-    """Genera clave única para asistencia en memoria"""
     if hasattr(d, 'isoformat'): return f"{d.isoformat()}|{s}"
     return f"{d}|{s}"
 
@@ -577,52 +578,55 @@ def _atomic_write_json(path: str, data: list[dict]):
           
 
 async def fetch_roster_api_data(escala: str, fecha: str):
-    """Realiza la llamada POST a la API externa"""
+    """Realiza la llamada POST a la API externa para obtener el personal"""
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API no configurada en variables de entorno")
+        print("⚠️ Error: API no configurada en variables de entorno")
         return None
     
     headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-    payload = {"escala": escala, "fecha": fecha} # fecha en DD/MM/YYYY
+    payload = {"escala": escala, "fecha": fecha} 
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                print(f"✅ API MAD: Recibidos {len(data)} trabajadores totales.")
+                return data
             return None
     except Exception as e:
-        print(f"💥 Error conexión API: {e}")
+        print(f"💥 Fallo de conexión API: {e}")
         return None
 
-def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
+def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target: str):
     """
-    Filtra por turno y por identificador de nave (ej: 'N4', 'N3', etc.)
+    Filtro idéntico para Nave 4:
+    Busca en codDestino, descDestino y nombreGrupoTrabajo.
     """
     normalized = []
-    # Convertimos a mayúsculas para comparar sin errores
-    target = target_nave.upper() 
+    target_up = target.upper() # "N4"
 
     for p in api_data:
         try:
-            # --- FILTRO DE NAVE (Identificación robusta) ---
+            # 1. EXTRAER CAMPOS CLAVE
             cod = str(p.get("codDestino", "")).upper()
             desc = str(p.get("descDestino", "")).upper()
             grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
             
-            # Buscamos el identificador (ej: 'N4') en cualquiera de los 3 campos
-            if target not in cod and target not in desc and target not in grupo:
+            # 2. LÓGICA DE PERTENENCIA A NAVE 4 (Triple comprobación)
+            es_de_esta_nave = (target_up in cod) or ("NAVE 4" in desc) or (target_up in grupo)
+            
+            if not es_de_esta_nave:
                 continue
 
-            # --- FILTRO DE TURNO (HORAS) ---
+            # 3. FILTRO DE TURNO (HORAS)
             raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio:
-                continue
+            if not raw_inicio or " " not in raw_inicio: continue
             
             hora_completa = raw_inicio.split(" ")[1]
             h_inicio = int(hora_completa.split(":")[0])
             
-            # Horquillas de turno
+            # Horquillas MAD (Mañana: 4-13, Tarde: 14-21, Noche: 22-3)
             is_mañana = (4 <= h_inicio < 14)
             is_tarde  = (14 <= h_inicio < 22)
             is_noche  = (h_inicio >= 22 or h_inicio < 4)
@@ -643,8 +647,7 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, targ
                     "observaciones": p.get("nombreGrupoTrabajo", ""),
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except:
-            continue
+        except: continue
             
     return normalized
 
@@ -653,25 +656,37 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    raw_api_data = await fetch_mad_roster_from_api()
+    # 1. Preparar fecha para la API (DD/MM/YYYY)
+    api_date_str = sdate.strftime("%d/%m/%Y")
+    
+    # 2. Obtener datos de Madrid
+    raw_api_data = await fetch_roster_api_data("MAD", api_date_str)
+    
     people = []
+    source = "excel"
 
-    if raw_api_data and isinstance(raw_api_data, list):
-        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        # 3. Filtrar por N4 y Turno actual
         people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
         source = "api"
     else:
-        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
-        source = "excel"
+        # Fallback a Excel si la API no está disponible
+        sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
 
+    # 4. Actualizar el caché global
     roster_cache.update({
-        "sheet_date": sdate, "shift": shift, "people": people,
+        "sheet_date": sdate,
+        "shift": shift,
+        "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, "source": source
+        "window": {"from": start, "to": end},
+        "source": source
     })
     
+    # 5. Notificar a todos los navegadores abiertos
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    
     return roster_cache
 
 
