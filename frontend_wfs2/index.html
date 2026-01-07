@@ -3573,101 +3573,12 @@ function renderRoster(listEl, people, state) {
 /* ===== Equipo: Inicialización MODO MANUAL (Con Editar/Eliminar) ===== */
 async function initTeamRoster(){
     const listEl = document.getElementById('team-list');
+    if(!listEl) return;
     
-    // 1. Inicializar estado VACÍO
-    window.TEAM_STATE = {
-        shift: "Mañana", 
-        sheet_date: new Date().toISOString().split('T')[0],
-        people: [],         
-        attendance: {},
-        zones: {}
-    };
-
-    // 2. Renderizar TARJETA DE AVISO inicial
-    if(listEl) {
-        listEl.innerHTML = `
-            <div style="padding: 15px; text-align: center; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; color: #856404; margin-bottom: 10px;">
-                <strong>⚠️ Atención</strong><br>
-                Procedimiento manual activo.<br>
-                <span style="font-size:0.85rem">Añada el personal uno a uno usando el botón +.</span>
-            </div>`;
-        const meta = document.getElementById('team-meta');
-        if(meta) meta.textContent = "Modo Manual";
-    }
-
-    // 3. Alta Manual
-    const form = document.getElementById('team-form');
-    if(form) {
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            const input = document.getElementById('team-name');
-            const name = input.value.trim();
-            if(!name) return;
-            
-            // Evitar duplicados
-            if (window.TEAM_STATE.people.some(p => p.nombre_completo === name)) {
-                alert("Esta persona ya está en la lista.");
-                return;
-            }
-
-            const newPerson = { nombre_completo: name, horario: "Extra", observaciones: "Manual" };
-            window.TEAM_STATE.people.push(newPerson);
-            window.TEAM_STATE.attendance[name] = true; 
-            
-            renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
-            input.value = '';
-        };
-    }
-
-    // 4. Lógica de EDITAR y ELIMINAR (Delegación de eventos)
-    if(listEl) {
-        listEl.addEventListener('click', (e) => {
-            const btn = e.target.closest('button');
-            if (!btn) return;
-
-            const idx = parseInt(btn.dataset.idx);
-            if (isNaN(idx)) return;
-
-            // --- ELIMINAR ---
-            if (btn.classList.contains('action-del')) {
-                if(confirm("¿Eliminar a esta persona del turno?")) {
-                    const personName = window.TEAM_STATE.people[idx].nombre_completo;
-                    
-                    // Borrar del array
-                    window.TEAM_STATE.people.splice(idx, 1);
-                    // Limpiar referencias en asistencia y zonas
-                    delete window.TEAM_STATE.attendance[personName];
-                    delete window.TEAM_STATE.zones[personName];
-
-                    renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
-                }
-            }
-
-            // --- EDITAR ---
-            if (btn.classList.contains('action-edit')) {
-                const person = window.TEAM_STATE.people[idx];
-                const oldName = person.nombre_completo;
-                
-                const newName = prompt("Editar nombre:", oldName);
-                
-                if (newName && newName.trim() !== "" && newName !== oldName) {
-                    // Actualizar nombre
-                    person.nombre_completo = newName.trim();
-
-                    // Migrar datos de asistencia y zona al nuevo nombre
-                    if (window.TEAM_STATE.attendance[oldName] !== undefined) {
-                        window.TEAM_STATE.attendance[newName] = window.TEAM_STATE.attendance[oldName];
-                        delete window.TEAM_STATE.attendance[oldName];
-                    }
-                    if (window.TEAM_STATE.zones[oldName] !== undefined) {
-                        window.TEAM_STATE.zones[newName] = window.TEAM_STATE.zones[oldName];
-                        delete window.TEAM_STATE.zones[oldName];
-                    }
-
-                    renderRoster(listEl, window.TEAM_STATE.people, window.TEAM_STATE);
-                }
-            }
-        });
+    // Llamar al backend para traer la lista de la API
+    const data = await fetchServerRoster();
+    if (data && data.people) {
+        renderRoster(listEl, data.people, data);
     }
 }
 
