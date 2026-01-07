@@ -172,7 +172,15 @@ ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "t
 
 SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 
+# --- CONFIGURACIÓN API EXTERNA ROSTER ---
+# Asegúrate de que estas variables estén en el panel de Render para cada app
+ROSTER_API_URL = os.getenv("ROSTER_API_URL") 
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 
+def _att_key(d, s):
+    """Genera clave única para asistencia en memoria"""
+    if hasattr(d, 'isoformat'): return f"{d.isoformat()}|{s}"
+    return f"{d}|{s}"
 
 
 # === SharePoint memory cache / TTL ===
@@ -2437,7 +2445,54 @@ def _read_json_any(path: str, default: Any):
     # (opcional) puedes eliminar esta función y usar store_read_json directamente
     return store_read_json(path, default)
 
+def filter_people_by_shift_and_location(api_data: list, current_shift: str, target_location: str):
+    normalized = []
+    # 'target_location' será "ALM", "N1", "N2", "N3" o "N4"
+    target = target_location.upper()
 
+    for p in api_data:
+        try:
+            # 1. Filtro de Ubicación (codDestino, descDestino o nombreGrupoTrabajo)
+            cod = str(p.get("codDestino", "")).upper()
+            desc = str(p.get("descDestino", "")).upper()
+            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            
+            # Si no es de nuestra ubicación, saltar (solo para MAD, en ALM/BCN/VLC suele venir filtrado por escala)
+            if target != "TODO" and target not in cod and target not in desc and target not in grupo:
+                continue
+
+            # 2. Filtro de Turno
+            raw_inicio = p.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio: continue
+            
+            # Extraer hora de "07/01/2026 14:00" -> 14
+            hora_completa = raw_inicio.split(" ")[1]
+            h_inicio = int(hora_completa.split(":")[0])
+            
+            # Rangos de turno
+            is_mañana = (4 <= h_inicio < 14)
+            is_tarde  = (14 <= h_inicio < 22)
+            is_noche  = (h_inicio >= 22 or h_inicio < 4)
+
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
+
+            if match:
+                raw_fin = p.get("horaFin", "")
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+                
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{hora_completa} - {h_fin_limpia}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except: continue
+    return normalized
+    
 def load_roster_from_disk():
     global roster_store
     roster_store = store_read_json(ROSTER_DB, {}) or {}
@@ -3864,39 +3919,32 @@ class PresenceUpdate(BaseModel):
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
-    # Usa turno/fecha actuales si no vienen
     state = await _build_roster_state(force=False)
     sheet_date = state.get("sheet_date")
     shift = state.get("shift")
+    
     if upd.date:
-        try:
-            sheet_date = datetime.fromisoformat(upd.date).date()
-        except Exception:
-            pass
-    if upd.shift:
-        shift = upd.shift
+        try: sheet_date = datetime.fromisoformat(upd.date).date()
+        except: pass
+    if upd.shift: shift = upd.shift
 
     if not sheet_date or not shift:
-        raise HTTPException(status_code=400, detail="No hay turno/fecha activos")
+        raise HTTPException(status_code=400, detail="No hay turno activo")
 
     key = _att_key(sheet_date, shift)
-    attendance_store.setdefault(key, {})
-    if not upd.person:
-        raise HTTPException(status_code=400, detail="Campo 'person' requerido")
-
-    attendance_store[key][upd.person] = bool(upd.present)
-    save_attendance_to_disk()
-
-    # WS puntual para actualizar el cliente
-    payload = {
+    if key not in attendance_store: attendance_store[key] = {}
+    
+    # Guardar solo en memoria
+    attendance_store[key][upd.person] = upd.present
+    
+    await manager.broadcast({
         "type": "presence_update",
-        "sheet_date": sheet_date.isoformat(),
+        "sheet_date": sheet_date.isoformat() if hasattr(sheet_date, 'isoformat') else str(sheet_date),
         "shift": shift,
         "person": upd.person,
-        "present": bool(upd.present),
-    }
-    await manager.broadcast(payload)
-    return payload
+        "present": upd.present,
+    })
+    return {"status": "ok"}
 
 
 from fastapi import Query
@@ -4098,51 +4146,46 @@ def _now_local():
 
 
 async def _build_roster_state(force=False) -> dict:
-    p = Path(ROSTER_XLSX_PATH)
-    mtime = p.stat().st_mtime if p.exists() else None
     now = _now_local()
-    shift, sheet_date, start, end = _current_shift_info(now)
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # Parámetros para la API
+    api_date_str = sdate.strftime("%d/%m/%Y")
+    
+    # LLAMADA API (Cambia "ALM" por la escala que corresponda en cada main)
+    # Para Madrid Nave 4, usaríamos escala="MAD" y en el filtro target="N4"
+    raw_api_data = await fetch_roster_api_data("ALM", api_date_str) 
+    
+    people = []
+    source = "excel"
 
-    needs_reload = force or (mtime != roster_cache.get("file_mtime")) \
-                         or (sheet_date != roster_cache.get("sheet_date")) \
-                         or (shift != roster_cache.get("shift"))
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        # AQUÍ CAMBIA EL FILTRO: "TODO" para ALM/BCN/VLC, o "N4" para Madrid Nave 4
+        people = filter_people_by_shift_and_location(raw_api_data, shift, "TODO")
+        source = "api"
+    else:
+        # Fallback Excel
+        sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
 
-    if needs_reload:
-        sheet = _sheet_name_for_date(sheet_date)  # <- si todavía lo tienes, ya no lo usaremos
-        # NUEVO: elegir hoja real por nombre dd-mm-aaaa (o la más cercana)
-        sheet_real, sheet_names = _find_sheet_for_date(ROSTER_XLSX_PATH, sheet_date)
-
-        if not sheet_real:
-            # No hay ninguna hoja con fecha parseable. No rompas; devuelve vacío y log legible.
-            sample = ", ".join(sheet_names[:15])
-            if len(sheet_names) > 15:
-                sample += ", …"
-            print(f"⚠️ No hay hoja para la fecha {sheet_date} (nombres vistos: {sample})")
-            people = []
-        else:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift)
-
-        roster_cache.update({
-            "file_mtime": mtime,
-            "sheet_date": sheet_date,
-            "shift": shift,
-            "people": people,
-            "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-            "window": {"from": start, "to": end},
-            "sheet": sheet_real,  # <- guarda el nombre real
-        })
-        await manager.broadcast({
-            "type": "roster_update",
-            "shift": shift,
-            "sheet": sheet_real,
-            "sheet_date": sheet_date.isoformat(),
-            "window": {"from": start, "to": end},
-            "count": len(people),
-            "people": people,
-            "source": "excel",
-            "updated_at": roster_cache["updated_at"],
-        })
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
+
+async def fetch_roster_api_data(escala: str, fecha: str):
+    if not ROSTER_API_URL or not ROSTER_API_KEY: return None
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    payload = {"escala": escala, "fecha": fecha}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200: return response.json()
+    except: return None
 
 @app.get("/api/roster/current")
 async def get_roster_current():
