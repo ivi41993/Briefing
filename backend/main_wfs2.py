@@ -30,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
-app = FastAPI(title="WFS2 MAD Dashboard", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title=f"Dashboard {STATION_NAME}")
 # ==========================================
 # CONFIGURACIÓN WFS1 (AISLAMIENTO)
 # ==========================================
