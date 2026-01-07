@@ -198,18 +198,14 @@ async def get_roster_current():
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
     state = await _build_roster_state(force=False)
-    key = _att_key(state.get("sheet_date"), state.get("shift"))
+    d, s = state.get("sheet_date"), state.get("shift")
+    if not d or not s: raise HTTPException(status_code=400)
+    key = _att_key(d, s)
     if key not in attendance_store: attendance_store[key] = {}
     attendance_store[key][upd.person] = upd.present
-    # Sincronizar vía WS
-    await manager.broadcast({
-        "type": "presence_update", 
-        "person": upd.person, 
-        "present": upd.present, 
-        "sheet_date": state.get("sheet_date").isoformat(),
-        "shift": state.get("shift")
-    })
+    await manager.broadcast({"type":"presence_update","sheet_date":d.isoformat(),"shift":s,"person":upd.person,"present":upd.present})
     return {"status": "ok"}
+    
 # ... (El bloque de GitHubStore se mantiene igual, solo cambiaremos cómo se usa si es necesario) ...
 class GitHubStore:
     def __init__(self):
