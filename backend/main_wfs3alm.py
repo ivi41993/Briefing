@@ -68,6 +68,9 @@ ROSTER_API_URL = os.getenv("ROSTER_API_URL")
 ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 STATION_CODE_API = "MAD"  # Para la API, Madrid siempre es MAD
 TARGET_NAVE = "N3"        # Identificador para Nave 3
+def _att_key(d, s):
+    if hasattr(d, 'isoformat'): return f"{d.isoformat()}|{s}"
+    return f"{d}|{s}"
 
 # --- 2. FUNCIÓN DE LLAMADA A LA API (LA QUE FALTA) ---
 async def fetch_roster_api_data(escala: str, fecha: str):
