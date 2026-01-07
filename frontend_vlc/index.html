@@ -2491,26 +2491,23 @@ shift: TEAM_STATE?.shift || null
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
 
-    // 1. Inicialización ultra-segura del estado global
+    // 1. Inicialización del estado global VLC
     if (!window.TEAM_STATE) {
         window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     }
 
-    // 2. Si entran datos nuevos del servidor, los guardamos en el "Almacén Maestro"
+    // 2. Guardar datos nuevos si llegan del servidor
     if (people && people.length > 0) {
         window.TEAM_STATE.allPeopleRaw = people;
     }
 
-    // Si no hay datos en el almacén maestro, salimos para no borrar la pantalla
     const masterList = window.TEAM_STATE.allPeopleRaw;
     if (!masterList || masterList.length === 0) {
-        if (!listEl.innerHTML.includes('team-row')) {
-            listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal de la API...</div>';
-        }
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Esperando datos de la API VLC...</div>';
         return;
     }
 
-    // 3. LÓGICA DE FILTRADO (MAÑANA/TARDE/NOCHE)
+    // 3. FILTRADO POR TURNO (Lógica de horquilla)
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
@@ -2522,22 +2519,20 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // Filtramos la lista maestra para saber quién mostrar hoy
     const filteredPeople = masterList.filter(p => {
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true;
         const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
-        
         if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
         if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
         if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
         return false;
     });
 
-    // Guardamos los que estamos viendo actualmente para el resumen de Excel
+    // Guardamos la lista filtrada para el Excel
     window.TEAM_STATE.people = filteredPeople;
 
-    // 4. DIBUJAR LA LISTA
+    // 4. DIBUJAR
     listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
@@ -2545,26 +2540,16 @@ function renderRoster(listEl, people, state) {
         const name = p.nombre_completo;
         const isIncidencia = p.is_incidencia === true;
         const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
-        
-        // Recuperar valores del estado persistente
         const currentAtt = window.TEAM_STATE.attendance[name]; 
         const currentZone = window.TEAM_STATE.zones[name] || '';
+        const safeId = name.replace(/[^a-z0-9]/gi, '_');
 
         const row = document.createElement('div');
         row.className = 'team-row';
-        row.style.cssText = `
-            display: flex; flex-direction: column; padding: 12px; border-radius: 12px; margin-bottom: 10px;
-            border: 1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'};
-            border-left: 6px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'};
-            background: ${isIncidencia ? '#fff1f2' : '#ffffff'};
-            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-        `;
-
-        // Generamos un ID de grupo que sea ÚNICO para esta persona (sin espacios)
-        const safeId = name.replace(/[^a-z0-9]/gi, '_');
+        row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; border-left:6px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
 
         row.innerHTML = `
-            <div style="min-width: 0;">
+            <div style="min-width:0;">
                 <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
                 <div style="display:flex; gap:6px; margin-top:4px; align-items:center;">
                     <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
@@ -2572,40 +2557,34 @@ function renderRoster(listEl, people, state) {
                 </div>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
-                <div class="presence-toggle" style="background:#f1f5f9;">
+                <div class="presence-toggle">
                     <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
                     <label for="y_${safeId}" class="yes" style="padding:5px 12px; font-size:0.8rem;">✓ OK</label>
                     <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
                     <label for="n_${safeId}" class="no" style="padding:5px 12px; font-size:0.8rem;">✕</label>
                 </div>
-                <select class="zone-select" data-person="${esc(name)}" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
+                <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                     <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
                     ${ZONES.map(z => `<option value="${esc(z)}" ${z === currentZone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
                 </select>
             </div>
         `;
 
-        // --- ASIGNAR EVENTOS SIN RECARGAR LA LISTA ---
-        const radios = row.querySelectorAll('input[type="radio"]');
-        radios.forEach(radio => {
-            radio.addEventListener('click', () => {
-                const isPresent = radio.value === 'yes';
-                window.TEAM_STATE.attendance[name] = isPresent;
-                updatePresenceOnServer(name, isPresent);
+        // Eventos
+        row.querySelectorAll('input[type="radio"]').forEach(r => {
+            r.addEventListener('click', () => {
+                window.TEAM_STATE.attendance[name] = (r.value === 'yes');
+                updatePresenceOnServer(name, window.TEAM_STATE.attendance[name]);
                 updateTeamMeta(window.TEAM_STATE);
-                console.log(`Marcado ${name} como ${isPresent ? 'Presente' : 'Ausente'}`);
             });
         });
-
-        row.querySelector('.zone-select').addEventListener('change', (e) => {
-            const zone = e.target.value;
-            window.TEAM_STATE.zones[name] = zone;
-            updateZoneOnServer(name, zone);
+        row.querySelector('select').addEventListener('change', (e) => {
+            window.TEAM_STATE.zones[name] = e.target.value;
+            updateZoneOnServer(name, e.target.value);
         });
 
         listEl.appendChild(row);
     });
-
     updateTeamMeta(window.TEAM_STATE);
 }
 
@@ -2634,17 +2613,34 @@ function attachRosterEvents(listEl) {
 
 async function initTeamRoster(){
     const listEl = document.getElementById('team-list');
+    if(!listEl) return;
     
-    // Pedir al servidor los datos que ya tiene filtrados
     const data = await fetchServerRoster();
-    
-    if (data && data.people && data.people.length > 0) {
+    if (data && data.people) {
         renderRoster(listEl, data.people, data);
-    } else {
-        listEl.innerHTML = `<div class="warn-msg">⚠️ No hay personal en el turno de ${data?.shift || 'actual'}</div>`;
     }
-        window.TEAM_STATE = { people: [], attendance: {} };
+}
+
+async function syncServerAdd(name){
+    const payload = {
+        person: name,
+        station: STATION_CODE,
+        date: TEAM_STATE?.sheet_date || null,
+        shift: TEAM_STATE?.shift || computeShift().name
+    };
+    const res = await fetch('api/roster/add', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+        const cur = await fetchServerRoster();
+        if (cur) renderRoster(document.getElementById('team-list'), cur.people||[], cur);
+        return true;
     }
+    return false;
+}
+
 
     // 2. Lógica para el formulario de alta manual (siempre activa por si falta alguien)
     const form = document.getElementById('team-form');
@@ -2697,97 +2693,7 @@ input.value='';
 });
 })();
 
-/* Alta manual de persona en Equipo/Turno (persistente) */
-(function initTeamAddForm(){
-const form  = document.getElementById('team-form');
-const input = document.getElementById('team-name');
-const list  = document.getElementById('team-list');
-if (!form || !input || !list) return;
-function renderLocalRoster() {
-const list = document.getElementById('team-list');
-// Mantenemos el aviso (primer hijo)
-const aviso = list.querySelector('div') ? list.querySelector('div').outerHTML : '';
 
-let html = aviso;
-
-// Generamos la lista de nombres con checkbox
-window.TEAM_STATE.people.forEach((p) => {
-const isPresent = window.TEAM_STATE.attendance[p.nombre_completo];
-html += `
-           <div class="team-row" style="background:#fff; padding:8px; margin-top:4px; border:1px solid #eee; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
-               <span>${p.nombre_completo}</span>
-               <label style="cursor:pointer; display:flex; align-items:center; gap:5px;">
-                   <input type="checkbox" ${isPresent ? 'checked' : ''} 
-                          onchange="togglePresence('${p.nombre_completo}', this.checked)"> 
-                   Presente
-               </label>
-           </div>`;
-});
-list.innerHTML = html;
-
-// Actualizar contador si existe
-const meta = document.getElementById('team-meta');
-if(meta) meta.textContent = `${window.TEAM_STATE.people.length} personas`;
-}
-
-// Función global para el onchange del checkbox
-window.togglePresence = (name, checked) => {
-window.TEAM_STATE.attendance[name] = checked;
-};
-async function syncServerAdd(name){
-// Endpoint esperado en backend: POST /api/roster/add
-// payload: { person, station, date, shift }
-const payload = {
-person: name,
-station: STATION_CODE,
-date:   TEAM_STATE?.sheet_date || null,
-shift:  TEAM_STATE?.shift || computeShift().name
-};
-const res = await fetch('api/roster/add', {
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body: JSON.stringify(payload)
-});
-// Si el backend confirma, refrescamos del servidor para tener sheet_date/shift/IDs correctos
-if (res.ok) {
-const cur = await fetchServerRoster();
-if (cur) renderRoster(list, cur.people||[], cur);
-return true;
-}
-return false;
-}
-
-form.addEventListener('submit', async (e)=>{
-e.preventDefault();
-const raw = (input.value||'').trim();
-if (!raw) return;
-
-// Evita duplicados por nombre
-const exists = (TEAM_STATE?.people||[]).some(p =>
-String(p?.nombre_completo||'').trim().toLowerCase() === raw.toLowerCase()
-);
-if (exists){
-input.value = '';
-return;
-}
-
-// 1) Alta optimista para feedback inmediato
-const newPerson = { nombre_completo: raw, horario: '', observaciones: '' };
-const next = [...(TEAM_STATE?.people||[]), newPerson];
-renderRoster(list, next, TEAM_STATE);
-
-// 2) Persistir en servidor (si falla, mantenemos la vista y logueamos)
-try{
-const ok = await syncServerAdd(raw);
-if (!ok) console.warn('No se pudo persistir /api/roster/add. Se mantiene solo en cliente.');
-}catch(err){
-console.warn('Error al persistir /api/roster/add', err);
-}finally{
-input.value = '';
-updateSpotlightRouting?.();
-}
-});
-})();
 
 /* ==========================
 Prev shift note (local)
