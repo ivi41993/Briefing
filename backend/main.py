@@ -179,8 +179,7 @@ ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/ba
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
 ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
 ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "true"
-ROSTER_API_URL = os.getenv("ROSTER_API_URL")
-ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+
 SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 
 
@@ -4490,88 +4489,6 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, targ
     return normalized
 
 # Modificación del constructor de estado
-async def fetch_mad_roster_from_api():
-    """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API MAD no configurada.")
-        return None
-
-    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
-    payload = {
-        "escala": "MAD", # <--- Siempre MAD para la API
-        "fecha": ahora.strftime("%d/%m/%Y")
-    }
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200:
-                return response.json()
-    except Exception as e:
-        print(f"❌ Error API MAD: {e}")
-    return None
-
-def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
-    """
-    Filtro para Madrid Nave 4:
-    Busca 'N4' en codDestino, descDestino y nombreGrupoTrabajo.
-    """
-    normalized = []
-    print(f"📡 Filtrando Nave 4 para el turno: {current_shift}")
-    
-    for p in api_data:
-        try:
-            # --- 1. DETECCIÓN DE NAVE 4 (Triple comprobación) ---
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
-            
-            # Si pone N4 en el código, NAVE 4 en la descripción o N4 en el grupo... ¡Es de la nuestra!
-            es_de_nave4 = ("N4" in cod) or ("NAVE 4" in desc) or ("-N4" in grupo) or (grupo.endswith("N4"))
-            
-            if not es_de_nave4:
-                continue
-
-            # --- 2. FILTRO DE TURNO (HORAS) ---
-            raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio:
-                continue
-            
-            # Extraemos la hora de "07/01/2026 14:00" -> 14
-            hora_completa = raw_inicio.split(" ")[1]
-            h_inicio = int(hora_completa.split(":")[0])
-            
-            # Definición de horquillas (puedes ajustarlas si Nave 4 tiene horarios raros)
-            is_mañana = (4 <= h_inicio < 14)
-            is_tarde  = (14 <= h_inicio < 22)
-            is_noche  = (h_inicio >= 22 or h_inicio < 4)
-
-            match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
-
-            if match:
-                # Limpiamos el horario para el frontend
-                raw_fin = p.get("horaFin", "")
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
-
-                normalized.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
-                    "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
-                    "is_incidencia": p.get("IsIncidencias", False)
-                })
-        except Exception as e:
-            print(f"⚠️ Error procesando trabajador en MAD: {e}")
-            continue
-            
-    print(f"✅ Nave 4: {len(normalized)} personas encontradas para el turno {current_shift}")
-    return normalized
-
-# Modificación del constructor de estado
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
@@ -4581,7 +4498,7 @@ async def _build_roster_state(force=False) -> dict:
 
     if raw_api_data and isinstance(raw_api_data, list):
         # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
-        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "NAVE 4")
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
         source = "api"
     else:
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
@@ -4850,8 +4767,6 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-
 
 
 
