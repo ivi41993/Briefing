@@ -4176,35 +4176,32 @@ class PresenceUpdate(BaseModel):
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
-    # Intentamos obtener el estado actual para saber fecha y turno
+    # Obtenemos fecha y turno actuales
     state = await _build_roster_state(force=False)
     sheet_date = state.get("sheet_date")
     shift = state.get("shift")
     
-    # Si el frontend envía fecha/turno específicos, los usamos
     if upd.date:
-        try:
-            sheet_date = datetime.fromisoformat(upd.date).date()
+        try: sheet_date = datetime.fromisoformat(upd.date).date()
         except: pass
-    if upd.shift:
-        shift = upd.shift
+    if upd.shift: shift = upd.shift
 
     if not sheet_date or not shift:
         raise HTTPException(status_code=400, detail="No hay turno/fecha activos")
 
-    # AQUÍ ES DONDE SE USA LA FUNCIÓN QUE DABA ERROR
+    # Generamos la clave (asegúrate de tener la función _att_key que te pasé antes)
     key = _att_key(sheet_date, shift)
     
-    # Guardar en memoria
+    # GUARDAR SOLO EN MEMORIA (Sin SQL)
     if key not in attendance_store:
         attendance_store[key] = {}
     
     attendance_store[key][upd.person] = upd.present
     
-    # Guardar en SQL para que no se pierda al reiniciar
-    save_attendance_to_disk()
+    # LOG de confirmación en consola
+    print(f"📍 Asistencia en memoria actualizada: {upd.person} -> {'✅' if upd.present else '❌'}")
 
-    # Notificar por WebSocket
+    # Notificar a los otros navegadores por WebSocket
     payload = {
         "type": "presence_update",
         "sheet_date": sheet_date.isoformat() if hasattr(sheet_date, 'isoformat') else str(sheet_date),
@@ -4770,6 +4767,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
