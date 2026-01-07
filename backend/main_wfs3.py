@@ -67,6 +67,101 @@ roster_cache: dict[str, Any] = {
     "updated_at": None,
 }
 
+# --- 1. CONFIGURACIÓN API NAVE 3 ---
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+STATION_CODE_API = "MAD" 
+TARGET_NAVE = "N3"  # <--- CAMBIADO A N3
+
+def _att_key(d, s):
+    if hasattr(d, 'isoformat'): return f"{d.isoformat()}|{s}"
+    return f"{d}|{s}"
+
+# --- 2. LÓGICA DE FILTRADO NAVE 3 ---
+def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target: str):
+    normalized = []
+    target_up = target.upper() # "N3"
+
+    for p in api_data:
+        try:
+            # EXTRAER CAMPOS CLAVE
+            cod = str(p.get("codDestino", "")).upper()
+            desc = str(p.get("descDestino", "")).upper()
+            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            
+            # TRIPLE FILTRO NAVE 3: Buscamos N3 o NAVE 3
+            es_de_esta_nave = (target_up in cod) or ("NAVE 3" in desc) or (target_up in grupo)
+            
+            if not es_de_esta_nave:
+                continue
+
+            # FILTRO DE TURNO (HORAS)
+            raw_inicio = p.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio: continue
+            
+            hora_completa = raw_inicio.split(" ")[1]
+            h_inicio = int(hora_completa.split(":")[0])
+            
+            is_mañana = (4 <= h_inicio < 14)
+            is_tarde  = (14 <= h_inicio < 22)
+            is_noche  = (h_inicio >= 22 or h_inicio < 4)
+
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
+
+            if match:
+                raw_fin = p.get("horaFin", "")
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{hora_completa} - {h_fin_limpia}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""), # Aquí va el grupo
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except: continue
+    return normalized
+
+# --- 3. CONSTRUCTOR DE ESTADO ---
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    api_date_str = sdate.strftime("%d/%m/%Y")
+    
+    raw_api_data = await fetch_roster_api_data(STATION_CODE_API, api_date_str)
+    
+    people = []
+    source = "excel"
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, TARGET_NAVE)
+        source = "api"
+    else:
+        sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
+
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
+
+# --- 4. ENDPOINT PRESENCIA (SIN SQL) ---
+@app.put("/api/roster/presence")
+async def put_roster_presence(upd: PresenceUpdate):
+    state = await _build_roster_state(force=False)
+    d, s = state.get("sheet_date"), state.get("shift")
+    if not d or not s: raise HTTPException(status_code=400)
+    key = _att_key(d, s)
+    if key not in attendance_store: attendance_store[key] = {}
+    attendance_store[key][upd.person] = upd.present
+    await manager.broadcast({"type":"presence_update","sheet_date":d.isoformat(),"shift":s,"person":upd.person,"present":upd.present})
+    return {"status": "ok"}
+
 def _now_local():
     return datetime.now(ZoneInfo(ROSTER_TZ))
 
