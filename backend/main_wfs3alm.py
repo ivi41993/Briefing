@@ -46,6 +46,13 @@ EXT_VERIFY_MODE = os.getenv("EXT_VERIFY_MODE", "TRUSTSTORE").upper()
 EXT_CAFILE = os.getenv("EXT_CAFILE", "").strip()
 
 app = FastAPI(title=f"Dashboard {STATION_NAME}")
+roster_cache: dict[str, Any] = {
+    "file_mtime": None,
+    "sheet_date": None,
+    "shift": None,
+    "people": [],
+    "updated_at": None,
+}
 
 class PresenceUpdate(BaseModel):
     person: str
