@@ -171,7 +171,8 @@ load_dotenv()
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
 USE_DISK    = (STORAGE_BACKEND == "file")
 USE_GITHUB  = (STORAGE_BACKEND == "github")
-
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 INCIDENTS_VISIBLE_LIMIT = int(os.getenv("INCIDENTS_VISIBLE_LIMIT", "3"))
 ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster.json")
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
@@ -4402,57 +4403,99 @@ def _now_local():
 
 
 
+async def fetch_mad_roster_from_api():
+    """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API MAD no configurada.")
+        return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    payload = {
+        "escala": "MAD", # <--- Siempre MAD para la API
+        "fecha": ahora.strftime("%d/%m/%Y")
+    }
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"❌ Error API MAD: {e}")
+    return None
+
+def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
+    """
+    Filtro doble: 
+    1. Por Turno (Horas)
+    2. Por Nave (codDestino o descDestino)
+    """
+    normalized = []
+    for p in api_data:
+        try:
+            # --- FILTRO 1: UBICACIÓN (NAVE 4) ---
+            cod_destino = str(p.get("codDestino", "")).upper()
+            desc_destino = str(p.get("descDestino", "")).upper()
+            
+            # Verificamos si pertenece a la Nave 4 (ajustar "N4" o "NAVE 4" según respuesta real)
+            if target_nave not in cod_destino and target_nave not in desc_destino:
+                continue
+
+            # --- FILTRO 2: TURNO (HORAS) ---
+            raw_inicio = p.get("horaInicio", "")
+            raw_fin = p.get("horaFin", "")
+            h_ini = raw_inicio.split(" ")[1] if " " in raw_inicio else raw_inicio
+            h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+            
+            h_int = int(h_ini.split(":")[0])
+
+            # Horquillas MAD (Igual que VLC)
+            is_mañana = (6 <= h_int < 14)
+            is_tarde  = (14 <= h_int < 22)
+            is_noche  = (h_int >= 22 or h_int < 6)
+
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
+
+            if match:
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{h_ini} - {h_fin}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False),
+                    "nave": desc_destino # Guardamos la nave para info
+                })
+        except: continue
+    return normalized
+
+# Modificación del constructor de estado
 async def _build_roster_state(force=False) -> dict:
-    p = Path(ROSTER_XLSX_PATH)
-    mtime = p.stat().st_mtime if p.exists() else None
     now = _now_local()
-    shift, sheet_date, start, end = _current_shift_info(now)
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    raw_api_data = await fetch_mad_roster_from_api()
+    people = []
 
-    # --- FORZAMOS LA CARGA DE PRUEBA SIEMPRE ---
-    # Comenta las condiciones reales para pruebas:
-    # needs_reload = force or (mtime != roster_cache.get("file_mtime")) ...
-    needs_reload = True 
+    if raw_api_data and isinstance(raw_api_data, list):
+        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "NAVE 4")
+        source = "api"
+    else:
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+        source = "excel"
 
-    if needs_reload:
-        print(f"🔥 CARGANDO ROSTER DE PRUEBA (FORZADO) - {shift} {sheet_date}")
-        
-        # DATOS FIJOS DE PRUEBA
-        people = [
-            {"nombre_completo": "PRUEBA Supervisor", "horario": "07:00-15:00", "observaciones": "Responsable", "funcion_diaria": "Supervisión"},
-            {"nombre_completo": "Juan Operario", "horario": "07:00-15:00", "observaciones": "Muelle 1", "funcion_diaria": "Carga"},
-            {"nombre_completo": "Maria Administrativa", "horario": "08:00-16:00", "observaciones": "Oficina", "funcion_diaria": "Documentación"},
-            {"nombre_completo": "Carlos Carretillero", "horario": "07:00-15:00", "observaciones": "Playa", "funcion_diaria": "Ubicación"},
-            {"nombre_completo": "Ana Seguridad", "horario": "06:00-14:00", "observaciones": "Entrada", "funcion_diaria": "Control"},
-            {"nombre_completo": "Luis Soporte", "horario": "09:00-18:00", "observaciones": "IT", "funcion_diaria": "Sistemas"}
-        ]
-        
-        # Nombre de hoja ficticio para que se vea en el frontend
-        sheet_real = "MODO PRUEBA ACTIVADO"
-
-        # Actualizamos la caché en memoria del servidor
-        roster_cache.update({
-            "file_mtime": mtime, # Mantenemos el mtime real para no romper lógica
-            "sheet_date": sheet_date,
-            "shift": shift,
-            "people": people,
-            "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-            "window": {"from": start, "to": end},
-            "sheet": sheet_real,
-        })
-        
-        # Enviamos los datos al Frontend inmediatamente vía WebSocket
-        await manager.broadcast({
-            "type": "roster_update",
-            "shift": shift,
-            "sheet": sheet_real,
-            "sheet_date": sheet_date.isoformat(),
-            "window": {"from": start, "to": end},
-            "count": len(people),
-            "people": people,
-            "source": "test",
-            "updated_at": roster_cache["updated_at"],
-        })
-        
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
 @app.get("/api/roster/current")
@@ -4708,6 +4751,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
