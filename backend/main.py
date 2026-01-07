@@ -4161,7 +4161,13 @@ async def powerbi_total_cost(request: Request, x_api_key: Optional[str] = Header
 # API de tareas (EXISTENTE, SIN CAMBIOS)
 # -----------------------------------
 
-
+# --- AÑADE ESTA FUNCIÓN EN main.py ---
+def _att_key(d, s):
+    """Genera una clave única para el diccionario de asistencia"""
+    if hasattr(d, 'isoformat'):
+        return f"{d.isoformat()}|{s}"
+    return f"{d}|{s}"
+    
 class PresenceUpdate(BaseModel):
     person: str
     present: bool
@@ -4170,36 +4176,41 @@ class PresenceUpdate(BaseModel):
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
-    # Usa turno/fecha actuales si no vienen
+    # Intentamos obtener el estado actual para saber fecha y turno
     state = await _build_roster_state(force=False)
     sheet_date = state.get("sheet_date")
     shift = state.get("shift")
+    
+    # Si el frontend envía fecha/turno específicos, los usamos
     if upd.date:
         try:
             sheet_date = datetime.fromisoformat(upd.date).date()
-        except Exception:
-            pass
+        except: pass
     if upd.shift:
         shift = upd.shift
 
     if not sheet_date or not shift:
         raise HTTPException(status_code=400, detail="No hay turno/fecha activos")
 
+    # AQUÍ ES DONDE SE USA LA FUNCIÓN QUE DABA ERROR
     key = _att_key(sheet_date, shift)
-    attendance_store.setdefault(key, {})
-    if not upd.person:
-        raise HTTPException(status_code=400, detail="Campo 'person' requerido")
-
-    attendance_store[key][upd.person] = bool(upd.present)
+    
+    # Guardar en memoria
+    if key not in attendance_store:
+        attendance_store[key] = {}
+    
+    attendance_store[key][upd.person] = upd.present
+    
+    # Guardar en SQL para que no se pierda al reiniciar
     save_attendance_to_disk()
 
-    # WS puntual para actualizar el cliente
+    # Notificar por WebSocket
     payload = {
         "type": "presence_update",
-        "sheet_date": sheet_date.isoformat(),
+        "sheet_date": sheet_date.isoformat() if hasattr(sheet_date, 'isoformat') else str(sheet_date),
         "shift": shift,
         "person": upd.person,
-        "present": bool(upd.present),
+        "present": upd.present,
     }
     await manager.broadcast(payload)
     return payload
@@ -4759,6 +4770,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
