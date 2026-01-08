@@ -787,51 +787,131 @@ def _att_key(d, s):
 # 2. LÓGICA DE EXTRACCIÓN Y FILTRADO
 # ==========================================
 
+# ==========================================
+# LÓGICA DE EXTRACCIÓN Y FILTRADO ROBUSTA
+# ==========================================
+
 async def fetch_roster_api_data(escala: str, fecha: str):
-    if not ROSTER_API_URL or not ROSTER_API_KEY: return None
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    url = os.getenv("ROSTER_API_URL")
+    key = os.getenv("ROSTER_API_KEY")
+    
+    if not url or not key:
+        print(f"⚠️ [API {escala}] URL o KEY no configuradas en el .env")
+        return None
+    
+    headers = {"api-key": key, "Accept": "application/json"}
     payload = {"escala": escala, "fecha": fecha}
+
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200: return response.json()
-    except Exception as e: print(f"Error API: {e}")
-    return None
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Enviamos como POST con data=payload (form-data)
+            response = await client.post(url, headers=headers, data=payload)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ [API {escala}] Recibidos {len(data)} registros totales.")
+                return data
+            else:
+                print(f"❌ [API {escala}] Error HTTP {response.status_code}: {response.text[:100]}")
+                return None
+    except Exception as e:
+        print(f"💥 [API {escala}] Fallo de conexión: {str(e)}")
+        return None
 
 def filter_people_logic(api_data: list, current_shift: str, target: str):
     normalized = []
-    target_up = target.upper()
+    target_up = target.upper() # Ej: "N4" o "TODO"
+    
     for p in api_data:
         try:
-            # FILTRO DE UBICACIÓN (Triple Check)
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            # 1. FILTRO DE UBICACIÓN (Aislamos Nave)
+            cod = str(p.get("codDestino") or "").upper()
+            desc = str(p.get("descDestino") or "").upper()
+            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
             
             if target_up != "TODO":
+                # Si no hay rastro del código de nave (N1, N2, N3, N4), saltamos
                 if target_up not in cod and target_up not in desc and target_up not in grupo:
                     continue
 
-            # FILTRO DE TURNO (Horas)
-            raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio: continue
+            # 2. FILTRO DE TURNO (Analizamos horario)
+            raw_inicio = str(p.get("horaInicio") or "")
+            if not raw_inicio or " " not in raw_inicio:
+                continue
+            
+            # De "08/01/2026 14:00" sacamos el 14
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            # Horquillas: Mañana (4-13), Tarde (14-21), Noche (22-3)
+            # Horquillas de turno VLC/MAD
             is_m = (4 <= h_inicio < 14)
             is_t = (14 <= h_inicio < 22)
             is_n = (h_inicio >= 22 or h_inicio < 4)
 
-            if (current_shift == "Mañana" and is_m) or (current_shift == "Tarde" and is_t) or (current_shift == "Noche" and is_n):
+            match = False
+            if current_shift == "Mañana" and is_m: match = True
+            elif current_shift == "Tarde" and is_t: match = True
+            elif current_shift == "Noche" and is_n: match = True
+
+            if match:
+                # Limpiar hora fin para el front
+                raw_fin = str(p.get("horaFin") or "")
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+                
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
                     "nomina": p.get("nomina"),
-                    "horario": f"{raw_inicio.split(' ')[1]} - {p.get('horaFin','').split(' ')[1] if ' ' in p.get('horaFin','') else ''}",
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
                     "observaciones": p.get("nombreGrupoTrabajo", ""),
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except: continue
+        except Exception as e:
+            continue
     return normalized
+
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # 1. Intentar API
+    api_date_str = sdate.strftime("%d/%m/%Y") # DD/MM/AAAA
+    
+    # IMPORTANTE: Asegúrate de que STATION_CODE_API esté definido arriba como "MAD", "BCN", etc.
+    raw_api_data = await fetch_roster_api_data(STATION_CODE_API, api_date_str)
+    
+    people = []
+    source = "ninguno" # Por defecto
+
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        # AQUÍ USAMOS EL TARGET NAVE (N1, N2, N3, N4 o TODO)
+        people = filter_people_logic(raw_api_data, shift, NAVE_TARGET)
+        source = "api"
+    else:
+        # 2. Fallback Excel
+        print(f"ℹ️ [SQL] Fallo API o vacía, buscando en Excel para {sdate}")
+        sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        if sheet_real:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift)
+            source = "excel"
+
+    # Actualizar el caché global
+    roster_cache.update({
+        "sheet_date": sdate,
+        "shift": shift,
+        "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end},
+        "source": source,
+        "sheet": roster_cache.get("sheet") or "Sin Hoja"
+    })
+    
+    # Emitir por WebSocket
+    await manager.broadcast({
+        "type": "roster_update",
+        **roster_cache,
+        "sheet_date": sdate.isoformat(),
+        "source": source
+    })
+    
+    return roster_cache
 
 # ==========================================
 # 3. ENDPOINTS DE ASISTENCIA
