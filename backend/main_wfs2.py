@@ -100,31 +100,27 @@ async def fetch_mad_roster_from_api():
     return None
 
 def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str = "N2"):
-    """
-    Filtra por turno y por identificador de nave (N2 para WFS2)
-    """
     normalized = []
     target = target_nave.upper() 
 
     for p in api_data:
         try:
-            # --- 1. TRIPLE FILTRO DE NAVE ---
+            # --- TRIPLE FILTRO MADRID ---
             cod = str(p.get("codDestino", "")).upper()
             desc = str(p.get("descDestino", "")).upper()
             grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
             
+            # Si 'N2' no está en ninguno de estos campos, no es de esta App
             if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # --- 2. FILTRO DE TURNO (HORQUILLAS) ---
+            # --- FILTRO DE TURNO ---
             raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio:
-                continue
+            if not raw_inicio or " " not in raw_inicio: continue
             
             hora_completa = raw_inicio.split(" ")[1]
             h_inicio = int(hora_completa.split(":")[0])
             
-            # Lógica de horquillas estándar del sistema Fusion
             is_mañana = (4 <= h_inicio < 14)
             is_tarde  = (14 <= h_inicio < 22)
             is_noche  = (h_inicio >= 22 or h_inicio < 4)
@@ -142,11 +138,10 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, targ
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
                     "nomina": p.get("nomina"),
                     "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "observaciones": p.get("nombreGrupoTrabajo", ""), # Usamos el grupo como observación
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except:
-            continue
+        except: continue
             
     return normalized
 
@@ -154,29 +149,48 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
+    # Si no es forzado Y ya tenemos gente en el caché para este turno, devolvemos caché
+    if not force and roster_cache.get("shift") == shift and roster_cache.get("people"):
+        return roster_cache
+
     # 1. Llamada a la API masiva de Madrid
+    print(f"📡 WFS2: Intentando obtener personal de la API MAD para Nave 2...")
     raw_api_data = await fetch_mad_roster_from_api()
     people = []
+    source = "excel"
 
     if raw_api_data and isinstance(raw_api_data, list):
-        # FILTRO PARA NAVE 2 (WFS2)
+        # FILTRO CRÍTICO PARA NAVE 2 (WFS2)
         people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N2")
-        source = "api"
-    else:
-        # Fallback al Excel local si la API falla
+        if people:
+            source = "api"
+            print(f"✅ WFS2: Recibidas {len(people)} personas de la API.")
+
+    # 2. Fallback al Excel local si la API no devuelve nada
+    if not people:
+        print(f"⚠️ WFS2: API vacía o fallida. Buscando en Excel...")
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
-        source = "excel"
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+            source = "excel"
+
+    # 3. Recuperar asistencia guardada en SQL (Persistencia Fusion)
+    key = _att_key(sdate, shift)
+    att_db = attendance_store.get(key, {})
 
     roster_cache.update({
-        "sheet_date": sdate, "shift": shift, "people": people,
+        "sheet_date": sdate, 
+        "shift": shift, 
+        "people": people, 
+        "attendance": att_db, # Enviamos el mapa de asistencia guardado
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, "source": source
+        "window": {"from": start, "to": end}, 
+        "source": source
     })
     
+    # Notificamos a todos los clientes de WFS2
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
-
 
 
 # -----------------------------------
@@ -824,12 +838,13 @@ app.add_middleware(
 # -----------------------------------
 @app.get("/api/roster/current")
 async def get_roster_current():
+    # Forzamos una revisión del estado para asegurar que no enviamos un caché vacío
     state = await _build_roster_state(force=False)
+    
     d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
     shift = state.get("shift")
     
-    # Mezclar con asistencia guardada
-    people = state.get("people", [])
+    # Sincronizamos la asistencia desde el almacén de memoria (SQL)
     key = _att_key(state.get("sheet_date"), shift) if d_iso else None
     att_map = attendance_store.get(key, {})
     
@@ -838,9 +853,10 @@ async def get_roster_current():
         "sheet": state.get("sheet"),
         "sheet_date": d_iso,
         "window": state.get("window"),
-        "people": people,
-        "attendance": att_map,
-        "updated_at": state.get("updated_at")
+        "people": state.get("people", []),
+        "attendance": att_map, # El frontend necesita esto para el "Almacén Maestro"
+        "updated_at": state.get("updated_at"),
+        "source": state.get("source")
     }
 
 @app.put("/api/roster/presence")
