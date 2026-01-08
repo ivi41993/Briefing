@@ -2324,6 +2324,88 @@ body.card-open #timer-reset {
 }
 .btn-tiny:hover { background: #f3f4f6; }
 .btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
+
+/* Tarjetas de Turno Anterior (Estilo fila) */
+.prev-item {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-left: 4px solid #f59e0b; /* Naranja */
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.prev-text { flex: 1; font-size: 0.9rem; word-break: break-word; }
+.prev-actions { display: flex; gap: 6px; }
+.prev-btn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 8px; font-size: 0.75rem; cursor: pointer; color: var(--text-muted);
+}
+.prev-btn:hover { background: #f9fafb; color: var(--text); }
+/* Scroll en Incidentes (Tablet) */
+#incidentes-widget .table-scroll {
+    max-height: 300px; /* Altura máxima fija */
+    overflow-y: auto;  /* Scroll vertical activado */
+    -webkit-overflow-scrolling: touch; /* Suavidad en iOS */
+    border-bottom: 1px solid var(--border);
+}
+/* Estilos específicos para tarjetas de Incidentes/Lecciones */
+.inc-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex; 
+    flex-direction: column; 
+    gap: 6px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+    transition: transform 0.1s;
+}
+.inc-card:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+
+/* Estilo Rojo para Incidentes */
+.inc-card.type-incident {
+    border-left: 5px solid #dc2626;
+}
+.inc-card.type-incident .inc-badge {
+    background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+}
+
+/* Estilo Azul/Bombilla para Lecciones */
+.inc-card.type-lesson {
+    border-left: 5px solid #8b5cf6;
+}
+.inc-card.type-lesson .inc-badge {
+    background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe;
+}
+
+.inc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.inc-badge { 
+    font-size: 0.75rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; 
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.inc-title { font-weight: 700; font-size: 0.95rem; color: #1f2937; }
+.inc-desc { font-size: 0.9rem; color: #4b5563; white-space: pre-wrap; margin-top: 4px; }
+.inc-meta { font-size: 0.75rem; color: #9ca3af; margin-top: 6px; display: flex; justify-content: space-between; align-items: center; }
+.inc-del-btn { 
+    background: none; border: none; cursor: pointer; opacity: 0.6; font-size: 1rem; 
+}
+.inc-del-btn:hover { opacity: 1; transform: scale(1.1); }
+  /* Botones pequeños para editar/borrar personas */
+.btn-tiny {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-left: 4px;
+    line-height: 1;
+    transition: background 0.2s;
+}
+.btn-tiny:hover { background: #f3f4f6; }
+.btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
 </style>
 </head>
 <body>
