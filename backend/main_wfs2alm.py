@@ -37,54 +37,100 @@ STATION_CODE_API = "MAD"       # Siempre MAD para la API de Personal
 NAVE_TARGET = "N2"             # Identificador Nave para Triple Filtro
 
 
+
+# --- FUNCIÓN DE FILTRADO AGRESIVA ---
 def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
-    """
-    Filtra personal de Madrid buscando la Nave en: codDestino, descDestino y nombreGrupoTrabajo.
-    """
     normalized = []
     target = target_nave.upper() # "N2"
 
     for p in api_data:
         try:
-            # --- 1. TRIPLE FILTRO MADRID ---
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            # 1. TRIPLE FILTRO (Buscamos N2 en cualquier campo de destino)
+            cod = str(p.get("codDestino") or "").upper()
+            desc = str(p.get("descDestino") or "").upper()
+            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
             
+            # Si "N2" no aparece en ninguno de estos campos, saltamos al siguiente
             if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # --- 2. FILTRO DE TURNO (Horquillas de Entrada API) ---
-            raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio: continue
+            # 2. LÓGICA DE HORQUILLAS DE ENTRADA (Regla de Oro)
+            raw_inicio = str(p.get("horaInicio") or "")
+            if " " not in raw_inicio: continue
             
-            # Extraemos la hora (ej: de "08/01/2026 14:00" sacamos el 14)
+            # Sacamos la hora de inicio (ej: "07")
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            # Regla de Oro de Horquillas:
-            is_mañana = (4 <= h_inicio < 14)
-            is_tarde  = (14 <= h_inicio < 22)
-            is_noche  = (h_inicio >= 22 or h_inicio < 4)
-
             match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
+            if current_shift == "Mañana":
+                if 4 <= h_inicio < 14: match = True
+            elif current_shift == "Tarde":
+                if 14 <= h_inicio < 22: match = True
+            elif current_shift == "Noche":
+                if h_inicio >= 22 or h_inicio < 4: match = True
 
             if match:
-                raw_fin = p.get("horaFin", "")
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
-
+                raw_fin = str(p.get("horaFin") or "")
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+                
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
                     "nomina": p.get("nomina"),
-                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin_limpia}",
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
                     "observaciones": p.get("nombreGrupoTrabajo", ""),
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
         except: continue
-            
     return normalized
+
+# --- LLAMADA A LA API CORREGIDA ---
+async def fetch_roster_api_data(escala: str, fecha: str):
+    url = os.getenv("ROSTER_API_URL")
+    key = os.getenv("ROSTER_API_KEY")
+    if not url or not key: return None
+    
+    # Payload exacto requerido por el sistema de personal
+    payload = {"escala": escala, "fecha": fecha}
+    headers = {"api-key": key, "Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Importante: data=payload envía como form-data (requerido por esta API)
+            response = await client.post(url, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"Error API: {e}")
+    return None
+
+# --- CONSTRUCTOR DE ESTADO ---
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # Llamamos a la API con escala MAD y fecha actual
+    raw_data = await fetch_roster_api_data("MAD", sdate.strftime("%d/%m/%Y"))
+    
+    people = []
+    source = "excel"
+
+    if raw_data and isinstance(raw_data, list):
+        people = filter_mad_people_logic(raw_data, shift, NAVE_TARGET)
+        source = "api"
+        print(f"✅ {STATION_NAME}: {len(people)} personas encontradas en Nave {NAVE_TARGET}")
+    else:
+        # Fallback a Excel si la API no responde
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
 
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
