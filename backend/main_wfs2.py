@@ -37,8 +37,7 @@ from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, Br
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 # Añadir al bloque de configuración inicial
-ROSTER_API_URL = os.getenv("ROSTER_API_URL")
-ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+
 STATION_NAME = "WFS2"
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
 ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
@@ -77,72 +76,7 @@ ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 
-async def fetch_mad_roster_from_api():
-    """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API MAD no configurada en WFS2.")
-        return None
 
-    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
-    payload = {
-        "escala": "MAD", 
-        "fecha": ahora.strftime("%d/%m/%Y")
-    }
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200:
-                return response.json()
-    except Exception as e:
-        print(f"❌ Error API MAD desde WFS2: {e}")
-    return None
-
-def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str = "N2"):
-    normalized = []
-    target = target_nave.upper() # "N2"
-
-    for p in api_data:
-        try:
-            # --- TRIPLE FILTRO MADRID (N2) ---
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
-            
-            if target not in cod and target not in desc and target not in grupo:
-                continue
-
-            # --- FILTRO DE TURNO (Horquillas Fusion) ---
-            raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio: continue
-            
-            hora_completa = raw_inicio.split(" ")[1]
-            h_inicio = int(hora_completa.split(":")[0])
-            
-            # Mañana: 04-14 | Tarde: 14-22 | Noche: 22-04
-            is_mañana = (4 <= h_inicio < 14)
-            is_tarde  = (14 <= h_inicio < 22)
-            is_noche  = (h_inicio >= 22 or h_inicio < 4)
-
-            match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
-
-            if match:
-                raw_fin = p.get("horaFin", "")
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
-
-                normalized.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
-                    "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
-                    "is_incidencia": p.get("IsIncidencias", False)
-                })
-        except: continue
-    return normalized
     
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
@@ -827,43 +761,99 @@ app.add_middleware(
 # -----------------------------------
 # Endpoints API
 # -----------------------------------
+# ==========================================
+# 1. CONFIGURACIÓN ESPECÍFICA DE UBICACIÓN
+# ==========================================
+# CAMBIA ESTO SEGÚN LA SEDE:
+SCALA_API = "MAD"   # Opciones: "MAD", "BCN", "VLC", "ALM"
+NAVE_TARGET = "N4"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/ALM)
+STATION_LABEL = "WFS4 MAD" # Etiqueta para el Excel
+
+# --- Variables de Entorno ---
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+
+class PresenceUpdate(BaseModel):
+    person: str
+    present: bool
+    date: Optional[str] = None
+    shift: Optional[str] = None
+
+def _att_key(d, s):
+    if hasattr(d, 'isoformat'): return f"{d.isoformat()}|{s}"
+    return f"{d}|{s}"
+
+# ==========================================
+# 2. LÓGICA DE EXTRACCIÓN Y FILTRADO
+# ==========================================
+
+async def fetch_roster_api_data(escala: str, fecha: str):
+    if not ROSTER_API_URL or not ROSTER_API_KEY: return None
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    payload = {"escala": escala, "fecha": fecha}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200: return response.json()
+    except Exception as e: print(f"Error API: {e}")
+    return None
+
+def filter_people_logic(api_data: list, current_shift: str, target: str):
+    normalized = []
+    target_up = target.upper()
+    for p in api_data:
+        try:
+            # FILTRO DE UBICACIÓN (Triple Check)
+            cod = str(p.get("codDestino", "")).upper()
+            desc = str(p.get("descDestino", "")).upper()
+            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            
+            if target_up != "TODO":
+                if target_up not in cod and target_up not in desc and target_up not in grupo:
+                    continue
+
+            # FILTRO DE TURNO (Horas)
+            raw_inicio = p.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio: continue
+            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
+            
+            # Horquillas: Mañana (4-13), Tarde (14-21), Noche (22-3)
+            is_m = (4 <= h_inicio < 14)
+            is_t = (14 <= h_inicio < 22)
+            is_n = (h_inicio >= 22 or h_inicio < 4)
+
+            if (current_shift == "Mañana" and is_m) or (current_shift == "Tarde" and is_t) or (current_shift == "Noche" and is_n):
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{raw_inicio.split(' ')[1]} - {p.get('horaFin','').split(' ')[1] if ' ' in p.get('horaFin','') else ''}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except: continue
+    return normalized
+
+# ==========================================
+# 3. ENDPOINTS DE ASISTENCIA
+# ==========================================
+
 @app.get("/api/roster/current")
 async def get_roster_current():
-    # Recalcular el estado para asegurar datos frescos de la API
     state = await _build_roster_state(force=False)
-    
     d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    shift = state.get("shift")
-    
-    # Obtenemos la asistencia guardada en memoria (SQL)
-    key = _att_key(state.get("sheet_date"), shift) if d_iso else None
-    att_map = attendance_store.get(key, {})
-    
-    return {
-        "shift": shift,
-        "sheet": state.get("sheet"),
-        "sheet_date": d_iso,
-        "window": state.get("window"),
-        "people": state.get("people", []),
-        "attendance": att_map,
-        "updated_at": state.get("updated_at"),
-        "source": state.get("source") # Esto ya no será null
-    }
+    att_map = attendance_store.get(_att_key(state.get("sheet_date"), state.get("shift")), {})
+    return {"shift": state.get("shift"), "sheet_date": d_iso, "people": state.get("people", []), "attendance": att_map}
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
     state = await _build_roster_state(force=False)
-    d = state.get("sheet_date")
-    s = state.get("shift")
-    if not d or not s: raise HTTPException(400, "No hay turno activo")
-    
-    key = _att_key(d, s)
-    attendance_store.setdefault(key, {})
+    key = _att_key(state.get("sheet_date"), state.get("shift"))
+    if key not in attendance_store: attendance_store[key] = {}
     attendance_store[key][upd.person] = upd.present
-    save_attendance_to_disk()
-    
-    await manager.broadcast({"type":"presence_update","sheet_date":d.isoformat(),"shift":s,"person":upd.person,"present":upd.present})
-    return {"ok": True}
+    await manager.broadcast({"type": "presence_update", "person": upd.person, "present": upd.present, "shift": state.get("shift")})
+    return {"status": "ok"}
+
+
 
 @app.get("/api/tasks")
 async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = None):
