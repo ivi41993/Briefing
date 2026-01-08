@@ -7075,16 +7075,14 @@ async function generateAndSendToExcel() {
     try {
         // A. Card 1: Equipo
         // A. Card 1: Equipo (CORREGIDO)
+        // DENTRO DE generateAndSendToExcel
         const team = window.TEAM_STATE || { people: [], attendance: {} };
-        const rosterDetails = team.people.map(p => {
-            // Usamos nombre_completo que es lo que guarda el sistema manual y el excel
-            const name = p.nombre_completo || p.name || "Desconocido"; 
-            
-            // Verificamos presencia usando la misma variable name
-            const isP = team.attendance[name] === true;
-            
-            return `${name} (${isP ? "✅" : "❌"})`;
-        }).join(", ") || "Sin datos";
+        const rosterDetails = (team.people || []).map(p => {
+            const name = p.nombre_completo;
+            const isP = team.attendance[name];
+            let icon = isP === true ? "✅" : (isP === false ? "❌" : "➖");
+            return `${name} (${icon})`;
+        }).join(", ");
 
         // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
