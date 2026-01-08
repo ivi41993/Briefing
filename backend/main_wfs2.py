@@ -93,7 +93,58 @@ ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 
+def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
+    """
+    Filtra por turno y por identificador de nave (ej: 'N4', 'N3', etc.)
+    """
+    normalized = []
+    # Convertimos a mayúsculas para comparar sin errores
+    target = target_nave.upper() 
 
+    for p in api_data:
+        try:
+            # --- FILTRO DE NAVE (Identificación robusta) ---
+            cod = str(p.get("codDestino", "")).upper()
+            desc = str(p.get("descDestino", "")).upper()
+            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            
+            # Buscamos el identificador (ej: 'N4') en cualquiera de los 3 campos
+            if target not in cod and target not in desc and target not in grupo:
+                continue
+
+            # --- FILTRO DE TURNO (HORAS) ---
+            raw_inicio = p.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio:
+                continue
+            
+            hora_completa = raw_inicio.split(" ")[1]
+            h_inicio = int(hora_completa.split(":")[0])
+            
+            # Horquillas de turno
+            is_mañana = (4 <= h_inicio < 14)
+            is_tarde  = (14 <= h_inicio < 22)
+            is_noche  = (h_inicio >= 22 or h_inicio < 4)
+
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
+
+            if match:
+                raw_fin = p.get("horaFin", "")
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{hora_completa} - {h_fin_limpia}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except:
+            continue
+            
+    return normalized
     
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
