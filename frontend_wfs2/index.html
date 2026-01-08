@@ -3501,14 +3501,7 @@ console.error('PUT /api/roster/zone falló', e);
 }
 }
 
-// 1. EL ALMACÉN MAESTRO (Asegúrate de que esté declarado así)
-let TEAM_STATE = { 
-    attendance: {}, 
-    allPeopleRaw: [], // <--- Aquí se guardan todos los datos de la API
-    people: [], 
-    shift: null, 
-    sheet_date: null 
-};
+
 
 // 2. FUNCIÓN DE RENDERIZADO ROBUSTA
 function renderRoster(listEl, people, state) {
