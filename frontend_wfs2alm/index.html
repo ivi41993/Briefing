@@ -3412,16 +3412,29 @@ function initEhsSimple(){
 }
 
 // --- CONFIGURACIÓN E ISOLACIÓN WFS2 ALM ---
+// ==========================================
+// 1. CONFIGURACIÓN E IDENTIDAD (BLOQUE SEGURO)
+// ==========================================
 window.STATION_OVERRIDE = 'WFS2ALM';
 
-window.TEAM_STATE = window.TEAM_STATE || { 
+// Inicialización inmediata para evitar errores de "null"
+window.TEAM_STATE = { 
     attendance: {}, 
     zones: {}, 
     allPeopleRaw: [], 
     people: [], 
-    sheet_date: new Date().toISOString().slice(0,10), 
-    shift: null 
+    shift: "Mañana", // Valor por defecto seguro
+    sheet_date: new Date().toISOString().slice(0,10)
 };
+
+// Función para depurar en consola qué está llegando
+function debugRoster(data) {
+    console.log(`🔍 [${window.STATION_OVERRIDE}] Diagnóstico Roster:`, {
+        turno: data.shift,
+        total_recibido: data.people?.length || 0,
+        primer_nombre: data.people?.[0]?.nombre_completo || "Nadie"
+    });
+}
 
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
@@ -3521,13 +3534,27 @@ window.TEAM_STATE = window.TEAM_STATE || {
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
 
-    // Sincronización con el almacén maestro global
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+    // 1. Sincronizar Almacén Maestro
+    if (people && people.length > 0) {
+        window.TEAM_STATE.allPeopleRaw = people;
+        window.TEAM_STATE.people = people;
+    }
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
     listEl.innerHTML = '';
 
+    // DIAGNÓSTICO VISUAL SI ESTÁ VACÍO
+    if (!masterList || masterList.length === 0) {
+        listEl.innerHTML = `
+            <div style="padding:15px; border:1px dashed #f87171; border-radius:8px; background:#fef2f2; color:#b91c1c; font-size:0.8rem;">
+                <strong>⚠️ Roster Vacío</strong><br>
+                La API de Madrid no devolvió personal para Nave 2 en el turno de ${window.TEAM_STATE.shift}.
+            </div>`;
+        return;
+    }
+
+    // 2. Renderizado de tarjetas verticales
     masterList.forEach((p) => {
         const name = p.nombre_completo;
         const currentAtt = window.TEAM_STATE.attendance[name]; 
@@ -3535,29 +3562,28 @@ function renderRoster(listEl, people, state) {
 
         const card = document.createElement('div');
         card.className = 'team-row';
-        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid #10b981; background:#fff;`;
+        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid #3b82f6; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
 
         card.innerHTML = `
-            <div>
-                <div style="font-weight:800;">${esc(name)}</div>
-                <div style="font-size:0.75rem; color:#64748b;">🕒 ${esc(p.horario)} | ${esc(p.observaciones)}</div>
-            </div>
+            <div style="font-weight:800; color:#1e293b;">${esc(name)}</div>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">🕒 ${esc(p.horario)} | ${esc(p.observaciones)}</div>
             <div class="presence-toggle" style="margin-top:10px;">
                 <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
                 <label for="y_${safeId}" class="yes">✓ OK</label>
                 <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
                 <label for="n_${safeId}" class="no">✕</label>
-            </div>
-        `;
+            </div>`;
 
         card.querySelectorAll('input').forEach(input => {
             input.onclick = () => {
                 window.TEAM_STATE.attendance[name] = (input.value === 'yes');
                 updatePresenceOnServer(name, input.value === 'yes');
+                updateTeamMeta(window.TEAM_STATE);
             };
         });
         listEl.appendChild(card);
     });
+    updateTeamMeta(window.TEAM_STATE);
 }
 
 
