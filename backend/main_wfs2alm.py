@@ -94,6 +94,8 @@ ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") 
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 ROSTER_API_URL = os.getenv("ROSTER_API_URL")
 ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+SCALA_API = "MAD"   # Opciones: "MAD", "BCN", "VLC", "ALM"
+NAVE_TARGET = "N2"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/ALM)
 # --- 1. LLAMADA API MADRID (Form-Data) ---
 async def fetch_roster_api_mad(fecha: str):
     """Llamada única a la API de personal de Madrid"""
