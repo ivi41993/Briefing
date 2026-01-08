@@ -655,27 +655,7 @@ def _current_shift_info(now):
     sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY and hhmm < "06:00" else now.date()
     return "Noche", sheet_date, "22:00", "06:00"
 
-async def _build_roster_state(force=False):
-    # Lógica simplificada para no extender demasiado
-    now = _now_local()
-    shift, sdate, start, end = _current_shift_info(now)
-    
-    # Si ya tenemos datos en memoria para este turno, retornamos
-    if not force and roster_cache.get("shift") == shift and roster_cache.get("sheet_date") == sdate:
-        return roster_cache
 
-    sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-    people = []
-    if sheet:
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
-    
-    roster_cache.update({
-        "sheet_date": sdate, "shift": shift, "people": people, "sheet": sheet,
-        "updated_at": datetime.utcnow().isoformat()+"Z",
-        "window": {"from": start, "to": end}
-    })
-    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
-    return roster_cache
 
 def _att_key(d, s): return f"{d.isoformat()}|{s}"
 
