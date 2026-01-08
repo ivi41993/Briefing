@@ -99,37 +99,22 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # 1. Intentar API MAD (Siempre es la prioridad para Madrid)
     raw_api_data = await fetch_mad_roster_from_api()
     people = []
-    source = "api" 
 
     if raw_api_data and isinstance(raw_api_data, list):
-        # FILTRAMOS POR NAVE 2
-        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N2")
-        print(f"✅ WFS2 API: {len(people)} personas encontradas para Nave 2.")
-    
-    # 2. Si la API falla por red, fallback temporal al Excel para no dejar el dashboard vacío
-    if not people:
+        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
+        source = "api"
+    else:
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
         source = "excel"
-        print(f"📄 WFS2 Excel: Cargando desde archivo local (API no disponible).")
 
-    # 3. Sincronizar con la asistencia en la Base de Datos SQL
-    key = _att_key(sdate, shift)
-    att_db = attendance_store.get(key, {})
-
-    # 4. Actualizar caché con la estructura exacta del código de referencia
     roster_cache.update({
-        "sheet_date": sdate, 
-        "shift": shift, 
-        "people": people,
-        "attendance": att_db, # Esto activa el Almacén Maestro en el front
+        "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, 
-        "source": source,
-        "sheet": roster_cache.get("sheet") or "General"
+        "window": {"from": start, "to": end}, "source": source
     })
     
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
