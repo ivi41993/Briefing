@@ -3412,11 +3412,12 @@ function initEhsSimple(){
 }
 
 // 1. ESTADO GLOBAL ÚNICO PARA WFS2
-let TEAM_STATE = { 
+// --- ESTADO GLOBAL BLINDADO ---
+window.TEAM_STATE = window.TEAM_STATE || { 
     attendance: {}, 
     zones: {}, 
-    allPeopleRaw: [], // Almacén Maestro para evitar que desaparezcan
-    people: [],       // Personal filtrado para el turno
+    allPeopleRaw: [], // Almacén maestro de la API
+    people: [],       // Personal filtrado para el turno actual
     sheet_date: null, 
     shift: null 
 };
@@ -3512,13 +3513,13 @@ console.error('PUT /api/roster/zone falló', e);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
+    
+    // Actualizamos el objeto global
+    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+    if (state && state.sheet_date) window.TEAM_STATE.sheet_date = state.sheet_date;
+    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
-    // 1. Alimentar el Almacén Maestro si llegan datos nuevos del servidor
-    if (people && people.length > 0) {
-        TEAM_STATE.allPeopleRaw = people;
-    }
-
-    const masterList = TEAM_STATE.allPeopleRaw;
+    const masterList = window.TEAM_STATE.allPeopleRaw;
     if (!masterList || masterList.length === 0) {
         listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal MAD N2...</div>';
         return;
@@ -3546,7 +3547,7 @@ function renderRoster(listEl, people, state) {
         return false;
     });
 
-    TEAM_STATE.people = filteredPeople;
+    window.TEAM_STATE.people = filteredPeople;
     listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
