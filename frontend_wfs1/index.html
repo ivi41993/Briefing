@@ -3518,64 +3518,76 @@ console.error('PUT /api/roster/zone falló', e);
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // Sincronizar datos recibidos con el estado global
+    // 1. Guardar todos los datos en el estado global
     if (people) window.TEAM_STATE.allPeopleRaw = people;
-    if (state && state.attendance) window.TEAM_STATE.attendance = state.attendance;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
     listEl.innerHTML = '';
 
-    if (!masterList || masterList.length === 0) {
+    // --- LÓGICA DE AUDITORÍA (FILTRO N1) ---
+    const TARGET = "N1";
+    
+    const peopleInN1 = masterList.filter(p => {
+        const cod = (p.codDestino || "").toUpperCase();
+        const desc = (p.descDestino || "").toUpperCase();
+        const gt = (p.gt || "").toUpperCase();
+        
+        // Buscamos "N1" en cualquier sitio, igual que en tu script de auditoría
+        return cod.includes(TARGET) || desc.includes(TARGET) || gt.includes(TARGET);
+    });
+
+    // 2. Si tras filtrar Madrid no hay nadie en N1
+    if (peopleInN1.length === 0) {
         listEl.innerHTML = `
             <div style="padding:15px; border:1px dashed #f87171; border-radius:12px; background:#fef2f2; color:#b91c1c; font-size:0.85rem;">
-                <strong>⚠️ Nave 1 Vacía</strong><br>No hay personal asignado en la API para este turno.
+                <strong>📍 Madrid conectado (Total: ${masterList.length})</strong><br>
+                Pero nadie tiene "N1" en su ubicación.
             </div>`;
         return;
     }
 
-    masterList.forEach((p) => {
+    // 3. Pintar solo los de la Nave 1
+    peopleInN1.forEach((p) => {
         const name = p.nombre_completo;
-        const infoGT = p.observaciones || "WFS1";
         const currentAtt = window.TEAM_STATE.attendance[name]; 
         const safeId = name.replace(/[^a-z0-9]/gi, '_');
 
         const card = document.createElement('div');
         card.className = 'team-row';
-        // Estilo adaptado para WFS1
-        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid var(--brand-red-500); background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
+        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid var(--brand-red-600); background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
 
         card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div>
-                    <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">${esc(name)}</div>
-                    <div style="font-size:0.7rem; color:#64748b; font-weight:700; margin-top:2px;">🕒 ${esc(p.horario)}</div>
+            <div>
+                <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">${esc(name)}</div>
+                <div style="display:flex; gap:6px; margin-top:4px;">
+                    <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario)}</span>
+                    <span style="font-size:0.6rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800;">${esc(p.gt || 'N1')}</span>
                 </div>
-                <span style="font-size:0.6rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(infoGT)}</span>
             </div>
-            <div style="display:flex; align-items:center; justify-content:center; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
-                <div class="presence-toggle">
-                    <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                    <label for="y_${safeId}" class="yes" style="padding:6px 20px;">✓ PRESENTE</label>
-                    <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                    <label for="n_${safeId}" class="no" style="padding:6px 20px;">✕ AUSENTE</label>
-                </div>
+            <div class="presence-toggle" style="margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9; display:flex; justify-content:center;">
+                <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                <label for="y_${safeId}" class="yes" style="padding:6px 20px;">✓ OK</label>
+                <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                <label for="n_${safeId}" class="no" style="padding:6px 20px;">✕</label>
             </div>
         `;
 
-        // Evento para guardar en el servidor al hacer click
-        card.querySelectorAll('input').forEach(radio => {
-            radio.onclick = () => {
-                const isPresent = (radio.value === 'yes');
-                window.TEAM_STATE.attendance[name] = isPresent;
-                updatePresenceOnServer(name, isPresent);
+        card.querySelectorAll('input').forEach(r => {
+            r.onclick = () => {
+                window.TEAM_STATE.attendance[name] = (r.value === 'yes');
+                updatePresenceOnServer(name, r.value === 'yes');
                 updateTeamMeta(window.TEAM_STATE);
             };
         });
 
         listEl.appendChild(card);
     });
-    updateTeamMeta(window.TEAM_STATE);
+
+    // Actualizar el contador (ej: "4 de 120 presentes")
+    const meta = document.getElementById('team-meta');
+    const presentCount = Object.values(window.TEAM_STATE.attendance).filter(v => v === true).length;
+    if(meta) meta.textContent = `${window.TEAM_STATE.shift} • N1: ${peopleInN1.length} personas • ${presentCount} presentes`;
 }
 
   
