@@ -36,7 +36,9 @@ from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, Br
 # ==========================================
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
-
+# Añadir al bloque de configuración inicial
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 STATION_NAME = "WFS2"
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
 ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
@@ -75,6 +77,119 @@ ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 
+async def fetch_mad_roster_from_api():
+    """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API MAD no configurada en WFS2.")
+        return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    payload = {
+        "escala": "MAD", 
+        "fecha": ahora.strftime("%d/%m/%Y")
+    }
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"❌ Error API MAD desde WFS2: {e}")
+    return None
+
+def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str = "N2"):
+    """
+    Filtra por turno y por identificador de nave (N2 para WFS2)
+    """
+    normalized = []
+    target = target_nave.upper() 
+
+    for p in api_data:
+        try:
+            # --- 1. TRIPLE FILTRO DE NAVE ---
+            cod = str(p.get("codDestino", "")).upper()
+            desc = str(p.get("descDestino", "")).upper()
+            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            
+            if target not in cod and target not in desc and target not in grupo:
+                continue
+
+            # --- 2. FILTRO DE TURNO (HORQUILLAS) ---
+            raw_inicio = p.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio:
+                continue
+            
+            hora_completa = raw_inicio.split(" ")[1]
+            h_inicio = int(hora_completa.split(":")[0])
+            
+            # Lógica de horquillas estándar del sistema Fusion
+            is_mañana = (4 <= h_inicio < 14)
+            is_tarde  = (14 <= h_inicio < 22)
+            is_noche  = (h_inicio >= 22 or h_inicio < 4)
+
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
+
+            if match:
+                raw_fin = p.get("horaFin", "")
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{hora_completa} - {h_fin_limpia}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except:
+            continue
+            
+    return normalized
+
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # 1. Intentar obtener datos de la API de Personal
+    raw_api_data = await fetch_mad_roster_from_api()
+    people = []
+    source = "excel"
+
+    if raw_api_data and isinstance(raw_api_data, list):
+        # FILTRO ESPECÍFICO PARA NAVE 2 (WFS2)
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N2")
+        if people:
+            source = "api"
+
+    # 2. Si la API falló o no devolvió gente, usar el Excel
+    if not people:
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+            source = "excel"
+
+    # Actualizar cache
+    roster_cache.update({
+        "sheet_date": sdate, 
+        "shift": shift, 
+        "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end},
+        "source": source
+    })
+    
+    # Notificar a los frontends de WFS2 vía WebSocket
+    await manager.broadcast({
+        "type": "roster_update", 
+        **roster_cache, 
+        "sheet_date": sdate.isoformat()
+    })
+    
+    return roster_cache
 # -----------------------------------
 # Modelos de Datos
 # -----------------------------------
