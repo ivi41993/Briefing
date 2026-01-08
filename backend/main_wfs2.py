@@ -154,41 +154,27 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # 1. Intentar obtener datos de la API de Personal
+    # 1. Llamada a la API masiva de Madrid
     raw_api_data = await fetch_mad_roster_from_api()
     people = []
-    source = "excel"
 
     if raw_api_data and isinstance(raw_api_data, list):
-        # FILTRO ESPECÍFICO PARA NAVE 2 (WFS2)
+        # FILTRO PARA NAVE 2 (WFS2)
         people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N2")
-        if people:
-            source = "api"
-
-    # 2. Si la API falló o no devolvió gente, usar el Excel
-    if not people:
+        source = "api"
+    else:
+        # Fallback al Excel local si la API falla
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
-            source = "excel"
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+        source = "excel"
 
-    # Actualizar cache
     roster_cache.update({
-        "sheet_date": sdate, 
-        "shift": shift, 
-        "people": people,
+        "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end},
-        "source": source
+        "window": {"from": start, "to": end}, "source": source
     })
     
-    # Notificar a los frontends de WFS2 vía WebSocket
-    await manager.broadcast({
-        "type": "roster_update", 
-        **roster_cache, 
-        "sheet_date": sdate.isoformat()
-    })
-    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
 
