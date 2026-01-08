@@ -3515,62 +3515,60 @@ console.error('PUT /api/roster/zone falló', e);
 
 
 
-// --- 3. RENDER ROSTER BLINDADO ---
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. Sincronización con el Almacén Maestro
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+    // Sincronizar datos recibidos con el estado global
+    if (people) window.TEAM_STATE.allPeopleRaw = people;
+    if (state && state.attendance) window.TEAM_STATE.attendance = state.attendance;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
-    if (state && state.sheet_date) window.TEAM_STATE.sheet_date = state.sheet_date;
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
     listEl.innerHTML = '';
 
-    // DIAGNÓSTICO EN PANTALLA
     if (!masterList || masterList.length === 0) {
         listEl.innerHTML = `
-            <div style="padding:15px; border:1px dashed #f87171; border-radius:8px; background:#fef2f2; color:#b91c1c; font-size:0.85rem;">
-                <strong>⚠️ No se encontró personal</strong><br>
-                Buscando en Nave: N1<br>
-                Turno detectado: ${window.TEAM_STATE.shift}
+            <div style="padding:15px; border:1px dashed #f87171; border-radius:12px; background:#fef2f2; color:#b91c1c; font-size:0.85rem;">
+                <strong>⚠️ Nave 1 Vacía</strong><br>No hay personal asignado en la API para este turno.
             </div>`;
         return;
     }
 
-    // 2. Generación de tarjetas verticales
     masterList.forEach((p) => {
         const name = p.nombre_completo;
-        const grupo = p.observaciones || "WFS1";
+        const infoGT = p.observaciones || "WFS1";
         const currentAtt = window.TEAM_STATE.attendance[name]; 
         const safeId = name.replace(/[^a-z0-9]/gi, '_');
 
         const card = document.createElement('div');
         card.className = 'team-row';
-        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid #3b82f6; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
+        // Estilo adaptado para WFS1
+        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid var(--brand-red-500); background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
 
         card.innerHTML = `
-            <div>
-                <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">${esc(name)}</div>
-                <div style="display:flex; gap:6px; margin-top:4px;">
-                    <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario)}</span>
-                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800;">${esc(grupo)}</span>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">${esc(name)}</div>
+                    <div style="font-size:0.7rem; color:#64748b; font-weight:700; margin-top:2px;">🕒 ${esc(p.horario)}</div>
                 </div>
+                <span style="font-size:0.6rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(infoGT)}</span>
             </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
+            <div style="display:flex; align-items:center; justify-content:center; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                 <div class="presence-toggle">
                     <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                    <label for="y_${safeId}" class="yes">✓ OK</label>
+                    <label for="y_${safeId}" class="yes" style="padding:6px 20px;">✓ PRESENTE</label>
                     <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                    <label for="n_${safeId}" class="no">✕</label>
+                    <label for="n_${safeId}" class="no" style="padding:6px 20px;">✕ AUSENTE</label>
                 </div>
             </div>
         `;
 
+        // Evento para guardar en el servidor al hacer click
         card.querySelectorAll('input').forEach(radio => {
             radio.onclick = () => {
-                window.TEAM_STATE.attendance[name] = (radio.value === 'yes');
-                updatePresenceOnServer(name, radio.value === 'yes');
+                const isPresent = (radio.value === 'yes');
+                window.TEAM_STATE.attendance[name] = isPresent;
+                updatePresenceOnServer(name, isPresent);
                 updateTeamMeta(window.TEAM_STATE);
             };
         });
@@ -3582,18 +3580,51 @@ function renderRoster(listEl, people, state) {
 
   
 
+// --- 1. CONFIGURACIÓN E IDENTIDAD WFS1 ---
+window.STATION_OVERRIDE = 'WFS1';
 
+// --- 2. ESTADO GLOBAL ---
+window.TEAM_STATE = { 
+    attendance: {}, 
+    allPeopleRaw: [], 
+    shift: "Cargando...", 
+    sheet_date: new Date().toISOString().slice(0,10)
+};
+
+// --- 3. FETCH AL SERVIDOR ---
+async function fetchServerRoster() {
+    try {
+        const r = await fetch('/api/roster/current', { cache: 'no-store' });
+        if (!r.ok) return null;
+        return await r.json();
+    } catch (e) {
+        console.error('Error cargando Roster N1:', e);
+        return null;
+    }
+}
+
+// --- 4. ACTUALIZAR META (X de Y Presentes) ---
+function updateTeamMeta(state) {
+    const meta = document.getElementById('team-meta');
+    if (!meta) return;
+    const total = (state.allPeopleRaw || []).length;
+    const present = Object.values(state.attendance || {}).filter(v => v === true).length;
+    meta.textContent = `${state.shift || '—'} • Presentes ${present}/${total}`;
+}
 
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Con Editar/Eliminar) ===== */
-async function initTeamRoster(){
+async function initTeamRoster() {
     const listEl = document.getElementById('team-list');
-    if(!listEl) return;
+    if (!listEl) return;
     
-    // Llamar al backend para traer la lista de la API
+    // 1. Mostrar mensaje de carga
+    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;">Cargando equipo N1 desde API...</div>';
+    
+    // 2. Traer datos del servidor
     const data = await fetchServerRoster();
-    if (data && data.people) {
+    if (data) {
         renderRoster(listEl, data.people, data);
     }
 }
@@ -3983,27 +4014,7 @@ createTaskOnServer(taskData).then(()=>{ f.reset(); updateAllColumnCounts(); }).c
 }
 
 /* Server I/O */
-async function fetchServerRoster(){
-try {
-const r = await fetch('/api/roster/current', { 
-cache: 'no-store',
-headers: {'Accept': 'application/json'}
-});
 
-if (!r.ok) {
-console.warn('Roster fetch failed:', r.status, r.statusText);
-return null;
-}
-
-const data = await r.json();
-console.log('Roster cargado:', data);
-return data;
-
-} catch (e) {
-console.error('Error fetching roster:', e);
-return null;
-}
-}
 async function createTaskOnServer(data){
 const r = await fetch('/api/tasks',{
 method:'POST',
