@@ -190,6 +190,9 @@ async def _build_roster_state(force=False) -> dict:
     })
     
     return roster_cache
+
+
+
 # -----------------------------------
 # Modelos de Datos
 # -----------------------------------
