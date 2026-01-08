@@ -30,12 +30,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+# --- 1. DEFINIR EL ALMACÉN DE ASISTENCIA (Esto es lo que falta) ---
+attendance_store: dict[str, dict[str, bool]] = {}
+
+# --- 2. FUNCIÓN HELPER PARA LA CLAVE DE ASISTENCIA ---
+def _att_key(d, s):
+    """Genera una clave única como '2026-01-08|Mañana'"""
+    if hasattr(d, 'isoformat'):
+        return f"{d.isoformat()}|{s}"
+    return f"{d}|{s}"
+
+# --- 3. ASEGÚRATE DE TENER EL MODELO PresenceUpdate ---
+class PresenceUpdate(BaseModel):
+    person: str
+    present: bool
+    date: Optional[str] = None
+    shift: Optional[str] = None
 
 # ==========================================
 # CONFIGURACIÓN WFS1 (AISLAMIENTO)
 # ==========================================
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
+# Añadir al bloque de configuración inicial
 
 STATION_NAME = "WFS2"
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
@@ -45,13 +62,13 @@ ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "t
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx")
 
 # === RUTAS DE DATOS ESPECÍFICAS WFS1 ===
-
+STATION_CODE_API = "MAD"
 
 # Configuración GitHub / Almacenamiento
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
 USE_DISK = (STORAGE_BACKEND == "file")
 USE_GITHUB = (STORAGE_BACKEND == "github")
-ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster.json")
+
 INCIDENTS_VISIBLE_LIMIT = int(os.getenv("INCIDENTS_VISIBLE_LIMIT", "3"))
 SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 
@@ -65,7 +82,7 @@ EXT_VERIFY_MODE = os.getenv("EXT_VERIFY_MODE", "TRUSTSTORE").upper()
 EXT_CAFILE = os.getenv("EXT_CAFILE", "").strip()
 EXT_USER_AGENT = os.getenv("EXT_USER_AGENT", "Mozilla/5.0")
 EXT_REFERER = os.getenv("EXT_REFERER", "").strip()
-
+ROSTER_DB = os.getenv("ROSTER_DB", "./data/roster.json")
 # Configuración Enablon
 ENA_URL = os.getenv("ENA_URL") or os.getenv("ENABLON_URL")
 ENA_COOKIE = os.getenv("ENA_COOKIE") or os.getenv("ENABLON_COOKIE")
