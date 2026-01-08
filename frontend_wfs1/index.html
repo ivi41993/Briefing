@@ -3042,58 +3042,58 @@ window.TEAM_STATE = {
   });
 })();
 
-
-// === PDF Incidentes: subida y render ===
- function renderRoster(listEl, people, state) {
+function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. Guardar el JSON bruto en el estado global
+    // 1. Guardar datos en el estado global
     if (people) window.TEAM_STATE.allPeopleRaw = people;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
     listEl.innerHTML = '';
 
-    // --- FILTRADO ESTRICTO NAVE 1 ---
+    // --- 2. LÓGICA DE FILTRADO PARA NAVE 1 (N1) ---
+    // Filtramos el JSON de Madrid buscando los criterios de N1
     const peopleInN1 = masterList.filter(p => {
-        // Extraemos campos del JSON
         const grupo = (p.nombreGrupoTrabajo || "").toUpperCase();
         const cod   = (p.codDestino || "").toUpperCase();
         const desc  = (p.descDestino || "").toUpperCase();
 
-        // CRITERIOS SOLICITADOS:
+        // Criterios: nombreGrupoTrabajo contiene OPERARIOS-N1 
+        // O codDestino contiene N1 
+        // O descDestino contiene NAVE 1
         return grupo.includes("OPERARIOS-N1") || 
                cod.includes("N1") || 
                desc.includes("NAVE 1");
     });
 
-    // 2. Diagnóstico si no hay nadie
+    // 3. Verificación de resultados
     if (peopleInN1.length === 0) {
         listEl.innerHTML = `
             <div style="padding:15px; border:1px dashed #f87171; border-radius:12px; background:#fef2f2; color:#b91c1c; font-size:0.85rem;">
-                <strong>⚠️ NAVE 1 SIN PERSONAL</strong><br>
-                Se recibieron ${masterList.length} personas de Madrid, pero ninguna cumple los criterios de N1.
+                <strong>⚠️ N1 sin personal asignado</strong><br>
+                Se recibieron ${masterList.length} personas de Madrid, pero ninguna cumple los criterios de Nave 1.
             </div>`;
         return;
     }
 
-    // 3. Renderizado de los filtrados
+    // 4. Dibujar el Roster filtrado
     peopleInN1.forEach((p) => {
-        // Mapeo de nombres de campos del JSON de la API
-        const fullName = p.nombreApellidos || "Sin Nombre";
-        const horario = p.horaInicio ? p.horaInicio.split(" ")[1] : "—";
-        const safeId = fullName.replace(/[^a-z0-9]/gi, '_');
-        const currentAtt = window.TEAM_STATE.attendance[fullName];
+        const name = p.nombreApellidos || "Sin Nombre";
+        const currentAtt = window.TEAM_STATE.attendance[name]; 
+        const safeId = name.replace(/[^a-z0-9]/gi, '_');
+        // Extraer hora de inicio si viene con fecha
+        const horaDisplay = p.horaInicio ? (p.horaInicio.includes(" ") ? p.horaInicio.split(" ")[1] : p.horaInicio) : "—";
 
         const card = document.createElement('div');
         card.className = 'team-row';
-        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid var(--brand-red-600); background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
+        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid #dc2626; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
 
         card.innerHTML = `
             <div>
-                <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">${esc(fullName)}</div>
+                <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">${esc(name)}</div>
                 <div style="display:flex; gap:6px; margin-top:4px;">
-                    <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${horario}</span>
+                    <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${esc(horaDisplay)}</span>
                     <span style="font-size:0.6rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800;">${esc(p.nombreGrupoTrabajo || 'N1')}</span>
                 </div>
             </div>
@@ -3105,12 +3105,10 @@ window.TEAM_STATE = {
             </div>
         `;
 
-        // Eventos de click para la presencia
-        card.querySelectorAll('input').forEach(input => {
-            input.onclick = () => {
-                const isPresent = (input.value === 'yes');
-                window.TEAM_STATE.attendance[fullName] = isPresent;
-                updatePresenceOnServer(fullName, isPresent);
+        card.querySelectorAll('input').forEach(radio => {
+            radio.onclick = () => {
+                window.TEAM_STATE.attendance[name] = (radio.value === 'yes');
+                updatePresenceOnServer(name, radio.value === 'yes');
                 updateTeamMeta(window.TEAM_STATE);
             };
         });
@@ -3118,6 +3116,10 @@ window.TEAM_STATE = {
         listEl.appendChild(card);
     });
 
+    // Actualizar contador meta
+    const meta = document.getElementById('team-meta');
+    if(meta) meta.textContent = `${window.TEAM_STATE.shift} • N1: ${peopleInN1.length} personas`;
+}
     // Actualizar el contador de la cabecera del widget
     const meta = document.getElementById('team-meta');
     const presentCount = Object.values(window.TEAM_STATE.attendance).filter(v => v === true).length;
