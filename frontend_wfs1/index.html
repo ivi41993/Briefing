@@ -2988,7 +2988,19 @@ function getTaskId(obj){
   paint();
 })();
 
+// --- 1. CONFIGURACIÓN E IDENTIDAD WFS1 ---
+window.STATION_OVERRIDE = 'WFS1';
 
+// --- 2. ESTADO GLOBAL BLINDADO (Elimina el let TEAM_STATE = null) ---
+window.TEAM_STATE = { 
+    attendance: {}, 
+    zones: {}, 
+    allPeopleRaw: [], 
+    people: [], 
+    shift: "Cargando...", 
+    sheet_date: new Date().toISOString().slice(0,10)
+};
+  
 (function initGwUpload(){
   const form   = document.getElementById('gw-upload-form');
   const input  = document.getElementById('gw-file');
@@ -3501,24 +3513,13 @@ console.error('PUT /api/roster/zone falló', e);
 
 
 
-// --- 1. CONFIGURACIÓN E IDENTIDAD WFS1 ---
-window.STATION_OVERRIDE = 'WFS1';
 
-// --- 2. ESTADO GLOBAL BLINDADO (Elimina el let TEAM_STATE = null) ---
-window.TEAM_STATE = { 
-    attendance: {}, 
-    zones: {}, 
-    allPeopleRaw: [], 
-    people: [], 
-    shift: "Cargando...", 
-    sheet_date: new Date().toISOString().slice(0,10)
-};
 
 // --- 3. RENDER ROSTER BLINDADO ---
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // Sincronización segura con el objeto global
+    // 1. Sincronización con el Almacén Maestro
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
     if (state && state.sheet_date) window.TEAM_STATE.sheet_date = state.sheet_date;
@@ -3526,13 +3527,21 @@ function renderRoster(listEl, people, state) {
     const masterList = window.TEAM_STATE.allPeopleRaw;
     listEl.innerHTML = '';
 
-    if (masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; color:#991b1b; background:#fef2f2; border-radius:10px;">⚠️ No se encontró personal de Nave 1.</div>';
+    // DIAGNÓSTICO EN PANTALLA
+    if (!masterList || masterList.length === 0) {
+        listEl.innerHTML = `
+            <div style="padding:15px; border:1px dashed #f87171; border-radius:8px; background:#fef2f2; color:#b91c1c; font-size:0.85rem;">
+                <strong>⚠️ No se encontró personal</strong><br>
+                Buscando en Nave: N1<br>
+                Turno detectado: ${window.TEAM_STATE.shift}
+            </div>`;
         return;
     }
 
+    // 2. Generación de tarjetas verticales
     masterList.forEach((p) => {
         const name = p.nombre_completo;
+        const grupo = p.observaciones || "WFS1";
         const currentAtt = window.TEAM_STATE.attendance[name]; 
         const safeId = name.replace(/[^a-z0-9]/gi, '_');
 
@@ -3541,23 +3550,34 @@ function renderRoster(listEl, people, state) {
         card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid #3b82f6; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
 
         card.innerHTML = `
-            <div style="font-weight:800; color:#1e293b;">${esc(name)}</div>
-            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">🕒 ${esc(p.horario)} | ${esc(p.observaciones)}</div>
-            <div class="presence-toggle" style="margin-top:10px;">
-                <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                <label for="y_${safeId}" class="yes">✓ OK</label>
-                <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                <label for="n_${safeId}" class="no">✕</label>
-            </div>`;
+            <div>
+                <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">${esc(name)}</div>
+                <div style="display:flex; gap:6px; margin-top:4px;">
+                    <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario)}</span>
+                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800;">${esc(grupo)}</span>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
+                <div class="presence-toggle">
+                    <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                    <label for="y_${safeId}" class="yes">✓ OK</label>
+                    <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                    <label for="n_${safeId}" class="no">✕</label>
+                </div>
+            </div>
+        `;
 
-        card.querySelectorAll('input').forEach(input => {
-            input.onclick = () => {
-                window.TEAM_STATE.attendance[name] = (input.value === 'yes');
-                updatePresenceOnServer(name, input.value === 'yes');
+        card.querySelectorAll('input').forEach(radio => {
+            radio.onclick = () => {
+                window.TEAM_STATE.attendance[name] = (radio.value === 'yes');
+                updatePresenceOnServer(name, radio.value === 'yes');
+                updateTeamMeta(window.TEAM_STATE);
             };
         });
+
         listEl.appendChild(card);
     });
+    updateTeamMeta(window.TEAM_STATE);
 }
 
   
@@ -7042,16 +7062,13 @@ async function generateAndSendToExcel() {
     try {
         // A. Card 1: Equipo
         // A. Card 1: Equipo (CORREGIDO)
-        const team = window.TEAM_STATE || { people: [], attendance: {} };
-        const rosterDetails = team.people.map(p => {
-            // Usamos nombre_completo que es lo que guarda el sistema manual y el excel
-            const name = p.nombre_completo || p.name || "Desconocido"; 
-            
-            // Verificamos presencia usando la misma variable name
-            const isP = team.attendance[name] === true;
-            
-            return `${name} (${isP ? "✅" : "❌"})`;
-        }).join(", ") || "Sin datos";
+        const team = window.TEAM_STATE;
+    // MAPEO MANUAL SEGURO: Nombre (✅) o Nombre (❌)
+        const rosterDetails = (team.allPeopleRaw || []).map(p => {
+            const name = p.nombre_completo;
+            const status = team.attendance[name] === true ? "✅" : (team.attendance[name] === false ? "❌" : "➖");
+            return `${name} (${status})`;
+        }).join(", ") || "Sin personal registrado";
 
         // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
