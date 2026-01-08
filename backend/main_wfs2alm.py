@@ -818,42 +818,22 @@ app.add_middleware(
 # -----------------------------------
 # Endpoints API
 # -----------------------------------
+
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
     d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    shift = state.get("shift")
-    
-    # Mezclar con asistencia guardada
-    people = state.get("people", [])
-    key = _att_key(state.get("sheet_date"), shift) if d_iso else None
-    att_map = attendance_store.get(key, {})
-    
-    return {
-        "shift": shift,
-        "sheet": state.get("sheet"),
-        "sheet_date": d_iso,
-        "window": state.get("window"),
-        "people": people,
-        "attendance": att_map,
-        "updated_at": state.get("updated_at")
-    }
+    att_map = attendance_store.get(_att_key(state.get("sheet_date"), state.get("shift")), {})
+    return {"shift": state.get("shift"), "sheet_date": d_iso, "people": state.get("people", []), "attendance": att_map}
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
     state = await _build_roster_state(force=False)
-    d = state.get("sheet_date")
-    s = state.get("shift")
-    if not d or not s: raise HTTPException(400, "No hay turno activo")
-    
-    key = _att_key(d, s)
-    attendance_store.setdefault(key, {})
+    key = _att_key(state.get("sheet_date"), state.get("shift"))
+    if key not in attendance_store: attendance_store[key] = {}
     attendance_store[key][upd.person] = upd.present
-    save_attendance_to_disk()
-    
-    await manager.broadcast({"type":"presence_update","sheet_date":d.isoformat(),"shift":s,"person":upd.person,"present":upd.present})
-    return {"ok": True}
-
+    await manager.broadcast({"type": "presence_update", "person": upd.person, "present": upd.present, "shift": state.get("shift")})
+    return {"status": "ok"}
 @app.get("/api/tasks")
 async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = None):
     items = list(tasks_in_memory_store.values())
