@@ -84,79 +84,69 @@ NAVE_TARGET = "N1"             # <--- Identificador Nave N1
 STATION_CODE_API = "MAD"       # Escala para la API de Personal
 EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS1")
 
-# --- LLAMADA API MADRID (Form-Data) ---
+# --- LLAMADA API MADRID (Igual que tu script de auditoría) ---
 async def fetch_roster_api_mad(fecha: str):
     if not ROSTER_API_URL or not ROSTER_API_KEY: return None
-    payload = {"escala": "MAD", "fecha": fecha}
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    
+    # Payload exacto de tu script de auditoría
+    payload = {
+        "escala": "MAD", 
+        "fecha": fecha
+    }
+    headers = {
+        "api-key": ROSTER_API_KEY, 
+        "Accept": "application/json"
+    }
+    
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # Enviamos como data= para simular un formulario (form-data)
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            # Enviamos como data= (form-data) para que la API responda
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200: return response.json()
-    except Exception as e: print(f"Error API Madrid: {e}")
+            if response.status_code == 200:
+                data = response.json()
+                print(f"📡 API Madrid: Recibidos {len(data)} trabajadores.")
+                return data
+    except Exception as e: 
+        print(f"❌ Error API Madrid: {e}")
     return None
 
-# --- CONFIGURACIÓN AISLADA WFS1 ---
-NAVE_TARGET = "N1"  
-
-def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
-    normalized = []
-    target = target_nave.upper()  # "N1"
-
-    for p in api_data:
-        try:
-            # --- TRIPLE FILTRO N1 (Criterio de tu auditoría) ---
-            cod = str(p.get("codDestino") or "").upper()
-            desc = str(p.get("descDestino") or "").upper()
-            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
-            
-            # Buscamos "N1" en cualquiera de los tres campos clave
-            if target not in cod and target not in desc and target not in grupo:
-                continue
-
-            # --- FILTRO DE TURNO POR HORAS ---
-            raw_inicio = str(p.get("horaInicio") or "")
-            if " " not in raw_inicio: continue
-            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
-            
-            match = False
-            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
-            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
-            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
-
-            if match:
-                raw_fin = p.get("horaFin", "").split(" ")[1] if " " in str(p.get("horaFin")) else ""
-                normalized.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
-                    "horario": f"{raw_inicio.split(' ')[1]} - {raw_fin}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
-                    "is_incidencia": p.get("IsIncidencias", False)
-                })
-        except: continue
-    return normalized
-
-# --- CONSTRUCTOR DE ESTADO ÚNICO ---
+# --- CONSTRUCTOR DE ESTADO (Envía todo al Frontend) ---
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
+    
+    # Traemos TODOS los datos de Madrid
     raw_api = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
     
     people = []
     source = "excel"
+    
     if raw_api and isinstance(raw_api, list):
-        people = filter_mad_people_logic(raw_api, shift, NAVE_TARGET)
+        # NORMALIZACIÓN MÍNIMA: Solo convertimos nombres de campos, no filtramos N1 todavía
+        for p in raw_api:
+            people.append({
+                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                "nomina": p.get("nomina"),
+                "horario": p.get("horaInicio", "00:00").split(" ")[1] if " " in str(p.get("horaInicio")) else "—",
+                "codDestino": str(p.get("codDestino") or ""),
+                "descDestino": str(p.get("descDestino") or ""),
+                "gt": str(p.get("nombreGrupoTrabajo") or ""),
+                "is_incidencia": p.get("IsIncidencias", False)
+            })
         source = "api"
     else:
+        # Fallback a Excel si la API falla
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         if sheet: people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
 
     roster_cache.update({
-        "sheet_date": sdate, "shift": shift, "people": people,
+        "sheet_date": sdate, 
+        "shift": shift, 
+        "people": people, # Aquí va toda la lista de Madrid
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, "source": source
+        "source": source
     })
+    
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
