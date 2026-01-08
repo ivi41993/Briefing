@@ -46,7 +46,7 @@ ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "t
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx")
 
 # === RUTAS DE DATOS ESPECÍFICAS WFS1 ===
-
+STATION_CODE_API = "MAD"
 
 # Configuración GitHub / Almacenamiento
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
