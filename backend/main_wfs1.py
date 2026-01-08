@@ -84,48 +84,79 @@ NAVE_TARGET = "N1"             # <--- Identificador Nave N1
 STATION_CODE_API = "MAD"       # Escala para la API de Personal
 EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS1")
 
-# --- LLAMADA API MADRID (POST FORM-DATA) ---
-async def fetch_roster_api_mad(fecha: str):
-    if not ROSTER_API_URL or not ROSTER_API_KEY: return None
-    
-    # Payload idéntico a tu script de auditoría
-    payload = {"escala": "MAD", "fecha": fecha}
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-    
+# --- 1. LLAMADA API MADRID (CORREGIDA: ENVÍO COMO FORM-DATA) ---
+async def fetch_mad_roster_from_api():
+    """Llamada POST a la API usando Form-Data para traer todo Madrid"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API MAD no configurada.")
+        return None
+
+    # Fecha en formato DD/MM/YYYY como requiere esta API
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    fecha_str = ahora.strftime("%d/%m/%Y")
+
+    payload = {
+        "escala": "MAD", 
+        "fecha": fecha_str
+    }
+    headers = {
+        "api-key": ROSTER_API_KEY, 
+        "Accept": "application/json"
+    }
+
     try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            # Enviamos como data= para que sea Form-Data
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # IMPORTANTE: Usamos 'data=' para enviar como application/x-www-form-urlencoded (Form-Data)
+            # Esto es lo que permite que la API reconozca los parámetros.
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            
             if response.status_code == 200:
-                return response.json() # Retorna el JSON tal cual
-    except Exception as e: 
-        print(f"❌ Error API Madrid: {e}")
+                data = response.json()
+                print(f"✅ API MAD: Recibidos {len(data)} registros brutos.")
+                return data
+            else:
+                print(f"❌ API MAD Error {response.status_code}: {response.text}")
+    except Exception as e:
+        print(f"❌ Error de conexión API MAD: {e}")
     return None
 
-# --- CONSTRUCTOR DE ESTADO (Manda el JSON bruto al Frontend) ---
+# --- 2. CONSTRUCTOR DE ESTADO (MANDA EL JSON COMPLETO AL FRONTEND) ---
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    raw_api_data = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
+    # Traemos a TODOS los de Madrid
+    raw_api_data = await fetch_mad_roster_from_api()
     
-    # Si la API responde, mandamos los datos sin filtrar
+    people = []
+    source = "excel"
+
     if raw_api_data and isinstance(raw_api_data, list):
-        people = raw_api_data 
+        # No filtramos aquí por Nave, mandamos la lista completa para que el Front decida
+        people = raw_api_data
         source = "api"
     else:
-        # Si falla, usamos el Excel local como fallback
+        # Fallback a Excel si la API falla
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
-        source = "excel"
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+            source = "excel"
 
     roster_cache.update({
-        "sheet_date": sdate, "shift": shift, "people": people,
+        "sheet_date": sdate, 
+        "shift": shift, 
+        "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, 
         "source": source
     })
     
-    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    # Emitimos por WebSocket
+    await manager.broadcast({
+        "type": "roster_update", 
+        **roster_cache, 
+        "sheet_date": sdate.isoformat()
+    })
     return roster_cache
 # -----------------------------------
 # Modelos de Datos
