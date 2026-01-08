@@ -38,12 +38,15 @@ NAVE_TARGET = "N2"             # Identificador Nave para Triple Filtro
 
 
 def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
+    """
+    Filtra personal de Madrid buscando la Nave en: codDestino, descDestino y nombreGrupoTrabajo.
+    """
     normalized = []
-    target = target_nave.upper() 
+    target = target_nave.upper() # "N2"
 
     for p in api_data:
         try:
-            # TRIPLE FILTRO: codDestino, descDestino o nombreGrupoTrabajo
+            # --- 1. TRIPLE FILTRO MADRID ---
             cod = str(p.get("codDestino", "")).upper()
             desc = str(p.get("descDestino", "")).upper()
             grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
@@ -51,57 +54,64 @@ def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str
             if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # HORQUILLAS API (Regla de Oro)
+            # --- 2. FILTRO DE TURNO (Horquillas de Entrada API) ---
             raw_inicio = p.get("horaInicio", "")
-            if " " not in raw_inicio: continue
+            if not raw_inicio or " " not in raw_inicio: continue
             
+            # Extraemos la hora (ej: de "08/01/2026 14:00" sacamos el 14)
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            is_m = (4 <= h_inicio < 14)
-            is_t = (14 <= h_inicio < 22)
-            is_n = (h_inicio >= 22 or h_inicio < 4)
+            # Regla de Oro de Horquillas:
+            is_mañana = (4 <= h_inicio < 14)
+            is_tarde  = (14 <= h_inicio < 22)
+            is_noche  = (h_inicio >= 22 or h_inicio < 4)
 
             match = False
-            if current_shift == "Mañana" and is_m: match = True
-            elif current_shift == "Tarde" and is_t: match = True
-            elif current_shift == "Noche" and is_n: match = True
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
 
             if match:
                 raw_fin = p.get("horaFin", "")
-                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
+                    "nomina": p.get("nomina"),
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin_limpia}",
                     "observaciones": p.get("nombreGrupoTrabajo", ""),
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
         except: continue
+            
     return normalized
 
-# --- 3. CONSTRUCTOR DE ESTADO CORREGIDO ---
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # IMPORTANTE: Escala MAD, Fecha hoy
-    raw_api_data = await fetch_roster_api_data("MAD", sdate.strftime("%d/%m/%Y"))
+    # Llamada POST a la API de Personal
+    raw_api_data = await fetch_roster_api_data(STATION_CODE_API, sdate.strftime("%d/%m/%Y"))
     
     people = []
     source = "excel"
 
-    if raw_api_data:
-        # CORRECCIÓN: Usar NAVE_TARGET ("N2")
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        # CORRECCIÓN: Usamos NAVE_TARGET ("N2") y la lógica unificada
         people = filter_mad_people_logic(raw_api_data, shift, NAVE_TARGET)
         source = "api"
     else:
+        # Fallback si la API falla o está vacía
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet: people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
         "window": {"from": start, "to": end}, "source": source
     })
+    
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
