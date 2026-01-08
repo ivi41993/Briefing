@@ -78,35 +78,32 @@ ROSTER_API_URL = os.getenv("ROSTER_API_URL")
 ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 SCALA_API = "MAD"   # Opciones: "MAD", "BCN", "VLC", "ALM"
 NAVE_TARGET = "N1"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/ALM)
-# --- 1. LLAMADA API MADRID (Form-Data) ---
+# --- CONFIGURACIÓN AISLADA WFS1 (MADRID N1) ---
+STATION_NAME = "WFS1"
+NAVE_TARGET = "N1"             # <--- Identificador Nave N1
+STATION_CODE_API = "MAD"       # Escala para la API de Personal
+EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS1")
+
+# --- LLAMADA API MADRID (Form-Data) ---
 async def fetch_roster_api_mad(fecha: str):
-    """Llamada única a la API de personal de Madrid"""
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API Roster no configurada en .env")
-        return None
-    
+    if not ROSTER_API_URL or not ROSTER_API_KEY: return None
     payload = {"escala": "MAD", "fecha": fecha}
     headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             # Enviamos como data= para simular un formulario (form-data)
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200:
-                return response.json()
-            print(f"❌ Error API Roster Madrid: {response.status_code}")
-    except Exception as e:
-        print(f"💥 Error conexión API Madrid: {e}")
+            if response.status_code == 200: return response.json()
+    except Exception as e: print(f"Error API Madrid: {e}")
     return None
 
-# --- 2. TRIPLE FILTRO MADRID (Identificación Nave 2) ---
+# --- TRIPLE FILTRO MADRID (Nave N1) ---
 def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
     normalized = []
-    target = target_nave.upper() # "N2"
-
+    target = target_nave.upper() # "N1"
     for p in api_data:
         try:
-            # TRIPLE FILTRO MADRID
+            # Campos de Madrid para búsqueda robusta
             cod = str(p.get("codDestino") or "").upper()
             desc = str(p.get("descDestino") or "").upper()
             grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
@@ -114,18 +111,15 @@ def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str
             if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # HORQUILLAS DE ENTRADA (Regla de Oro: 04, 14, 22)
+            # Horquillas API: Mañana(04-14), Tarde(14-22), Noche(22-04)
             raw_inicio = str(p.get("horaInicio") or "")
             if " " not in raw_inicio: continue
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
             match = False
-            if current_shift == "Mañana":
-                if 4 <= h_inicio < 14: match = True
-            elif current_shift == "Tarde":
-                if 14 <= h_inicio < 22: match = True
-            elif current_shift == "Noche":
-                if h_inicio >= 22 or h_inicio < 4: match = True
+            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
+            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
+            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
 
             if match:
                 raw_fin = str(p.get("horaFin") or "")
@@ -140,27 +134,20 @@ def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str
         except: continue
     return normalized
 
-# --- 3. CONSTRUCTOR DE ESTADO (Sync Roster) ---
+# --- CONSTRUCTOR DE ESTADO ÚNICO ---
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
-    
-    # Intentar API de Madrid
     raw_api = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
     
     people = []
     source = "excel"
-
     if raw_api and isinstance(raw_api, list):
-        # Filtramos estrictamente por Nave 2
         people = filter_mad_people_logic(raw_api, shift, NAVE_TARGET)
         source = "api"
-        print(f"✅ {STATION_NAME}: Cargadas {len(people)} personas de Nave {NAVE_TARGET}")
     else:
-        # Fallback si la API falla
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+        if sheet: people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
@@ -817,9 +804,16 @@ app.add_middleware(
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
-    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    att_map = attendance_store.get(_att_key(state.get("sheet_date"), state.get("shift")), {})
-    return {"shift": state.get("shift"), "sheet_date": d_iso, "people": state.get("people", []), "attendance": att_map}
+    # Usar la llave de memoria dinámica "YYYY-MM-DD|Turno"
+    key = _att_key(state.get("sheet_date"), state.get("shift"))
+    att_map = attendance_store.get(key, {})
+    
+    return {
+        "shift": state.get("shift"),
+        "sheet_date": state.get("sheet_date").isoformat(),
+        "people": state.get("people", []),
+        "attendance": att_map
+    }
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
