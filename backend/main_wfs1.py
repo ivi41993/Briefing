@@ -97,13 +97,16 @@ async def fetch_roster_api_mad(fecha: str):
     except Exception as e: print(f"Error API Madrid: {e}")
     return None
 
-# --- TRIPLE FILTRO MADRID (Nave N1) ---
+# --- CONFIGURACIÓN AISLADA WFS1 ---
+NAVE_TARGET = "N1"  
+
 def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
     normalized = []
     target = target_nave.upper() # "N1"
+
     for p in api_data:
         try:
-            # Campos de Madrid para búsqueda robusta
+            # 1. TRIPLE FILTRO (Búsqueda en codDestino, descDestino y grupo)
             cod = str(p.get("codDestino") or "").upper()
             desc = str(p.get("descDestino") or "").upper()
             grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
@@ -111,24 +114,28 @@ def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str
             if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # Horquillas API: Mañana(04-14), Tarde(14-22), Noche(22-04)
+            # 2. FILTRO DE TURNO (Horquillas de Entrada API Madrid)
             raw_inicio = str(p.get("horaInicio") or "")
             if " " not in raw_inicio: continue
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
             match = False
-            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
-            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
-            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
+            if current_shift == "Mañana":
+                if 4 <= h_inicio < 14: match = True
+            elif current_shift == "Tarde":
+                if 14 <= h_inicio < 22: match = True
+            elif current_shift == "Noche":
+                if h_inicio >= 22 or h_inicio < 4: match = True
 
             if match:
                 raw_fin = str(p.get("horaFin") or "")
                 h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+                
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
                     "nomina": p.get("nomina"),
                     "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "observaciones": p.get("nombreGrupoTrabajo", ""), # Badge de GT
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
         except: continue
@@ -818,10 +825,21 @@ async def get_roster_current():
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
     state = await _build_roster_state(force=False)
+    # Genera clave única por fecha y turno: "2026-01-08|Tarde"
     key = _att_key(state.get("sheet_date"), state.get("shift"))
-    if key not in attendance_store: attendance_store[key] = {}
+    
+    if key not in attendance_store:
+        attendance_store[key] = {}
+    
     attendance_store[key][upd.person] = upd.present
-    await manager.broadcast({"type": "presence_update", "person": upd.person, "present": upd.present, "shift": state.get("shift")})
+    
+    await manager.broadcast({
+        "type": "presence_update", 
+        "person": upd.person, 
+        "present": upd.present, 
+        "shift": state.get("shift"),
+        "sheet_date": state.get("sheet_date").isoformat()
+    })
     return {"status": "ok"}
 
 @app.get("/api/tasks")
