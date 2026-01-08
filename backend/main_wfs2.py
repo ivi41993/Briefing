@@ -783,8 +783,8 @@ app.add_middleware(
 # ==========================================
 # CAMBIA ESTO SEGÚN LA SEDE:
 SCALA_API = "MAD"   # Opciones: "MAD", "BCN", "VLC", "ALM"
-NAVE_TARGET = "N4"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/ALM)
-STATION_LABEL = "WFS4 MAD" # Etiqueta para el Excel
+NAVE_TARGET = "N2"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/ALM)
+STATION_LABEL = "WFS2 MAD" # Etiqueta para el Excel
 
 # --- Variables de Entorno ---
 ROSTER_API_URL = os.getenv("ROSTER_API_URL")
