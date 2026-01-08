@@ -84,72 +84,49 @@ NAVE_TARGET = "N1"             # <--- Identificador Nave N1
 STATION_CODE_API = "MAD"       # Escala para la API de Personal
 EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS1")
 
-# --- LLAMADA API MADRID (Igual que tu script de auditoría) ---
+# --- LLAMADA API MADRID (POST FORM-DATA) ---
 async def fetch_roster_api_mad(fecha: str):
     if not ROSTER_API_URL or not ROSTER_API_KEY: return None
     
-    # Payload exacto de tu script de auditoría
-    payload = {
-        "escala": "MAD", 
-        "fecha": fecha
-    }
-    headers = {
-        "api-key": ROSTER_API_KEY, 
-        "Accept": "application/json"
-    }
+    # Payload idéntico a tu script de auditoría
+    payload = {"escala": "MAD", "fecha": fecha}
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
     
     try:
         async with httpx.AsyncClient(timeout=25.0) as client:
-            # Enviamos como data= (form-data) para que la API responda
+            # Enviamos como data= para que sea Form-Data
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
             if response.status_code == 200:
-                data = response.json()
-                print(f"📡 API Madrid: Recibidos {len(data)} trabajadores.")
-                return data
+                return response.json() # Retorna el JSON tal cual
     except Exception as e: 
         print(f"❌ Error API Madrid: {e}")
     return None
 
-# --- CONSTRUCTOR DE ESTADO (Envía todo al Frontend) ---
+# --- CONSTRUCTOR DE ESTADO (Manda el JSON bruto al Frontend) ---
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Traemos TODOS los datos de Madrid
-    raw_api = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
+    raw_api_data = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
     
-    people = []
-    source = "excel"
-    
-    if raw_api and isinstance(raw_api, list):
-        # NORMALIZACIÓN MÍNIMA: Solo convertimos nombres de campos, no filtramos N1 todavía
-        for p in raw_api:
-            people.append({
-                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                "nomina": p.get("nomina"),
-                "horario": p.get("horaInicio", "00:00").split(" ")[1] if " " in str(p.get("horaInicio")) else "—",
-                "codDestino": str(p.get("codDestino") or ""),
-                "descDestino": str(p.get("descDestino") or ""),
-                "gt": str(p.get("nombreGrupoTrabajo") or ""),
-                "is_incidencia": p.get("IsIncidencias", False)
-            })
+    # Si la API responde, mandamos los datos sin filtrar
+    if raw_api_data and isinstance(raw_api_data, list):
+        people = raw_api_data 
         source = "api"
     else:
-        # Fallback a Excel si la API falla
+        # Si falla, usamos el Excel local como fallback
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet: people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+        source = "excel"
 
     roster_cache.update({
-        "sheet_date": sdate, 
-        "shift": shift, 
-        "people": people, # Aquí va toda la lista de Madrid
+        "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
         "source": source
     })
     
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
-
 # -----------------------------------
 # Modelos de Datos
 # -----------------------------------
