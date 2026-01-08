@@ -7083,11 +7083,13 @@ async function generateAndSendToExcel() {
     try {
         // DENTRO DE generateAndSendToExcel
         const team = window.TEAM_STATE || { people: [], attendance: {} };
-        const rosterDetails = (team.people || []).map(p => {
+        const rosterDetails = (window.TEAM_STATE.people || []).map(p => {
             const name = p.nombre_completo;
-            const isP = team.attendance[name];
-            let icon = isP === true ? "✅" : (isP === false ? "❌" : "➖");
-            return `${name} (${icon})`;
+            const isP = window.TEAM_STATE.attendance[name];
+            let status = "➖"; 
+            if (isP === true) status = "✅";
+            if (isP === false) status = "❌";
+            return `${name} (${status})`;
         }).join(", ");
 
 
