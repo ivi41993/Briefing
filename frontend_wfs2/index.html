@@ -7081,8 +7081,7 @@ async function generateAndSendToExcel() {
     btn.disabled = true;
 
     try {
-        // A. Card 1: Equipo
-        // A. Card 1: Equipo (CORREGIDO)
+        // DENTRO DE generateAndSendToExcel
         const team = window.TEAM_STATE || { people: [], attendance: {} };
         const rosterDetails = (team.people || []).map(p => {
             const name = p.nombre_completo;
