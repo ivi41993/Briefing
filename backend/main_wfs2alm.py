@@ -31,6 +31,24 @@ from pydantic import BaseModel, Field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
+# --- 1. DEFINIR EL ALMACÉN DE ASISTENCIA (Esto es lo que falta) ---
+attendance_store: dict[str, dict[str, bool]] = {}
+
+# --- 2. FUNCIÓN HELPER PARA LA CLAVE DE ASISTENCIA ---
+def _att_key(d, s):
+    """Genera una clave única como '2026-01-08|Mañana'"""
+    if hasattr(d, 'isoformat'):
+        return f"{d.isoformat()}|{s}"
+    return f"{d}|{s}"
+
+# --- 3. ASEGÚRATE DE TENER EL MODELO PresenceUpdate ---
+class PresenceUpdate(BaseModel):
+    person: str
+    present: bool
+    date: Optional[str] = None
+    shift: Optional[str] = None
+
+
 # --- CONFIGURACIÓN ESPECÍFICA WFS2 ALM (MADRID N2) ---
 STATION_NAME = "WFS2ALM"
 STATION_CODE_API = "MAD"       # Siempre MAD para la API de Personal
