@@ -92,82 +92,97 @@ ENA_USER_AGENT = os.getenv("ENA_USER_AGENT") or os.getenv("ENABLON_USER_AGENT") 
 ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+# --- 1. LLAMADA API MADRID (Form-Data) ---
+async def fetch_roster_api_mad(fecha: str):
+    """Llamada única a la API de personal de Madrid"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API Roster no configurada en .env")
+        return None
+    
+    payload = {"escala": "MAD", "fecha": fecha}
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
 
-def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
-    """
-    Filtra por turno y por identificador de nave (ej: 'N4', 'N3', etc.)
-    """
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Enviamos como data= para simular un formulario (form-data)
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+            print(f"❌ Error API Roster Madrid: {response.status_code}")
+    except Exception as e:
+        print(f"💥 Error conexión API Madrid: {e}")
+    return None
+
+# --- 2. TRIPLE FILTRO MADRID (Identificación Nave 2) ---
+def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
     normalized = []
-    # Convertimos a mayúsculas para comparar sin errores
-    target = target_nave.upper() 
+    target = target_nave.upper() # "N2"
 
     for p in api_data:
         try:
-            # --- FILTRO DE NAVE (Identificación robusta) ---
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            # TRIPLE FILTRO MADRID
+            cod = str(p.get("codDestino") or "").upper()
+            desc = str(p.get("descDestino") or "").upper()
+            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
             
-            # Buscamos el identificador (ej: 'N4') en cualquiera de los 3 campos
             if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # --- FILTRO DE TURNO (HORAS) ---
-            raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio:
-                continue
+            # HORQUILLAS DE ENTRADA (Regla de Oro: 04, 14, 22)
+            raw_inicio = str(p.get("horaInicio") or "")
+            if " " not in raw_inicio: continue
+            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            hora_completa = raw_inicio.split(" ")[1]
-            h_inicio = int(hora_completa.split(":")[0])
-            
-            # Horquillas de turno
-            is_mañana = (4 <= h_inicio < 14)
-            is_tarde  = (14 <= h_inicio < 22)
-            is_noche  = (h_inicio >= 22 or h_inicio < 4)
-
             match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
+            if current_shift == "Mañana":
+                if 4 <= h_inicio < 14: match = True
+            elif current_shift == "Tarde":
+                if 14 <= h_inicio < 22: match = True
+            elif current_shift == "Noche":
+                if h_inicio >= 22 or h_inicio < 4: match = True
 
             if match:
-                raw_fin = p.get("horaFin", "")
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
-
+                raw_fin = str(p.get("horaFin") or "")
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
                     "nomina": p.get("nomina"),
-                    "horario": f"{hora_completa} - {h_fin_limpia}",
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
                     "observaciones": p.get("nombreGrupoTrabajo", ""),
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except:
-            continue
-            
+        except: continue
     return normalized
-    
+
+# --- 3. CONSTRUCTOR DE ESTADO (Sync Roster) ---
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    raw_api_data = await fetch_mad_roster_from_api()
+    # Intentar API de Madrid
+    raw_api = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
+    
     people = []
+    source = "excel"
 
-    if raw_api_data and isinstance(raw_api_data, list):
-        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
-        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
+    if raw_api and isinstance(raw_api, list):
+        # Filtramos estrictamente por Nave 2
+        people = filter_mad_people_logic(raw_api, shift, NAVE_TARGET)
         source = "api"
+        print(f"✅ {STATION_NAME}: Cargadas {len(people)} personas de Nave {NAVE_TARGET}")
     else:
+        # Fallback si la API falla
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
-        source = "excel"
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
         "window": {"from": start, "to": end}, "source": source
     })
-    
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 # -----------------------------------
@@ -799,22 +814,41 @@ app.add_middleware(
 # Endpoints API
 # -----------------------------------
 
+# --- 4. ENDPOINTS DE ROSTER ---
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
-    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    att_map = attendance_store.get(_att_key(state.get("sheet_date"), state.get("shift")), {})
-    return {"shift": state.get("shift"), "sheet_date": d_iso, "people": state.get("people", []), "attendance": att_map}
+    # Generar la llave de asistencia basada en el estado actual
+    key = _att_key(state.get("sheet_date"), state.get("shift"))
+    att_map = attendance_store.get(key, {})
+    
+    return {
+        "shift": state.get("shift"),
+        "sheet_date": state.get("sheet_date").isoformat(),
+        "people": state.get("people", []),
+        "attendance": att_map,
+        "source": state.get("source")
+    }
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
     state = await _build_roster_state(force=False)
+    # Llave dinámica: "2026-01-08|Mañana"
     key = _att_key(state.get("sheet_date"), state.get("shift"))
-    if key not in attendance_store: attendance_store[key] = {}
+    
+    if key not in attendance_store:
+        attendance_store[key] = {}
+    
     attendance_store[key][upd.person] = upd.present
-    await manager.broadcast({"type": "presence_update", "person": upd.person, "present": upd.present, "shift": state.get("shift")})
+    
+    await manager.broadcast({
+        "type": "presence_update", 
+        "person": upd.person, 
+        "present": upd.present, 
+        "shift": state.get("shift"),
+        "sheet_date": state.get("sheet_date").isoformat()
+    })
     return {"status": "ok"}
-
 @app.get("/api/tasks")
 async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = None):
     items = list(tasks_in_memory_store.values())
