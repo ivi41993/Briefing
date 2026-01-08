@@ -834,6 +834,7 @@ async def put_roster_presence(upd: PresenceUpdate):
     attendance_store[key][upd.person] = upd.present
     await manager.broadcast({"type": "presence_update", "person": upd.person, "present": upd.present, "shift": state.get("shift")})
     return {"status": "ok"}
+
 @app.get("/api/tasks")
 async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = None):
     items = list(tasks_in_memory_store.values())
