@@ -74,6 +74,102 @@ ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+SCALA_API = "MAD"   # Opciones: "MAD", "BCN", "VLC", "ALM"
+NAVE_TARGET = "N1"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/ALM)
+# --- 1. LLAMADA API MADRID (Form-Data) ---
+async def fetch_roster_api_mad(fecha: str):
+    """Llamada única a la API de personal de Madrid"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API Roster no configurada en .env")
+        return None
+    
+    payload = {"escala": "MAD", "fecha": fecha}
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Enviamos como data= para simular un formulario (form-data)
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+            print(f"❌ Error API Roster Madrid: {response.status_code}")
+    except Exception as e:
+        print(f"💥 Error conexión API Madrid: {e}")
+    return None
+
+# --- 2. TRIPLE FILTRO MADRID (Identificación Nave 2) ---
+def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
+    normalized = []
+    target = target_nave.upper() # "N2"
+
+    for p in api_data:
+        try:
+            # TRIPLE FILTRO MADRID
+            cod = str(p.get("codDestino") or "").upper()
+            desc = str(p.get("descDestino") or "").upper()
+            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
+            
+            if target not in cod and target not in desc and target not in grupo:
+                continue
+
+            # HORQUILLAS DE ENTRADA (Regla de Oro: 04, 14, 22)
+            raw_inicio = str(p.get("horaInicio") or "")
+            if " " not in raw_inicio: continue
+            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
+            
+            match = False
+            if current_shift == "Mañana":
+                if 4 <= h_inicio < 14: match = True
+            elif current_shift == "Tarde":
+                if 14 <= h_inicio < 22: match = True
+            elif current_shift == "Noche":
+                if h_inicio >= 22 or h_inicio < 4: match = True
+
+            if match:
+                raw_fin = str(p.get("horaFin") or "")
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except: continue
+    return normalized
+
+# --- 3. CONSTRUCTOR DE ESTADO (Sync Roster) ---
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # Intentar API de Madrid
+    raw_api = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
+    
+    people = []
+    source = "excel"
+
+    if raw_api and isinstance(raw_api, list):
+        # Filtramos estrictamente por Nave 2
+        people = filter_mad_people_logic(raw_api, shift, NAVE_TARGET)
+        source = "api"
+        print(f"✅ {STATION_NAME}: Cargadas {len(people)} personas de Nave {NAVE_TARGET}")
+    else:
+        # Fallback si la API falla
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
+
 # -----------------------------------
 # Modelos de Datos
 # -----------------------------------
