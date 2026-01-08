@@ -3124,7 +3124,7 @@ function renderRoster(listEl, people, state) {
     const meta = document.getElementById('team-meta');
     const presentCount = Object.values(window.TEAM_STATE.attendance).filter(v => v === true).length;
     if(meta) meta.textContent = `${window.TEAM_STATE.shift} • N1: ${peopleInN1.length} en equipo • ${presentCount} presentes`;
-}  
+
 
 // --- 1. CONFIGURACIÓN E IDENTIDAD WFS1 ---
 window.STATION_OVERRIDE = 'WFS1';
