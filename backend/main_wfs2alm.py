@@ -35,30 +35,48 @@ from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, Br
 STATION_NAME = "WFS2ALM"
 STATION_CODE_API = "MAD"       # Siempre MAD para la API de Personal
 NAVE_TARGET = "N2"             # Identificador Nave para Triple Filtro
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 
 
+# --- 1. LLAMADA API (Form-Data) ---
+async def fetch_roster_api_data(escala: str, fecha: str):
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API no configurada en .env")
+        return None
+    
+    # IMPORTANTE: Se envía como data= (form-data), no como json=
+    payload = {"escala": escala, "fecha": fecha}
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
 
-# --- FUNCIÓN DE FILTRADO AGRESIVA ---
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+            print(f"❌ Error API Roster: {response.status_code}")
+    except Exception as e:
+        print(f"💥 Fallo conexión API: {e}")
+    return None
+
+# --- 2. TRIPLE FILTRO MADRID (Nave N2) ---
 def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
     normalized = []
     target = target_nave.upper() # "N2"
 
     for p in api_data:
         try:
-            # 1. TRIPLE FILTRO (Buscamos N2 en cualquier campo de destino)
+            # Búsqueda en los 3 campos de Madrid
             cod = str(p.get("codDestino") or "").upper()
             desc = str(p.get("descDestino") or "").upper()
             grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
             
-            # Si "N2" no aparece en ninguno de estos campos, saltamos al siguiente
             if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # 2. LÓGICA DE HORQUILLAS DE ENTRADA (Regla de Oro)
+            # Horquillas de Entrada (Regla de Oro Madrid)
             raw_inicio = str(p.get("horaInicio") or "")
             if " " not in raw_inicio: continue
-            
-            # Sacamos la hora de inicio (ej: "07")
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
             match = False
@@ -72,10 +90,8 @@ def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str
             if match:
                 raw_fin = str(p.get("horaFin") or "")
                 h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
-                
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
                     "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
                     "observaciones": p.get("nombreGrupoTrabajo", ""),
                     "is_incidencia": p.get("IsIncidencias", False)
@@ -83,81 +99,34 @@ def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str
         except: continue
     return normalized
 
-# --- LLAMADA A LA API CORREGIDA ---
-async def fetch_roster_api_data(escala: str, fecha: str):
-    url = os.getenv("ROSTER_API_URL")
-    key = os.getenv("ROSTER_API_KEY")
-    if not url or not key: return None
-    
-    # Payload exacto requerido por el sistema de personal
-    payload = {"escala": escala, "fecha": fecha}
-    headers = {"api-key": key, "Accept": "application/json"}
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # Importante: data=payload envía como form-data (requerido por esta API)
-            response = await client.post(url, headers=headers, data=payload)
-            if response.status_code == 200:
-                return response.json()
-    except Exception as e:
-        print(f"Error API: {e}")
-    return None
-
-# --- CONSTRUCTOR DE ESTADO ---
+# --- 3. CONSTRUCTOR DE ESTADO (Unificado) ---
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Llamamos a la API con escala MAD y fecha actual
-    raw_data = await fetch_roster_api_data("MAD", sdate.strftime("%d/%m/%Y"))
+    # Paso 1: Intentar API
+    api_date = sdate.strftime("%d/%m/%Y")
+    raw_api = await fetch_roster_api_data("MAD", api_date)
     
     people = []
     source = "excel"
 
-    if raw_data and isinstance(raw_data, list):
-        people = filter_mad_people_logic(raw_data, shift, NAVE_TARGET)
+    if raw_api and isinstance(raw_api, list) and len(raw_api) > 0:
+        people = filter_mad_people_logic(raw_api, shift, NAVE_TARGET)
         source = "api"
-        print(f"✅ {STATION_NAME}: {len(people)} personas encontradas en Nave {NAVE_TARGET}")
+        print(f"✅ {STATION_NAME}: {len(people)} personas en {NAVE_TARGET} ({shift})")
     else:
-        # Fallback a Excel si la API no responde
+        # Paso 2: Fallback Excel
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         if sheet:
             people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+            source = "excel"
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
         "window": {"from": start, "to": end}, "source": source
     })
-    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
-    return roster_cache
-
-async def _build_roster_state(force=False) -> dict:
-    now = _now_local()
-    shift, sdate, start, end = _current_shift_info(now)
-    
-    # Llamada POST a la API de Personal
-    raw_api_data = await fetch_roster_api_data(STATION_CODE_API, sdate.strftime("%d/%m/%Y"))
-    
-    people = []
-    source = "excel"
-
-    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
-        # CORRECCIÓN: Usamos NAVE_TARGET ("N2") y la lógica unificada
-        people = filter_mad_people_logic(raw_api_data, shift, NAVE_TARGET)
-        source = "api"
-    else:
-        # Fallback si la API falla o está vacía
-        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
-
-    roster_cache.update({
-        "sheet_date": sdate, "shift": shift, "people": people,
-        "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, "source": source
-    })
-    
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
