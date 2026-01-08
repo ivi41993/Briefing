@@ -30,6 +30,57 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+
+# --- CONFIGURACIÓN ESPECÍFICA WFS2 ALM (MADRID N2) ---
+STATION_NAME = "WFS2ALM"
+STATION_CODE_API = "MAD"       # Siempre MAD para la API de Personal
+NAVE_TARGET = "N2"             # Identificador Nave para Triple Filtro
+EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS2ALM")
+
+def filter_people_logic(api_data: list, current_shift: str, target: str):
+    normalized = []
+    target_up = target.upper() # "N2"
+    
+    for p in api_data:
+        try:
+            # --- TRIPLE FILTRO (Madrid N2) ---
+            cod = str(p.get("codDestino") or "").upper()
+            desc = str(p.get("descDestino") or "").upper()
+            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
+            
+            # Buscamos 'N2' en los tres campos clave
+            if target_up not in cod and target_up not in desc and target_up not in grupo:
+                continue
+
+            # --- FILTRO DE TURNO (Horquillas de entrada API) ---
+            raw_inicio = str(p.get("horaInicio") or "")
+            if " " not in raw_inicio: continue
+            
+            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
+            
+            # Regla de Oro: Mañana(04-14), Tarde(14-22), Noche(22-04)
+            is_m = (4 <= h_inicio < 14)
+            is_t = (14 <= h_inicio < 22)
+            is_n = (h_inicio >= 22 or h_inicio < 4)
+
+            match = False
+            if current_shift == "Mañana" and is_m: match = True
+            elif current_shift == "Tarde" and is_t: match = True
+            elif current_shift == "Noche" and is_n: match = True
+
+            if match:
+                raw_fin = str(p.get("horaFin") or "")
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+                
+                normalized.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except: continue
+    return normalized
+
 # --- 1. DEFINIR EL ALMACÉN DE ASISTENCIA (Esto es lo que falta) ---
 attendance_store: dict[str, dict[str, bool]] = {}
 
