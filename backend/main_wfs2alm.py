@@ -35,30 +35,28 @@ from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, Br
 STATION_NAME = "WFS2ALM"
 STATION_CODE_API = "MAD"       # Siempre MAD para la API de Personal
 NAVE_TARGET = "N2"             # Identificador Nave para Triple Filtro
-EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS2ALM")
 
-def filter_people_logic(api_data: list, current_shift: str, target: str):
+
+def filter_mad_people_logic(api_data: list, current_shift: str, target_nave: str):
     normalized = []
-    target_up = target.upper() # "N2"
-    
+    target = target_nave.upper() 
+
     for p in api_data:
         try:
-            # --- TRIPLE FILTRO (Madrid N2) ---
-            cod = str(p.get("codDestino") or "").upper()
-            desc = str(p.get("descDestino") or "").upper()
-            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
+            # TRIPLE FILTRO: codDestino, descDestino o nombreGrupoTrabajo
+            cod = str(p.get("codDestino", "")).upper()
+            desc = str(p.get("descDestino", "")).upper()
+            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
             
-            # Buscamos 'N2' en los tres campos clave
-            if target_up not in cod and target_up not in desc and target_up not in grupo:
+            if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # --- FILTRO DE TURNO (Horquillas de entrada API) ---
-            raw_inicio = str(p.get("horaInicio") or "")
+            # HORQUILLAS API (Regla de Oro)
+            raw_inicio = p.get("horaInicio", "")
             if " " not in raw_inicio: continue
             
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            # Regla de Oro: Mañana(04-14), Tarde(14-22), Noche(22-04)
             is_m = (4 <= h_inicio < 14)
             is_t = (14 <= h_inicio < 22)
             is_n = (h_inicio >= 22 or h_inicio < 4)
@@ -69,9 +67,8 @@ def filter_people_logic(api_data: list, current_shift: str, target: str):
             elif current_shift == "Noche" and is_n: match = True
 
             if match:
-                raw_fin = str(p.get("horaFin") or "")
+                raw_fin = p.get("horaFin", "")
                 h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
-                
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
                     "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
@@ -80,6 +77,33 @@ def filter_people_logic(api_data: list, current_shift: str, target: str):
                 })
         except: continue
     return normalized
+
+# --- 3. CONSTRUCTOR DE ESTADO CORREGIDO ---
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # IMPORTANTE: Escala MAD, Fecha hoy
+    raw_api_data = await fetch_roster_api_data("MAD", sdate.strftime("%d/%m/%Y"))
+    
+    people = []
+    source = "excel"
+
+    if raw_api_data:
+        # CORRECCIÓN: Usar NAVE_TARGET ("N2")
+        people = filter_mad_people_logic(raw_api_data, shift, NAVE_TARGET)
+        source = "api"
+    else:
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        if sheet: people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
 
 # --- 1. DEFINIR EL ALMACÉN DE ASISTENCIA (Esto es lo que falta) ---
 attendance_store: dict[str, dict[str, bool]] = {}
