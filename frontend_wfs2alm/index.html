@@ -3411,8 +3411,17 @@ function initEhsSimple(){
     render();
 }
 
-/* Equipo (roster) */
-let TEAM_STATE = null; // cache de estado actual {shift, sheet_date, window, people, attendance, ...}
+// --- CONFIGURACIÓN E ISOLACIÓN WFS2 ALM ---
+window.STATION_OVERRIDE = 'WFS2ALM';
+
+window.TEAM_STATE = window.TEAM_STATE || { 
+    attendance: {}, 
+    zones: {}, 
+    allPeopleRaw: [], 
+    people: [], 
+    sheet_date: new Date().toISOString().slice(0,10), 
+    shift: null 
+};
 
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
@@ -3511,7 +3520,10 @@ window.TEAM_STATE = window.TEAM_STATE || {
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
+
+    // Sincronización con el almacén maestro global
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
     listEl.innerHTML = '';
@@ -3523,33 +3535,27 @@ function renderRoster(listEl, people, state) {
 
         const card = document.createElement('div');
         card.className = 'team-row';
-        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid #10b981; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
+        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid #10b981; background:#fff;`;
 
         card.innerHTML = `
             <div>
-                <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${esc(name)}</div>
-                <div style="display:flex; gap:6px; margin-top:4px;">
-                    <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario)}</span>
-                    <span style="font-size:0.65rem; background:#e0f2f1; color:#00695c; padding:1px 5px; border-radius:4px; font-weight:800;">${esc(p.observaciones)}</span>
-                </div>
+                <div style="font-weight:800;">${esc(name)}</div>
+                <div style="font-size:0.75rem; color:#64748b;">🕒 ${esc(p.horario)} | ${esc(p.observaciones)}</div>
             </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
-                <div class="presence-toggle">
-                    <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                    <label for="y_${safeId}" class="yes">✓ OK</label>
-                    <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                    <label for="n_${safeId}" class="no">✕</label>
-                </div>
+            <div class="presence-toggle" style="margin-top:10px;">
+                <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                <label for="y_${safeId}" class="yes">✓ OK</label>
+                <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                <label for="n_${safeId}" class="no">✕</label>
             </div>
         `;
 
-        card.querySelectorAll('input').forEach(radio => {
-            radio.onclick = () => {
-                window.TEAM_STATE.attendance[name] = (radio.value === 'yes');
-                updatePresenceOnServer(name, radio.value === 'yes');
+        card.querySelectorAll('input').forEach(input => {
+            input.onclick = () => {
+                window.TEAM_STATE.attendance[name] = (input.value === 'yes');
+                updatePresenceOnServer(name, input.value === 'yes');
             };
         });
-
         listEl.appendChild(card);
     });
 }
@@ -4782,16 +4788,17 @@ async function loadBoardsInitial(){
 
   // ——— 2 frases aleatorias por turno (persisten por día+turno) ———
   function currentShiftLabel(){
-    // Usa el shift del roster si está cargado
-    const shift = (window.TEAM_STATE && TEAM_STATE.shift) ? TEAM_STATE.shift : null;
-    if (shift) return shift; // p.ej. "Mañana" / "Tarde" / "Noche" si lo pones así
-
-    // Si no hay TEAM_STATE.shift, aproximamos por hora:
+    // 1. Intentar usar el turno oficial del sistema
+    if (window.TEAM_STATE && window.TEAM_STATE.shift) {
+        return window.TEAM_STATE.shift;
+    }
+    
+    // 2. Fallback: Si el sistema aún no ha cargado el roster, calcular por hora actual
     const h = new Date().getHours();
     if (h >= 6 && h < 14) return 'Mañana';
     if (h >= 14 && h < 22) return 'Tarde';
     return 'Noche';
-  }
+}
 
   function pickTwoStable(){
     const shift = currentShiftLabel();
