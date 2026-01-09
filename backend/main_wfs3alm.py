@@ -315,6 +315,17 @@ class BriefingSnapshot(BaseModel):
 # Persistencia
 tasks_in_memory_store: Dict[str, Any] = {}
 manual_persons_store: Dict[str, Any] = {}
+def _find_sheet_for_date(xlsx_path: str, desired: date) -> tuple[str | None, list[str]]:
+    names = _list_sheet_names(xlsx_path)
+    if not names: return None, []
+    parsed = [(n, _parse_sheet_date(n)) for n in names]
+    for n, dte in parsed:
+        if dte == desired: return n, names
+    futures = sorted([(dte, n) for n, dte in parsed if dte and dte >= desired], key=lambda x: x[0])
+    pasts   = sorted([(dte, n) for n, dte in parsed if dte and dte <  desired], key=lambda x: x[0], reverse=True)
+    if futures: return futures[0][1], names
+    if pasts: return pasts[0][1], names
+    return None, names
 
 def _atomic_write_json(path: str, data: Any):
     p = Path(path)
