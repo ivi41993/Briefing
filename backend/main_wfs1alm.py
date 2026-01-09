@@ -565,29 +565,7 @@ def _current_shift_info(now):
     sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY and hhmm < "06:00" else now.date()
     return "Noche", sheet_date, "22:00", "06:00"
 
-async def _build_roster_state(force=False):
-    # Lógica simplificada para no extender demasiado
-    now = _now_local()
-    shift, sdate, start, end = _current_shift_info(now)
-    
-    # Si ya tenemos datos en memoria para este turno, retornamos
-    if not force and roster_cache.get("shift") == shift and roster_cache.get("sheet_date") == sdate:
-        return roster_cache
 
-    sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-    people = []
-    if sheet:
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
-    
-    roster_cache.update({
-        "sheet_date": sdate, "shift": shift, "people": people, "sheet": sheet,
-        "updated_at": datetime.utcnow().isoformat()+"Z",
-        "window": {"from": start, "to": end}
-    })
-    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
-    return roster_cache
-
-def _att_key(d, s): return f"{d.isoformat()}|{s}"
 
 # -----------------------------------
 # Enablon & External (Simplificado)
@@ -726,45 +704,184 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------------
-# Endpoints API
-# -----------------------------------
+async def fetch_mad_roster_from_api():
+    """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API MAD no configurada.")
+        return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    payload = {
+        "escala": "MAD",
+        "fecha": ahora.strftime("%d/%m/%Y")
+    }
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"❌ Error API MAD: {e}")
+    return None
+
+# --- FILTRO ROBUSTO CON PROTECCIÓN CONTRA STRINGS ---
+
+def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
+    """
+    Filtra por turno y por identificador de nave (N1)
+    """
+    normalized = []
+    
+    # PROTECCIÓN: Si api_data no es una lista (es un string de error o None), cancelamos
+    if not isinstance(api_data, list):
+        print(f"⚠️ Advertencia: api_data no es una lista. Valor recibido: {api_data}")
+        return []
+
+    target = target_nave.upper() # "N1"
+
+    for p in api_data:
+        # PROTECCIÓN EXTRA: Si el elemento de la lista no es un diccionario, lo saltamos
+        if not isinstance(p, dict):
+            continue
+            
+        try:
+            # Extraemos la información del objeto 'nomina'
+            item = p.get("nomina")
+            if not isinstance(item, dict):
+                item = p # Por si la API devuelve el objeto plano en lugar de anidado
+            
+            # --- 1. FILTRO DE NAVE (Identificación N1) ---
+            cod = str(item.get("codDestino") or "").upper()
+            desc = str(item.get("descDestino") or "").upper()
+            grupo = str(item.get("nombreGrupoTrabajo") or "").upper()
+            
+            # Buscamos "N1" o "NAVE 1"
+            if target not in cod and "NAVE 1" not in desc and target not in grupo:
+                continue
+
+            # --- 2. FILTRO DE TURNO (Lógica horquillas exacta N4) ---
+            raw_inicio = item.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio:
+                continue
+            
+            # Extraer HH:mm
+            hora_completa = raw_inicio.split(" ")[1]
+            h_inicio_int = int(hora_completa.split(":")[0])
+            
+            # Rango de turnos
+            is_mañana = (4 <= h_inicio_int < 14)
+            is_tarde  = (14 <= h_inicio_int < 22)
+            is_noche  = (h_inicio_int >= 22 or h_inicio_int < 4)
+
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
+
+            if match:
+                raw_fin = item.get("horaFin", "")
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else "??:??"
+
+                normalized.append({
+                    "nombre_completo": item.get("nombreApellidos", "Sin Nombre"),
+                    "horario": f"{hora_completa} - {h_fin_limpia}",
+                    "grupo": item.get("nombreGrupoTrabajo", "GENERAL"),
+                    "observaciones": item.get("descDestino") or "NAVE 1"
+                })
+        except Exception as e:
+            # Si un trabajador falla, seguimos con el siguiente sin romper el deploy
+            print(f"❌ Error procesando un trabajador: {e}")
+            continue
+            
+    return normalized
+
+# Constructor de estado actualizado
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    raw_api_data = await fetch_mad_roster_from_api()
+    people = []
+    source = "ninguno"
+
+    # Verificamos que la API haya devuelto algo útil
+    if raw_api_data and isinstance(raw_api_data, list):
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N1")
+        source = "api"
+    
+    # Fallback si no hay gente en la API o falló
+    if not people:
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+            source = "excel"
+
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
+
+
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
+
+    # Si hay persistencia para esa fecha/turno, sirve desde ahí
     d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    shift = state.get("shift")
-    
-    # Mezclar con asistencia guardada
-    people = state.get("people", [])
-    key = _att_key(state.get("sheet_date"), shift) if d_iso else None
-    att_map = attendance_store.get(key, {})
-    
+    sh = state.get("shift")
+    if d_iso and sh and d_iso in roster_store:
+        rec = roster_store[d_iso]
+        people = rec.get("by_shift", {}).get(sh, [])
+        return {
+            "shift": sh,
+            "sheet": rec.get("sheet"),
+            "sheet_date": d_iso,
+            "window": state.get("window"),
+            "people": people,
+            "updated_at": rec.get("saved_at") or state.get("updated_at"),
+            "attendance": state.get("attendance", {}),
+            "source": "store"
+        }
+
+    # Fallback al Excel/cálculo en caliente
     return {
-        "shift": shift,
+        "shift": state.get("shift"),
         "sheet": state.get("sheet"),
-        "sheet_date": d_iso,
+        "sheet_date": state.get("sheet_date").isoformat() if state.get("sheet_date") else None,
         "window": state.get("window"),
-        "people": people,
-        "attendance": att_map,
-        "updated_at": state.get("updated_at")
+        "people": state.get("people", []),
+        "updated_at": state.get("updated_at"),
+        "attendance": state.get("attendance", {}),
+        "source": "excel"
     }
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
     state = await _build_roster_state(force=False)
-    d = state.get("sheet_date")
-    s = state.get("shift")
-    if not d or not s: raise HTTPException(400, "No hay turno activo")
+    key = f"{state.get('sheet_date').isoformat()}|{state.get('shift')}"
     
-    key = _att_key(d, s)
-    attendance_store.setdefault(key, {})
+    if key not in attendance_store:
+        attendance_store[key] = {}
+    
     attendance_store[key][upd.person] = upd.present
+    
+    # IMPORTANTE: Guardar en SQL después de cada cambio
     save_attendance_to_disk()
     
-    await manager.broadcast({"type":"presence_update","sheet_date":d.isoformat(),"shift":s,"person":upd.person,"present":upd.present})
-    return {"ok": True}
-
+    await manager.broadcast({
+        "type": "presence_update", 
+        "person": upd.person, 
+        "present": upd.present,
+        "shift": state.get("shift"),
+        "sheet_date": state.get("sheet_date").isoformat()
+    })
+    return {"status": "ok"}
 @app.get("/api/tasks")
 async def list_tasks(task_type: Optional[str] = None, station: Optional[str] = None):
     items = list(tasks_in_memory_store.values())
