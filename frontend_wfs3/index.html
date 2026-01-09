@@ -2368,7 +2368,7 @@ body.card-open #timer-reset {
     <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictar nombre">
         🎙️
     </button>
-    <button class="btn-primary" type="button">Generar Resumen</button>
+    <button id="btn-generate-summary" class="btn-primary" type="button" disabled style="opacity: 0.5; cursor: not-allowed;">Generar Resumen</button>
 </div>
 </header>
 
@@ -3110,14 +3110,14 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
   /* ===== Cronómetro Header (Con botón Comenzar) ===== */
 /* ===== Cronómetro Header (Con botón Comenzar) ===== */
 (function(){
-    // Ahora la llave será única, por ejemplo: header_big_timer_WFS1ALM_v1
-    const KEY = 'header_big_timer_' + (window.STATION_OVERRIDE || 'GENERIC') + '_v1';
-    let running=false, startedAt=0, elapsed=0, tick=null;
+    const KEY = 'header_big_timer_v1';
+    let running = false, startedAt = 0, elapsed = 0, tick = null;
 
+    // Elementos
     const display = document.getElementById('timer-display');
     const resetBtn = document.getElementById('timer-reset');
-    const startBtn = document.getElementById('timer-start-btn'); // NUEVO
-    const widget = document.getElementById('timer-widget');
+    const startBtn = document.getElementById('timer-start-btn');
+    const summaryBtn = document.getElementById('btn-generate-summary'); // El botón que queremos bloquear
 
     function fmt(ms){
         const t = Math.floor(ms/1000);
@@ -3127,19 +3127,28 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
         return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
 
-    function paint(){
-        display.textContent = fmt(running ? Date.now()-startedAt : elapsed);
-        // Si quieres parpadeo rojo > 4 min
-        if ((running ? Date.now()-startedAt : elapsed) > 240000) {
-            display.classList.add('alert-mode');
-            display.style.color = '#dc2626';
+    function updateSummaryButton(hasTime) {
+        if (!summaryBtn) return;
+        if (hasTime) {
+            summaryBtn.disabled = false;
+            summaryBtn.style.opacity = "1";
+            summaryBtn.style.cursor = "pointer";
         } else {
-            display.classList.remove('alert-mode');
-            display.style.color = '';
+            summaryBtn.disabled = true;
+            summaryBtn.style.opacity = "0.5";
+            summaryBtn.style.cursor = "not-allowed";
         }
     }
 
-    function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch{} }
+    function paint(){
+        const currentTime = running ? Date.now() - startedAt : elapsed;
+        display.textContent = fmt(currentTime);
+        
+        // Si hay tiempo contado (> 0), habilitamos el botón de resumen
+        if (currentTime > 0) updateSummaryButton(true);
+    }
+
+    function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch(e){} }
     
     function load(){
         try{
@@ -3153,7 +3162,8 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
                 elapsed = Math.max(elapsed, now-startedAt);
                 startedAt = now - elapsed;
             }
-        }catch{}
+            if (elapsed > 0 || running) updateSummaryButton(true);
+        }catch(e){}
     }
 
     function start(){
@@ -3161,12 +3171,9 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
         running = true;
         startedAt = Date.now() - elapsed;
         tick = setInterval(paint, 250);
-        paint(); save();
-        
-        // --- CAMBIO SOLICITADO: Abrir Checklist al comenzar ---
-        if(window.navTo) window.navTo('team-widget');
-        
         if(startBtn) startBtn.style.display = 'none';
+        updateSummaryButton(true); // Habilitar al comenzar
+        save();
     }
 
     function pause(){
@@ -3174,30 +3181,30 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
         running = false;
         elapsed = Date.now() - startedAt;
         clearInterval(tick); tick=null;
-        paint(); save();
         if(startBtn) {
             startBtn.style.display = 'inline-block';
             startBtn.textContent = 'Continuar';
         }
+        save();
     }
 
     function reset(){
+        if(!confirm("¿Reiniciar cronómetro? Esto bloqueará el resumen hasta que vuelvas a comenzar.")) return;
         running = false; startedAt = 0; elapsed = 0;
-        clearInterval(tick); tick=null;
-        paint(); save();
-        display.style.color = '';
+        clearInterval(tick); tick = null;
+        display.textContent = "00:00:00";
         if(startBtn) {
             startBtn.style.display = 'inline-block';
             startBtn.textContent = 'Comenzar';
         }
+        updateSummaryButton(false); // Bloquear al reiniciar
+        save();
     }
 
-    // Eventos
     display?.addEventListener('click', ()=> (running ? pause() : start()));
     resetBtn?.addEventListener('click', reset);
-    startBtn?.addEventListener('click', start); // Evento del botón verde
+    startBtn?.addEventListener('click', start);
 
-    // Exponer globalmente
     window.resetFactoryTimer = reset;
 
     window.initHeaderTimer = function(){
@@ -7078,7 +7085,15 @@ window.markOkAndNext = function(checkName, nextId) {
    3. GENERAR RESUMEN (MAPEADO EXACTO PARA MADRID - FIX 422)
    ========================================================= */
 async function generateAndSendToExcel() {
-    const btn = document.querySelector('header .header-controls .btn-primary');
+    const timerText = document.getElementById('timer-display').textContent;
+    
+    // Si el cronómetro está en cero, no dejar avanzar (aunque se hackee el botón)
+    if (timerText === "00:00:00") {
+        alert("⚠️ Es obligatorio iniciar el cronómetro (Botón Comenzar) antes de generar el resumen.");
+        return;
+    }
+
+    const btn = document.getElementById('btn-generate-summary');
     const supInput = document.getElementById('briefing-supervisor');
     
     if (!supInput || !supInput.value.trim()) {
