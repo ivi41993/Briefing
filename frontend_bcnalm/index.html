@@ -2465,7 +2465,6 @@ function renderRoster(listEl, people, state) {
     if (!listEl) return;
     if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
-    // --- 1. DEFINICIÓN DE PERSONAS PERMITIDAS (Whitelisting) ---
     const NOMBRES_PERMITIDOS = [
         "Gonzalez Ahumada, Fabian", "Gonzalez Da Aparecida, Cristian", "Guirao Martinez, Jonatan",
         "Martin Alba, Cristian", "Martinez Ballinoto, Erik", "Martinez Bernal, Mario",
@@ -2504,16 +2503,23 @@ function renderRoster(listEl, people, state) {
         "Khadre Diop, Abdou", "Ruiz Gracia, Tomàs"
     ];
 
-    // Guardar lista maestra
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-
     const masterList = window.TEAM_STATE.allPeopleRaw;
+
     if (!masterList || masterList.length === 0) {
         listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal BCN...</div>';
         return;
     }
 
-    // --- CONFIGURACIÓN DE TURNO ACTUAL ---
+    // --- FUNCIÓN DE LIMPIEZA DE TEXTO (Quita acentos y comas) ---
+    const limpiarTexto = (str) => {
+        return str.normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .replace(/,/g, "")
+                  .toLowerCase()
+                  .trim();
+    };
+
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
@@ -2525,15 +2531,19 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // --- DOBLE FILTRADO: POR NOMBRE Y POR HORQUILLA ---
+    // --- FILTRADO DOBLE: NOMBRE (FLEXIBLE) + HORQUILLA ---
     const filteredPeople = masterList.filter(p => {
-        // A. Filtro de Nombre
-        const nombreLimpio = (p.nombre_completo || "").trim().toLowerCase();
-        const estaEnLista = NOMBRES_PERMITIDOS.some(n => n.trim().toLowerCase() === nombreLimpio);
+        const nombreAPI = limpiarTexto(p.nombre_completo || "");
         
-        if (!estaEnLista) return false; // Si no está en la lista blanca, lo descartamos directamente
+        // Comprobar si todas las palabras de algun nombre de la lista blanca están en el nombre de la API
+        const estaEnLista = NOMBRES_PERMITIDOS.some(nombrePermitido => {
+            const palabrasPermitidas = limpiarTexto(nombrePermitido).split(/\s+/);
+            // Verificamos que cada apellido y nombre de la lista blanca esté en el string de la API
+            return palabrasPermitidas.every(palabra => nombreAPI.includes(palabra));
+        });
 
-        // B. Filtro de Horquilla (Tu lógica original)
+        if (!estaEnLista) return false;
+
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true;
         const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
