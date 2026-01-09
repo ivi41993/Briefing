@@ -7100,12 +7100,14 @@ async function generateAndSendToExcel() {
         // A. Card 1: Equipo (CORREGIDO)
        // --- DENTRO DEL EVENTO CLICK DEL BOTÓN GENERAR RESUMEN ---
         const team = window.TEAM_STATE || { people: [], attendance: {} };
-        const rosterList = (team.people || []).map(p => {
-            const name = p.nombre_completo;
-            const isPresent = team.attendance[name];
-            let statusIcon = isPresent === true ? "✅" : (isPresent === false ? "❌" : "➖");
-            return `${name} (${statusIcon})`;
-        }).join(", ");
+        const rosterDetails = (team.people || []).map(p => {
+            const name = p.nombre_completo || "Desconocido";
+            const isP = team.attendance[name];
+            let status = "➖"; // No marcado
+            if (isP === true) status = "✅";
+            if (isP === false) status = "❌";
+            return `${name} (${status})`;
+        }).join(", ") || "Sin datos de personal";
 
         // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
