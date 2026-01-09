@@ -74,7 +74,14 @@ ENA_USER_AGENT = os.getenv("ENA_USER_AGENT") or os.getenv("ENABLON_USER_AGENT") 
 ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
-
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+SCALA_API = "MAD"   # Opciones: "MAD", "BCN", "VLC", "ALM"
+NAVE_TARGET = "N1"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/ALM)
+# --- CONFIGURACIÓN AISLADA WFS1 (MADRID N1) ---
+STATION_NAME = "WFS1"
+NAVE_TARGET = "N1"             # <--- Identificador Nave N1
+STATION_CODE_API = "MAD"       # Escala para la API de Personal
 # -----------------------------------
 # Modelos de Datos
 # -----------------------------------
