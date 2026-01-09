@@ -733,121 +733,115 @@ app.add_middleware(
 # -----------------------------------
 # ... (mantén tus imports anteriores)
 
-# --- 1. FUNCIÓN DE LLAMADA A API (MEJORADA) ---
+# --- LOGICA DE EXTRACCIÓN ROBUSTA (MADRID N1) ---
+
 async def fetch_mad_roster_from_api():
-    """
-    Llamada POST a la API de Madrid. 
-    Usa 'data=payload' para enviar Form-Data como en tu prueba de VSC.
-    """
+    """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
     url = os.getenv("ROSTER_API_URL")
     api_key = os.getenv("ROSTER_API_KEY")
     
     if not url or not api_key:
-        print("⚠️ ROSTER_API_URL o ROSTER_API_KEY no configuradas en .env")
+        print("⚠️ ROSTER_API_URL o ROSTER_API_KEY no configuradas")
         return None
 
-    # Fecha en formato DD/MM/YYYY
-    ahora = datetime.now(ZoneInfo(ROSTER_TZ))
-    fecha_api = ahora.strftime("%d/%m/%Y")
-
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
     payload = {
-        "escala": STATION_CODE_API, # "MAD"
-        "fecha": fecha_api
+        "escala": "MAD",
+        "fecha": ahora.strftime("%d/%m/%Y")
     }
-    headers = {
-        "api-key": api_key,
-        "Accept": "application/json"
-    }
+    headers = {"api-key": api_key, "Accept": "application/json"}
 
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            # Importante: 'data=' envía application/x-www-form-urlencoded
+            # Enviamos como data=payload para emular Form-Data
             response = await client.post(url, headers=headers, data=payload)
-            
             if response.status_code == 200:
-                data = response.json()
-                print(f"✅ API {STATION_CODE_API}: Recibidos {len(data)} registros totales.")
-                return data
+                return response.json()
             else:
-                print(f"❌ Error API Madrid: {response.status_code} - {response.text}")
-                return None
+                print(f"❌ Error API Madrid: {response.status_code}")
     except Exception as e:
-        print(f"💥 Error crítico conectando a la API: {e}")
-        return None
+        print(f"❌ Error crítico API MAD: {e}")
+    return None
 
-# --- 2. PROCESAMIENTO Y FILTRADO (EL CORAZÓN DEL NEGOCIO) ---
-def _process_api_data(raw_data: list, target_nave: str) -> list:
+def filter_n1_people_by_shift(api_data: list, current_shift: str):
     """
-    Filtra los datos de la escala (Madrid) para quedarse solo con la nave específica (N1).
-    Mapea los campos para que coincidan con lo que el frontend espera.
+    Filtra por Nave 1 y por turno horario
     """
-    processed_people = []
-    target = target_nave.upper() # "N1"
-
-    for p in raw_data:
-        cod_destino = str(p.get("codDestino", "")).upper()
-        desc_destino = str(p.get("descDestino", "")).upper()
-
-        # CRITERIO DE FILTRADO: 
-        # Si la nave es "N1", buscamos que aparezca en el código o descripción de destino
-        if target == "TODO" or target in cod_destino or target in desc_destino:
-            processed_people.append({
-                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                "horario": f"{p.get('horaEntrada', '??')} - {p.get('horaSalida', '??')}",
-                "observaciones": p.get("descDestino", ""),
-                "cod_destino": p.get("codDestino", ""), # Info extra por si acaso
-                "source": "API"
-            })
+    normalized = []
     
-    print(f"🎯 Filtrado: {len(processed_people)} trabajadores encontrados para {target_nave}")
-    return processed_people
+    for p in api_data:
+        try:
+            # La info viene dentro de "nomina"
+            item = p.get("nomina", p)
+            
+            # --- 1. FILTRO DE NAVE 1 ---
+            cod = str(item.get("codDestino") or "").upper()
+            desc = str(item.get("descDestino") or "").upper()
+            grupo = str(item.get("nombreGrupoTrabajo") or "").upper()
+            
+            # Criterios exactos que pediste:
+            es_n1 = (cod == "N1" or desc == "NAVE 1" or grupo == "OPERARIOS-N1")
+            
+            if not es_n1:
+                continue
 
-# --- 3. CONSTRUCTOR DE ESTADO ACTUALIZADO ---
+            # --- 2. FILTRO DE TURNO (Por horas) ---
+            raw_inicio = item.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio:
+                continue
+            
+            # Extraer solo la hora (HH:mm) del string "DD/MM/YYYY HH:mm"
+            hora_completa = raw_inicio.split(" ")[1]
+            h_inicio_int = int(hora_completa.split(":")[0])
+            
+            # Lógica de horquillas
+            match = False
+            if current_shift == "Mañana" and (4 <= h_inicio_int < 14): match = True
+            elif current_shift == "Tarde" and (14 <= h_inicio_int < 22): match = True
+            elif current_shift == "Noche" and (h_inicio_int >= 22 or h_inicio_int < 4): match = True
+
+            if match:
+                raw_fin = item.get("horaFin", "")
+                hora_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else "??:??"
+
+                normalized.append({
+                    "nombre_completo": item.get("nombreApellidos", "Sin Nombre"),
+                    "horario": f"{hora_completa} - {hora_fin_limpia}",
+                    "grupo": item.get("nombreGrupoTrabajo", "GENERAL"),
+                    "observaciones": item.get("descDestino", "NAVE 1")
+                })
+        except Exception as e:
+            continue
+            
+    return normalized
+
+# El constructor de estado ahora usa estas funciones
 async def _build_roster_state(force=False) -> dict:
-    """
-    Orquestador: Intenta API -> Si falla, intenta Excel.
-    """
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Evitar recarga si no es necesario (opcional)
-    # if not force and roster_cache.get("shift") == shift and roster_cache.get("sheet_date") == sdate:
-    #    return roster_cache
-
-    people = []
-    source = "ninguno"
-
-    # INTENTO 1: API
     raw_api_data = await fetch_mad_roster_from_api()
+    people = []
+    source = "excel"
+
     if raw_api_data and isinstance(raw_api_data, list):
-        people = _process_api_data(raw_api_data, NAVE_TARGET)
+        people = filter_n1_people_by_shift(raw_api_data, shift)
         source = "api"
-    
-    # INTENTO 2: FALLBACK EXCEL (Si la API no trajo nada)
-    if not people:
-        print("🔄 API sin datos o fallida. Intentando cargar desde Excel...")
+        print(f"✅ Roster N1: {len(people)} personas desde API")
+    else:
+        # Fallback a Excel
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         if sheet:
             people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
             source = "excel"
 
-    # Actualizar el Caché Global
     roster_cache.update({
-        "sheet_date": sdate, 
-        "shift": shift, 
-        "people": people,
+        "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, 
-        "source": source
+        "window": {"from": start, "to": end}, "source": source
     })
     
-    # Notificar a todos los navegadores conectados por WebSocket
-    await manager.broadcast({
-        "type": "roster_update", 
-        **roster_cache, 
-        "sheet_date": sdate.isoformat()
-    })
-    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
 # --- 4. ENDPOINTS AFECTADOS ---
