@@ -737,113 +737,97 @@ app.add_middleware(
 
 async def fetch_mad_roster_from_api():
     """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
-    url = os.getenv("ROSTER_API_URL")
-    api_key = os.getenv("ROSTER_API_KEY")
-    
-    if not url or not api_key:
-        print("⚠️ ROSTER_API_URL o ROSTER_API_KEY no configuradas")
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API MAD no configurada.")
         return None
 
     ahora = datetime.now(ZoneInfo("Europe/Madrid"))
     payload = {
-        "escala": "MAD",
+        "escala": "MAD", # <--- Siempre MAD para la API
         "fecha": ahora.strftime("%d/%m/%Y")
     }
-    headers = {"api-key": api_key, "Accept": "application/json"}
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # Enviamos como data=payload para emular Form-Data
-            response = await client.post(url, headers=headers, data=payload)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
             if response.status_code == 200:
                 return response.json()
-            else:
-                print(f"❌ Error API Madrid: {response.status_code}")
     except Exception as e:
-        print(f"❌ Error crítico API MAD: {e}")
+        print(f"❌ Error API MAD: {e}")
     return None
 
-def filter_n1_people_by_shift(api_data: list, current_shift: str):
+# ANTES: def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
+# DESPUÉS (Copia esta línea):
+def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
+    """
+    Filtra por turno y por identificador de nave (ej: 'N4', 'N3', etc.)
+    """
     normalized = []
-    print(f"DEBUG: Procesando {len(api_data)} registros para el turno {current_shift}...")
+    # Convertimos a mayúsculas para comparar sin errores
+    target = target_nave.upper() 
 
     for p in api_data:
         try:
-            # 1. Extraer la información (intentar dentro de 'nomina' o en la raíz)
-            item = p.get("nomina") if p.get("nomina") else p
+            # --- FILTRO DE NAVE (Identificación robusta) ---
+            cod = str(p.get("codDestino", "")).upper()
+            desc = str(p.get("descDestino", "")).upper()
+            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
             
-            # 2. Extraer campos con seguridad (manejo de None)
-            full_name = str(item.get("nombreApellidos") or "Sin Nombre")
-            cod = str(item.get("codDestino") or "").upper()
-            desc = str(item.get("descDestino") or "").upper()
-            grupo = str(item.get("nombreGrupoTrabajo") or "").upper()
-            
-            # --- FILTRO NAVE 1 (OR) ---
-            # Si cualquiera de estas condiciones se cumple, es de N1
-            es_n1 = ("N1" in cod or "NAVE 1" in desc or "N1" in grupo or "OPERARIOS-N1" in grupo)
-            
-            if not es_n1:
+            # Buscamos el identificador (ej: 'N4') en cualquiera de los 3 campos
+            if target not in cod and target not in desc and target not in grupo:
                 continue
 
-            # --- FILTRO DE TURNO RELAJADO ---
-            raw_inicio = item.get("horaInicio", "")
-            match_turno = False
+            # --- FILTRO DE TURNO (HORAS) ---
+            raw_inicio = p.get("horaInicio", "")
+            if not raw_inicio or " " not in raw_inicio:
+                continue
             
-            if not raw_inicio:
-                # Si no hay hora, lo dejamos pasar por si acaso para no perder gente
-                match_turno = True
-                hora_completa = "??:??"
-            else:
-                # Extraer hora: "DD/MM/YYYY HH:mm" -> "HH:mm"
-                hora_completa = raw_inicio.split(" ")[1] if " " in raw_inicio else raw_inicio
-                h_inicio_int = int(hora_completa.split(":")[0])
+            hora_completa = raw_inicio.split(" ")[1]
+            h_inicio = int(hora_completa.split(":")[0])
+            
+            # Horquillas de turno
+            is_mañana = (4 <= h_inicio < 14)
+            is_tarde  = (14 <= h_inicio < 22)
+            is_noche  = (h_inicio >= 22 or h_inicio < 4)
 
-                # Mañana: Entradas entre las 04:00 y las 13:59
-                if current_shift == "Mañana" and (4 <= h_inicio_int < 14):
-                    match_turno = True
-                # Tarde: Entradas entre las 14:00 y las 21:59
-                elif current_shift == "Tarde" and (14 <= h_inicio_int < 22):
-                    match_turno = True
-                # Noche: Entradas entre las 22:00 y las 03:59
-                elif current_shift == "Noche" and (h_inicio_int >= 22 or h_inicio_int < 4):
-                    match_turno = True
+            match = False
+            if current_shift == "Mañana" and is_mañana: match = True
+            elif current_shift == "Tarde" and is_tarde: match = True
+            elif current_shift == "Noche" and is_noche: match = True
 
-            if match_turno:
-                raw_fin = item.get("horaFin", "")
-                hora_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else "??:??"
-                
+            if match:
+                raw_fin = p.get("horaFin", "")
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+
                 normalized.append({
-                    "nombre_completo": full_name,
-                    "horario": f"{hora_completa} - {hora_fin_limpia}",
-                    "grupo": grupo if grupo else "NAVE 1",
-                    "observaciones": desc if desc else "WFS1"
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{hora_completa} - {h_fin_limpia}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except Exception as e:
-            print(f"❌ Error procesando un trabajador: {e}")
+        except:
             continue
             
-    print(f"🎯 Resultado Final: {len(normalized)} personas encontradas para N1 en turno {current_shift}")
     return normalized
 
-# El constructor de estado ahora usa estas funciones
+# Modificación del constructor de estado
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
     raw_api_data = await fetch_mad_roster_from_api()
     people = []
-    source = "excel"
 
     if raw_api_data and isinstance(raw_api_data, list):
-        people = filter_n1_people_by_shift(raw_api_data, shift)
+        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
         source = "api"
-        print(f"✅ Roster N1: {len(people)} personas desde API")
     else:
-        # Fallback a Excel
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
-            source = "excel"
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+        source = "excel"
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
@@ -854,24 +838,38 @@ async def _build_roster_state(force=False) -> dict:
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
-# --- 4. ENDPOINTS AFECTADOS ---
 @app.get("/api/roster/current")
 async def get_roster_current():
-    # Aseguramos que los datos estén frescos antes de devolverlos
     state = await _build_roster_state(force=False)
-    
-    key = _att_key(state.get("sheet_date"), state.get("shift"))
-    att_map = attendance_store.get(key, {})
-    
+
+    # Si hay persistencia para esa fecha/turno, sirve desde ahí
+    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
+    sh = state.get("shift")
+    if d_iso and sh and d_iso in roster_store:
+        rec = roster_store[d_iso]
+        people = rec.get("by_shift", {}).get(sh, [])
+        return {
+            "shift": sh,
+            "sheet": rec.get("sheet"),
+            "sheet_date": d_iso,
+            "window": state.get("window"),
+            "people": people,
+            "updated_at": rec.get("saved_at") or state.get("updated_at"),
+            "attendance": state.get("attendance", {}),
+            "source": "store"
+        }
+
+    # Fallback al Excel/cálculo en caliente
     return {
         "shift": state.get("shift"),
-        "sheet_date": state.get("sheet_date").isoformat(),
+        "sheet": state.get("sheet"),
+        "sheet_date": state.get("sheet_date").isoformat() if state.get("sheet_date") else None,
+        "window": state.get("window"),
         "people": state.get("people", []),
-        "attendance": att_map,
-        "source": state.get("source") # Útil para debug en el front
+        "updated_at": state.get("updated_at"),
+        "attendance": state.get("attendance", {}),
+        "source": "excel"
     }
-
-# ... (El resto de tu código: Tareas, Briefing, SQL, etc. se mantiene igual)
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
