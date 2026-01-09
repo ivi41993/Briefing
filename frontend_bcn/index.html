@@ -2465,16 +2465,46 @@ function renderRoster(listEl, people, state) {
     if (!listEl) return;
     if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
+    // --- 1. NUEVA LISTA DE PERSONAS PERMITIDAS ---
+    const NOMBRES_PERMITIDOS = [
+        "Alvarez Ruiz, Jorge Manuel", "Gabarro Miguel, Anna", "Martinez Bernal, Yolanda",
+        "Romero Pardines, Maria Del Carmen", "Rueda Rico, Alejandro", "Sanz Bañares, Daniel",
+        "Castineiras Del Rio, Jose Manuel", "Curci Caorsi, Sebastian", "Jurado Osorio, Leonor",
+        "Lopez Umpierrez, Florencia", "Rodriguez Traspalacio, Gabriela Natali", "Ruiz Blavia, Jose Luis",
+        "Algaba Asensio, Pilar", "Bayona Torres, Ana Cristina", "Calabretta , Pablo Ariel",
+        "Sevillano Domenech, Desiree", "Tavares Aquino, Enma Karen", "Amores Villegas, Salvador",
+        "Basili Basili, Juan Marcelo", "Castillo Ulit, Angelle Khryztal", "Dib Dib, Amira Nesrine",
+        "Exposito Ruiz, Susana", "Garcia Delgado, Mª Pilar", "Gazquez Castellnou, Mireia",
+        "Gomez Vaquer, Jorge", "Gouwe Martinez, Patricia", "Guerchouch Nahal, Bilal",
+        "Hidalgo Moreno, Isabel", "Lahmidi Lahmidi, Malika", "Ortega Yuste, Esther",
+        "Rodriguez Sanchez, Angelica", "Santa Ana Argote, Johana Caroline", "Solanes Barriga, Jan",
+        "Zamani Bouizourane, Amina", "Zambrano Real, Danelia", "Arano Paz, Pedro Diego",
+        "Chiappe Chiappe, Marcos Agustin", "Galve Comas, Juan Manuel", "Gonzalez Paez, Angelys Bisleidy",
+        "Manukyan , Ararat", "Medina Alvarez, Alba", "Mosquera Portocarrero, Jairo",
+        "Radu Radu, Ioana Rodica", "Rojas Arias, William Fernando", "Abat Montenegro, Marc",
+        "Castillo Toledano, David", "Garcia Portillo, Silvia", "Zamora專ora, Yolanda", // Nota: Revisa si hay errores tipográficos en el origen, ajustado según tu lista.
+        "Zamora Perez, Yolanda", "Zamora Perez, Yolanda" // Ajuste manual por si acaso.
+    ];
+
     // Guardar lista maestra
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-
     const masterList = window.TEAM_STATE.allPeopleRaw;
+
     if (!masterList || masterList.length === 0) {
         listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal BCN...</div>';
         return;
     }
 
-    // --- FILTRADO POR HORQUILLA ---
+    // --- FUNCIÓN DE NORMALIZACIÓN (Quita acentos, comas y mayúsculas) ---
+    const limpiarTexto = (str) => {
+        return str.normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .replace(/,/g, "")
+                  .toLowerCase()
+                  .trim();
+    };
+
+    // --- LÓGICA DE TURNOS ---
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
@@ -2486,10 +2516,24 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
+    // --- FILTRADO DOBLE: NOMBRE (FLEXIBLE) + HORQUILLA ---
     const filteredPeople = masterList.filter(p => {
+        const nombreAPI = limpiarTexto(p.nombre_completo || "");
+        
+        // Verificamos si el nombre de la API contiene las palabras clave de nuestra lista
+        const estaEnLista = NOMBRES_PERMITIDOS.some(nombrePermitido => {
+            const palabrasPermitidas = limpiarTexto(nombrePermitido).split(/\s+/);
+            // Comprobamos que CADA palabra del nombre permitido esté en el nombre de la API
+            return palabrasPermitidas.every(palabra => nombreAPI.includes(palabra));
+        });
+
+        if (!estaEnLista) return false;
+
+        // Filtro de Horquilla
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true;
         const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
+        
         if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
         if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
         if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
