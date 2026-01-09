@@ -764,55 +764,65 @@ async def fetch_mad_roster_from_api():
     return None
 
 def filter_n1_people_by_shift(api_data: list, current_shift: str):
-    """
-    Filtra por Nave 1 y por turno horario
-    """
     normalized = []
-    
+    print(f"DEBUG: Procesando {len(api_data)} registros para el turno {current_shift}...")
+
     for p in api_data:
         try:
-            # La info viene dentro de "nomina"
-            item = p.get("nomina", p)
+            # 1. Extraer la información (intentar dentro de 'nomina' o en la raíz)
+            item = p.get("nomina") if p.get("nomina") else p
             
-            # --- 1. FILTRO DE NAVE 1 ---
+            # 2. Extraer campos con seguridad (manejo de None)
+            full_name = str(item.get("nombreApellidos") or "Sin Nombre")
             cod = str(item.get("codDestino") or "").upper()
             desc = str(item.get("descDestino") or "").upper()
             grupo = str(item.get("nombreGrupoTrabajo") or "").upper()
             
-            # Criterios exactos que pediste:
-            es_n1 = (cod == "N1" or desc == "NAVE 1" or grupo == "OPERARIOS-N1")
+            # --- FILTRO NAVE 1 (OR) ---
+            # Si cualquiera de estas condiciones se cumple, es de N1
+            es_n1 = ("N1" in cod or "NAVE 1" in desc or "N1" in grupo or "OPERARIOS-N1" in grupo)
             
             if not es_n1:
                 continue
 
-            # --- 2. FILTRO DE TURNO (Por horas) ---
+            # --- FILTRO DE TURNO RELAJADO ---
             raw_inicio = item.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio:
-                continue
+            match_turno = False
             
-            # Extraer solo la hora (HH:mm) del string "DD/MM/YYYY HH:mm"
-            hora_completa = raw_inicio.split(" ")[1]
-            h_inicio_int = int(hora_completa.split(":")[0])
-            
-            # Lógica de horquillas
-            match = False
-            if current_shift == "Mañana" and (4 <= h_inicio_int < 14): match = True
-            elif current_shift == "Tarde" and (14 <= h_inicio_int < 22): match = True
-            elif current_shift == "Noche" and (h_inicio_int >= 22 or h_inicio_int < 4): match = True
+            if not raw_inicio:
+                # Si no hay hora, lo dejamos pasar por si acaso para no perder gente
+                match_turno = True
+                hora_completa = "??:??"
+            else:
+                # Extraer hora: "DD/MM/YYYY HH:mm" -> "HH:mm"
+                hora_completa = raw_inicio.split(" ")[1] if " " in raw_inicio else raw_inicio
+                h_inicio_int = int(hora_completa.split(":")[0])
 
-            if match:
+                # Mañana: Entradas entre las 04:00 y las 13:59
+                if current_shift == "Mañana" and (4 <= h_inicio_int < 14):
+                    match_turno = True
+                # Tarde: Entradas entre las 14:00 y las 21:59
+                elif current_shift == "Tarde" and (14 <= h_inicio_int < 22):
+                    match_turno = True
+                # Noche: Entradas entre las 22:00 y las 03:59
+                elif current_shift == "Noche" and (h_inicio_int >= 22 or h_inicio_int < 4):
+                    match_turno = True
+
+            if match_turno:
                 raw_fin = item.get("horaFin", "")
                 hora_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else "??:??"
-
+                
                 normalized.append({
-                    "nombre_completo": item.get("nombreApellidos", "Sin Nombre"),
+                    "nombre_completo": full_name,
                     "horario": f"{hora_completa} - {hora_fin_limpia}",
-                    "grupo": item.get("nombreGrupoTrabajo", "GENERAL"),
-                    "observaciones": item.get("descDestino", "NAVE 1")
+                    "grupo": grupo if grupo else "NAVE 1",
+                    "observaciones": desc if desc else "WFS1"
                 })
         except Exception as e:
+            print(f"❌ Error procesando un trabajador: {e}")
             continue
             
+    print(f"🎯 Resultado Final: {len(normalized)} personas encontradas para N1 en turno {current_shift}")
     return normalized
 
 # El constructor de estado ahora usa estas funciones
