@@ -4419,13 +4419,13 @@ async def fetch_mad_roster_from_api():
 
     ahora = datetime.now(ZoneInfo("Europe/Madrid"))
     payload = {
-        "escala": "MAD", # <--- Siempre MAD para la API
+        "escala": "MAD",
         "fecha": ahora.strftime("%d/%m/%Y")
     }
     headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
             if response.status_code == 200:
                 return response.json()
@@ -4433,39 +4433,40 @@ async def fetch_mad_roster_from_api():
         print(f"❌ Error API MAD: {e}")
     return None
 
-# ANTES: def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
-# DESPUÉS (Copia esta línea):
 def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
     """
-    Filtra por turno y por identificador de nave (ej: 'N4', 'N3', etc.)
+    Filtra por turno y por identificador de nave (N1) usando la lógica de la N4
     """
     normalized = []
-    # Convertimos a mayúsculas para comparar sin errores
-    target = target_nave.upper() 
+    target = target_nave.upper() # "N1"
 
     for p in api_data:
         try:
-            # --- FILTRO DE NAVE (Identificación robusta) ---
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            # 1. Extraer el objeto 'nomina' si existe (según tu JSON)
+            item = p.get("nomina", p)
             
-            # Buscamos el identificador (ej: 'N4') en cualquiera de los 3 campos
-            if target not in cod and target not in desc and target not in grupo:
+            # --- FILTRO DE NAVE (Identificación robusta) ---
+            cod = str(item.get("codDestino") or "").upper()
+            desc = str(item.get("descDestino") or "").upper()
+            grupo = str(item.get("nombreGrupoTrabajo") or "").upper()
+            
+            # Criterios para N1
+            if target not in cod and "NAVE 1" not in desc and target not in grupo:
                 continue
 
-            # --- FILTRO DE TURNO (HORAS) ---
-            raw_inicio = p.get("horaInicio", "")
+            # --- FILTRO DE TURNO (Lógica horquillas N4) ---
+            raw_inicio = item.get("horaInicio", "")
             if not raw_inicio or " " not in raw_inicio:
                 continue
             
+            # Extraer solo la hora (HH:mm)
             hora_completa = raw_inicio.split(" ")[1]
-            h_inicio = int(hora_completa.split(":")[0])
+            h_inicio_int = int(hora_completa.split(":")[0])
             
-            # Horquillas de turno
-            is_mañana = (4 <= h_inicio < 14)
-            is_tarde  = (14 <= h_inicio < 22)
-            is_noche  = (h_inicio >= 22 or h_inicio < 4)
+            # Lógica de horquillas heredada de N4 (funciona perfecto)
+            is_mañana = (4 <= h_inicio_int < 14)
+            is_tarde  = (14 <= h_inicio_int < 22)
+            is_noche  = (h_inicio_int >= 22 or h_inicio_int < 4)
 
             match = False
             if current_shift == "Mañana" and is_mañana: match = True
@@ -4473,37 +4474,40 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, targ
             elif current_shift == "Noche" and is_noche: match = True
 
             if match:
-                raw_fin = p.get("horaFin", "")
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+                raw_fin = item.get("horaFin", "")
+                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else "??:??"
 
                 normalized.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
+                    "nombre_completo": item.get("nombreApellidos", "Sin Nombre"),
                     "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
-                    "is_incidencia": p.get("IsIncidencias", False)
+                    "grupo": item.get("nombreGrupoTrabajo", "GENERAL"),
+                    "observaciones": item.get("descDestino") or "NAVE 1"
                 })
-        except:
+        except Exception as e:
+            # print(f"Error procesando registro: {e}")
             continue
             
     return normalized
 
-# Modificación del constructor de estado
+# Actualiza el constructor de estado
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
     raw_api_data = await fetch_mad_roster_from_api()
     people = []
+    source = "ninguno"
 
     if raw_api_data and isinstance(raw_api_data, list):
-        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
-        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
+        # USAMOS N1 COMO TARGET
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N1")
         source = "api"
     else:
+        # Fallback a Excel
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
-        source = "excel"
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+            source = "excel"
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
@@ -4767,6 +4771,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
