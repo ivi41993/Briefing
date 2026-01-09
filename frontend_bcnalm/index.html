@@ -2465,6 +2465,45 @@ function renderRoster(listEl, people, state) {
     if (!listEl) return;
     if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
+    // --- 1. DEFINICIÓN DE PERSONAS PERMITIDAS (Whitelisting) ---
+    const NOMBRES_PERMITIDOS = [
+        "Gonzalez Ahumada, Fabian", "Gonzalez Da Aparecida, Cristian", "Guirao Martinez, Jonatan",
+        "Martin Alba, Cristian", "Martinez Ballinoto, Erik", "Martinez Bernal, Mario",
+        "Martinez Morales, Gabriel", "Mejia Heras, Carlos Jesus", "Metmari El Haouari, Mohssen",
+        "Muñoz Mendoza, Juan Manuel", "Negru , Marcel Marian", "Nieto Alloza, Eric Modesto",
+        "Ramirez Vargas, Antonio", "Rojano Vizcaino, Alvaro", "Rubio Linuesa, Juan",
+        "Veres Veres, Andrei Florin", "Veress , Csaba", "Abaiz Tamhani, Aissa",
+        "Ibañez Godoy, Javier", "Martin Ruiz, Manuel", "Tort Di Gregori, Nelson Alejandro",
+        "Abadie Mendez, Darwin Enrique", "Bejarano Caballero, Steven", "Berthe , Modibo",
+        "Cabezas Sanchez, Pau", "Caicedo Escobar, Christian A", "Calderon Rodriguez, Oscar",
+        "Caler Martin, David", "Calvo Macias, Kevin", "Cardenas Hernandez, Fidel",
+        "Casares Ureña, Jose Maria", "Cruz Silva, Juan David", "Del Carmen Lopez, Jonathan",
+        "Diaz Diaz, Gregorio Eduardo", "Duarte Bejarano, Diego Alejandro", "Duarte Bejarano, William Steven",
+        "Ekabiby Maouari, Yasin", "El Mesbahi, Mohammed Rida", "El Harrak Zbakh, Issam",
+        "El Mezraoui , Younass", "El Ouahabi Beldris, Mohammed", "Embi Camacho, Sergio",
+        "Famakanding , Dembele", "Figueroba Moral, Felix", "Figueroba Moral, Juan Carlos",
+        "Galvez Maya, Esteban", "Garcia Rosa, Hugo", "Garcia Sales, Javier",
+        "Garcia Villanueva, John Jaider", "Gonzalez Rodriguez, Juan Manuel", "Grajales Campo, Javier",
+        "Gutierrez Verdecia, Alexis", "Haro Sanchez, Nicolas", "Hernandez Alonso, Daniel",
+        "Isaila , Daniel", "Iñiguez Rosero, Juan Vinicio", "Jimenez Lopez, Francisco Javier",
+        "Kocsis , David Adrian", "Lancho Gomez, Fco Javier", "Llamas De Dios, Rafael",
+        "Lobato Hidalgo, Javier", "Lopez Sanchez, Hector", "Marin , Ionut Claudiu",
+        "Marin , Radu", "Mendez , Daniel", "Messari Bellizou, Wadie",
+        "Metmari El Haouari, Youssef", "Millat Pinteño, Jordi", "Montaño Bascope, Jhanif",
+        "Moral Fernandez, Ruben ", "Moran Magallanes, Julio Fernando", "Moreno Gonzalez, Rafael",
+        "Navarro Martin, Juan Miguel", "Padilla Rodriguez, Oscar", "Piña Mejia, Miguel Stalin",
+        "Prados Lucena, Raul", "Rivarola , Pablo Gabriel", "Roca Mendoza, Sergi",
+        "Rodriguez Guevara, Nestor", "Rodriguez Nuñez, Luis Alonso", "Rodriguez Sanchez, Jesus",
+        "Romero Espinola, Antonio", "Saez Gomez, Adrian", "Saez Perez, Carlos",
+        "Salmeron Sanchez, Iban", "Samb , Khadim Mbacke", "Sanchez Reyes, Daniel",
+        "Sancho Porras, Jose", "Serrano Lopez, Oscar", "Sierra Guerrero, Juan Alberto",
+        "Silva Laso, Jose", "Tanoughat Nassiri, Charaf Addine", "Toro Gonzalez, Antony",
+        "Tovar Romero, Joshua", "Vallespin Palacios, Alejandro", "Vasquez Nuñez, Pedro Ruben",
+        "Velez Granda, Andres Antonio", "Vidal Urban, Climent", "Zarraluqui Hidalgo, Xavier",
+        "Villarta Alvarez, Jesus Manuel", "Atrach , Mohammed Ali", "Diarra , Bayini",
+        "Khadre Diop, Abdou", "Ruiz Gracia, Tomàs"
+    ];
+
     // Guardar lista maestra
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
 
@@ -2474,7 +2513,7 @@ function renderRoster(listEl, people, state) {
         return;
     }
 
-    // --- FILTRADO POR HORQUILLA ---
+    // --- CONFIGURACIÓN DE TURNO ACTUAL ---
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
@@ -2486,10 +2525,19 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
+    // --- DOBLE FILTRADO: POR NOMBRE Y POR HORQUILLA ---
     const filteredPeople = masterList.filter(p => {
+        // A. Filtro de Nombre
+        const nombreLimpio = (p.nombre_completo || "").trim().toLowerCase();
+        const estaEnLista = NOMBRES_PERMITIDOS.some(n => n.trim().toLowerCase() === nombreLimpio);
+        
+        if (!estaEnLista) return false; // Si no está en la lista blanca, lo descartamos directamente
+
+        // B. Filtro de Horquilla (Tu lógica original)
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true;
         const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
+        
         if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
         if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
         if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
