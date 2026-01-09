@@ -7079,13 +7079,17 @@ async function generateAndSendToExcel() {
     try {
         // A. Card 1: Equipo (CORREGIDO)
         // A. Card 1: Equipo (Mapeo seguro)
-        const team = window.TEAM_STATE || { people: [], attendance: {}, allPeopleRaw: [] };
-        
-        // Usamos allPeopleRaw que es donde guardamos los datos de la API de Madrid
+        // A. Card 1: Equipo (Lógica de 3 estados: Presente, Ausente o Pendiente)
+        const team = window.TEAM_STATE || { allPeopleRaw: [], attendance: {} };
         const rosterDetails = (team.allPeopleRaw || []).map(p => {
             const name = p.nombre_completo || "Desconocido"; 
-            const isP = team.attendance[name] === true;
-            return `${name} (${isP ? "✅" : "❌"})`;
+            const statusValue = team.attendance[name]; // Puede ser true, false o undefined
+
+            let icon = "➖"; // Por defecto: raya (pendiente)
+            if (statusValue === true) icon = "✅";
+            else if (statusValue === false) icon = "❌";
+
+            return `${name} (${icon})`;
         }).join(", ") || "Sin datos de personal";
 
         // B. Card 3: Highlights Turno Anterior
