@@ -3045,65 +3045,61 @@ window.TEAM_STATE = {
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. NORMALIZACIÓN DE DATOS (Asegurar que tenemos un array)
+    // 1. Normalización
     const rawList = Array.isArray(people) ? people : (state && state.people ? state.people : []);
-    
-    // Guardamos en el estado global para que el resto del dashboard lo vea
     window.TEAM_STATE.allPeopleRaw = rawList;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
     listEl.innerHTML = '';
 
-    // 2. FILTRADO N1 (La parte crítica para Madrid)
-    const peopleInN1 = rawList.filter(p => {
-        // Usamos los nombres de campo que vimos en tu consola: cod_destino y observaciones
-        const cod = (p.cod_destino || "").toString().toUpperCase();
-        const obs = (p.observaciones || "").toString().toUpperCase();
-        return cod.includes("N1") || obs.includes("NAVE 1");
-    });
-
-    // 3. VALIDACIÓN
-    if (peopleInN1.length === 0) {
-        listEl.innerHTML = `<div style="text-align:center; padding:20px; color:var(--brand-red-600); font-weight:700;">
-            ⚠️ Filtro N1: 0 coincidencias de ${rawList.length} registros.
+    if (rawList.length === 0) {
+        listEl.innerHTML = `<div style="padding:20px; text-align:center; color:var(--text-muted);">
+            📭 No hay personal de Nave 1 para el turno de ${window.TEAM_STATE.shift}.
         </div>`;
         return;
     }
 
-    // 4. RENDERIZADO (Usando tu lógica de éxito)
-    peopleInN1.forEach((p) => {
+    // 2. Renderizado de tarjetas
+    rawList.forEach((p) => {
         const fullName = p.nombre_completo || "Sin Nombre";
         const currentAtt = window.TEAM_STATE.attendance[fullName]; 
         const safeId = fullName.replace(/[^a-z0-9]/gi, '_');
 
         const card = document.createElement('div');
         card.className = 'team-row';
-        // Mantenemos tu estilo visual que ya funciona
-        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid var(--brand-red-600); background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.05);`;
+        card.style.cssText = `
+            display:flex; flex-direction:column; padding:14px; 
+            border-radius:14px; margin-bottom:12px; 
+            border-left:6px solid var(--brand-red-600); 
+            background:#fff; box-shadow:var(--elev-1);
+        `;
 
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                 <div style="flex:1;">
-                    <div style="font-weight:800; color:var(--text); font-size:1rem;">${esc(fullName)}</div>
-                    <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
-                        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
-                        <span style="font-size:0.65rem; background:var(--cat-inc); color:#7a3800; padding:1px 6px; border-radius:4px; font-weight:800; border:1px solid #ffd7b5;">
-                            ${esc(p.observaciones || 'N1')}
+                    <div style="font-weight:800; color:var(--text); font-size:1.05rem;">${esc(fullName)}</div>
+                    <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; align-items:center;">
+                        <!-- Horario Extraído -->
+                        <span style="font-size:0.75rem; color:var(--brand-red-700); font-weight:700; background:#fff1f2; padding:3px 10px; border-radius:8px; border:1px solid #fecaca;">
+                            🕒 ${esc(p.horario)}
+                        </span>
+                        <!-- Grupo de Trabajo Extraído -->
+                        <span style="font-size:0.7rem; background:#eef2ff; color:#3730a3; padding:3px 10px; border-radius:8px; font-weight:800; border:1px solid #c7d2fe; text-transform:uppercase;">
+                            ${esc(p.grupo || 'N1')}
                         </span>
                     </div>
                 </div>
             </div>
             
-            <div class="presence-toggle" style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border); display:flex; justify-content:center; gap:8px;">
+            <div class="presence-toggle" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border); display:flex; justify-content:center; gap:12px;">
                 <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                <label for="y_${safeId}" class="yes" style="padding:6px 16px; border-radius:8px; font-weight:700; font-size:0.8rem;">✓ OK</label>
+                <label for="y_${safeId}" class="yes" style="padding:10px 30px; border-radius:12px; font-weight:800; font-size:0.9rem;">✓ OK</label>
                 
                 <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                <label for="n_${safeId}" class="no" style="padding:6px 16px; border-radius:8px; font-weight:700; font-size:0.8rem;">✕ NO</label>
+                <label for="n_${safeId}" class="no" style="padding:10px 30px; border-radius:12px; font-weight:800; font-size:0.9rem;">✕ NO</label>
             </div>
         `;
 
-        // Vinculación de eventos (idéntica a tu código de éxito)
         card.querySelectorAll('input').forEach(radio => {
             radio.onclick = () => {
                 window.TEAM_STATE.attendance[fullName] = (radio.value === 'yes');
@@ -3118,11 +3114,11 @@ function renderRoster(listEl, people, state) {
         listEl.appendChild(card);
     });
 
-    // Actualizar meta información de la tarjeta
+    // Actualizar meta
     const meta = document.getElementById('team-meta');
     if (meta) {
         const count = Object.values(window.TEAM_STATE.attendance).filter(v => v === true).length;
-        meta.textContent = `${window.TEAM_STATE.shift || 'Mañana'} • N1: ${count}/${peopleInN1.length} presentes`;
+        meta.textContent = `${window.TEAM_STATE.shift} • N1: ${count}/${rawList.length} presentes`;
     }
 }
 
