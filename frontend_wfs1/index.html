@@ -3045,78 +3045,82 @@ window.TEAM_STATE = {
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. Guardar el JSON bruto en el estado global para persistencia
-    if (people) window.TEAM_STATE.allPeopleRaw = people;
+    // 1. Guardar y normalizar la entrada
+    // Si people no es un array, intentamos sacarlo de state.people
+    const rawList = Array.isArray(people) ? people : (state && state.people ? state.people : []);
+    window.TEAM_STATE.allPeopleRaw = rawList;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
     listEl.innerHTML = '';
 
-    // --- 2. LÓGICA DE FILTRADO NAVE 1 (REFINADA) ---
-    const peopleInN1 = masterList.filter(p => {
-        // Normalizamos los valores para evitar errores por mayúsculas/minúsculas o espacios
-        const cod   = (p.codDestino || "").toString().trim().toUpperCase();
-        const desc  = (p.descDestino || "").toString().trim().toUpperCase();
-        const grupo = (p.nombreGrupoTrabajo || "").toString().trim().toUpperCase();
+    // --- DEBUG: Esto te dirá en la consola del navegador (F12) qué campos tiene el primer trabajador ---
+    if (masterList.length > 0) {
+        console.log("Primer trabajador recibido:", masterList[0]);
+    }
 
-        // Aplicamos tus 3 criterios exactos:
-        return cod === "N1" || 
-               desc === "NAVE 1" || 
-               grupo === "OPERARIOS-N1";
+    // --- 2. LÓGICA DE FILTRADO NAVE 1 (MÁS FLEXIBLE) ---
+    const peopleInN1 = masterList.filter(p => {
+        const cod   = (p.codDestino || "").toString().toUpperCase();
+        const desc  = (p.descDestino || "").toString().toUpperCase();
+        const grupo = (p.nombreGrupoTrabajo || "").toString().toUpperCase();
+
+        // Usamos .includes() en lugar de === para capturar "N1", "N01", "NAVE 1", "NAVE 01", etc.
+        const matchesCod   = cod.includes("N1") || cod === "1"; 
+        const matchesDesc  = desc.includes("NAVE 1") || desc.includes("NAVE 01") || desc.includes("N1");
+        const matchesGrupo = grupo.includes("N1");
+
+        return matchesCod || matchesDesc || matchesGrupo;
     });
 
-    // 3. Verificación de si hay resultados
+    // 3. Verificación
     if (peopleInN1.length === 0) {
         listEl.innerHTML = `
-            <div style="padding:15px; border:1px dashed #f87171; border-radius:12px; background:#fef2f2; color:#b91c1c; font-size:0.85rem; text-align:center;">
-                <strong>⚠️ SIN PERSONAL EN NAVE 1</strong><br>
-                Se han recibido ${masterList.length} registros totales de Madrid, pero ninguno coincide con N1, NAVE 1 u OPERARIOS-N1.
+            <div style="padding:15px; border:1px dashed #f87171; border-radius:12px; background:#fef2f2; color:#b91c1c; font-size:0.85rem;">
+                <strong>⚠️ FILTRO SIN RESULTADOS</strong><br>
+                Recibidos ${masterList.length} empleados de Madrid, pero ninguno coincide con N1/NAVE 1.<br>
+                <small>Revisa la consola (F12) para ver los nombres de los campos.</small>
             </div>`;
         return;
     }
 
     // 4. Dibujar el Roster filtrado
     peopleInN1.forEach((p) => {
-        // Mapeamos los nombres de campos que vienen específicamente en tu JSON de la API
-        const fullName = p.nombreApellidos || "Sin Nombre";
+        // Mapeo flexible de campos según lo que suele devolver esta API
+        const fullName = p.nombreApellidos || p.nombre_completo || "Sin Nombre";
         const currentAtt = window.TEAM_STATE.attendance[fullName]; 
         const safeId = fullName.replace(/[^a-z0-9]/gi, '_');
         
-        // La API de Madrid envía horaEntrada y horaSalida según tus pruebas
-        const horarioText = p.horaEntrada ? `${p.horaEntrada} - ${p.horaSalida || '??'}` : "Sin horario";
+        // Formatear horario
+        const entrada = p.horaEntrada || p.horaInicio || "—";
+        const salida = p.horaSalida || p.horaFin || "—";
 
         const card = document.createElement('div');
         card.className = 'team-row';
-        // Estilo visual consistente con tu diseño
         card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid #dc2626; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05);`;
 
         card.innerHTML = `
             <div>
                 <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">${esc(fullName)}</div>
-                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(horarioText)}</span>
-                    <span style="font-size:0.65rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800; border:1px solid #e2e8f0;">
-                        ${esc(p.descDestino || 'N1')}
+                <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(entrada)} - ${esc(salida)}</span>
+                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800; border:1px solid #c7d2fe;">
+                        ${esc(p.descDestino || p.codDestino || 'N1')}
                     </span>
                 </div>
             </div>
-            <div class="presence-toggle" style="margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9; display:flex; justify-content:center; gap:10px;">
+            <div class="presence-toggle" style="margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9; display:flex; justify-content:center;">
                 <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                <label for="y_${safeId}" class="yes" style="padding:6px 20px; border-radius:8px; cursor:pointer;">✓ PRESENTE</label>
-                
+                <label for="y_${safeId}" class="yes" style="padding:6px 20px;">✓ OK</label>
                 <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                <label for="n_${safeId}" class="no" style="padding:6px 20px; border-radius:8px; cursor:pointer;">✕ AUSENTE</label>
+                <label for="n_${safeId}" class="no" style="padding:6px 20px;">✕</label>
             </div>
         `;
 
-        // Eventos para actualizar presencia
         card.querySelectorAll('input').forEach(r => {
             r.onclick = () => {
                 window.TEAM_STATE.attendance[fullName] = (r.value === 'yes');
-                // Llamada al backend para persistir la presencia
-                if (typeof updatePresenceOnServer === 'function') {
-                    updatePresenceOnServer(fullName, r.value === 'yes');
-                }
+                if(typeof updatePresenceOnServer === 'function') updatePresenceOnServer(fullName, r.value === 'yes');
                 updateTeamMeta(window.TEAM_STATE);
             };
         });
@@ -3124,12 +3128,8 @@ function renderRoster(listEl, people, state) {
         listEl.appendChild(card);
     });
 
-    // Actualizar el contador de la tarjeta
     const meta = document.getElementById('team-meta');
-    if(meta) {
-        const presentes = Object.values(window.TEAM_STATE.attendance).filter(v => v === true).length;
-        meta.textContent = `${window.TEAM_STATE.shift || 'Turno'} • N1: ${presentes}/${peopleInN1.length} presentes`;
-    }
+    if(meta) meta.textContent = `${window.TEAM_STATE.shift || 'Mañana'} • N1: ${peopleInN1.length} trabajadores`;
 }
 
 
