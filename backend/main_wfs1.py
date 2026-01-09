@@ -84,56 +84,93 @@ NAVE_TARGET = "N1"             # <--- Identificador Nave N1
 STATION_CODE_API = "MAD"       # Escala para la API de Personal
 EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS1")
 
-# --- 1. LLAMADA API MADRID (CORREGIDA: ENVÍO COMO FORM-DATA) ---
-async def fetch_mad_roster_from_api():
-    """Llamada POST a la API usando Form-Data para traer todo Madrid"""
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API MAD no configurada.")
+async def fetch_roster_api_mad(fecha_api: str):
+    """Llamada POST a la API de Madrid usando Form-Data (application/x-www-form-urlencoded)"""
+    url = os.getenv("ROSTER_API_URL")
+    api_key = os.getenv("ROSTER_API_KEY")
+    
+    if not url or not api_key:
+        print("⚠️ ROSTER_API_URL o ROSTER_API_KEY no configuradas en .env")
         return None
 
-    # Fecha en formato DD/MM/YYYY como requiere esta API
-    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
-    fecha_str = ahora.strftime("%d/%m/%Y")
-
+    # Payload exacto: La API de Madrid espera estos campos en un formulario
     payload = {
-        "escala": "MAD", 
-        "fecha": fecha_str
+        "escala": "MAD",
+        "fecha": fecha_api  # Formato esperado DD/MM/YYYY
     }
     headers = {
-        "api-key": ROSTER_API_KEY, 
+        "api-key": api_key,
         "Accept": "application/json"
     }
 
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            # IMPORTANTE: Usamos 'data=' para enviar como application/x-www-form-urlencoded (Form-Data)
-            # Esto es lo que permite que la API reconozca los parámetros.
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            # CLAVE: Usamos 'data=' para mandar Form-Data, NO 'json='
+            response = await client.post(url, headers=headers, data=payload)
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ API MAD: Recibidos {len(data)} registros brutos.")
+                print(f"✅ API MAD: {len(data)} registros recibidos correctamente.")
                 return data
             else:
-                print(f"❌ API MAD Error {response.status_code}: {response.text}")
+                print(f"❌ Error API Madrid: {response.status_code} - {response.text}")
+                return None
     except Exception as e:
-        print(f"❌ Error de conexión API MAD: {e}")
-    return None
+        print(f"💥 Error crítico en fetch_roster_api_mad: {e}")
+        return None
 
-# --- 2. CONSTRUCTOR DE ESTADO (MANDA EL JSON COMPLETO AL FRONTEND) ---
+def filter_mad_people_by_nave_n1(api_data: list, current_shift: str):
+    """Filtra el JSON de Madrid buscando OPERARIOS-N1, codDestino N1 o descDestino NAVE 1"""
+    normalized = []
+    
+    for p in api_data:
+        try:
+            # 1. Extraer y normalizar campos para evitar fallos de mayúsculas/minúsculas
+            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
+            cod   = str(p.get("codDestino") or "").upper()
+            desc  = str(p.get("descDestino") or "").upper()
+            
+            # 2. APLICAR TUS CRITERIOS DE FILTRADO (N1)
+            if "OPERARIOS-N1" in grupo or "N1" in cod or "NAVE 1" in desc:
+                
+                # 3. Filtrado por turno (Basado en Horas de entrada)
+                raw_inicio = str(p.get("horaInicio") or "")
+                if " " not in raw_inicio: continue
+                
+                # Extraer la hora del string "DD/MM/YYYY HH:MM:SS"
+                hora_h = int(raw_inicio.split(" ")[1].split(":")[0])
+                
+                is_match = False
+                if current_shift == "Mañana" and (4 <= hora_h < 14): is_match = True
+                elif current_shift == "Tarde" and (14 <= hora_h < 22): is_match = True
+                elif current_shift == "Noche" and (hora_h >= 22 or hora_h < 4): is_match = True
+                
+                if is_match:
+                    normalized.append({
+                        "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                        "nomina": p.get("nomina"),
+                        "horario": raw_inicio.split(" ")[1][:5], # Solo HH:MM
+                        "observaciones": p.get("nombreGrupoTrabajo", "OPERARIOS-N1"),
+                        "is_incidencia": p.get("IsIncidencias", False)
+                    })
+        except Exception as e: 
+            continue
+        
+    return normalized
+
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Traemos a TODOS los de Madrid
-    raw_api_data = await fetch_mad_roster_from_api()
+    # Llamamos a la API con la fecha en formato DD/MM/YYYY
+    raw_api_data = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
     
     people = []
     source = "excel"
 
     if raw_api_data and isinstance(raw_api_data, list):
-        # No filtramos aquí por Nave, mandamos la lista completa para que el Front decida
-        people = raw_api_data
+        # Filtramos la gente de Madrid para que solo se vea N1 en esta instancia
+        people = filter_mad_people_by_nave_n1(raw_api_data, shift)
         source = "api"
     else:
         # Fallback a Excel si la API falla
@@ -142,6 +179,7 @@ async def _build_roster_state(force=False) -> dict:
             people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
             source = "excel"
 
+    # Actualizar cache global
     roster_cache.update({
         "sheet_date": sdate, 
         "shift": shift, 
@@ -151,12 +189,14 @@ async def _build_roster_state(force=False) -> dict:
         "source": source
     })
     
-    # Emitimos por WebSocket
+    # 🚀 LANZAR AL FRONTEND vía WebSocket
+    # El frontend recibirá este mensaje y actualizará la lista de personas automáticamente
     await manager.broadcast({
         "type": "roster_update", 
         **roster_cache, 
         "sheet_date": sdate.isoformat()
     })
+    
     return roster_cache
 # -----------------------------------
 # Modelos de Datos
