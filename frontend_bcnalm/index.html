@@ -1772,59 +1772,6 @@ function opsKey(base){ return `${base}_${STATION_CODE}`; }
 const OPS_SECTIONS_KEY = opsKey('ops_updates_sections_v1');
 const OPS_LINES_KEY    = opsKey('ops_updates_lines_v1');
 
-// --- 1. CONFIGURACIÓN DE PERSONAL PARA ESTA SECCIÓN ---
-// Escribe los nombres tal cual aparecen: "Apellidos, Nombre"
-// --- 1. CONFIGURACIÓN DE PERSONAL: ALMACÉN ---
-const LISTA_BLANCA_ESTA_SECCION = [
-    "Gonzalez Ahumada, Fabian", "Gonzalez Da Aparecida, Cristian", "Guirao Martinez, Jonatan",
-    "Martin Alba, Cristian", "Martinez Ballinoto, Erik", "Martinez Bernal, Mario",
-    "Martinez Morales, Gabriel", "Mejia Heras, Carlos Jesus", "Metmari El Haouari, Mohssen",
-    "Muñoz Mendoza, Juan Manuel", "Negru , Marcel Marian", "Nieto Alloza, Eric Modesto",
-    "Ramirez Vargas, Antonio", "Rojano Vizcaino, Alvaro", "Rubio Linuesa, Juan",
-    "Veres Veres, Andrei Florin", "Veress , Csaba", "Abaiz Tamhani, Aissa",
-    "Ibañez Godoy, Javier", "Martin Ruiz, Manuel", "Tort Di Gregori, Nelson Alejandro",
-    "Abadie Mendez, Darwin Enrique", "Bejarano Caballero, Steven", "Berthe , Modibo",
-    "Cabezas Sanchez, Pau", "Caicedo Escobar, Christian A", "Calderon Rodriguez, Oscar",
-    "Caler Martin, David", "Calvo Macias, Kevin", "Cardenas Hernandez, Fidel",
-    "Casares Ureña, Jose Maria", "Cruz Silva, Juan David", "Del Carmen Lopez, Jonathan",
-    "Diaz Diaz, Gregorio Eduardo", "Duarte Bejarano, Diego Alejandro", "Duarte Bejarano, William Steven",
-    "Ekabiby Maouari, Yasin", "El Mesbahi, Mohammed Rida", "El Harrak Zbakh, Issam",
-    "El Mezraoui , Younass", "El Ouahabi Beldris, Mohammed", "Embi Camacho, Sergio",
-    "Famakanding , Dembele", "Figueroba Moral, Felix", "Figueroba Moral, Juan Carlos",
-    "Galvez Maya, Esteban", "Garcia Rosa, Hugo", "Garcia Sales, Javier",
-    "Garcia Villanueva, John Jaider", "Gonzalez Rodriguez, Juan Manuel", "Grajales Campo, Javier",
-    "Gutierrez Verdecia, Alexis", "Haro Sanchez, Nicolas", "Hernandez Alonso, Daniel",
-    "Isaila , Daniel", "Iñiguez Rosero, Juan Vinicio", "Jimenez Lopez, Francisco Javier",
-    "Kocsis , David Adrian", "Lancho Gomez, Fco Javier", "Llamas De Dios, Rafael",
-    "Lobato Hidalgo, Javier", "Lopez Sanchez, Hector", "Marin , Ionut Claudiu",
-    "Marin , Radu", "Mendez , Daniel", "Messari Bellizou, Wadie",
-    "Metmari El Haouari, Youssef", "Millat Pinteño, Jordi", "Montaño Bascope, Jhanif",
-    "Moral Fernandez, Ruben", "Moran Magallanes, Julio Fernando", "Moreno Gonzalez, Rafael",
-    "Navarro Martin, Juan Miguel", "Padilla Rodriguez, Oscar", "Piña Mejia, Miguel Stalin",
-    "Prados Lucena, Raul", "Rivarola , Pablo Gabriel", "Roca Mendoza, Sergi",
-    "Rodriguez Guevara, Nestor", "Rodriguez Nuñez, Luis Alonso", "Rodriguez Sanchez, Jesus",
-    "Romero Espinola, Antonio", "Saez Gomez, Adrian", "Saez Perez, Carlos",
-    "Salmeron Sanchez, Iban", "Samb , Khadim Mbacke", "Sanchez Reyes, Daniel",
-    "Sancho Porras, Jose", "Serrano Lopez, Oscar", "Sierra Guerrero, Juan Alberto",
-    "Silva Laso, Jose", "Tanoughat Nassiri, Charaf Addine", "Toro Gonzalez, Antony",
-    "Tovar Romero, Joshua", "Vallespin Palacios, Alejandro", "Vasquez Nuñez, Pedro Ruben",
-    "Velez Granda, Andres Antonio", "Vidal Urban, Climent", "Zarraluqui Hidalgo, Xavier",
-    "Villarta Alvarez, Jesus Manuel", "Atrach , Mohammed Ali", "Diarra , Bayini",
-    "Khadre Diop, Abdou", "Ruiz Gracia, Tomàs"
-];
-
-// Inicialización inmediata para evitar errores de 'null'
-window.TEAM_STATE = { 
-    attendance: {}, 
-    zones: {}, 
-    allPeopleRaw: [], 
-    people: [], 
-    shift: "Cargando...", 
-    sheet_date: new Date().toISOString().slice(0,10)
-};
-
-// Inicialización inmediata del estado global
-
 /* ==========================
 Utilidades básicas
 ========================== */
@@ -2459,7 +2406,7 @@ render5S();
 /* ==========================
 Roster / Equipo
 ========================== */
-
+let TEAM_STATE = null;
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
 
@@ -2516,73 +2463,87 @@ shift: TEAM_STATE?.shift || null
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
+    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
-    // Guardar lista maestra recibida del servidor
+    // Guardar lista maestra
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
-    listEl.innerHTML = '';
-
-    // --- FILTRADO ESTRICTO ALMACÉN ---
-    const filteredPeople = masterList.filter(p => {
-        const nombreAPI = (p.nombre_completo || "").trim().toLowerCase();
-        return LISTA_BLANCA_ESTA_SECCION.some(permitido => 
-            nombreAPI.includes(permitido.trim().toLowerCase())
-        );
-    });
-
-    if (filteredPeople.length === 0) {
-        listEl.innerHTML = `<div style="padding:20px; text-align:center; color:var(--text-muted); font-size:0.9rem;">
-            📭 No hay personal de Almacén asignado al turno de ${window.TEAM_STATE.shift}.
-        </div>`;
+    if (!masterList || masterList.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal BCN...</div>';
         return;
     }
 
+    // --- FILTRADO POR HORQUILLA ---
+    const hNow = new Date().getHours();
+    let currentShiftLabel = "Noche";
+    if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
+    else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
+
+    const extractHours = (str) => {
+        const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
+        if (!times) return [];
+        return times.map(t => parseInt(t.split(':')[0]));
+    };
+
+    const filteredPeople = masterList.filter(p => {
+        const hours = extractHours(p.horario);
+        if (hours.length === 0) return true;
+        const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
+        if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
+        if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
+        if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
+        return false;
+    });
+
+    window.TEAM_STATE.people = filteredPeople;
+    listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
-    filteredPeople.forEach((p) => {
+    filteredPeople.forEach((p, idx) => {
         const name = p.nombre_completo;
+        const isIncidencia = p.is_incidencia === true;
+        const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
         const currentAtt = window.TEAM_STATE.attendance[name]; 
         const currentZone = window.TEAM_STATE.zones[name] || '';
         const safeId = name.replace(/[^a-z0-9]/gi, '_');
 
-        const card = document.createElement('div');
-        card.className = 'team-row';
-        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid var(--brand-red-600); background:#fff; box-shadow:var(--elev-1);`;
+        const row = document.createElement('div');
+        row.className = 'team-row';
+        row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; border-left:6px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
 
-        card.innerHTML = `
+        row.innerHTML = `
             <div>
-                <div style="font-weight:800; color:var(--text); font-size:1rem;">${esc(name)}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">🕒 ${esc(p.horario)}</div>
-            </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-                <div class="presence-toggle">
-                    <!-- Solo checked si se ha marcado explícitamente como true o false -->
-                    <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                    <label for="y_${safeId}" class="yes">✓ OK</label>
-                    
-                    <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                    <label for="n_${safeId}" class="no">✕ NO</label>
+                <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
+                <div style="display:flex; gap:6px; margin-top:4px;">
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
+                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones)}</span>
                 </div>
-                <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; background:#fff;">
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
+                <div class="presence-toggle">
+                    <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                    <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✓ OK</label>
+                    <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                    <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">✕</label>
+                </div>
+                <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                     <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
                     ${ZONES.map(z => `<option value="${esc(z)}" ${z === currentZone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
                 </select>
             </div>
         `;
 
-        card.querySelectorAll('input[type="radio"]').forEach(radio => {
-            radio.onclick = () => {
-                window.TEAM_STATE.attendance[name] = (radio.value === 'yes');
-                updatePresenceOnServer(name, radio.value === 'yes');
+        row.querySelectorAll('input[type="radio"]').forEach(r => {
+            r.addEventListener('click', () => {
+                window.TEAM_STATE.attendance[name] = (r.value === 'yes');
+                updatePresenceOnServer(name, window.TEAM_STATE.attendance[name]);
                 updateTeamMeta(window.TEAM_STATE);
-            };
+            });
         });
 
-        listEl.appendChild(card);
+        listEl.appendChild(row);
     });
-
     updateTeamMeta(window.TEAM_STATE);
 }
 
