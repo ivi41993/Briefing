@@ -84,19 +84,23 @@ NAVE_TARGET = "N1"             # <--- Identificador Nave N1
 STATION_CODE_API = "MAD"       # Escala para la API de Personal
 EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS1")
 
-async def fetch_roster_api_mad(fecha_api: str):
-    """Llamada POST a la API de Madrid usando Form-Data (application/x-www-form-urlencoded)"""
+# --- 1. LLAMADA API MADRID (EXTRACCIÓN CORRECTA BASADA EN TU PRUEBA) ---
+async def fetch_mad_roster_from_api():
+    """Llamada POST a la API de Madrid usando Form-Data (requests.post(..., data=payload))"""
     url = os.getenv("ROSTER_API_URL")
     api_key = os.getenv("ROSTER_API_KEY")
     
     if not url or not api_key:
-        print("⚠️ ROSTER_API_URL o ROSTER_API_KEY no configuradas en .env")
+        print("⚠️ ROSTER_API_URL o ROSTER_API_KEY no configuradas")
         return None
 
-    # Payload exacto: La API de Madrid espera estos campos en un formulario
+    # Fecha en formato DD/MM/YYYY como requiere la API de Madrid
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    fecha_api = ahora.strftime("%d/%m/%Y")
+
     payload = {
         "escala": "MAD",
-        "fecha": fecha_api  # Formato esperado DD/MM/YYYY
+        "fecha": fecha_api
     }
     headers = {
         "api-key": api_key,
@@ -105,72 +109,35 @@ async def fetch_roster_api_mad(fecha_api: str):
 
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            # CLAVE: Usamos 'data=' para mandar Form-Data, NO 'json='
+            # CLAVE: Usamos 'data=' para mandar Form-Data (application/x-www-form-urlencoded)
+            # Esto es lo que hace que tu script de VSC funcione y el JSON no.
             response = await client.post(url, headers=headers, data=payload)
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ API MAD: {len(data)} registros recibidos correctamente.")
+                print(f"✅ API MAD: Recibidos {len(data)} registros de Madrid.")
                 return data
             else:
                 print(f"❌ Error API Madrid: {response.status_code} - {response.text}")
                 return None
     except Exception as e:
-        print(f"💥 Error crítico en fetch_roster_api_mad: {e}")
+        print(f"💥 Error crítico en fetch_mad_roster: {e}")
         return None
 
-def filter_mad_people_by_nave_n1(api_data: list, current_shift: str):
-    """Filtra el JSON de Madrid buscando OPERARIOS-N1, codDestino N1 o descDestino NAVE 1"""
-    normalized = []
-    
-    for p in api_data:
-        try:
-            # 1. Extraer y normalizar campos para evitar fallos de mayúsculas/minúsculas
-            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
-            cod   = str(p.get("codDestino") or "").upper()
-            desc  = str(p.get("descDestino") or "").upper()
-            
-            # 2. APLICAR TUS CRITERIOS DE FILTRADO (N1)
-            if "OPERARIOS-N1" in grupo or "N1" in cod or "NAVE 1" in desc:
-                
-                # 3. Filtrado por turno (Basado en Horas de entrada)
-                raw_inicio = str(p.get("horaInicio") or "")
-                if " " not in raw_inicio: continue
-                
-                # Extraer la hora del string "DD/MM/YYYY HH:MM:SS"
-                hora_h = int(raw_inicio.split(" ")[1].split(":")[0])
-                
-                is_match = False
-                if current_shift == "Mañana" and (4 <= hora_h < 14): is_match = True
-                elif current_shift == "Tarde" and (14 <= hora_h < 22): is_match = True
-                elif current_shift == "Noche" and (hora_h >= 22 or hora_h < 4): is_match = True
-                
-                if is_match:
-                    normalized.append({
-                        "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                        "nomina": p.get("nomina"),
-                        "horario": raw_inicio.split(" ")[1][:5], # Solo HH:MM
-                        "observaciones": p.get("nombreGrupoTrabajo", "OPERARIOS-N1"),
-                        "is_incidencia": p.get("IsIncidencias", False)
-                    })
-        except Exception as e: 
-            continue
-        
-    return normalized
-
+# --- 2. CONSTRUCTOR DE ESTADO (BRIDGE AL FRONTEND) ---
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Llamamos a la API con la fecha en formato DD/MM/YYYY
-    raw_api_data = await fetch_roster_api_mad(sdate.strftime("%d/%m/%Y"))
+    # Obtenemos los datos brutos de Madrid
+    raw_api_data = await fetch_mad_roster_from_api()
     
     people = []
     source = "excel"
 
     if raw_api_data and isinstance(raw_api_data, list):
-        # Filtramos la gente de Madrid para que solo se vea N1 en esta instancia
-        people = filter_mad_people_by_nave_n1(raw_api_data, shift)
+        # Entregamos toda la lista de Madrid al Frontend
+        people = raw_api_data
         source = "api"
     else:
         # Fallback a Excel si la API falla
@@ -179,7 +146,7 @@ async def _build_roster_state(force=False) -> dict:
             people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
             source = "excel"
 
-    # Actualizar cache global
+    # Actualizamos el caché y enviamos por WebSocket
     roster_cache.update({
         "sheet_date": sdate, 
         "shift": shift, 
@@ -189,15 +156,10 @@ async def _build_roster_state(force=False) -> dict:
         "source": source
     })
     
-    # 🚀 LANZAR AL FRONTEND vía WebSocket
-    # El frontend recibirá este mensaje y actualizará la lista de personas automáticamente
-    await manager.broadcast({
-        "type": "roster_update", 
-        **roster_cache, 
-        "sheet_date": sdate.isoformat()
-    })
-    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
+
+
 # -----------------------------------
 # Modelos de Datos
 # -----------------------------------
