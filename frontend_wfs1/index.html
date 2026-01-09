@@ -3045,7 +3045,7 @@ window.TEAM_STATE = {
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. Normalización
+    // Capturamos los datos
     const rawList = Array.isArray(people) ? people : (state && state.people ? state.people : []);
     window.TEAM_STATE.allPeopleRaw = rawList;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
@@ -3053,73 +3053,55 @@ function renderRoster(listEl, people, state) {
     listEl.innerHTML = '';
 
     if (rawList.length === 0) {
-        listEl.innerHTML = `<div style="padding:20px; text-align:center; color:var(--text-muted);">
-            📭 No hay personal de Nave 1 para el turno de ${window.TEAM_STATE.shift}.
+        listEl.innerHTML = `<div style="padding:20px; text-align:center; color:var(--brand-red-600); font-weight:700;">
+            📭 No hay personal de Nave 1 para el turno de ${window.TEAM_STATE.shift}.<br>
+            <small style="font-weight:400; color:gray;">(Verifica que el horario de entrada coincida con el turno actual)</small>
         </div>`;
         return;
     }
 
-    // 2. Renderizado de tarjetas
     rawList.forEach((p) => {
-        const fullName = p.nombre_completo || "Sin Nombre";
+        const fullName = p.nombre_completo;
         const currentAtt = window.TEAM_STATE.attendance[fullName]; 
         const safeId = fullName.replace(/[^a-z0-9]/gi, '_');
 
         const card = document.createElement('div');
         card.className = 'team-row';
-        card.style.cssText = `
-            display:flex; flex-direction:column; padding:14px; 
-            border-radius:14px; margin-bottom:12px; 
-            border-left:6px solid var(--brand-red-600); 
-            background:#fff; box-shadow:var(--elev-1);
-        `;
+        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid var(--brand-red-600); background:#fff; box-shadow:var(--elev-1);`;
 
         card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div style="flex:1;">
-                    <div style="font-weight:800; color:var(--text); font-size:1.05rem;">${esc(fullName)}</div>
-                    <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; align-items:center;">
-                        <!-- Horario Extraído -->
-                        <span style="font-size:0.75rem; color:var(--brand-red-700); font-weight:700; background:#fff1f2; padding:3px 10px; border-radius:8px; border:1px solid #fecaca;">
-                            🕒 ${esc(p.horario)}
-                        </span>
-                        <!-- Grupo de Trabajo Extraído -->
-                        <span style="font-size:0.7rem; background:#eef2ff; color:#3730a3; padding:3px 10px; border-radius:8px; font-weight:800; border:1px solid #c7d2fe; text-transform:uppercase;">
-                            ${esc(p.grupo || 'N1')}
-                        </span>
-                    </div>
+            <div>
+                <div style="font-weight:800; color:var(--text); font-size:1rem;">${esc(fullName)}</div>
+                <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
+                    <span style="font-size:0.75rem; color:var(--brand-red-700); font-weight:700; background:#fff1f2; padding:2px 8px; border-radius:6px;">
+                        🕒 ${esc(p.horario)}
+                    </span>
+                    <span style="font-size:0.7rem; background:#eef2ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-weight:800;">
+                        ${esc(p.grupo)}
+                    </span>
                 </div>
             </div>
-            
-            <div class="presence-toggle" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border); display:flex; justify-content:center; gap:12px;">
+            <div class="presence-toggle" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:flex; justify-content:center; gap:8px;">
                 <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                <label for="y_${safeId}" class="yes" style="padding:10px 30px; border-radius:12px; font-weight:800; font-size:0.9rem;">✓ OK</label>
-                
+                <label for="y_${safeId}" class="yes" style="padding:8px 20px;">✓ OK</label>
                 <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                <label for="n_${safeId}" class="no" style="padding:10px 30px; border-radius:12px; font-weight:800; font-size:0.9rem;">✕ NO</label>
+                <label for="n_${safeId}" class="no" style="padding:8px 20px;">✕ NO</label>
             </div>
         `;
 
-        card.querySelectorAll('input').forEach(radio => {
-            radio.onclick = () => {
-                window.TEAM_STATE.attendance[fullName] = (radio.value === 'yes');
-                if (typeof updatePresenceOnServer === 'function') {
-                    updatePresenceOnServer(fullName, radio.value === 'yes');
-                }
+        card.querySelectorAll('input').forEach(r => {
+            r.onclick = () => {
+                window.TEAM_STATE.attendance[fullName] = (r.value === 'yes');
+                updatePresenceOnServer(fullName, r.value === 'yes');
                 updateTeamMeta(window.TEAM_STATE);
-                if (window.updateSpotlightRouting) window.updateSpotlightRouting();
             };
         });
 
         listEl.appendChild(card);
     });
 
-    // Actualizar meta
     const meta = document.getElementById('team-meta');
-    if (meta) {
-        const count = Object.values(window.TEAM_STATE.attendance).filter(v => v === true).length;
-        meta.textContent = `${window.TEAM_STATE.shift} • N1: ${count}/${rawList.length} presentes`;
-    }
+    if (meta) meta.textContent = `${window.TEAM_STATE.shift} • N1: ${rawList.length} trabajadores`;
 }
 
 
