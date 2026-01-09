@@ -84,80 +84,7 @@ NAVE_TARGET = "N1"             # <--- Identificador Nave N1
 STATION_CODE_API = "MAD"       # Escala para la API de Personal
 EXCEL_WEBHOOK_URL = os.getenv("EXCEL_WEBHOOK_URL_WFS1")
 
-# --- 1. LLAMADA API MADRID (EXTRACCIÓN CORRECTA BASADA EN TU PRUEBA) ---
-async def fetch_mad_roster_from_api():
-    """Llamada POST a la API de Madrid usando Form-Data (requests.post(..., data=payload))"""
-    url = os.getenv("ROSTER_API_URL")
-    api_key = os.getenv("ROSTER_API_KEY")
-    
-    if not url or not api_key:
-        print("⚠️ ROSTER_API_URL o ROSTER_API_KEY no configuradas")
-        return None
 
-    # Fecha en formato DD/MM/YYYY como requiere la API de Madrid
-    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
-    fecha_api = ahora.strftime("%d/%m/%Y")
-
-    payload = {
-        "escala": "MAD",
-        "fecha": fecha_api
-    }
-    headers = {
-        "api-key": api_key,
-        "Accept": "application/json"
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # CLAVE: Usamos 'data=' para mandar Form-Data (application/x-www-form-urlencoded)
-            # Esto es lo que hace que tu script de VSC funcione y el JSON no.
-            response = await client.post(url, headers=headers, data=payload)
-            
-            if response.status_code == 200:
-                data = response.json()
-                print(f"✅ API MAD: Recibidos {len(data)} registros de Madrid.")
-                return data
-            else:
-                print(f"❌ Error API Madrid: {response.status_code} - {response.text}")
-                return None
-    except Exception as e:
-        print(f"💥 Error crítico en fetch_mad_roster: {e}")
-        return None
-
-# --- 2. CONSTRUCTOR DE ESTADO (BRIDGE AL FRONTEND) ---
-async def _build_roster_state(force=False) -> dict:
-    now = _now_local()
-    shift, sdate, start, end = _current_shift_info(now)
-    
-    # Obtenemos los datos brutos de Madrid
-    raw_api_data = await fetch_mad_roster_from_api()
-    
-    people = []
-    source = "excel"
-
-    if raw_api_data and isinstance(raw_api_data, list):
-        # Entregamos toda la lista de Madrid al Frontend
-        people = raw_api_data
-        source = "api"
-    else:
-        # Fallback a Excel si la API falla
-        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
-            source = "excel"
-
-    # Actualizamos el caché y enviamos por WebSocket
-    roster_cache.update({
-        "sheet_date": sdate, 
-        "shift": shift, 
-        "people": people,
-        "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, 
-        "source": source
-    })
-    
-    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
-    return roster_cache
 
 
 # -----------------------------------
@@ -804,10 +731,131 @@ app.add_middleware(
 # -----------------------------------
 # Endpoints API
 # -----------------------------------
+# ... (mantén tus imports anteriores)
+
+# --- 1. FUNCIÓN DE LLAMADA A API (MEJORADA) ---
+async def fetch_mad_roster_from_api():
+    """
+    Llamada POST a la API de Madrid. 
+    Usa 'data=payload' para enviar Form-Data como en tu prueba de VSC.
+    """
+    url = os.getenv("ROSTER_API_URL")
+    api_key = os.getenv("ROSTER_API_KEY")
+    
+    if not url or not api_key:
+        print("⚠️ ROSTER_API_URL o ROSTER_API_KEY no configuradas en .env")
+        return None
+
+    # Fecha en formato DD/MM/YYYY
+    ahora = datetime.now(ZoneInfo(ROSTER_TZ))
+    fecha_api = ahora.strftime("%d/%m/%Y")
+
+    payload = {
+        "escala": STATION_CODE_API, # "MAD"
+        "fecha": fecha_api
+    }
+    headers = {
+        "api-key": api_key,
+        "Accept": "application/json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Importante: 'data=' envía application/x-www-form-urlencoded
+            response = await client.post(url, headers=headers, data=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ API {STATION_CODE_API}: Recibidos {len(data)} registros totales.")
+                return data
+            else:
+                print(f"❌ Error API Madrid: {response.status_code} - {response.text}")
+                return None
+    except Exception as e:
+        print(f"💥 Error crítico conectando a la API: {e}")
+        return None
+
+# --- 2. PROCESAMIENTO Y FILTRADO (EL CORAZÓN DEL NEGOCIO) ---
+def _process_api_data(raw_data: list, target_nave: str) -> list:
+    """
+    Filtra los datos de la escala (Madrid) para quedarse solo con la nave específica (N1).
+    Mapea los campos para que coincidan con lo que el frontend espera.
+    """
+    processed_people = []
+    target = target_nave.upper() # "N1"
+
+    for p in raw_data:
+        cod_destino = str(p.get("codDestino", "")).upper()
+        desc_destino = str(p.get("descDestino", "")).upper()
+
+        # CRITERIO DE FILTRADO: 
+        # Si la nave es "N1", buscamos que aparezca en el código o descripción de destino
+        if target == "TODO" or target in cod_destino or target in desc_destino:
+            processed_people.append({
+                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                "horario": f"{p.get('horaEntrada', '??')} - {p.get('horaSalida', '??')}",
+                "observaciones": p.get("descDestino", ""),
+                "cod_destino": p.get("codDestino", ""), # Info extra por si acaso
+                "source": "API"
+            })
+    
+    print(f"🎯 Filtrado: {len(processed_people)} trabajadores encontrados para {target_nave}")
+    return processed_people
+
+# --- 3. CONSTRUCTOR DE ESTADO ACTUALIZADO ---
+async def _build_roster_state(force=False) -> dict:
+    """
+    Orquestador: Intenta API -> Si falla, intenta Excel.
+    """
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # Evitar recarga si no es necesario (opcional)
+    # if not force and roster_cache.get("shift") == shift and roster_cache.get("sheet_date") == sdate:
+    #    return roster_cache
+
+    people = []
+    source = "ninguno"
+
+    # INTENTO 1: API
+    raw_api_data = await fetch_mad_roster_from_api()
+    if raw_api_data and isinstance(raw_api_data, list):
+        people = _process_api_data(raw_api_data, NAVE_TARGET)
+        source = "api"
+    
+    # INTENTO 2: FALLBACK EXCEL (Si la API no trajo nada)
+    if not people:
+        print("🔄 API sin datos o fallida. Intentando cargar desde Excel...")
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        if sheet:
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
+            source = "excel"
+
+    # Actualizar el Caché Global
+    roster_cache.update({
+        "sheet_date": sdate, 
+        "shift": shift, 
+        "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, 
+        "source": source
+    })
+    
+    # Notificar a todos los navegadores conectados por WebSocket
+    await manager.broadcast({
+        "type": "roster_update", 
+        **roster_cache, 
+        "sheet_date": sdate.isoformat()
+    })
+    
+    return roster_cache
+
+# --- 4. ENDPOINTS AFECTADOS ---
 @app.get("/api/roster/current")
 async def get_roster_current():
+    # Aseguramos que los datos estén frescos antes de devolverlos
     state = await _build_roster_state(force=False)
-    # Usar la llave de memoria dinámica "YYYY-MM-DD|Turno"
+    
     key = _att_key(state.get("sheet_date"), state.get("shift"))
     att_map = attendance_store.get(key, {})
     
@@ -815,8 +863,11 @@ async def get_roster_current():
         "shift": state.get("shift"),
         "sheet_date": state.get("sheet_date").isoformat(),
         "people": state.get("people", []),
-        "attendance": att_map
+        "attendance": att_map,
+        "source": state.get("source") # Útil para debug en el front
     }
+
+# ... (El resto de tu código: Tareas, Briefing, SQL, etc. se mantiene igual)
 
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
