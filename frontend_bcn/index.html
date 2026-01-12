@@ -3952,38 +3952,43 @@ setTimeout(()=> el.classList.remove('widget--zoomed'), 120000);
 }
 }
 
+/* =========================================================
+   2. TARJETA 5: INCIDENTES (SOLUCIÓN RECARGA Y CLAVE UNIFICADA)
+   ========================================================= */
 (function initManualIncidents() {
-    const KEY = 'incidents_manual_entries_v1';
+    // Usamos una clave consistente para que el generador de resumen la encuentre
+    const KEY = 'safety_manual_incidents_v1'; 
     const listEl = document.getElementById('incidents-list-container');
     const form = document.getElementById('manual-inc-form');
     
     if (!listEl || !form) return;
 
-    function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } }
-    function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
-
-    function render() {
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } };
+    const save = (data) => { localStorage.setItem(KEY, JSON.stringify(data)); };
+    
+    const render = () => {
         const items = load();
-        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay registros hoy.</div>';
+        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay incidentes registrados hoy.</div>';
         items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
             const card = document.createElement('div');
             const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
             const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
             card.className = `inc-card ${typeClass}`;
+            card.style.marginBottom = "10px";
             card.innerHTML = `
                 <div class="inc-header">
                     <div>
-                        <span class="inc-badge">${badgeText}</span>
-                        <div class="inc-title" style="margin-top:4px;">${esc(item.title)}</div>
+                        <span class="inc-badge" style="font-weight:800; font-size:0.7rem; padding:2px 6px; border-radius:4px;">${badgeText}</span>
+                        <div class="inc-title" style="margin-top:4px; font-weight:700;">${esc(item.title)}</div>
                     </div>
-                    <button type="button" class="inc-del-btn" data-id="${item.id}">🗑️</button>
+                    <button type="button" class="inc-del-btn" data-id="${item.id}" style="background:none; border:none; cursor:pointer;">🗑️</button>
                 </div>
-                <div class="inc-desc">${esc(item.desc)}</div>`;
+                <div class="inc-desc" style="font-size:0.9rem; color:#4b5563; margin-top:5px; white-space:pre-wrap;">${esc(item.desc)}</div>`;
             listEl.appendChild(card);
         });
-    }
+    };
 
-    // Usamos addEventListener con preventDefault al principio de todo
+    // FIX: Capturar el submit correctamente
     form.addEventListener('submit', function(e) {
         e.preventDefault(); 
         e.stopPropagation();
@@ -3996,7 +4001,7 @@ setTimeout(()=> el.classList.remove('widget--zoomed'), 120000);
 
         const items = load();
         items.push({ 
-            id: "ID-" + Date.now(), 
+            id: Date.now().toString(), 
             type: typeVal, 
             title: titleVal, 
             desc: descVal, 
@@ -4004,19 +4009,16 @@ setTimeout(()=> el.classList.remove('widget--zoomed'), 120000);
         });
         
         save(items);
-        this.reset(); // Limpia el formulario
+        form.reset();
         render();
-        console.log("Registro añadido:", typeVal);
+        console.log("✅ Incidente guardado en memoria local");
     });
 
     listEl.onclick = function(e) {
         const btn = e.target.closest('.inc-del-btn');
-        if (btn) {
-            e.preventDefault();
-            if (confirm("¿Borrar?")) {
-                save(load().filter(i => i.id !== btn.dataset.id));
-                render();
-            }
+        if (btn && confirm("¿Borrar registro?")) {
+            save(load().filter(i => i.id !== btn.dataset.id));
+            render();
         }
     };
     render();
@@ -4433,14 +4435,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch(e) { console.warn("Error leyendo ops", e); }
 
                 // Incidentes Seguridad
-                let safetyIncidentsPayload = []; 
+                const safetyTips = Array.from(document.querySelectorAll('#safety-tips .tip')).map(tip => ({
+                    title: "Recordatorio Diario", 
+                    desc: tip.innerText
+                }));
+                
+                let manualIncidentsPayload = []; 
                 try {
-                    const rawSafety = localStorage.getItem('safety_manual_incidents_v1') || '[]';
-                    safetyIncidentsPayload = JSON.parse(rawSafety);
+                    // Cargamos la clave que definimos en el paso anterior
+                    const rawManual = localStorage.getItem('safety_manual_incidents_v1') || '[]';
+                    const parsedManual = JSON.parse(rawManual);
+                    
+                    // Mapeamos al formato que espera el Excel
+                    manualIncidentsPayload = parsedManual.map(i => ({
+                        title: i.type.toUpperCase() + ": " + i.title,
+                        desc: i.desc
+                    }));
                 } catch (e) {
-                    console.warn("Error leyendo incidentes de seguridad", e);
+                    console.warn("Error leyendo Tarjeta 5", e);
                 }
-
                 const payload = {
                     station: "BCN",
                     date: (() => {
@@ -4465,7 +4478,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
                     kanban_details: kanbanItems.join(" | "),
                     ops_updates: opsData,
-                    safety_incidents: safetyIncidentsPayload
+                    safety_incidents: manualIncidentsPayload
                 };
 
                 const res = await fetch('api/briefing/summary', {
