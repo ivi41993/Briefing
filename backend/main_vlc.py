@@ -755,6 +755,104 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 # -----------------------------------
 # Endpoints API
 # -----------------------------------
+
+roster_cache: dict[str, Any] = {
+    "file_mtime": None,
+    "sheet_date": None,
+    "shift": None,         # 'Mañana'|'Tarde'|'Noche'
+    "people": [],
+    "updated_at": None,
+    "window": None,
+    "sheet": None,
+}
+
+def _now_local():
+    return datetime.now(ZoneInfo(ROSTER_TZ))
+
+def _current_shift_info(now):
+    hhmm = now.strftime("%H:%M")
+    if "06:00" <= hhmm < "14:00":
+        return "Mañana", now.date(), "06:00", "14:00"
+    if "14:00" <= hhmm < "22:00":
+        return "Tarde", now.date(), "14:00", "22:00"
+    # Noche → si son de 00:00 a 05:59, usamos la hoja de AYER
+    sheet_date = now.date() - timedelta(days=1) if hhmm < "06:00" and ROSTER_NIGHT_PREV_DAY else now.date()
+    return "Noche", sheet_date, "22:00", "06:00"
+
+
+
+async def fetch_bcn_roster_from_api():
+    """Llamada POST a la API para obtener el personal de Barcelona"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API VLC no configurada.")
+        return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    payload = {
+        "escala": "VLC",
+        "fecha": ahora.strftime("%d/%m/%Y") # Formato dd/mm/yyyy
+    }
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ API BCN: Recibidos {len(data)} trabajadores.")
+                return data
+    except Exception as e:
+        print(f"❌ Error API BCN: {e}")
+    return None
+
+def filter_api_people_by_shift(api_data: list, current_shift: str):
+    """Procesador de datos para BCN"""
+    normalized = []
+    for p in api_data:
+        try:
+            # Limpiar "07/01/2026 14:00" -> "14:00"
+            raw_inicio = p.get("horaInicio", "")
+            raw_fin = p.get("horaFin", "")
+            h_ini = raw_inicio.split(" ")[1] if " " in raw_inicio else raw_inicio
+            h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+
+            normalized.append({
+                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                "nomina": p.get("nomina"),
+                "horario": f"{h_ini} - {h_fin}",
+                "observaciones": p.get("nombreGrupoTrabajo", ""),
+                "is_incidencia": p.get("IsIncidencias", False)
+            })
+        except: continue
+    return normalized
+
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # 1. Intentar API
+    raw_api_data = await fetch_bcn_roster_from_api()
+    people = []
+    source = "excel"
+
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        people = filter_api_people_by_shift(raw_api_data, shift)
+        source = "api"
+    else:
+        # 2. Fallback a Excel
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
+
+
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
