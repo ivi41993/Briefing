@@ -2487,27 +2487,32 @@ shift: TEAM_STATE?.shift || null
 });
 }catch(e){ console.error(e); }
 }
-
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
+    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
+    
+    // --- 1. NUEVA LISTA DE PERSONAS PERMITIDAS ---
+    
 
-    // 1. Inicialización del estado global VLC
-    if (!window.TEAM_STATE) {
-        window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
-    }
-
-    // 2. Guardar datos nuevos si llegan del servidor
-    if (people && people.length > 0) {
-        window.TEAM_STATE.allPeopleRaw = people;
-    }
-
+    // Guardar lista maestra
+    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     const masterList = window.TEAM_STATE.allPeopleRaw;
+
     if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Esperando datos de la API VLC...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal BCN...</div>';
         return;
     }
 
-    // 3. FILTRADO POR TURNO (Lógica de horquilla)
+    // --- FUNCIÓN DE NORMALIZACIÓN (Quita acentos, comas y mayúsculas) ---
+    const limpiarTexto = (str) => {
+        return str.normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .replace(/,/g, "")
+                  .toLowerCase()
+                  .trim();
+    };
+
+    // --- LÓGICA DE TURNOS ---
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
@@ -2519,20 +2524,31 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
+    // --- FILTRADO DOBLE: NOMBRE (FLEXIBLE) + HORQUILLA ---
     const filteredPeople = masterList.filter(p => {
+        const nombreAPI = limpiarTexto(p.nombre_completo || "");
+        
+        // Verificamos si el nombre de la API contiene las palabras clave de nuestra lista
+        const estaEnLista = NOMBRES_PERMITIDOS.some(nombrePermitido => {
+            const palabrasPermitidas = limpiarTexto(nombrePermitido).split(/\s+/);
+            // Comprobamos que CADA palabra del nombre permitido esté en el nombre de la API
+            return palabrasPermitidas.every(palabra => nombreAPI.includes(palabra));
+        });
+
+        if (!estaEnLista) return false;
+
+        // Filtro de Horquilla
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true;
         const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
+        
         if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
         if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
         if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
         return false;
     });
 
-    // Guardamos la lista filtrada para el Excel
     window.TEAM_STATE.people = filteredPeople;
-
-    // 4. DIBUJAR
     listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
@@ -2549,9 +2565,9 @@ function renderRoster(listEl, people, state) {
         row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; border-left:6px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
 
         row.innerHTML = `
-            <div style="min-width:0;">
+            <div>
                 <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
-                <div style="display:flex; gap:6px; margin-top:4px; align-items:center;">
+                <div style="display:flex; gap:6px; margin-top:4px;">
                     <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
                     <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones)}</span>
                 </div>
@@ -2559,9 +2575,9 @@ function renderRoster(listEl, people, state) {
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                 <div class="presence-toggle">
                     <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                    <label for="y_${safeId}" class="yes" style="padding:5px 12px; font-size:0.8rem;">✓ OK</label>
+                    <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✓ OK</label>
                     <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                    <label for="n_${safeId}" class="no" style="padding:5px 12px; font-size:0.8rem;">✕</label>
+                    <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">✕</label>
                 </div>
                 <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                     <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
@@ -2570,7 +2586,6 @@ function renderRoster(listEl, people, state) {
             </div>
         `;
 
-        // Eventos
         row.querySelectorAll('input[type="radio"]').forEach(r => {
             r.addEventListener('click', () => {
                 window.TEAM_STATE.attendance[name] = (r.value === 'yes');
@@ -2578,15 +2593,22 @@ function renderRoster(listEl, people, state) {
                 updateTeamMeta(window.TEAM_STATE);
             });
         });
-        row.querySelector('select').addEventListener('change', (e) => {
-            window.TEAM_STATE.zones[name] = e.target.value;
-            updateZoneOnServer(name, e.target.value);
-        });
 
         listEl.appendChild(row);
     });
     updateTeamMeta(window.TEAM_STATE);
 }
+
+async function initTeamRoster(){
+    const listEl = document.getElementById('team-list');
+    if(!listEl) return;
+    
+    const data = await fetchServerRoster();
+    if (data && data.people) {
+        renderRoster(listEl, data.people, data);
+    }
+}
+
 
 // Función auxiliar para no repetir código de eventos
 function attachRosterEvents(listEl) {
@@ -2611,15 +2633,7 @@ function attachRosterEvents(listEl) {
     });
 }
 
-async function initTeamRoster(){
-    const listEl = document.getElementById('team-list');
-    if(!listEl) return;
-    
-    const data = await fetchServerRoster();
-    if (data && data.people) {
-        renderRoster(listEl, data.people, data);
-    }
-}
+
 
 async function syncServerAdd(name){
     const payload = {
