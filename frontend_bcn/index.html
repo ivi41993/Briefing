@@ -2446,134 +2446,133 @@ shift: TEAM_STATE?.shift || null
 }
 
 function renderRoster(listEl, people, state) {
-    if (!listEl) return;
-    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
-    
-    // 1. Guardar lista maestra
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-    const masterList = window.TEAM_STATE.allPeopleRaw;
+if (!listEl) return;
+if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
+code
+Code
+// --- 1. NUEVA LISTA DE PERSONAS PERMITIDAS ---
+const NOMBRES_PERMITIDOS = [
+    "Alvarez Ruiz, Jorge Manuel", "Gabarro Miguel, Anna", "Martinez Bernal, Yolanda",
+    "Romero Pardines, Maria Del Carmen", "Rueda Rico, Alejandro", "Sanz Bañares, Daniel",
+    "Castineiras Del Rio, Jose Manuel", "Curci Caorsi, Sebastian", "Jurado Osorio, Leonor",
+    "Lopez Umpierrez, Florencia", "Rodriguez Traspalacio, Gabriela Natali", "Ruiz Blavia, Jose Luis",
+    "Algaba Asensio, Pilar", "Bayona Torres, Ana Cristina", "Calabretta , Pablo Ariel",
+    "Sevillano Domenech, Desiree", "Tavares Aquino, Enma Karen", "Amores Villegas, Salvador",
+    "Basili Basili, Juan Marcelo", "Castillo Ulit, Angelle Khryztal", "Dib Dib, Amira Nesrine",
+    "Exposito Ruiz, Susana", "Garcia Delgado, Mª Pilar", "Gazquez Castellnou, Mireia",
+    "Gomez Vaquer, Jorge", "Gouwe Martinez, Patricia", "Guerchouch Nahal, Bilal",
+    "Hidalgo Moreno, Isabel", "Lahmidi Lahmidi, Malika", "Ortega Yuste, Esther",
+    "Rodriguez Sanchez, Angelica", "Santa Ana Argote, Johana Caroline", "Solanes Barriga, Jan",
+    "Zamani Bouizourane, Amina", "Zambrano Real, Danelia", "Arano Paz, Pedro Diego",
+    "Chiappe Chiappe, Marcos Agustin", "Galve Comas, Juan Manuel", "Gonzalez Paez, Angelys Bisleidy",
+    "Manukyan , Ararat", "Medina Alvarez, Alba", "Mosquera Portocarrero, Jairo",
+    "Radu Radu, Ioana Rodica", "Rojas Arias, William Fernando"
+];
 
-    if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal de Operaciones...</div>';
-        return;
-    }
+// Guardar lista maestra
+if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+const masterList = window.TEAM_STATE.allPeopleRaw;
 
-    // --- LÓGICA DE TURNOS ACTUALES ---
-    const hNow = new Date().getHours();
-    let currentShiftLabel = "Noche";
-    if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
-    else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
-
-    const extractHours = (str) => {
-        if (!str) return [];
-        const times = str.match(/(\d{1,2}):(\d{2})/g);
-        if (!times) return [];
-        return times.map(t => parseInt(t.split(':')[0]));
-    };
-
-    // --- FILTRADO POR CATEGORÍA Y HORQUILLA ---
-    const filteredPeople = masterList.filter(p => {
-        // IMPORTANTE: Accedemos al objeto 'nomina' si existe, si no, al objeto raíz 'p'
-        const data = p.nomina || p;
-
-        // A. FILTRO DE CATEGORÍAS
-        const funcion = (data.codFuncion || "").toString().trim().toUpperCase();
-        const grupo = (data.nombreGrupoTrabajo || "").toString().trim().toUpperCase();
-
-        const funcionesPermitidas = ["DGR", "AF/KL", "DTC", "USC"];
-        
-        // Comprobar si cumple con el código de función o si es del grupo SUPERVISORES-OPS
-        const cumpleCategoria = funcionesPermitidas.includes(funcion) || grupo.includes("SUPERVISORES-OPS");
-
-        if (!cumpleCategoria) return false;
-
-        // B. FILTRO DE HORQUILLA (Basado en el horario de la persona)
-        // Usamos p.horario o intentamos construirlo desde la API si viene como horaInicio
-        let horarioStr = p.horario || "";
-        if (!horarioStr && data.horaInicio) {
-            horarioStr = `${data.horaInicio} - ${data.horaFin}`;
-        }
-
-        const hours = extractHours(horarioStr);
-        if (hours.length === 0) return true; // Si no hay hora, lo mostramos para no perderlo
-        
-        const hInicio = hours[0];
-        const hFin = hours.length > 1 ? hours[1] : hInicio;
-        
-        if (currentShiftLabel === "Mañana") return (hInicio >= 4 && hInicio < 14) || (hFin > 6 && hFin <= 14);
-        if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
-        if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
-        return false;
-    });
-
-    window.TEAM_STATE.people = filteredPeople;
-    listEl.innerHTML = '';
-    const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
-
-    if (filteredPeople.length === 0) {
-        listEl.innerHTML = `<div style="padding:20px; text-align:center; color:var(--text-muted);">No hay personal de OPS/Supervisores para el turno de ${currentShiftLabel}.</div>`;
-        return;
-    }
-
-    filteredPeople.forEach((p, idx) => {
-        const data = p.nomina || p;
-        // Normalizamos el nombre (la API de Madrid usa nombreApellidos)
-        const name = p.nombre_completo || data.nombreApellidos || "Sin nombre";
-        const isIncidencia = p.is_incidencia === true;
-        
-        let hVisual = p.horario || "";
-        if (!hVisual && data.horaInicio) {
-             const start = data.horaInicio.includes(" ") ? data.horaInicio.split(" ")[1] : data.horaInicio;
-             const end = data.horaFin.includes(" ") ? data.horaFin.split(" ")[1] : data.horaFin;
-             hVisual = `${start} - ${end}`;
-        }
-
-        const currentAtt = window.TEAM_STATE.attendance[name]; 
-        const currentZone = window.TEAM_STATE.zones[name] || '';
-        const safeId = name.replace(/[^a-z0-9]/gi, '_');
-
-        const row = document.createElement('div');
-        row.className = 'team-row';
-        row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; border-left:6px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
-
-        // Badge informativo de qué categoría cumple
-        const tagLabel = (data.codFuncion && data.codFuncion.trim()) ? data.codFuncion : "SUPERVISOR";
-
-        row.innerHTML = `
-            <div>
-                <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${esc(name)}</div>
-                <div style="display:flex; gap:6px; margin-top:4px; align-items:center;">
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
-                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800; border: 1px solid #c7d2fe;">${esc(tagLabel)}</span>
-                </div>
-            </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
-                <div class="presence-toggle">
-                    <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                    <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✓ OK</label>
-                    <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                    <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">✕</label>
-                </div>
-                <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
-                    <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
-                    ${ZONES.map(z => `<option value="${esc(z)}" ${z === currentZone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
-                </select>
-            </div>
-        `;
-
-        row.querySelectorAll('input[type="radio"]').forEach(r => {
-            r.addEventListener('click', () => {
-                window.TEAM_STATE.attendance[name] = (r.value === 'yes');
-                updatePresenceOnServer(name, window.TEAM_STATE.attendance[name]);
-                updateTeamMeta(window.TEAM_STATE);
-            });
-        });
-
-        listEl.appendChild(row);
-    });
-    updateTeamMeta(window.TEAM_STATE);
+if (!masterList || masterList.length === 0) {
+    listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal BCN...</div>';
+    return;
 }
 
+// --- FUNCIÓN DE NORMALIZACIÓN (Quita acentos, comas y mayúsculas) ---
+const limpiarTexto = (str) => {
+    return str.normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/,/g, "")
+              .toLowerCase()
+              .trim();
+};
+
+// --- LÓGICA DE TURNOS ---
+const hNow = new Date().getHours();
+let currentShiftLabel = "Noche";
+if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
+else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
+
+const extractHours = (str) => {
+    const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
+    if (!times) return [];
+    return times.map(t => parseInt(t.split(':')[0]));
+};
+
+// --- FILTRADO DOBLE: NOMBRE (FLEXIBLE) + HORQUILLA ---
+const filteredPeople = masterList.filter(p => {
+    const nombreAPI = limpiarTexto(p.nombre_completo || "");
+    
+    // Verificamos si el nombre de la API contiene las palabras clave de nuestra lista
+    const estaEnLista = NOMBRES_PERMITIDOS.some(nombrePermitido => {
+        const palabrasPermitidas = limpiarTexto(nombrePermitido).split(/\s+/);
+        // Comprobamos que CADA palabra del nombre permitido esté en el nombre de la API
+        return palabrasPermitidas.every(palabra => nombreAPI.includes(palabra));
+    });
+
+    if (!estaEnLista) return false;
+
+    // Filtro de Horquilla
+    const hours = extractHours(p.horario);
+    if (hours.length === 0) return true;
+    const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
+    
+    if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
+    if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
+    if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
+    return false;
+});
+
+window.TEAM_STATE.people = filteredPeople;
+listEl.innerHTML = '';
+const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
+
+filteredPeople.forEach((p, idx) => {
+    const name = p.nombre_completo;
+    const isIncidencia = p.is_incidencia === true;
+    const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
+    const currentAtt = window.TEAM_STATE.attendance[name]; 
+    const currentZone = window.TEAM_STATE.zones[name] || '';
+    const safeId = name.replace(/[^a-z0-9]/gi, '_');
+
+    const row = document.createElement('div');
+    row.className = 'team-row';
+    row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; border-left:6px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
+
+    row.innerHTML = `
+        <div>
+            <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
+            <div style="display:flex; gap:6px; margin-top:4px;">
+                <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
+                <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones)}</span>
+            </div>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
+            <div class="presence-toggle">
+                <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✓ OK</label>
+                <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">✕</label>
+            </div>
+            <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
+                <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
+                ${ZONES.map(z => `<option value="${esc(z)}" ${z === currentZone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
+            </select>
+        </div>
+    `;
+
+    row.querySelectorAll('input[type="radio"]').forEach(r => {
+        r.addEventListener('click', () => {
+            window.TEAM_STATE.attendance[name] = (r.value === 'yes');
+            updatePresenceOnServer(name, window.TEAM_STATE.attendance[name]);
+            updateTeamMeta(window.TEAM_STATE);
+        });
+    });
+
+    listEl.appendChild(row);
+});
+updateTeamMeta(window.TEAM_STATE);
+}
 
 async function initTeamRoster(){
     const listEl = document.getElementById('team-list');
