@@ -2449,25 +2449,6 @@ function renderRoster(listEl, people, state) {
     if (!listEl) return;
     if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
-    // --- 1. NUEVA LISTA DE PERSONAS PERMITIDAS ---
-    const NOMBRES_PERMITIDOS = [
-        "Alvarez Ruiz, Jorge Manuel", "Gabarro Miguel, Anna", "Martinez Bernal, Yolanda",
-        "Romero Pardines, Maria Del Carmen", "Rueda Rico, Alejandro", "Sanz Bañares, Daniel",
-        "Castineiras Del Rio, Jose Manuel", "Curci Caorsi, Sebastian", "Jurado Osorio, Leonor",
-        "Lopez Umpierrez, Florencia", "Rodriguez Traspalacio, Gabriela Natali", "Ruiz Blavia, Jose Luis",
-        "Algaba Asensio, Pilar", "Bayona Torres, Ana Cristina", "Calabretta , Pablo Ariel",
-        "Sevillano Domenech, Desiree", "Tavares Aquino, Enma Karen", "Amores Villegas, Salvador",
-        "Basili Basili, Juan Marcelo", "Castillo Ulit, Angelle Khryztal", "Dib Dib, Amira Nesrine",
-        "Exposito Ruiz, Susana", "Garcia Delgado, Mª Pilar", "Gazquez Castellnou, Mireia",
-        "Gomez Vaquer, Jorge", "Gouwe Martinez, Patricia", "Guerchouch Nahal, Bilal",
-        "Hidalgo Moreno, Isabel", "Lahmidi Lahmidi, Malika", "Ortega Yuste, Esther",
-        "Rodriguez Sanchez, Angelica", "Santa Ana Argote, Johana Caroline", "Solanes Barriga, Jan",
-        "Zamani Bouizourane, Amina", "Zambrano Real, Danelia", "Arano Paz, Pedro Diego",
-        "Chiappe Chiappe, Marcos Agustin", "Galve Comas, Juan Manuel", "Gonzalez Paez, Angelys Bisleidy",
-        "Manukyan , Ararat", "Medina Alvarez, Alba", "Mosquera Portocarrero, Jairo",
-        "Radu Radu, Ioana Rodica", "Rojas Arias, William Fernando"
-    ];
-
     // Guardar lista maestra
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     const masterList = window.TEAM_STATE.allPeopleRaw;
@@ -2477,16 +2458,7 @@ function renderRoster(listEl, people, state) {
         return;
     }
 
-    // --- FUNCIÓN DE NORMALIZACIÓN (Quita acentos, comas y mayúsculas) ---
-    const limpiarTexto = (str) => {
-        return str.normalize("NFD")
-                  .replace(/[\u0300-\u036f]/g, "")
-                  .replace(/,/g, "")
-                  .toLowerCase()
-                  .trim();
-    };
-
-    // --- LÓGICA DE TURNOS ---
+    // --- LÓGICA DE TURNOS ACTUALES ---
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
@@ -2498,20 +2470,21 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // --- FILTRADO DOBLE: NOMBRE (FLEXIBLE) + HORQUILLA ---
+    // --- FILTRADO POR CATEGORÍA (NUEVO) Y HORQUILLA ---
     const filteredPeople = masterList.filter(p => {
-        const nombreAPI = limpiarTexto(p.nombre_completo || "");
+        // 1. FILTRO DE CATEGORÍAS OPS / SUPERVISORES
+        const funcion = (p.codFuncion || "").trim().toUpperCase();
+        const grupo = (p.nombreGrupoTrabajo || "").trim().toUpperCase();
+
+        const funcionesPermitidas = ["DGR", "AF/KL", "DTC", "USC"];
         
-        // Verificamos si el nombre de la API contiene las palabras clave de nuestra lista
-        const estaEnLista = NOMBRES_PERMITIDOS.some(nombrePermitido => {
-            const palabrasPermitidas = limpiarTexto(nombrePermitido).split(/\s+/);
-            // Comprobamos que CADA palabra del nombre permitido esté en el nombre de la API
-            return palabrasPermitidas.every(palabra => nombreAPI.includes(palabra));
-        });
+        // Comprobar si cumple con el código de función o si es del grupo SUPERVISORES-OPS
+        const cumpleCategoria = funcionesPermitidas.includes(funcion) || grupo.includes("SUPERVISORES-OPS");
 
-        if (!estaEnLista) return false;
+        // Si no cumple la categoría, se descarta inmediatamente
+        if (!cumpleCategoria) return false;
 
-        // Filtro de Horquilla
+        // 2. FILTRO DE HORQUILLA (Mantenemos tu lógica original)
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true;
         const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
@@ -2538,12 +2511,15 @@ function renderRoster(listEl, people, state) {
         row.className = 'team-row';
         row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; border-left:6px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
 
+        // Identificamos visualmente si es Supervisor o una función especial
+        const tagVisual = p.nombreGrupoTrabajo.includes("SUPERVISORES") ? "⭐ SUPERVISOR" : p.codFuncion;
+
         row.innerHTML = `
             <div>
                 <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
-                <div style="display:flex; gap:6px; margin-top:4px;">
+                <div style="display:flex; gap:6px; margin-top:4px; align-items:center;">
                     <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
-                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:1px 5px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones)}</span>
+                    <span style="font-size:0.6rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:900; border:1px solid #c7d2fe;">${esc(tagVisual)}</span>
                 </div>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
