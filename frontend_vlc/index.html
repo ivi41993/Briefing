@@ -2491,10 +2491,7 @@ function renderRoster(listEl, people, state) {
     if (!listEl) return;
     if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
-    // --- 1. NUEVA LISTA DE PERSONAS PERMITIDAS ---
-    
-
-    // Guardar lista maestra
+    // Guardar lista maestra recibida del servidor
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
@@ -2503,16 +2500,7 @@ function renderRoster(listEl, people, state) {
         return;
     }
 
-    // --- FUNCIÓN DE NORMALIZACIÓN (Quita acentos, comas y mayúsculas) ---
-    const limpiarTexto = (str) => {
-        return str.normalize("NFD")
-                  .replace(/[\u0300-\u036f]/g, "")
-                  .replace(/,/g, "")
-                  .toLowerCase()
-                  .trim();
-    };
-
-    // --- LÓGICA DE TURNOS ---
+    // --- LÓGICA DE TURNOS ACTUALES ---
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
     if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
@@ -2524,22 +2512,12 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // --- FILTRADO DOBLE: NOMBRE (FLEXIBLE) + HORQUILLA ---
+    // --- FILTRADO ÚNICAMENTE POR HORQUILLA DE TIEMPO ---
     const filteredPeople = masterList.filter(p => {
-        const nombreAPI = limpiarTexto(p.nombre_completo || "");
-        
-        // Verificamos si el nombre de la API contiene las palabras clave de nuestra lista
-        const estaEnLista = NOMBRES_PERMITIDOS.some(nombrePermitido => {
-            const palabrasPermitidas = limpiarTexto(nombrePermitido).split(/\s+/);
-            // Comprobamos que CADA palabra del nombre permitido esté en el nombre de la API
-            return palabrasPermitidas.every(palabra => nombreAPI.includes(palabra));
-        });
-
-        if (!estaEnLista) return false;
-
-        // Filtro de Horquilla
         const hours = extractHours(p.horario);
-        if (hours.length === 0) return true;
+        // Si no tiene horario especificado, lo mostramos por defecto para no perder datos
+        if (hours.length === 0) return true; 
+        
         const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
         
         if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
@@ -2552,6 +2530,7 @@ function renderRoster(listEl, people, state) {
     listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
+    // --- RENDERIZADO DE TODA LA LISTA FILTRADA POR TURNO ---
     filteredPeople.forEach((p, idx) => {
         const name = p.nombre_completo;
         const isIncidencia = p.is_incidencia === true;
