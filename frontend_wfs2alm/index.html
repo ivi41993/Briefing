@@ -3622,94 +3622,95 @@ window.TEAM_STATE = window.TEAM_STATE || {
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
+    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
-    // Actualizamos el objeto global
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-    if (state && state.sheet_date) window.TEAM_STATE.sheet_date = state.sheet_date;
-    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
-
     const masterList = window.TEAM_STATE.allPeopleRaw;
+
     if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal MAD N2...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando dotación de Almacén...</div>';
         return;
     }
 
-    // 2. LÓGICA DE FILTRADO POR HORQUILLA (06-14-22)
-    const hNow = new Date().getHours();
-    let currentShiftLabel = "Noche";
-    if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
-    else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
-
-    const extractHours = (str) => {
-        const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
-        if (!times) return [];
-        return times.map(t => parseInt(t.split(':')[0]));
+    // 1. CLASIFICACIÓN POR JERARQUÍA DE ALMACÉN
+    const groups = {
+        "SUPERVISIÓN ALMACÉN": [],
+        "CAPATACES": [],
+        "OPERARIOS NAVE 4": []
     };
 
-    const filteredPeople = masterList.filter(p => {
-        const hours = extractHours(p.horario);
-        if (hours.length === 0) return true;
-        const hInicio = hours[0], hFin = hours.length > 1 ? hours[1] : hInicio;
-        if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
-        if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
-        if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
-        return false;
+    masterList.forEach(p => {
+        const grupo = (p.grupo || "").toUpperCase();
+        if (grupo.includes("01-SUPERVISORES-ALM")) groups["SUPERVISIÓN ALMACÉN"].push(p);
+        else if (grupo.includes("02-CAPATACES")) groups["CAPATACES"].push(p);
+        else if (grupo.includes("OPERARIOS-N4")) groups["OPERARIOS NAVE 4"].push(p);
     });
 
-    window.TEAM_STATE.people = filteredPeople;
     listEl.innerHTML = '';
-    const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
+    const ZONES = ['MUELLE N4', 'ESTANTERÍAS', 'ZONA FRÍA', 'OFICINA ALM', 'ENTRADA', 'SALIDA'];
 
-    // 3. DIBUJAR TARJETAS
-    filteredPeople.forEach((p) => {
-        const name = p.nombre_completo;
-        const grupo = p.observaciones || "WFS2"; 
-        const isIncidencia = p.is_incidencia === true;
-        const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
-        
-        const currentAtt = TEAM_STATE.attendance[name]; 
-        const currentZone = TEAM_STATE.zones[name] || '';
-        const safeId = name.replace(/[^a-z0-9]/gi, '_');
+    // 2. RENDERIZADO VISUAL
+    Object.keys(groups).forEach(groupName => {
+        const groupPeople = groups[groupName];
+        if (groupPeople.length === 0) return;
 
-        const row = document.createElement('div');
-        row.className = 'team-row';
-        row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; border-left:6px solid ${isIncidencia ? '#dc2626' : '#3b82f6'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
+        const header = document.createElement('div');
+        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
+        header.textContent = `${groupName} (${groupPeople.length})`;
+        listEl.appendChild(header);
 
-        row.innerHTML = `
-            <div>
-                <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
-                <div style="display:flex; gap:6px; margin-top:4px; align-items:center;">
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
-                    <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800;">${esc(grupo)}</span>
+        groupPeople.forEach((p) => {
+            const name = p.nombre_completo;
+            const safeId = name.replace(/[^a-z0-9]/gi, '_');
+            let currentAtt = window.TEAM_STATE.attendance[name]; 
+            if (currentAtt === undefined) currentAtt = "undefined";
+
+            // Asignación de Colores Vivid por Rango
+            let colorVivid = "#3b82f6"; // Azul para Operarios
+            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24"; // Oro
+            if (groupName.includes("CAPATACES")) colorVivid = "#8b5cf6"; // Púrpura
+
+            const card = document.createElement('div');
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
+
+            row_html = `
+                <div>
+                    <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${name}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                        <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${p.horario}</span>
+                        <span style="font-size:0.65rem; background:#f3f4f6; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">${p.grupo}</span>
+                    </div>
                 </div>
-            </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
-                <div class="presence-toggle">
-                    <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                    <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✓ OK</label>
-                    <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                    <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">✕</label>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
+                    <div class="presence-toggle">
+                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
+                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
+                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="false" ${currentAtt === false ? 'checked' : ''}>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
+                    </div>
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem; font-weight:700; background:#fff;">
+                        <option value="" disabled ${!window.TEAM_STATE.zones[name] ? 'selected' : ''}>ZONA...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${window.TEAM_STATE.zones[name] === z ? 'selected' : ''}>${z}</option>`).join('')}
+                    </select>
                 </div>
-                <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700;">
-                    <option value="" disabled selected>Zona...</option>
-                    ${ZONES.map(z => `<option value="${z}" ${z === currentZone ? 'selected' : ''}>${z}</option>`).join('')}
-                </select>
-            </div>`;
+            `;
+            card.innerHTML = row_html;
 
-        // Eventos para asistencia persistente sin redibujar
-        row.querySelectorAll('input[type="radio"]').forEach(radio => {
-            radio.addEventListener('click', () => {
-                const isPresent = radio.value === 'yes';
-                TEAM_STATE.attendance[name] = isPresent;
-                updatePresenceOnServer(name, isPresent);
-                updateTeamMeta(TEAM_STATE);
+            // Listeners de Presencia
+            card.querySelectorAll('input[type="radio"]').forEach(r => {
+                r.addEventListener('click', () => {
+                    let val = (r.value === 'true') ? true : (r.value === 'false' ? false : undefined);
+                    window.TEAM_STATE.attendance[name] = val;
+                    updatePresenceOnServer(name, val);
+                });
             });
-        });
-        listEl.appendChild(row);
-    });
-    updateTeamMeta(TEAM_STATE);
-}
 
+            listEl.appendChild(card);
+        });
+    });
+}
 
   
 
