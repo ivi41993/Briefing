@@ -2935,56 +2935,52 @@ class FiixConnector:
         site_id_raw = os.getenv("FIIX_SITE_ID", "29449435").strip()
         site_id = int(site_id_raw)
         
-        print(f"📡 [FIIX] Sincronizando Nave MAD (ID: {site_id})")
-
+        # Fecha inicio de mes
         now = datetime.now()
         first_day_month = now.replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            # --- QUERY A: BACKLOG (Abiertas) ---
-            # Pedimos intPriorityID para diagnosticar por qué sale 0
+            # --- 1. QUERY DE BACKLOG (IDs detectados: 278571 es el prioritario) ---
             body_open = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, intPriorityID",
+                "fields": "id, intPriorityID, strCode", # strCode ayuda a depurar
                 "filters": [{"ql": "dtmDateCompleted IS NULL AND intSiteID = ?", "parameters": [site_id]}],
                 "maxObjects": 1000
             }
+            open_wos = await self._fiix_rpc(body_open)
 
-            # --- QUERY B: COSTES (Cerradas este mes) ---
-            # Cambiamos dblTotalCost por los campos de Labor y Parts que son más estándar
+            # --- 2. QUERY DE COSTES (Probando campos alternativos) ---
+            # Intentamos dblLaborCost y dblPartsCost (nombres simplificados)
             body_closed = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, dblTotalLaborCost, dblTotalPartsCost", 
+                "fields": "id, dblLaborCost, dblPartsCost", 
                 "filters": [{"ql": "dtmDateCompleted >= ? AND intSiteID = ?", "parameters": [first_day_month, site_id]}],
-                "maxObjects": 1000
+                "maxObjects": 500
             }
-
-            open_wos = await self._fiix_rpc(body_open)
             closed_wos = await self._fiix_rpc(body_closed)
 
             # --- 3. PROCESAMIENTO ---
-            
-            # Backlog
             backlog_count = len(open_wos)
             
-            # Diagnóstico de Prioridades (Para saber por qué Urgentes sale 0)
-            priorities_found = [wo.get("intPriorityID") for wo in open_wos if wo.get("intPriorityID") is not None]
-            # Consideramos urgentes las prioridades bajas (1, 2) o las que tú definas
-            # Si ves en el log que tus urgencias son ID 50, cambiaremos este filtro
-            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID", 0) in [1, 2, 7, 8]) 
+            # Ajustamos urgentes al ID que vimos en tu log (278571)
+            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
 
-            # Suma de costes (Labor + Parts)
+            # Suma de costes con validación de existencia de campos
             total_cost = 0.0
-            for wo in closed_wos:
-                labor = float(wo.get("dblTotalLaborCost") or 0)
-                parts = float(wo.get("dblTotalPartsCost") or 0)
-                total_cost += (labor + parts)
+            if closed_wos:
+                # Debug de la primera WO para ver qué campos TIENE realmente
+                print(f"🔍 [FIIX DEBUG] Campos disponibles en tu WO: {list(closed_wos[0].keys())}")
+                
+                for wo in closed_wos:
+                    # Probamos nombres comunes; si no existen, sumamos 0
+                    c1 = float(wo.get("dblLaborCost") or 0)
+                    c2 = float(wo.get("dblPartsCost") or 0)
+                    c3 = float(wo.get("dblTotalCost") or 0) # Por si acaso
+                    total_cost += (c1 + c2 + c3)
 
-            print(f"📊 [FIIX] BACKLOG: {backlog_count}")
-            print(f"📊 [FIIX] PRIORIDADES DETECTADAS EN BACKLOG: {list(set(priorities_found))}")
-            print(f"📊 [FIIX] COSTES CALCULADOS: {total_cost}€")
+            print(f"📊 [FIIX] OK -> Backlog: {backlog_count} | Urgentes: {urgent_count} | Coste Mes: {total_cost}€")
 
             # --- 4. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
@@ -2993,7 +2989,10 @@ class FiixConnector:
             await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_cost, "timestamp": ts})
 
         except Exception as e:
-            print(f"❌ [FIIX] Error al procesar métricas: {e}")
+            # Este print es vital para ver si la API nos vuelve a rechazar por los nombres de columna
+            print(f"⚠️ [FIIX] Aviso: Error en campos de coste, saltando... Detalle: {e}")
+            # Si el coste falla, al menos mandamos Backlog y Urgentes
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": len(open_wos) if 'open_wos' in locals() else 0, "timestamp": datetime.utcnow().isoformat() + "Z"})
 
 
 
@@ -4691,6 +4690,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
