@@ -728,10 +728,14 @@ async def fetch_mad_roster_from_api():
 
 # --- FILTRO ROBUSTO CON PROTECCIÓN CONTRA STRINGS ---
 
-def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
+def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str = "N1"):
+    """
+    Filtro estricto para Almacén Madrid Nave 1.
+    Permite: SUPERVISORES ALM, CAPATACES, EPAs, OPERARIOS y ETTs de la N1.
+    Bloquea: OPS, N2, N3, N4.
+    """
     normalized = []
-    target = target_nave.upper() # "N4"
-
+    
     # 1. Localizar la lista de trabajadores
     workers_list = []
     if isinstance(api_data, list): workers_list = api_data
@@ -743,59 +747,52 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
     if not workers_list: return []
 
     for p in workers_list:
-        if not isinstance(p, dict): continue
         try:
             nomina = p.get("nomina", {}) if isinstance(p.get("nomina"), dict) else {}
-            
-            # --- NORMALIZACIÓN ---
             def clean(t): return str(t or "").upper().strip()
 
-            cod_destino  = clean(p.get("codDestino") or nomina.get("codDestino"))
+            grupo = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
+            cod_destino = clean(p.get("codDestino") or nomina.get("codDestino"))
             desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
-            grupo_raw    = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
             
-            # --- FILTRO 1: DESTINO FÍSICO (DEBE SER NAVE 4) ---
-            # Si no pone N4 o NAVE 4 en el destino, queda fuera
-            es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
-            if not es_nave_4:
+            # --- FILTRO DE EXCLUSIÓN ---
+            # Bloqueamos personal de Operaciones y otras naves
+            if any(x in grupo for x in ("OPS", "-N2", "-N3", "-N4")):
                 continue
 
-            # --- FILTRO 2: DEPARTAMENTO (SOLO OPS, BLOQUEAR ALM) ---
-            # Bloqueamos explícitamente a cualquiera de Almacén aunque esté en N4
-            if any(x in grupo_raw for x in ("ALM", "ALMACEN", "ALMACENEROS")):
-                continue
+            # --- FILTRO DE INCLUSIÓN ALMACÉN N1 ---
+            es_destino_n1 = (cod_destino == "N1" or "NAVE 1" in desc_destino or "WFS1" in desc_destino)
             
-            # Solo permitimos grupos que contengan estas palabras clave de Operaciones
-            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD"))
-            if not es_ops:
+            # Categorías permitidas de Almacén
+            es_categoria_alm = any(x in grupo for x in ("SUPERVISORES-ALM", "CAPATACES", "EPAS", "OPERARIO", "ETT"))
+            
+            # Solo entra si es de Almacén Y está físicamente en N1
+            if not (es_categoria_alm and es_destino_n1):
                 continue
 
-            # --- FILTRO 3: TURNO (HORAS) ---
+            # --- FILTRO DE TURNO (Horquilla MAD 04:00 AM) ---
             raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
             if " " not in raw_inicio: continue
-            
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            # Horquillas (Mañana: 4-14, Tarde: 14-22, Noche: 22-4)
             match = False
             if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
             elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
             elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
-
+            
             if match:
                 raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
-                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else ""
+                h_fin = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
 
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
                     "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
-                    "grupo": grupo_raw,
+                    "grupo": grupo,
                     "cod_destino": cod_destino,
                     "desc_destino": desc_destino,
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
         except: continue
-            
     return normalized
 async def fetch_roster_api_data(escala: str, fecha: str):
     url = os.getenv("ROSTER_API_URL")
