@@ -598,53 +598,65 @@ async def fetch_roster_api_data(escala: str, fecha: str):
         print(f"💥 Fallo de conexión API: {e}")
         return None
 
-def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target: str):
-    """
-    Filtro idéntico para Nave 4:
-    Busca en codDestino, descDestino y nombreGrupoTrabajo.
-    """
+def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
-    target_up = target.upper() # "N4"
+    target = target_nave.upper() # "N4"
 
-    for p in api_data:
+    # 1. Localizar la lista de trabajadores
+    workers_list = []
+    if isinstance(api_data, list): workers_list = api_data
+    elif isinstance(api_data, dict):
+        for key in ("value", "data", "items", "workers", "body"):
+            if isinstance(api_data.get(key), list):
+                workers_list = api_data[key]
+                break
+    if not workers_list: return []
+
+    for p in workers_list:
+        if not isinstance(p, dict): continue
         try:
-            # 1. EXTRAER CAMPOS CLAVE
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            nomina = p.get("nomina", {}) if isinstance(p.get("nomina"), dict) else {}
             
-            # 2. LÓGICA DE PERTENENCIA A NAVE 4 (Triple comprobación)
-            es_de_esta_nave = (target_up in cod) or ("NAVE 4" in desc) or (target_up in grupo)
+            # --- NORMALIZACIÓN ---
+            def clean(t): return str(t or "").upper().strip()
+
+            cod_destino  = clean(p.get("codDestino") or nomina.get("codDestino"))
+            desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
+            grupo_raw    = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
             
-            if not es_de_esta_nave:
+            # --- FILTRO 1: DESTINO FÍSICO (NAVE 4) ---
+            es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
+            if not es_nave_4:
                 continue
 
-            # 3. FILTRO DE TURNO (HORAS)
-            raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio: continue
-            
-            hora_completa = raw_inicio.split(" ")[1]
-            h_inicio = int(hora_completa.split(":")[0])
-            
-            # Horquillas MAD (Mañana: 4-13, Tarde: 14-21, Noche: 22-3)
-            is_mañana = (4 <= h_inicio < 14)
-            is_tarde  = (14 <= h_inicio < 22)
-            is_noche  = (h_inicio >= 22 or h_inicio < 4)
+            # --- FILTRO 2: CATEGORÍAS ESPECÍFICAS DE ALMACÉN ---
+            # Solo permitimos estos 3 grupos exactos
+            categorias_validas = ("01-SUPERVISORES-ALM", "02-CAPATACES", "OPERARIOS-N4")
+            if not any(cat in grupo_raw for cat in categorias_validas):
+                continue
 
+            # --- FILTRO 3: TURNO (HORAS) ---
+            raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
+            if " " not in raw_inicio: continue
+            
+            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
+            
+            # Horquillas (Mañana: 4-14, Tarde: 14-22, Noche: 22-4)
             match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
+            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
+            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
+            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
 
             if match:
-                raw_fin = p.get("horaFin", "")
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+                raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else ""
 
                 normalized.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
-                    "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
+                    "grupo": grupo_raw,
+                    "cod_destino": cod_destino,
+                    "desc_destino": desc_destino,
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
         except: continue
