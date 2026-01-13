@@ -2870,93 +2870,93 @@ import httpx
 
 class FiixConnector:
     def __init__(self):
+        # .strip() es vital para evitar que un espacio al final del .env rompa la firma
         self.host = os.getenv("FIIX_HOST", "").strip()
         self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        
         self.client = httpx.AsyncClient(timeout=30.0)
         self.base_url = f"https://{self.host}/api/"
 
-    async def _fiix_call(self, body: dict) -> list:
-        from urllib.parse import urlencode
-        ts = int(time.time() * 1000)
+    def _build_auth(self) -> tuple[dict, dict]:
+        ts_ms = int(time.time() * 1000)
+        # Los nombres de las llaves deben ser EXACTAMENTE estos (camelCase)
         auth_params = {
             "accessKey": self.access_key,
             "appKey": self.app_key,
-            "service": "cmms",
             "signatureMethod": "HmacSHA256",
             "signatureVersion": "1",
-            "timestamp": str(ts),
+            "timestamp": str(ts_ms),
         }
-        # Ordenar parámetros alfabéticamente para la firma (muy importante en Fiix)
-        sorted_params = dict(sorted(auth_params.items()))
-        query_string = urlencode(sorted_params)
         
-        full_string = f"{self.host}/api/?{query_string}"
+        # 1. Ordenar parámetros alfabéticamente
+        sorted_keys = sorted(auth_params.keys())
+        query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
+        
+        # 2. La firma se hace sobre: host + /api/? + query_string
+        # IMPORTANTE: El '/' antes del '?' es crítico en Fiix
+        signature_base = f"{self.host}/api/?{query_string}"
+        
         signature = hmac.new(
             self.secret_key.encode("utf-8"),
-            full_string.encode("utf-8"),
+            signature_base.encode("utf-8"),
             hashlib.sha256
         ).hexdigest().lower()
         
-        headers = {"Content-Type": "application/json", "Authorization": signature}
+        return auth_params, {"Content-Type": "application/json", "Authorization": signature}
+
+    async def _fiix_rpc(self, body: dict) -> list:
+        auth_params, headers = self._build_auth()
+        
+        # Añadir versión del cliente al cuerpo (Evita el error 1010 en algunos tenants)
+        body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
 
         try:
-            resp = await self.client.post(self.base_url, params=sorted_params, json=body, headers=headers)
+            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
             
-            # --- LOGS DE DEPURACIÓN CRÍTICA ---
-            print(f"🔍 [FIIX HTTP] Status: {resp.status_code}")
-            # Esto nos dirá si Fiix responde con un mensaje de error o una lista vacía
-            print(f"🔍 [FIIX RAW RESPONSE]: {resp.text}") 
+            if resp.status_code != 200:
+                print(f"❌ Error HTTP {resp.status_code}: {resp.text}")
+                return []
+
+            res_json = resp.json()
             
-            if resp.status_code == 200:
-                res_json = resp.json()
-                # Buscamos en todas las posibles claves donde Fiix guarda datos
-                return res_json.get("objects") or res_json.get("object") or res_json.get("value") or []
-            return []
+            # Si Fiix devuelve un error interno en el JSON
+            if "error" in res_json:
+                print(f"❌ Fiix API Error: {res_json['error'].get('message')}")
+                return []
+
+            return res_json.get("objects") or res_json.get("object") or []
         except Exception as e:
-            print(f"❌ [FIIX] Error de red: {e}")
+            print(f"❌ Fiix Exception: {e}")
             return []
 
     async def fetch_metrics(self):
-        print(f"🧪 [FIIX] Iniciando escaneo de tablas...")
+        print(f"📡 [FIIX] Probando con AppKey: {self.app_key[:5]}***")
         
-        # PRUEBA A: Tabla de Usuarios (ClassName: "User")
-        # Es la tabla más segura porque siempre hay al menos 1 usuario (tú)
-        body_user = {"_maCn": "FindRequest", "className": "User", "fields": "id, strFullName", "maxObjects": 2}
-        
-        # PRUEBA B: Tabla de Monedas (ClassName: "Currency")
-        # Muy útil para diagnóstico porque no suele tener restricciones de Site
-        body_curr = {"_maCn": "FindRequest", "className": "Currency", "fields": "id, strCode"}
+        # FindRequest básico para probar conexión
+        body = {
+            "_maCn": "FindRequest",
+            "className": "Asset", # Probamos con equipos que es lo más común
+            "fields": "id, strName",
+            "maxObjects": 1
+        }
 
-        users = await self._fiix_call(body_user)
-        currencies = await self._fiix_call(body_curr)
+        results = await self._fiix_rpc(body)
 
-        # Si encontramos CUALQUIER COSA, la enviamos al front para confirmar conexión
-        found_something = False
-        display_text = "Sin datos"
-
-        if users:
-            print(f"✅ CONEXIÓN CONFIRMADA. Usuario encontrado: {users[0].get('strFullName')}")
-            display_text = f"User: {users[0].get('strFullName')}"
-            found_something = True
-        elif currencies:
-            print(f"✅ CONEXIÓN CONFIRMADA. Moneda: {currencies[0].get('strCode')}")
-            display_text = f"Currency: {currencies[0].get('strCode')}"
-            found_something = True
-
-        if found_something:
+        if results:
+            asset_name = results[0].get("strName")
+            print(f"✅ ¡CONEXIÓN EXITOSA! Equipo encontrado: {asset_name}")
+            
             ts = datetime.utcnow().isoformat() + "Z"
-            # Usamos el campo Backlog temporalmente para mostrar este texto de confirmación
             await manager.broadcast({
-                "type": "kpi_update", 
-                "metric": "fiix_backlog", 
-                "value": display_text, 
+                "type": "kpi_update",
+                "metric": "fiix_backlog",
+                "value": f"OK: {asset_name}",
                 "timestamp": ts
             })
-            print("📤 Datos de confirmación enviados al Dashboard.")
         else:
-            print("❌ La API responde OK pero no devuelve ningún registro. Revisa los permisos (ACL) del API Key en Fiix.")
+            print("❌ Seguimos sin recibir objetos. Revisa que el APP_KEY sea el correcto en Fiix -> Settings -> API Keys.")
 
 
 
@@ -4655,6 +4655,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
