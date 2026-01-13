@@ -761,13 +761,12 @@ async def fetch_mad_roster_from_api():
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str = "N1"):
     """
-    Filtro estricto para Almacén Madrid Nave 1.
-    Permite: SUPERVISORES ALM, CAPATACES, EPAs, OPERARIOS y ETTs de la N1.
-    Bloquea: OPS, N2, N3, N4.
+    Filtro estricto para Madrid Nave 1.
+    Solo permite: SUPERVISORES N1, DGR N1, OPERARIOS-N1 y OPERARIOS-OPS (si codDestino es N1).
     """
     normalized = []
     
-    # 1. Localizar la lista de trabajadores
+    # 1. Localizar la lista
     workers_list = []
     if isinstance(api_data, list): workers_list = api_data
     elif isinstance(api_data, dict):
@@ -786,22 +785,31 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             cod_destino = clean(p.get("codDestino") or nomina.get("codDestino"))
             desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
             
-            # --- FILTRO DE EXCLUSIÓN ---
-            # Bloqueamos personal de Operaciones y otras naves
-            if any(x in grupo for x in ("OPS", "-N2", "-N3", "-N4")):
+            # --- FILTRO DE EXCLUSIÓN RADICAL ---
+            # Si el grupo menciona N2, N3, N4 o ALM, fuera inmediatamente
+            if any(x in grupo for x in ("-N2", "-N3", "-N4", "ALM", "ALMACEN")):
                 continue
 
-            # --- FILTRO DE INCLUSIÓN ALMACÉN N1 ---
+            # --- FILTRO DE INCLUSIÓN N1 ---
+            # Identificamos si el destino físico es N1
             es_destino_n1 = (cod_destino == "N1" or "NAVE 1" in desc_destino or "WFS1" in desc_destino)
             
-            # Categorías permitidas de Almacén
-            es_categoria_alm = any(x in grupo for x in ("SUPERVISORES-ALM", "CAPATACES", "EPAS", "OPERARIO", "ETT"))
+            es_personal_n1 = False
             
-            # Solo entra si es de Almacén Y está físicamente en N1
-            if not (es_categoria_alm and es_destino_n1):
+            # Caso 1: Supervisores o DGR de OPS que estén en N1
+            if ("SUPERVISORES-OPS" in grupo or "03-DGR" in grupo) and es_destino_n1:
+                es_personal_n1 = True
+            # Caso 2: Operarios específicos de N1
+            elif "OPERARIOS-N1" in grupo:
+                es_personal_n1 = True
+            # Caso 3: Operarios generales de OPS pero con destino confirmado en N1
+            elif "OPERARIOS-OPS" in grupo and es_destino_n1:
+                es_personal_n1 = True
+
+            if not es_personal_n1:
                 continue
 
-            # --- FILTRO DE TURNO (Horquilla MAD 04:00 AM) ---
+            # --- FILTRO DE TURNO ---
             raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
             if " " not in raw_inicio: continue
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
