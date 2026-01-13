@@ -3515,28 +3515,35 @@ function renderRoster(listEl, people, state) {
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
     if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando dotación de Almacén...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal de Madrid Ops...</div>';
         return;
     }
 
-    // 1. CLASIFICACIÓN POR JERARQUÍA DE ALMACÉN
+    // 1. CLASIFICACIÓN POR CATEGORÍAS OPS
     const groups = {
-        "SUPERVISIÓN ALMACÉN": [],
-        "CAPATACES": [],
-        "OPERARIOS NAVE 4": []
+        "SUPERVISORES OPS MAD": [],
+        "ESPECIALISTAS DGR": [],
+        "OPERARIOS OPS NAVE 4": []
     };
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        if (grupo.includes("01-SUPERVISORES-ALM")) groups["SUPERVISIÓN ALMACÉN"].push(p);
-        else if (grupo.includes("02-CAPATACES")) groups["CAPATACES"].push(p);
-        else if (grupo.includes("OPERARIOS-N4")) groups["OPERARIOS NAVE 4"].push(p);
+        
+        // Reglas de seccionamiento visual
+        if (grupo.includes("SUPERVISOR")) {
+            groups["SUPERVISORES OPS MAD"].push(p);
+        } else if (grupo.includes("DGR")) {
+            groups["ESPECIALISTAS DGR"].push(p);
+        } else {
+            // Operarios-Ops y resto de personal operativo filtrado por el backend
+            groups["OPERARIOS OPS NAVE 4"].push(p);
+        }
     });
 
     listEl.innerHTML = '';
-    const ZONES = ['MUELLE N4', 'ESTANTERÍAS', 'ZONA FRÍA', 'OFICINA ALM', 'ENTRADA', 'SALIDA'];
+    const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
-    // 2. RENDERIZADO VISUAL
+    // 2. RENDERIZADO VIVID
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
@@ -3552,21 +3559,17 @@ function renderRoster(listEl, people, state) {
             let currentAtt = window.TEAM_STATE.attendance[name]; 
             if (currentAtt === undefined) currentAtt = "undefined";
 
-            // Asignación de Colores Vivid por Rango
-            let colorVivid = "#3b82f6"; // Azul para Operarios
-            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24"; // Oro
-            if (groupName.includes("CAPATACES")) colorVivid = "#8b5cf6"; // Púrpura
+            let colorVivid = "#3b82f6"; // Azul
+            if (groupName.includes("SUPERVISORES")) colorVivid = "#fbbf24"; // Oro
+            if (groupName.includes("DGR")) colorVivid = "#ef4444"; // Rojo
 
             const card = document.createElement('div');
             card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
 
-            row_html = `
+            card.innerHTML = `
                 <div>
                     <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${name}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${p.horario}</span>
-                        <span style="font-size:0.65rem; background:#f3f4f6; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">${p.grupo}</span>
-                    </div>
+                    <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-top:2px;">🕒 ${p.horario} | <span style="color:#475569">${p.grupo}</span></div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
@@ -3583,17 +3586,6 @@ function renderRoster(listEl, people, state) {
                     </select>
                 </div>
             `;
-            card.innerHTML = row_html;
-
-            // Listeners de Presencia
-            card.querySelectorAll('input[type="radio"]').forEach(r => {
-                r.addEventListener('click', () => {
-                    let val = (r.value === 'true') ? true : (r.value === 'false' ? false : undefined);
-                    window.TEAM_STATE.attendance[name] = val;
-                    updatePresenceOnServer(name, val);
-                });
-            });
-
             listEl.appendChild(card);
         });
     });
@@ -7211,6 +7203,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
