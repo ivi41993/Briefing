@@ -760,71 +760,72 @@ async def fetch_mad_roster_from_api():
 # --- FILTRO ROBUSTO CON PROTECCIÓN CONTRA STRINGS ---
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
-    """
-    Filtra por turno y por identificador de nave (N1)
-    """
     normalized = []
-    
-    # PROTECCIÓN: Si api_data no es una lista (es un string de error o None), cancelamos
-    if not isinstance(api_data, list):
-        print(f"⚠️ Advertencia: api_data no es una lista. Valor recibido: {api_data}")
-        return []
+    target = target_nave.upper() # "N4"
 
-    target = target_nave.upper() # "N1"
+    # 1. Localizar la lista de trabajadores
+    workers_list = []
+    if isinstance(api_data, list): workers_list = api_data
+    elif isinstance(api_data, dict):
+        for key in ("value", "data", "items", "workers", "body"):
+            if isinstance(api_data.get(key), list):
+                workers_list = api_data[key]
+                break
+    if not workers_list: return []
 
-    for p in api_data:
-        # PROTECCIÓN EXTRA: Si el elemento de la lista no es un diccionario, lo saltamos
-        if not isinstance(p, dict):
-            continue
-            
+    for p in workers_list:
+        if not isinstance(p, dict): continue
         try:
-            # Extraemos la información del objeto 'nomina'
-            item = p.get("nomina")
-            if not isinstance(item, dict):
-                item = p # Por si la API devuelve el objeto plano en lugar de anidado
+            nomina = p.get("nomina", {}) if isinstance(p.get("nomina"), dict) else {}
             
-            # --- 1. FILTRO DE NAVE (Identificación N1) ---
-            cod = str(item.get("codDestino") or "").upper()
-            desc = str(item.get("descDestino") or "").upper()
-            grupo = str(item.get("nombreGrupoTrabajo") or "").upper()
+            # --- NORMALIZACIÓN ---
+            def clean(t): return str(t or "").upper().strip()
+
+            cod_destino  = clean(p.get("codDestino") or nomina.get("codDestino"))
+            desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
+            grupo_raw    = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
             
-            # Buscamos "N1" o "NAVE 1"
-            if target not in cod and "NAVE 1" not in desc and target not in grupo:
+            # --- FILTRO 1: DESTINO FÍSICO (DEBE SER NAVE 4) ---
+            # Si no pone N4 o NAVE 4 en el destino, queda fuera
+            es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
+            if not es_nave_4:
                 continue
 
-            # --- 2. FILTRO DE TURNO (Lógica horquillas exacta N4) ---
-            raw_inicio = item.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio:
+            # --- FILTRO 2: DEPARTAMENTO (SOLO OPS, BLOQUEAR ALM) ---
+            # Bloqueamos explícitamente a cualquiera de Almacén aunque esté en N4
+            if any(x in grupo_raw for x in ("ALM", "ALMACEN", "ALMACENEROS")):
                 continue
             
-            # Extraer HH:mm
-            hora_completa = raw_inicio.split(" ")[1]
-            h_inicio_int = int(hora_completa.split(":")[0])
-            
-            # Rango de turnos
-            is_mañana = (4 <= h_inicio_int < 14)
-            is_tarde  = (14 <= h_inicio_int < 22)
-            is_noche  = (h_inicio_int >= 22 or h_inicio_int < 4)
+            # Solo permitimos grupos que contengan estas palabras clave de Operaciones
+            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD"))
+            if not es_ops:
+                continue
 
+            # --- FILTRO 3: TURNO (HORAS) ---
+            raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
+            if " " not in raw_inicio: continue
+            
+            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
+            
+            # Horquillas (Mañana: 4-14, Tarde: 14-22, Noche: 22-4)
             match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
+            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
+            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
+            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
 
             if match:
-                raw_fin = item.get("horaFin", "")
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else "??:??"
+                raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else ""
 
                 normalized.append({
-                    "nombre_completo": item.get("nombreApellidos", "Sin Nombre"),
-                    "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "grupo": item.get("nombreGrupoTrabajo", "GENERAL"),
-                    "observaciones": item.get("descDestino") or "NAVE 1"
+                    "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
+                    "grupo": grupo_raw,
+                    "cod_destino": cod_destino,
+                    "desc_destino": desc_destino,
+                    "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except Exception as e:
-            # Si un trabajador falla, seguimos con el siguiente sin romper el deploy
-            print(f"❌ Error procesando un trabajador: {e}")
-            continue
+        except: continue
             
     return normalized
 
