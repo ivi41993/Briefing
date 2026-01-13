@@ -2968,90 +2968,85 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         from datetime import datetime
+        import calendar
 
         if not self.host or not self.access_key or not self.secret_key:
             print("⚠️ FIIX: Faltan credenciales.")
             return
 
-        # 1. Primer día de mes en formato DATETIME
+        # 1. Calcular el rango del mes actual
         today = datetime.now()
-        first_day = datetime(today.year, today.month, 1)
-        ts_start_str = first_day.strftime("%Y-%m-%d 00:00:00")
-
-        # 2. SiteID opcional
-        site_id_int: int | None = None
-        if self.site_id and self.site_id.strip().isdigit():
-            site_id_int = int(self.site_id)
-
-        # 3. Filtro Backlog (abiertas: dtmDateCompleted IS NULL)
-        ql_open = "dtmDateCompleted IS NULL"
-        params_open: list[Any] = []
-
-        if site_id_int is not None:
-            ql_open += " AND intSiteID = ?"
-            params_open.append(site_id_int)
-
-        # 4. Filtro Cerradas este mes
-        ql_closed = "dtmDateCompleted >= ?"
-        params_closed: list[Any] = [ts_start_str]
-
-        if site_id_int is not None:
-            ql_closed += " AND intSiteID = ?"
-            params_closed.append(site_id_int)
+        first_day = datetime(today.year, today.month, 1).strftime("%Y-%m-%d 00:00:00")
+        
+        # SiteID opcional
+        site_id_int = int(self.site_id) if (self.site_id and self.site_id.strip().isdigit()) else None
 
         try:
-            # --- Query 1: Backlog ---
+            # --- QUERY 1: Backlog (Abiertas) ---
+            ql_open = "dtmDateCompleted IS NULL"
+            params_open = []
+            if site_id_int:
+                ql_open += " AND intSiteID = ?"
+                params_open.append(site_id_int)
+            
             open_wos = await self._fiix_find(
                 ql=ql_open,
                 parameters=params_open,
-                fields="id,intPriorityID,dtmSuggestedCompletionDate,dtmDateCompleted,intSiteID",
+                fields="id,intPriorityID"
             )
 
-            # --- Query 2: Cerradas este mes ---
-            closed_wos = await self._fiix_find(
-                ql=ql_closed,
-                parameters=params_closed,
-                fields="id,dtmDateCompleted,intSiteID",
+            # --- QUERY 2: Costes del Mes (Cerradas desde el día 1) ---
+            # dtmDateCompleted es cuando se cierra la orden y se consolida el gasto
+            ql_costs = "dtmDateCompleted >= ?"
+            params_costs = [first_day]
+            if site_id_int:
+                ql_costs += " AND intSiteID = ?"
+                params_costs.append(site_id_int)
+
+            cost_items = await self._fiix_find(
+                ql=ql_costs,
+                parameters=params_costs,
+                fields="id,dblTotalCost" # Extraemos el campo de coste total
             )
 
-            # KPIs
+            # 2. PROCESAMIENTO DE DATOS
             count_backlog = len(open_wos)
-            count_urgent = sum(
-                1 for w in open_wos
-                if w.get("intPriorityID") == 0  # ajusta según prioridad "alta" real
-            )
-            count_closed_this_month = len(closed_wos)
+            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") in [1, 2]) # Prioridades altas
+            
+            # Suma de costes (dblTotalCost)
+            total_monthly_cost = sum(float(w.get("dblTotalCost") or 0) for w in cost_items)
 
-            print(
-                f"✅ FIIX OK: Backlog={count_backlog}, "
-                f"Urgentes={count_urgent}, "
-                f"CerradasMes={count_closed_this_month}"
-            )
+            print(f"✅ FIIX: Coste Mes={total_monthly_cost}€ | Backlog={count_backlog}")
 
-            from datetime import datetime as dt_utc
-            ts = dt_utc.utcnow().isoformat() + "Z"
-
+            # 3. BROADCAST A FRONTEND
+            ts = datetime.utcnow().isoformat() + "Z"
+            
+            # Envío de Backlog
             await manager.broadcast({
                 "type": "kpi_update",
                 "metric": "fiix_backlog",
                 "value": count_backlog,
-                "timestamp": ts,
+                "timestamp": ts
             })
+
+            # Envío de Urgencias
             await manager.broadcast({
                 "type": "kpi_update",
                 "metric": "fiix_urgent",
                 "value": count_urgent,
-                "timestamp": ts,
+                "timestamp": ts
             })
+
+            # Envío de COSTE MANTENIMIENTO
             await manager.broadcast({
                 "type": "kpi_update",
-                "metric": "fiix_closed_this_month",
-                "value": count_closed_this_month,
-                "timestamp": ts,
+                "metric": "fiix_cost",
+                "value": total_monthly_cost,
+                "timestamp": ts
             })
 
         except Exception as e:
-            print(f"❌ FIIX EXCEPCIÓN en fetch_metrics: {e}")
+            print(f"❌ FIIX EXCEPCIÓN: {e}")
 
     async def debug_kpi_capabilities(self):
         """
@@ -4781,6 +4776,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
