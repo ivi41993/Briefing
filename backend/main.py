@@ -4459,15 +4459,20 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
             grupo_raw    = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
             
-            # --- FILTRO 1: DESTINO FÍSICO (NAVE 4) ---
+            # --- FILTRO 1: DESTINO FÍSICO (DEBE SER NAVE 4) ---
+            # Si no pone N4 o NAVE 4 en el destino, queda fuera
             es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
             if not es_nave_4:
                 continue
 
-            # --- FILTRO 2: CATEGORÍAS ESPECÍFICAS DE ALMACÉN ---
-            # Solo permitimos estos 3 grupos exactos
-            categorias_validas = ("01-SUPERVISORES-ALM", "02-CAPATACES", "OPERARIOS-N4")
-            if not any(cat in grupo_raw for cat in categorias_validas):
+            # --- FILTRO 2: DEPARTAMENTO (SOLO OPS, BLOQUEAR ALM) ---
+            # Bloqueamos explícitamente a cualquiera de Almacén aunque esté en N4
+            if any(x in grupo_raw for x in ("ALM", "ALMACEN", "ALMACENEROS")):
+                continue
+            
+            # Solo permitimos grupos que contengan estas palabras clave de Operaciones
+            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD"))
+            if not es_ops:
                 continue
 
             # --- FILTRO 3: TURNO (HORAS) ---
@@ -4776,6 +4781,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
