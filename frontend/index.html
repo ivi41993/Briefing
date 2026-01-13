@@ -4093,33 +4093,32 @@ function processTaskUpdate(data) {
 
     // 4. KPIs (FIIX + PowerBI)
     if (data.type === 'kpi_update' || data.metric) {
-        // Usamos nombres de variables únicos para evitar ReferenceError
-        const mName = String(data.metric || '').toLowerCase();
-        const tName = String(data.tab || '').toUpperCase();
+            const mKey = String(data.metric || '').toLowerCase();
 
-        // A. KPIs de Fiix
-        if (mName === 'fiix_backlog') {
-            const el = document.getElementById('fiix-backlog');
-            if(el) el.textContent = data.value;
-            return;
-        }
-        if (mName === 'fiix_urgent') {
-            const el = document.getElementById('fiix-urgent');
-            if(el) el.textContent = data.value;
-            const tile = document.getElementById('tile-fiix-urgent');
-            if(tile) tile.style.backgroundColor = Number(data.value) > 0 ? '#fff1f2' : '#fff';
-            return;
-        }
-        if (mName === 'fiix_cost') {
-            const el = document.getElementById('fiix-cost');
-            if(el) {
-                el.textContent = new Intl.NumberFormat('es-ES', { 
-                    minimumFractionDigits: 2, 
-                    maximumFractionDigits: 2 
-                }).format(data.value);
+            if (mKey === 'fiix_backlog') {
+                const el = document.getElementById('fiix-backlog');
+                if (el) el.textContent = data.value;
+                return;
             }
-            return;
-        }
+            if (mKey === 'fiix_urgent') {
+                const el = document.getElementById('fiix-urgent');
+                if (el) {
+                    el.textContent = data.value;
+                    const tile = document.getElementById('tile-fiix-urgent');
+                    if(tile) tile.style.backgroundColor = Number(data.value) > 0 ? '#fef2f2' : '#fff';
+                }
+                return;
+            }
+            if (mKey === 'fiix_cost') {
+                const el = document.getElementById('fiix-cost');
+                if (el) {
+                    el.textContent = new Intl.NumberFormat('es-ES', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }).format(data.value);
+                }
+                return;
+            }
 
         // B. KPIs de PowerBI (Pestaña MAD WFS4)
         if (tName === 'MAD WFS4' || tName === '') {
@@ -7115,6 +7114,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
