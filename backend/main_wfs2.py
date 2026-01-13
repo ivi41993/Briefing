@@ -166,25 +166,28 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
+    api_date_str = sdate.strftime("%d/%m/%Y")
     
-    raw_api_data = await fetch_mad_roster_from_api()
+    # Esta es la llamada que daba el NameError:
+    raw_api_data = await fetch_roster_api_data("MAD", api_date_str)
+    
     people = []
-
     if raw_api_data and isinstance(raw_api_data, list):
-        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
-        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
+        # Usamos el filtro de N3 que acabamos de definir arriba
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N3")
         source = "api"
     else:
-        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+        # Fallback Excel si falla la API
+        sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
         source = "excel"
 
+    # Actualizar caché y notificar por WebSocket
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
         "window": {"from": start, "to": end}, "source": source
     })
-    
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
