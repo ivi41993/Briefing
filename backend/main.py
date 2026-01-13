@@ -2932,24 +2932,43 @@ class FiixConnector:
             return []
 
     async def fetch_metrics(self):
-        print("🔍 [FIIX] Buscando IDs de Sites disponibles...")
+        print("🔍 [FIIX] Buscando IDs de Ubicaciones (Facilities/Sites)...")
         
-        # Consultamos la tabla 'Site'
+        # En Fiix, los Sites son Assets con la propiedad isFacility = 1
         body = {
             "_maCn": "FindRequest",
-            "className": "Site",
-            "fields": "id, strName"
+            "className": "Asset",
+            "fields": "id, strName, strCode",
+            "filters": [
+                {
+                    "ql": "isFacility = ?",
+                    "parameters": [1]
+                }
+            ]
         }
 
         results = await self._fiix_rpc(body)
 
         if results:
-            print("--- LISTA DE SITES ENCONTRADOS ---")
+            print("\n--- 📍 UBICACIONES / SITES ENCONTRADOS ---")
             for s in results:
-                print(f"📍 NOMBRE: {s.get('strName')} ---> FIIX_SITE_ID={s.get('id')}")
-            print("----------------------------------")
+                print(f"ID: {s.get('id')} | NOMBRE: {s.get('strName')} | CÓDIGO: {s.get('strCode')}")
+            print("------------------------------------------\n")
+            print("💡 Copia el ID de la ubicación que corresponda a Madrid y ponlo en tu .env como FIIX_SITE_ID")
         else:
-            print("❌ No se encontraron Sites. Revisa los permisos de lectura de la tabla 'Site'.")
+            print("⚠️ No se encontraron ubicaciones con 'isFacility = 1'.")
+            print("Intentando búsqueda general de los primeros 10 Assets para inspeccionar...")
+            
+            # Intento de backup: ver cualquier cosa para ver qué IDs tienen
+            body_backup = {
+                "_maCn": "FindRequest",
+                "className": "Asset",
+                "fields": "id, strName, intSiteID",
+                "maxObjects": 10
+            }
+            res_backup = await self._fiix_rpc(body_backup)
+            for b in res_backup:
+                print(f"Asset: {b.get('strName')} | Pertenece al Site ID: {b.get('intSiteID')}")
 
 
 
@@ -4647,6 +4666,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
