@@ -2932,32 +2932,74 @@ class FiixConnector:
             return []
 
     async def fetch_metrics(self):
-        print(f"📡 [FIIX] Probando con AppKey: {self.app_key[:5]}***")
+        # 1. Recuperar Site ID desde el .env
+        site_id_raw = os.getenv("FIIX_SITE_ID", "").strip()
+        site_id = int(site_id_raw) if site_id_raw.isdigit() else None
         
-        # FindRequest básico para probar conexión
-        body = {
-            "_maCn": "FindRequest",
-            "className": "Asset", # Probamos con equipos que es lo más común
-            "fields": "id, strName",
-            "maxObjects": 1
-        }
+        print(f"📡 [FIIX] Sincronizando KPIs... (Site ID: {site_id})")
 
-        results = await self._fiix_rpc(body)
+        # 2. Fecha de inicio del mes actual (formato Fiix: YYYY-MM-DD HH:MM:SS)
+        first_day_month = datetime.now().replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
 
-        if results:
-            asset_name = results[0].get("strName")
-            print(f"✅ ¡CONEXIÓN EXITOSA! Equipo encontrado: {asset_name}")
+        try:
+            # --- QUERY 1: BACKLOG Y URGENCIAS (Órdenes Abiertas) ---
+            # Filtro: dtmDateCompleted es NULL (abierta) y el Site ID coincide
+            ql_open = "dtmDateCompleted IS NULL"
+            params_open = []
+            if site_id:
+                ql_open += " AND intSiteID = ?"
+                params_open.append(site_id)
+
+            body_open = {
+                "_maCn": "FindRequest",
+                "className": "WorkOrder",
+                "fields": "id, intPriorityID",
+                "filters": [{"ql": ql_open, "parameters": params_open}],
+                "maxObjects": 500
+            }
+
+            # --- QUERY 2: COSTES (Órdenes cerradas este mes) ---
+            # Filtro: dtmDateCompleted >= primero de mes y el Site ID coincide
+            ql_closed = "dtmDateCompleted >= ?"
+            params_closed = [first_day_month]
+            if site_id:
+                ql_closed += " AND intSiteID = ?"
+                params_closed.append(site_id)
+
+            body_closed = {
+                "_maCn": "FindRequest",
+                "className": "WorkOrder",
+                "fields": "id, dblTotalCost",
+                "filters": [{"ql": ql_closed, "parameters": params_closed}],
+                "maxObjects": 500
+            }
+
+            # Ejecutar llamadas RPC
+            open_wos = await self._fiix_rpc(body_open)
+            closed_wos = await self._fiix_rpc(body_closed)
+
+            # --- 3. PROCESAMIENTO DE LOS DATOS ---
             
-            ts = datetime.utcnow().isoformat() + "Z"
-            await manager.broadcast({
-                "type": "kpi_update",
-                "metric": "fiix_backlog",
-                "value": f"OK: {asset_name}",
-                "timestamp": ts
-            })
-        else:
-            print("❌ Seguimos sin recibir objetos. Revisa que el APP_KEY sea el correcto en Fiix -> Settings -> API Keys.")
+            # Backlog total
+            backlog_count = len(open_wos)
+            
+            # Urgencias: Prioridades 1 (Emergencia) y 2 (Alta)
+            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") in [1, 2])
+            
+            # Costes: Sumar dblTotalCost de las cerradas
+            total_cost = sum(float(wo.get("dblTotalCost") or 0) for wo in closed_wos)
 
+            print(f"📊 [FIIX] BACKLOG: {backlog_count} | URGENTES: {urgent_count} | COSTE MES: {total_cost}€")
+
+            # --- 4. ENVIAR AL FRONTEND VÍA WEBSOCKET ---
+            ts = datetime.utcnow().isoformat() + "Z"
+            
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_cost, "timestamp": ts})
+
+        except Exception as e:
+            print(f"❌ [FIIX] Error procesando métricas: {e}")
 
 
 
@@ -4655,6 +4697,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
