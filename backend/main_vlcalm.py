@@ -1005,14 +1005,14 @@ async def websocket_endpoint(websocket: WebSocket):
 # -----------------------------------
 # Frontend VLC (Configurado para salir a la raíz)
 # -----------------------------------
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_vlc"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_vlcalm"
 
 print(f"🔍 DEBUG PATH VLC: {FRONTEND_DIR}")
 if not FRONTEND_DIR.exists():
-    print(f"❌ ERROR: La carpeta {FRONTEND_DIR} NO EXISTE. Crea 'frontend_vlc' en la raíz.")
+    print(f"❌ ERROR: La carpeta {FRONTEND_DIR} NO EXISTE. Crea 'frontend_vlcalm' en la raíz.")
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
 if __name__ == "__main__":
     # Puerto local diferente (8005)
-    uvicorn.run("main_vlc:app", host="0.0.0.0", port=8005, reload=True)
+    uvicorn.run("main_vlc:app", host="0.0.0.0", port=8123, reload=True)
