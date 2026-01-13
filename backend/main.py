@@ -2875,119 +2875,121 @@ class FiixConnector:
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
         self.site_id = os.getenv("FIIX_SITE_ID", "").strip()
-        self.client = httpx.AsyncClient(timeout=60.0)
+        
+        # Cliente con headers base
+        self.client = httpx.AsyncClient(timeout=30.0)
         self.base_url = f"https://{self.host}/api/"
 
-    def _build_auth(self) -> tuple[dict, dict]:
-        ts_ms = int(time.time() * 1000)
-        params = {
-            "service": "cmms", "timestamp": str(ts_ms),
-            "appKey": self.app_key, "accessKey": self.access_key,
-            "signatureMethod": "HmacSHA256", "signatureVersion": "1",
-        }
-        from urllib.parse import urlencode
-        query_str = urlencode(params)
-        request_uri = f"{self.host}/api/?{query_str}"
-        signature_hex = hmac.new(self.secret_key.encode("utf-8"), request_uri.encode("utf-8"), hashlib.sha256).hexdigest().lower()
-        headers = {"Content-Type": "application/json", "Authorization": signature_hex}
-        return params, headers
+    def _generate_hmac(self, params_str: str) -> str:
+        """Genera la firma exacta que pide Fiix"""
+        # La firma se hace sobre: host + path + query_string
+        full_string = f"{self.host}/api/?{params_str}"
+        return hmac.new(
+            self.secret_key.encode("utf-8"),
+            full_string.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest().lower()
 
-    async def _fiix_find(self, ql: str, parameters: list, fields: str) -> list:
-        params, headers = self._build_auth()
-        body = {
-            "_maCn": "FindRequest", "className": "WorkOrder",
-            "fields": fields, "filters": [{"ql": ql, "parameters": parameters}],
-            "maxObjects": 500
+    async def _fiix_call(self, body: dict) -> list:
+        """Llamada RPC estándar de Fiix"""
+        from urllib.parse import urlencode
+        
+        ts = int(time.time() * 1000)
+        auth_params = {
+            "service": "cmms",
+            "timestamp": str(ts),
+            "appKey": self.app_key,
+            "accessKey": self.access_key,
+            "signatureMethod": "HmacSHA256",
+            "signatureVersion": "1"
         }
-        resp = await self.client.post(self.base_url, params=params, json=body, headers=headers)
-        if resp.status_code != 200: return []
-        return resp.json().get("objects", [])
+        
+        # Generar firma sobre los parámetros ordenados
+        query_string = urlencode(auth_params)
+        signature = self._generate_hmac(query_string)
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": signature
+        }
+
+        try:
+            resp = await self.client.post(
+                self.base_url, 
+                params=auth_params, 
+                json=body, 
+                headers=headers
+            )
+            if resp.status_code == 200:
+                res_json = resp.json()
+                # Fiix devuelve los resultados en 'objects' o 'object'
+                return res_json.get("objects", res_json.get("object", []))
+            else:
+                print(f"❌ Fiix API Error {resp.status_code}: {resp.text}")
+                return []
+        except Exception as e:
+            print(f"❌ Fiix Exception: {e}")
+            return []
 
     async def fetch_metrics(self):
-        print(f"📡 [FIIX] Intentando conectar a {self.host} (Site: {self.site_id})...")
+        print(f"📡 [FIIX] Iniciando sincronización... (Site ID configurado: '{self.site_id}')")
         
-        if not self.host or not self.secret_key:
-            print("❌ [FIIX] Error: Faltan credenciales en el .env")
+        if not self.host or not self.app_key:
+            print("❌ [FIIX] Faltan variables de entorno básicas.")
             return
 
-        today = datetime.now()
-        first_day = datetime(today.year, today.month, 1).strftime("%Y-%m-%d 00:00:00")
-        site_id_int = int(self.site_id) if (self.site_id and self.site_id.isdigit()) else None
+        # 1. Preparar filtros
+        # Si no hay Site ID, no filtramos por site (traerá todo lo del tenant)
+        site_filter = ""
+        params = []
+        if self.site_id:
+            site_filter = " AND intSiteID = ?"
+            params.append(int(self.site_id))
 
-        try:
-            # 1. Backlog y Urgentes
-            ql_open = "dtmDateCompleted IS NULL"
-            params_open = []
-            if site_id_int:
-                ql_open += " AND intSiteID = ?"
-                params_open.append(site_id_int)
-            
-            open_wos = await self._fiix_find(ql_open, params_open, "id,intPriorityID")
+        # Fecha inicio de mes para costes
+        first_day = datetime.now().replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
 
-            # 2. Costes (WorkOrder usa dblTotalCost para el resumen)
-            ql_costs = "dtmDateCompleted >= ?"
-            params_costs = [first_day]
-            if site_id_int:
-                ql_costs += " AND intSiteID = ?"
-                params_costs.append(site_id_int)
-            
-            cost_wos = await self._fiix_find(ql_costs, params_costs, "id,dblTotalCost")
+        # --- QUERY A: BACKLOG (Abiertas) ---
+        # Filtramos por dtmDateCompleted IS NULL
+        body_backlog = {
+            "_maCn": "FindRequest",
+            "className": "WorkOrder",
+            "fields": "id,intPriorityID",
+            "filters": [{"ql": f"dtmDateCompleted IS NULL{site_filter}", "parameters": params}]
+        }
 
-            # Cálculos
-            count_backlog = len(open_wos)
-            count_urgent = sum(1 for w in open_wos if w.get("intPriorityID") in [1, 2, 8]) # Prioridades críticas
-            total_cost = sum(float(w.get("dblTotalCost") or 0) for w in cost_wos)
+        # --- QUERY B: COSTES (Cerradas este mes) ---
+        cost_params = [first_day] + params
+        body_costs = {
+            "_maCn": "FindRequest",
+            "className": "WorkOrder",
+            "fields": "id,dblTotalCost",
+            "filters": [{"ql": f"dtmDateCompleted >= ?{site_filter}", "parameters": cost_params}]
+        }
 
-            print(f"📊 [FIIX] Resultados: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost}€")
+        # Ejecutar llamadas
+        backlog_res = await self._fiix_call(body_backlog)
+        costs_res = await self._fiix_call(body_costs)
 
-            # Broadcast
-            ts = datetime.utcnow().isoformat() + "Z"
-            for m, v in [("fiix_backlog", count_backlog), ("fiix_urgent", count_urgent), ("fiix_cost", total_cost)]:
-                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts})
+        # 2. Procesar resultados
+        count_backlog = len(backlog_res)
+        # IDs de prioridad: 1=Emergencia, 2=Alta, 3=Normal... (Depende de tu Fiix)
+        count_urgent = sum(1 for wo in backlog_res if wo.get("intPriorityID", 0) <= 2)
+        
+        # Sumar dblTotalCost (asegurando que sea float)
+        total_cost = 0.0
+        for wo in costs_res:
+            val = wo.get("dblTotalCost")
+            if val:
+                total_cost += float(val)
 
-        except Exception as e:
-            print(f"❌ [FIIX] Error crítico: {e}")
+        print(f"📊 [FIIX] Resultados Finales: Backlog={count_backlog}, Urgentes={count_urgent}, Coste={total_cost}€")
 
-    async def debug_kpi_capabilities(self):
-        """
-        Explora qué campos devuelve Fiix en WorkOrder para decidir
-        qué KPIs podemos calcular.
-        Usa el mismo mecanismo de auth que _fiix_find.
-        """
-        print("🧪 Entrando en debug_kpi_capabilities()...")
-
-        if not self.host or not self.access_key or not self.secret_key or not self.app_key:
-            print("⚠️ FIIX: Faltan credenciales para debug (HOST / APP_KEY / ACCESS_KEY / SECRET_KEY).")
-            print(f"HOST={self.host!r} APP_KEY={bool(self.app_key)} ACCESS_KEY={bool(self.access_key)} SECRET_KEY={bool(self.secret_key)}")
-            return
-
-        # Filtro mínimo: todo (limitando por maxObjects)
-        ql_debug = "1 = 1"
-        params_debug: list[Any] = []
-
-        try:
-            print("🧪 Llamando a _fiix_find() para debug...")
-            sample_wos = await self._fiix_find(
-                ql=ql_debug,
-                parameters=params_debug,
-                fields="*",
-                max_objects=3,   # con 3 objetos de ejemplo nos basta
-            )
-
-            if not sample_wos:
-                print("ℹ️ Debug Fiix: no se han devuelto WorkOrders.")
-                return
-
-            sample = sample_wos[0]
-
-            print("🔎 Campos disponibles en WorkOrder:")
-            print(list(sample.keys()))
-
-            print("🔎 Ejemplo completo de WorkOrder:")
-            print(json.dumps(sample, indent=2))
-
-        except Exception as e:
-            print(f"❌ FIIX EXCEPCIÓN en debug_kpi_capabilities: {e}")
+        # 3. Notificar vía WebSocket
+        ts = datetime.utcnow().isoformat() + "Z"
+        await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": count_backlog, "timestamp": ts})
+        await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": count_urgent, "timestamp": ts})
+        await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_cost, "timestamp": ts})
 
 
 
@@ -4686,6 +4688,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
