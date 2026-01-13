@@ -93,56 +93,73 @@ ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 
-def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
-    """
-    Filtra por turno y por identificador de nave (ej: 'N4', 'N3', etc.)
-    """
+def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
-    # Convertimos a mayúsculas para comparar sin errores
-    target = target_nave.upper() 
+    target = target_nave.upper() # "N4"
 
-    for p in api_data:
+    # 1. Localizar la lista de trabajadores
+    workers_list = []
+    if isinstance(api_data, list): workers_list = api_data
+    elif isinstance(api_data, dict):
+        for key in ("value", "data", "items", "workers", "body"):
+            if isinstance(api_data.get(key), list):
+                workers_list = api_data[key]
+                break
+    if not workers_list: return []
+
+    for p in workers_list:
+        if not isinstance(p, dict): continue
         try:
-            # --- FILTRO DE NAVE (Identificación robusta) ---
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            nomina = p.get("nomina", {}) if isinstance(p.get("nomina"), dict) else {}
             
-            # Buscamos el identificador (ej: 'N4') en cualquiera de los 3 campos
-            if target not in cod and target not in desc and target not in grupo:
+            # --- NORMALIZACIÓN ---
+            def clean(t): return str(t or "").upper().strip()
+
+            cod_destino  = clean(p.get("codDestino") or nomina.get("codDestino"))
+            desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
+            grupo_raw    = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
+            
+            # --- FILTRO 1: DESTINO FÍSICO (DEBE SER NAVE 4) ---
+            # Si no pone N4 o NAVE 4 en el destino, queda fuera
+            es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
+            if not es_nave_4:
                 continue
 
-            # --- FILTRO DE TURNO (HORAS) ---
-            raw_inicio = p.get("horaInicio", "")
-            if not raw_inicio or " " not in raw_inicio:
+            # --- FILTRO 2: DEPARTAMENTO (SOLO OPS, BLOQUEAR ALM) ---
+            # Bloqueamos explícitamente a cualquiera de Almacén aunque esté en N4
+            if any(x in grupo_raw for x in ("ALM", "ALMACEN", "ALMACENEROS")):
                 continue
             
-            hora_completa = raw_inicio.split(" ")[1]
-            h_inicio = int(hora_completa.split(":")[0])
-            
-            # Horquillas de turno
-            is_mañana = (4 <= h_inicio < 14)
-            is_tarde  = (14 <= h_inicio < 22)
-            is_noche  = (h_inicio >= 22 or h_inicio < 4)
+            # Solo permitimos grupos que contengan estas palabras clave de Operaciones
+            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD"))
+            if not es_ops:
+                continue
 
+            # --- FILTRO 3: TURNO (HORAS) ---
+            raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
+            if " " not in raw_inicio: continue
+            
+            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
+            
+            # Horquillas (Mañana: 4-14, Tarde: 14-22, Noche: 22-4)
             match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
+            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
+            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
+            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
 
             if match:
-                raw_fin = p.get("horaFin", "")
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+                raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else ""
 
                 normalized.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
-                    "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
+                    "grupo": grupo_raw,
+                    "cod_destino": cod_destino,
+                    "desc_destino": desc_destino,
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except:
-            continue
+        except: continue
             
     return normalized
     
