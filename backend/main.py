@@ -4437,25 +4437,27 @@ async def fetch_mad_roster_from_api():
 # DESPUÉS (Copia esta línea):
 def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
     """
-    Filtra por turno y por identificador de nave (ej: 'N4', 'N3', etc.)
+    Filtra por turno y por identificador de nave, asegurando que se envíen
+    todos los metadatos necesarios para el renderizado.
     """
     normalized = []
-    # Convertimos a mayúsculas para comparar sin errores
     target = target_nave.upper() 
 
     for p in api_data:
         try:
-            # --- FILTRO DE NAVE (Identificación robusta) ---
-            cod = str(p.get("codDestino", "")).upper()
-            desc = str(p.get("descDestino", "")).upper()
-            grupo = str(p.get("nombreGrupoTrabajo", "")).upper()
+            # --- 1. EXTRACCIÓN DE METADATOS ---
+            # Buscamos en raíz o en nomina
+            nomina = p.get("nomina", {})
+            cod_destino = str(p.get("codDestino") or nomina.get("codDestino") or "").upper()
+            desc_destino = str(p.get("descDestino") or nomina.get("descDestino") or "").upper()
+            grupo = str(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo") or "").upper()
             
-            # Buscamos el identificador (ej: 'N4') en cualquiera de los 3 campos
-            if target not in cod and target not in desc and target not in grupo:
+            # --- 2. FILTRO DE NAVE (Identificación robusta) ---
+            if target not in cod_destino and target not in desc_destino and target not in grupo:
                 continue
 
-            # --- FILTRO DE TURNO (HORAS) ---
-            raw_inicio = p.get("horaInicio", "")
+            # --- 3. FILTRO DE TURNO (HORAS) ---
+            raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
             if not raw_inicio or " " not in raw_inicio:
                 continue
             
@@ -4473,17 +4475,21 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, targ
             elif current_shift == "Noche" and is_noche: match = True
 
             if match:
-                raw_fin = p.get("horaFin", "")
+                raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
                 h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
 
+                # IMPORTANTE: Enviamos las claves que el frontend espera
                 normalized.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
+                    "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
                     "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "grupo": grupo,           # Usado para seccionar
+                    "cod_destino": cod_destino, # Usado para filtrar
+                    "desc_destino": desc_destino, # Usado para filtrar
+                    "observaciones": f"{grupo}",
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except:
+        except Exception as e:
+            print(f"Error procesando empleado MAD: {e}")
             continue
             
     return normalized
@@ -4767,6 +4773,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
