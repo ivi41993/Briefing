@@ -172,7 +172,7 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             
             # --- FILTRO 1: DESTINO FÍSICO (DEBE SER NAVE 4) ---
             # Si no pone N4 o NAVE 4 en el destino, queda fuera
-            es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
+            es_nave_4 = (target in cod_destino or "NAVE 2" in desc_destino)
             if not es_nave_4:
                 continue
 
