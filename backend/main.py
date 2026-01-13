@@ -2932,19 +2932,16 @@ class FiixConnector:
             return []
 
     async def fetch_metrics(self):
-        site_id_raw = os.getenv("FIIX_SITE_ID", "29449435").strip()
-        site_id = int(site_id_raw)
-        
+        site_id = 29449435
         now = datetime.now()
         first_day_month = now.replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
 
-        # Inicializamos valores por defecto
         backlog_count = 0
         urgent_count = 0
-        total_cost = 0.0
+        total_monthly_cost = 0.0
 
-        # --- PARTE 1: BACKLOG Y URGENCIAS (YA FUNCIONA) ---
         try:
+            # --- 1. BACKLOG Y URGENCIAS (Funciona OK) ---
             body_open = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
@@ -2955,43 +2952,61 @@ class FiixConnector:
             open_wos = await self._fiix_rpc(body_open)
             backlog_count = len(open_wos)
             urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
-        except Exception as e:
-            print(f"⚠️ [FIIX] Error en Backlog: {e}")
 
-        # --- PARTE 2: COSTES (ESTRATEGIA DE DESCUBRIMIENTO) ---
-        try:
-            # Intentamos traer CUALQUIER columna que suene a coste. 
-            # Si una falla, Fiix suele tirar toda la petición, así que probamos con la más básica.
-            body_costs = {
+            # --- 2. COSTES: PASO A (Obtener IDs de órdenes cerradas este mes) ---
+            body_closed_ids = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, dblTotalWorkOrderCost", # Probamos este nombre técnico alternativo
+                "fields": "id",
                 "filters": [{"ql": "dtmDateCompleted >= ? AND intSiteID = ?", "parameters": [first_day_month, site_id]}],
                 "maxObjects": 500
             }
-            cost_res = await self._fiix_rpc(body_costs)
+            closed_wos = await self._fiix_rpc(body_closed_ids)
             
-            if cost_res:
-                total_cost = sum(float(wo.get("dblTotalWorkOrderCost") or 0) for wo in cost_res)
-            else:
-                # Si dblTotalWorkOrderCost falló o dio vacío, intentamos una última vez con '*' 
-                # en una sola WO para ver qué columnas existen
-                body_debug = {"_maCn":"FindRequest","className":"WorkOrder","fields":"*","maxObjects":1}
-                debug_res = await self._fiix_rpc(body_debug)
-                if debug_res:
-                    print(f"🛠️ [FIIX DEBUG] COLUMNAS DISPONIBLES: {list(debug_res[0].keys())}")
-        
+            if closed_wos:
+                closed_ids = [wo['id'] for wo in closed_wos]
+                print(f"📂 [FIIX] Analizando costes de {len(closed_ids)} órdenes cerradas...")
+
+                # --- COSTES: PASO B (Sumar Mano de Obra / Labor) ---
+                # Consultamos la tabla 'WorkOrderLabor' vinculada a esas órdenes
+                # Usamos lotes de IDs para no saturar la API
+                for i in range(0, len(closed_ids), 100):
+                    batch = closed_ids[i:i+100]
+                    # Filtramos labor cuya WO esté en nuestro lote
+                    body_labor = {
+                        "_maCn": "FindRequest",
+                        "className": "WorkOrderLabor",
+                        "fields": "dblCost",
+                        "filters": [{"ql": "intWorkOrderID IN ?", "parameters": [batch]}]
+                    }
+                    labor_entries = await self._fiix_rpc(body_labor)
+                    total_monthly_cost += sum(float(l.get("dblCost") or 0) for l in labor_entries)
+
+                # --- COSTES: PASO C (Sumar Repuestos / Parts) ---
+                # Consultamos la tabla 'WorkOrderPart' vinculada
+                for i in range(0, len(closed_ids), 100):
+                    batch = closed_ids[i:i+100]
+                    body_parts = {
+                        "_maCn": "FindRequest",
+                        "className": "WorkOrderPart",
+                        "fields": "dblPartCost",
+                        "filters": [{"ql": "intWorkOrderID IN ?", "parameters": [batch]}]
+                    }
+                    parts_entries = await self._fiix_rpc(body_parts)
+                    # Nota: dblPartCost es unitario, pero en la mayoría de configuraciones 
+                    # ya viene calculado por cantidad en la vista API
+                    total_monthly_cost += sum(float(p.get("dblPartCost") or 0) for p in parts_entries)
+
+            print(f"📊 [FIIX] RESULTADO FINAL -> Backlog: {backlog_count} | Urgentes: {urgent_count} | Coste Mes: {total_monthly_cost}€")
+
+            # --- 3. BROADCAST ---
+            ts = datetime.utcnow().isoformat() + "Z"
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_monthly_cost, "timestamp": ts})
+
         except Exception as e:
-            print(f"ℹ️ [FIIX] Columnas de coste no accesibles: {e}")
-
-        print(f"📊 [FIIX] FINAL -> Backlog: {backlog_count} | Urgentes: {urgent_count} | Coste: {total_cost}€")
-
-        # --- PARTE 3: BROADCAST (WEBSOCKET) ---
-        # No te preocupes por el mensaje "No hay conexiones", es normal si el dashboard está cerrado.
-        ts = datetime.utcnow().isoformat() + "Z"
-        await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
-        await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
-        await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_cost, "timestamp": ts})
+            print(f"❌ [FIIX] Error crítico en agregación: {e}")
 
 
 
@@ -4689,6 +4704,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
