@@ -3510,64 +3510,94 @@ console.error('PUT /api/roster/zone falló', e);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
+    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
-    // Capturamos los datos
-    const rawList = Array.isArray(people) ? people : (state && state.people ? state.people : []);
-    window.TEAM_STATE.allPeopleRaw = rawList;
-    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
+    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+    const masterList = window.TEAM_STATE.allPeopleRaw;
 
-    listEl.innerHTML = '';
-
-    if (rawList.length === 0) {
-        listEl.innerHTML = `<div style="padding:20px; text-align:center; color:var(--brand-red-600); font-weight:700;">
-            📭 No hay personal de Nave 1 para el turno de ${window.TEAM_STATE.shift}.<br>
-            <small style="font-weight:400; color:gray;">(Verifica que el horario de entrada coincida con el turno actual)</small>
-        </div>`;
+    if (!masterList || masterList.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando dotación de Almacén...</div>';
         return;
     }
 
-    rawList.forEach((p) => {
-        const fullName = p.nombre_completo;
-        const currentAtt = window.TEAM_STATE.attendance[fullName]; 
-        const safeId = fullName.replace(/[^a-z0-9]/gi, '_');
+    // 1. CLASIFICACIÓN POR JERARQUÍA DE ALMACÉN
+    const groups = {
+        "SUPERVISIÓN ALMACÉN": [],
+        "CAPATACES": [],
+        "OPERARIOS NAVE 4": []
+    };
 
-        const card = document.createElement('div');
-        card.className = 'team-row';
-        card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border-left:6px solid var(--brand-red-600); background:#fff; box-shadow:var(--elev-1);`;
-
-        card.innerHTML = `
-            <div>
-                <div style="font-weight:800; color:var(--text); font-size:1rem;">${esc(fullName)}</div>
-                <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
-                    <span style="font-size:0.75rem; color:var(--brand-red-700); font-weight:700; background:#fff1f2; padding:2px 8px; border-radius:6px;">
-                        🕒 ${esc(p.horario)}
-                    </span>
-                    <span style="font-size:0.7rem; background:#eef2ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-weight:800;">
-                        ${esc(p.grupo)}
-                    </span>
-                </div>
-            </div>
-            <div class="presence-toggle" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:flex; justify-content:center; gap:8px;">
-                <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                <label for="y_${safeId}" class="yes" style="padding:8px 20px;">✓ OK</label>
-                <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                <label for="n_${safeId}" class="no" style="padding:8px 20px;">✕ NO</label>
-            </div>
-        `;
-
-        card.querySelectorAll('input').forEach(r => {
-            r.onclick = () => {
-                window.TEAM_STATE.attendance[fullName] = (r.value === 'yes');
-                updatePresenceOnServer(fullName, r.value === 'yes');
-                updateTeamMeta(window.TEAM_STATE);
-            };
-        });
-
-        listEl.appendChild(card);
+    masterList.forEach(p => {
+        const grupo = (p.grupo || "").toUpperCase();
+        if (grupo.includes("01-SUPERVISORES-ALM")) groups["SUPERVISIÓN ALMACÉN"].push(p);
+        else if (grupo.includes("02-CAPATACES")) groups["CAPATACES"].push(p);
+        else if (grupo.includes("OPERARIOS-N4")) groups["OPERARIOS NAVE 4"].push(p);
     });
 
-    const meta = document.getElementById('team-meta');
-    if (meta) meta.textContent = `${window.TEAM_STATE.shift} • N1: ${rawList.length} trabajadores`;
+    listEl.innerHTML = '';
+    const ZONES = ['MUELLE N4', 'ESTANTERÍAS', 'ZONA FRÍA', 'OFICINA ALM', 'ENTRADA', 'SALIDA'];
+
+    // 2. RENDERIZADO VISUAL
+    Object.keys(groups).forEach(groupName => {
+        const groupPeople = groups[groupName];
+        if (groupPeople.length === 0) return;
+
+        const header = document.createElement('div');
+        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
+        header.textContent = `${groupName} (${groupPeople.length})`;
+        listEl.appendChild(header);
+
+        groupPeople.forEach((p) => {
+            const name = p.nombre_completo;
+            const safeId = name.replace(/[^a-z0-9]/gi, '_');
+            let currentAtt = window.TEAM_STATE.attendance[name]; 
+            if (currentAtt === undefined) currentAtt = "undefined";
+
+            // Asignación de Colores Vivid por Rango
+            let colorVivid = "#3b82f6"; // Azul para Operarios
+            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24"; // Oro
+            if (groupName.includes("CAPATACES")) colorVivid = "#8b5cf6"; // Púrpura
+
+            const card = document.createElement('div');
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
+
+            row_html = `
+                <div>
+                    <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${name}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                        <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${p.horario}</span>
+                        <span style="font-size:0.65rem; background:#f3f4f6; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">${p.grupo}</span>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
+                    <div class="presence-toggle">
+                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
+                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
+                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="false" ${currentAtt === false ? 'checked' : ''}>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
+                    </div>
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem; font-weight:700; background:#fff;">
+                        <option value="" disabled ${!window.TEAM_STATE.zones[name] ? 'selected' : ''}>ZONA...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${window.TEAM_STATE.zones[name] === z ? 'selected' : ''}>${z}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+            card.innerHTML = row_html;
+
+            // Listeners de Presencia
+            card.querySelectorAll('input[type="radio"]').forEach(r => {
+                r.addEventListener('click', () => {
+                    let val = (r.value === 'true') ? true : (r.value === 'false' ? false : undefined);
+                    window.TEAM_STATE.attendance[name] = val;
+                    updatePresenceOnServer(name, val);
+                });
+            });
+
+            listEl.appendChild(card);
+        });
+    });
 }
 
 
