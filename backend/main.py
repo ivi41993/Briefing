@@ -3082,6 +3082,17 @@ def get_protocol_dummy():
 def post_protocol_dummy(payload: dict):
     # Endpoint dummy para guardar protocolo
     return {"ok": True}
+# --- 3. AÑADE ESTE ENDPOINT DE PRUEBA ---
+@app.get("/api/fiix/test")
+async def test_fiix():
+    """Llamar a esto manualmente: tu-url.com/api/fiix/test"""
+    f = FiixConnector()
+    print("🧪 [FIIX] Test manual iniciado...")
+    try:
+        await f.fetch_metrics()
+        return {"status": "Metrics triggered", "check_logs": "Mira la consola de Python"}
+    except Exception as e:
+        return {"status": "Error", "detail": str(e)}
 
 @app.get("/api/backup")
 def api_backup():
@@ -4675,6 +4686,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
