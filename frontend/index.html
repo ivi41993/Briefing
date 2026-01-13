@@ -4068,91 +4068,81 @@ async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/n
 function processTaskUpdate(data) {
     if (!data) return;
 
-    // --- 1. LOG DE DEPURACIÓN (MIRA LA CONSOLA DEL NAVEGADOR F12) ---
-    if (data.metric && data.metric.startsWith('fiix')) {
-        console.log("📥 Datos recibidos de Fiix:", data);
-    }
-
-    // --- 2. MANEJO DE BORRADO ---
+    // 1. Manejo de borrado (Global)
     if (data.action === 'delete') {
-        const elOps = document.getElementById(`ops-${data.id}`);
-        if (elOps) elOps.remove();
-        const elTask = document.getElementById(`task-${data.id}`);
-        if (elTask) elTask.remove();
+        const el = document.getElementById(`task-${data.id}`) || document.getElementById(`ops-${data.id}`);
+        if (el) el.remove();
         if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
         return;
     }
 
-    // --- 3. VERIFICAR ESTACIÓN ---
+    // 2. Verificar estación (MAD)
     if (!isForThisStation(data)) return;
 
-    // --- 4. ACTUALIZACIÓN DE ROSTER / PRESENCIA ---
+    // 3. Lógica de Roster / Presencia
     if (data.type === 'presence_update' || data.type === 'zone_update') {
-        // ... (tu lógica de roster existente es correcta, mantenla si quieres o usa la simplificada)
         if (window.TEAM_STATE && window.TEAM_STATE.sheet_date === data.sheet_date) {
             if (data.type === 'presence_update') {
                 window.TEAM_STATE.attendance[data.person] = !!data.present;
                 updateTeamMeta(window.TEAM_STATE);
             }
-            // Refrescar visualmente
             renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people || [], window.TEAM_STATE);
         }
         return;
     }
 
-    // --- 5. LÓGICA UNIFICADA DE KPIs (Fiix + PowerBI) ---
-    if (data.metric || data.type === 'kpi_update') {
-        // Definimos las variables al principio del bloque para evitar ReferenceError
-        const metricName = String(data.metric || '').trim().toLowerCase();
-        const tabName = String(data.tab || '').trim().toUpperCase();
+    // 4. KPIs (FIIX + PowerBI)
+    if (data.type === 'kpi_update' || data.metric) {
+        // Usamos nombres de variables únicos para evitar ReferenceError
+        const mName = String(data.metric || '').toLowerCase();
+        const tName = String(data.tab || '').toUpperCase();
 
-        // A. MÉTRICAS ESPECÍFICAS DE FIIX (No suelen llevar 'tab')
-        if (metricName === 'fiix_backlog') {
-            setKpiValue('fiix-backlog', null, data.value);
+        // A. KPIs de Fiix
+        if (mName === 'fiix_backlog') {
+            const el = document.getElementById('fiix-backlog');
+            if(el) el.textContent = data.value;
             return;
         }
-        if (metricName === 'fiix_urgent') {
-            setKpiValue('fiix-urgent', null, data.value);
+        if (mName === 'fiix_urgent') {
+            const el = document.getElementById('fiix-urgent');
+            if(el) el.textContent = data.value;
             const tile = document.getElementById('tile-fiix-urgent');
-            if (tile) tile.style.backgroundColor = Number(data.value) > 0 ? '#fef2f2' : '#fff';
+            if(tile) tile.style.backgroundColor = Number(data.value) > 0 ? '#fff1f2' : '#fff';
             return;
         }
-        if (metricName === 'fiix_cost') {
-            const val = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(data.value);
-            setKpiValue('fiix-cost', null, val);
+        if (mName === 'fiix_cost') {
+            const el = document.getElementById('fiix-cost');
+            if(el) {
+                el.textContent = new Intl.NumberFormat('es-ES', { 
+                    minimumFractionDigits: 2, 
+                    maximumFractionDigits: 2 
+                }).format(data.value);
+            }
             return;
         }
 
-        // B. MÉTRICAS DE POWER BI (Filtradas por Tab MAD WFS4)
-        if (tabName === 'MAD WFS4' || tabName === '') {
-            if (metricName === 'total cost') {
+        // B. KPIs de PowerBI (Pestaña MAD WFS4)
+        if (tName === 'MAD WFS4' || tName === '') {
+            if (mName === 'total cost') {
                 updateKpiTotalCost(data.value, data.timestamp);
-                return;
-            }
-            if (metricName === 'uph') {
-                setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(data.value));
-                return;
-            }
-            if (metricName === 'otif') {
+            } else if (mName === 'uph') {
+                setKpiValue('kpi-uph', 'kpi-uph-meta', data.value);
+            } else if (mName === 'otif') {
                 setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(data.value) + ' %');
-                return;
-            }
-            if (metricName === 'backlog') {
+            } else if (mName === 'backlog') {
                 setKpiValue('kpi-backlog', 'kpi-backlog-meta', data.value);
-                return;
             }
         }
     }
 
-    // --- 6. RENDER DE TARJETAS (KANBAN, KAIZEN, OPS) ---
+    // 5. Render de tarjetas normales
     const elementId = `task-${data.id}`;
-    switch (data.task_type) {
+    switch(data.task_type) {
         case 'kanban_rapida': renderBoardCard(data, elementId); break;
         case 'kaizen': renderKaizenCard(data, elementId); break;
         case 'gw_task': GW_MAP.set(data.id, data); renderGwTop3(); break;
-        case 'ops_update': if (window.renderOpsCard) window.renderOpsCard(data); break;
+        case 'ops_update': if(window.renderOpsCard) window.renderOpsCard(data); break;
     }
-    if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
@@ -7125,6 +7115,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
