@@ -3511,7 +3511,7 @@ console.error('PUT /api/roster/zone falló', e);
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // --- SOLUCIÓN AL ERROR DE INICIALIZACIÓN (Roberto Garcia Couto bug) ---
+    // BLINDAJE DE ESTADO
     if (!window.TEAM_STATE) window.TEAM_STATE = {};
     if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
     if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
@@ -3520,11 +3520,11 @@ function renderRoster(listEl, people, state) {
     const masterList = window.TEAM_STATE.allPeopleRaw || [];
 
     if (masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Sin personal de Almacén N1 en este turno...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Sin personal de Almacén en este turno...</div>';
         return;
     }
 
-    // 1. CLASIFICACIÓN POR JERARQUÍA DE ALMACÉN
+    // 1. CLASIFICACIÓN POR CATEGORÍA REAL DE ALMACÉN
     const groups = {
         "SUPERVISIÓN ALMACÉN": [],
         "CAPATACES / EPAs": [],
@@ -3533,13 +3533,18 @@ function renderRoster(listEl, people, state) {
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        if (grupo.includes("SUPERVISORES-ALM")) groups["SUPERVISIÓN ALMACÉN"].push(p);
-        else if (grupo.includes("CAPATACES") || grupo.includes("EPAS")) groups["CAPATACES / EPAs"].push(p);
-        else groups["OPERARIOS / ETT"].push(p);
+        
+        // Clasificación basada en los códigos de grupo de la API
+        if (grupo.includes("01-SUPERVISORES-ALM")) {
+            groups["SUPERVISIÓN ALMACÉN"].push(p);
+        } else if (grupo.includes("02-CAPATACES") || grupo.includes("EPAS")) {
+            groups["CAPATACES / EPAs"].push(p);
+        } else {
+            groups["OPERARIOS / ETT"].push(p);
+        }
     });
 
     listEl.innerHTML = '';
-    // Zonas específicas de Almacén
     const ZONES = ['ESTANTERÍAS', 'ZONA FRÍA', 'MUELLE N1', 'OFICINA ALM', 'REPETICIONES', 'SALIDA'];
 
     // 2. RENDERIZADO VISUAL VIVID
@@ -3561,10 +3566,10 @@ function renderRoster(listEl, people, state) {
             
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            // Colores Vivid de Almacén
-            let borderColor = "#3b82f6"; // Azul (Operarios/ETT)
-            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; // Oro
-            if (groupName.includes("CAPATACES")) borderColor = "#8b5cf6"; // Púrpura
+            // Colores Vivid (Gold para Supers, Purple para Capataces, Blue para Operarios)
+            let borderColor = "#3b82f6"; 
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; 
+            if (groupName.includes("CAPATACES")) borderColor = "#8b5cf6"; 
 
             const card = document.createElement('div');
             card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:8px solid ${borderColor}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
@@ -3581,10 +3586,8 @@ function renderRoster(listEl, people, state) {
                     <div class="presence-toggle">
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
                         <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
-
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
                         <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
-                        
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
                         <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
                     </div>
@@ -3603,10 +3606,6 @@ function renderRoster(listEl, people, state) {
                     updatePresenceOnServer(name, val);
                     updateTeamMeta(window.TEAM_STATE);
                 });
-            });
-            card.querySelector('.zone-select').addEventListener('change', (e) => {
-                window.TEAM_STATE.zones[name] = e.target.value;
-                updateZoneOnServer(name, e.target.value);
             });
 
             listEl.appendChild(card);
