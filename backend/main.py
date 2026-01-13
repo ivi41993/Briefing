@@ -4435,28 +4435,50 @@ async def fetch_mad_roster_from_api():
 
 # ANTES: def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
 # DESPUÉS (Copia esta línea):
-def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, target_nave: str):
+def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     """
-    Filtra por turno y por identificador de nave, asegurando que se envíen
-    todos los metadatos necesarios para el renderizado.
+    Filtra por turno y por identificador de nave. 
+    Detecta automáticamente si los datos vienen envueltos en un diccionario o son una lista.
     """
     normalized = []
     target = target_nave.upper() 
 
-    for p in api_data:
+    # --- CORRECCIÓN CRÍTICA: Asegurar que trabajamos con una lista de diccionarios ---
+    workers_list = []
+    if isinstance(api_data, list):
+        workers_list = api_data
+    elif isinstance(api_data, dict):
+        # Si la API devuelve algo como {"value": [...]}, {"data": [...]}, etc.
+        for key in ("value", "data", "items", "workers", "body"):
+            if isinstance(api_data.get(key), list):
+                workers_list = api_data[key]
+                break
+        else:
+            # Si no encontramos una lista dentro, quizás el dict es un único trabajador
+            workers_list = [api_data]
+    else:
+        print(f"⚠️ Los datos de la API no tienen un formato procesable: {type(api_data)}")
+        return []
+
+    for p in workers_list:
+        # Si por algún motivo un elemento de la lista no es un dict, lo saltamos
+        if not isinstance(p, dict):
+            continue
+
         try:
-            # --- 1. EXTRACCIÓN DE METADATOS ---
-            # Buscamos en raíz o en nomina
-            nomina = p.get("nomina", {})
+            # --- EXTRACCIÓN DE METADATOS ---
+            nomina = p.get("nomina", {}) if isinstance(p.get("nomina"), dict) else {}
+            
+            # Buscamos en raíz o en nomina (Normalización)
             cod_destino = str(p.get("codDestino") or nomina.get("codDestino") or "").upper()
             desc_destino = str(p.get("descDestino") or nomina.get("descDestino") or "").upper()
             grupo = str(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo") or "").upper()
             
-            # --- 2. FILTRO DE NAVE (Identificación robusta) ---
+            # --- FILTRO DE NAVE ---
             if target not in cod_destino and target not in desc_destino and target not in grupo:
                 continue
 
-            # --- 3. FILTRO DE TURNO (HORAS) ---
+            # --- FILTRO DE TURNO (HORAS) ---
             raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
             if not raw_inicio or " " not in raw_inicio:
                 continue
@@ -4478,22 +4500,19 @@ def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str, targ
                 raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
                 h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
 
-                # IMPORTANTE: Enviamos las claves que el frontend espera
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
                     "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "grupo": grupo,           # Usado para seccionar
-                    "cod_destino": cod_destino, # Usado para filtrar
-                    "desc_destino": desc_destino, # Usado para filtrar
-                    "observaciones": f"{grupo}",
+                    "grupo": grupo,
+                    "cod_destino": cod_destino,
+                    "desc_destino": desc_destino,
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
         except Exception as e:
-            print(f"Error procesando empleado MAD: {e}")
+            print(f"⚠️ Error procesando empleado individual: {e}")
             continue
             
     return normalized
-
 # Modificación del constructor de estado
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
@@ -4773,6 +4792,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
