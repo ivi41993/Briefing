@@ -4445,7 +4445,6 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             if isinstance(api_data.get(key), list):
                 workers_list = api_data[key]
                 break
-    
     if not workers_list: return []
 
     for p in workers_list:
@@ -4453,26 +4452,30 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
         try:
             nomina = p.get("nomina", {}) if isinstance(p.get("nomina"), dict) else {}
             
-            # --- NORMALIZACIÓN DE TEXTOS ---
-            def clean(t): return str(t or "").upper().replace("-", " ").strip()
+            # --- NORMALIZACIÓN ---
+            def clean(t): return str(t or "").upper().strip()
 
             cod_destino  = clean(p.get("codDestino") or nomina.get("codDestino"))
             desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
             grupo_raw    = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
             
-            # --- FILTRO DE NAVE (N4) ---
-            # Verificamos si "N4" o "NAVE 4" está en alguno de los campos de destino o en el grupo
-            is_in_nave = (target in cod_destino or "NAVE 4" in desc_destino or target in grupo_raw)
-            if not is_in_nave:
+            # --- FILTRO 1: DESTINO FÍSICO (DEBE SER NAVE 4) ---
+            # Si no pone N4 o NAVE 4 en el destino, queda fuera
+            es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
+            if not es_nave_4:
                 continue
 
-            # --- FILTRO DE CATEGORÍA LOGÍSTICA ---
-            # Si contiene "SUPERVISOR", "DGR" o "OPERARIO" (más flexible que OPERARIO-OPS)
-            es_personal_valido = any(x in grupo_raw for x in ("SUPERVISOR", "DGR", "OPERARIO", "ETT", "EPA"))
-            if not es_personal_valido:
+            # --- FILTRO 2: DEPARTAMENTO (SOLO OPS, BLOQUEAR ALM) ---
+            # Bloqueamos explícitamente a cualquiera de Almacén aunque esté en N4
+            if any(x in grupo_raw for x in ("ALM", "ALMACEN", "ALMACENEROS")):
+                continue
+            
+            # Solo permitimos grupos que contengan estas palabras clave de Operaciones
+            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD"))
+            if not es_ops:
                 continue
 
-            # --- FILTRO DE TURNO (HORAS) ---
+            # --- FILTRO 3: TURNO (HORAS) ---
             raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
             if " " not in raw_inicio: continue
             
@@ -4778,6 +4781,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
