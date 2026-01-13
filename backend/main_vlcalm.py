@@ -692,7 +692,7 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
 # Webhook Excel VLC
 # -----------------------------------
 async def send_to_excel_online(data: BriefingSnapshot):
-    url = os.getenv("EXCEL_WEBHOOK_URL_VLC") or os.getenv("EXCEL_WEBHOOK_URL")
+    url = os.getenv("EXCEL_WEBHOOK_URL_VLCALM") or os.getenv("EXCEL_WEBHOOK_URL")
     if not url:
         print("⚠️ EXCEL_WEBHOOK_URL_VLC no configurada.")
         return
