@@ -730,13 +730,11 @@ async def fetch_mad_roster_from_api():
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str = "N1"):
     """
-    Filtro estricto para Almacén Madrid Nave 1.
-    Permite: SUPERVISORES ALM, CAPATACES, EPAs, OPERARIOS y ETTs de la N1.
-    Bloquea: OPS, N2, N3, N4.
+    Filtro avanzado para Almacén Madrid Nave 1.
+    Prioriza la visibilidad de Supervisores-ALM y Capataces.
     """
     normalized = []
     
-    # 1. Localizar la lista de trabajadores
     workers_list = []
     if isinstance(api_data, list): workers_list = api_data
     elif isinstance(api_data, dict):
@@ -755,22 +753,30 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             cod_destino = clean(p.get("codDestino") or nomina.get("codDestino"))
             desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
             
-            # --- FILTRO DE EXCLUSIÓN ---
-            # Bloqueamos personal de Operaciones y otras naves
-            if any(x in grupo for x in ("OPS", "-N2", "-N3", "-N4")):
+            # --- REGLA DE EXCLUSIÓN DE OTRAS NAVES ---
+            # Si explícitamente pone N2, N3 o N4, fuera.
+            if any(x in grupo or x in cod_destino for x in ("-N2", "-N3", "-N4")):
                 continue
 
-            # --- FILTRO DE INCLUSIÓN ALMACÉN N1 ---
-            es_destino_n1 = (cod_destino == "N1" or "NAVE 1" in desc_destino or "WFS1" in desc_destino)
+            # --- LÓGICA DE INCLUSIÓN POR JERARQUÍA ---
+            es_personal_valido = False
             
-            # Categorías permitidas de Almacén
-            es_categoria_alm = any(x in grupo for x in ("SUPERVISORES-ALM", "CAPATACES", "EPAS", "OPERARIO", "ETT"))
-            
-            # Solo entra si es de Almacén Y está físicamente en N1
-            if not (es_categoria_alm and es_destino_n1):
+            # 1. Mando Directo de Almacén (Inclusión prioritaria)
+            if "01-SUPERVISORES-ALM" in grupo or "02-CAPATACES" in grupo:
+                es_personal_valido = True
+                
+            # 2. Operarios, EPAs y ETTs (Solo si el destino confirma Nave 1)
+            else:
+                es_destino_n1 = (cod_destino == "N1" or "NAVE 1" in desc_destino or "WFS1" in desc_destino)
+                es_grupo_alm = any(x in grupo for x in ("OPERARIO", "ETT", "EPAS"))
+                
+                if es_destino_n1 and es_grupo_alm:
+                    es_personal_valido = True
+
+            if not es_personal_valido:
                 continue
 
-            # --- FILTRO DE TURNO (Horquilla MAD 04:00 AM) ---
+            # --- FILTRO DE TURNO (MAD 04:00 AM) ---
             raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
             if " " not in raw_inicio: continue
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
