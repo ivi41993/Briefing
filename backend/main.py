@@ -2941,7 +2941,7 @@ class FiixConnector:
         total_monthly_cost = 0.0
 
         try:
-            # --- 1. BACKLOG Y URGENCIAS (Funciona OK) ---
+            # --- 1. BACKLOG Y URGENCIAS (Mantenemos lo que funciona) ---
             body_open = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
@@ -2964,38 +2964,44 @@ class FiixConnector:
             closed_wos = await self._fiix_rpc(body_closed_ids)
             
             if closed_wos:
-                closed_ids = [wo['id'] for wo in closed_wos]
-                print(f"📂 [FIIX] Analizando costes de {len(closed_ids)} órdenes cerradas...")
+                closed_ids = [str(wo['id']) for wo in closed_wos]
+                print(f"📂 [FIIX] Analizando costes de {len(closed_ids)} órdenes...")
 
-                # --- COSTES: PASO B (Sumar Mano de Obra / Labor) ---
-                # Consultamos la tabla 'WorkOrderLabor' vinculada a esas órdenes
-                # Usamos lotes de IDs para no saturar la API
+                # --- COSTES: PASO B y C (Mano de Obra y Repuestos) ---
+                # Probamos con los nombres de clase 'WorkOrderTaskLabor' y 'WorkOrderTaskPart'
+                # que son los nombres internos correctos en la mayoría de implementaciones J2EE de Fiix
+                
                 for i in range(0, len(closed_ids), 100):
                     batch = closed_ids[i:i+100]
-                    # Filtramos labor cuya WO esté en nuestro lote
-                    body_labor = {
-                        "_maCn": "FindRequest",
-                        "className": "WorkOrderLabor",
-                        "fields": "dblCost",
-                        "filters": [{"ql": "intWorkOrderID IN ?", "parameters": [batch]}]
-                    }
-                    labor_entries = await self._fiix_rpc(body_labor)
-                    total_monthly_cost += sum(float(l.get("dblCost") or 0) for l in labor_entries)
+                    # CORRECCIÓN DE SINTAXIS: Construimos el IN como un string (id1,id2,id3)
+                    ids_string = ",".join(batch)
+                    
+                    # --- Intento con MANO DE OBRA ---
+                    for class_name in ["WorkOrderTaskLabor", "WorkOrderLabor"]:
+                        body_labor = {
+                            "_maCn": "FindRequest",
+                            "className": class_name,
+                            "fields": "dblCost",
+                            "filters": [{"ql": f"intWorkOrderID IN ({ids_string})", "parameters": []}]
+                        }
+                        labor_entries = await self._fiix_rpc(body_labor)
+                        if labor_entries:
+                            total_monthly_cost += sum(float(l.get("dblCost") or 0) for l in labor_entries)
+                            break # Si esta clase funcionó, no probamos la siguiente
 
-                # --- COSTES: PASO C (Sumar Repuestos / Parts) ---
-                # Consultamos la tabla 'WorkOrderPart' vinculada
-                for i in range(0, len(closed_ids), 100):
-                    batch = closed_ids[i:i+100]
-                    body_parts = {
-                        "_maCn": "FindRequest",
-                        "className": "WorkOrderPart",
-                        "fields": "dblPartCost",
-                        "filters": [{"ql": "intWorkOrderID IN ?", "parameters": [batch]}]
-                    }
-                    parts_entries = await self._fiix_rpc(body_parts)
-                    # Nota: dblPartCost es unitario, pero en la mayoría de configuraciones 
-                    # ya viene calculado por cantidad en la vista API
-                    total_monthly_cost += sum(float(p.get("dblPartCost") or 0) for p in parts_entries)
+                    # --- Intento con REPUESTOS ---
+                    for class_name in ["WorkOrderTaskPart", "WorkOrderPart"]:
+                        body_parts = {
+                            "_maCn": "FindRequest",
+                            "className": class_name,
+                            "fields": "dblPartCost",
+                            "filters": [{"ql": f"intWorkOrderID IN ({ids_string})", "parameters": []}]
+                        }
+                        parts_entries = await self._fiix_rpc(body_parts)
+                        if parts_entries:
+                            # dblPartCost suele ser el total de la línea de repuesto
+                            total_monthly_cost += sum(float(p.get("dblPartCost") or 0) for p in parts_entries)
+                            break
 
             print(f"📊 [FIIX] RESULTADO FINAL -> Backlog: {backlog_count} | Urgentes: {urgent_count} | Coste Mes: {total_monthly_cost}€")
 
@@ -4704,6 +4710,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
