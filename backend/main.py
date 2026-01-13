@@ -2935,64 +2935,63 @@ class FiixConnector:
         site_id_raw = os.getenv("FIIX_SITE_ID", "29449435").strip()
         site_id = int(site_id_raw)
         
-        # Fecha inicio de mes
         now = datetime.now()
         first_day_month = now.replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
 
+        # Inicializamos valores por defecto
+        backlog_count = 0
+        urgent_count = 0
+        total_cost = 0.0
+
+        # --- PARTE 1: BACKLOG Y URGENCIAS (YA FUNCIONA) ---
         try:
-            # --- 1. QUERY DE BACKLOG (IDs detectados: 278571 es el prioritario) ---
             body_open = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, intPriorityID, strCode", # strCode ayuda a depurar
+                "fields": "id, intPriorityID",
                 "filters": [{"ql": "dtmDateCompleted IS NULL AND intSiteID = ?", "parameters": [site_id]}],
                 "maxObjects": 1000
             }
             open_wos = await self._fiix_rpc(body_open)
+            backlog_count = len(open_wos)
+            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
+        except Exception as e:
+            print(f"⚠️ [FIIX] Error en Backlog: {e}")
 
-            # --- 2. QUERY DE COSTES (Probando campos alternativos) ---
-            # Intentamos dblLaborCost y dblPartsCost (nombres simplificados)
-            body_closed = {
+        # --- PARTE 2: COSTES (ESTRATEGIA DE DESCUBRIMIENTO) ---
+        try:
+            # Intentamos traer CUALQUIER columna que suene a coste. 
+            # Si una falla, Fiix suele tirar toda la petición, así que probamos con la más básica.
+            body_costs = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, dblLaborCost, dblPartsCost", 
+                "fields": "id, dblTotalWorkOrderCost", # Probamos este nombre técnico alternativo
                 "filters": [{"ql": "dtmDateCompleted >= ? AND intSiteID = ?", "parameters": [first_day_month, site_id]}],
                 "maxObjects": 500
             }
-            closed_wos = await self._fiix_rpc(body_closed)
-
-            # --- 3. PROCESAMIENTO ---
-            backlog_count = len(open_wos)
+            cost_res = await self._fiix_rpc(body_costs)
             
-            # Ajustamos urgentes al ID que vimos en tu log (278571)
-            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
-
-            # Suma de costes con validación de existencia de campos
-            total_cost = 0.0
-            if closed_wos:
-                # Debug de la primera WO para ver qué campos TIENE realmente
-                print(f"🔍 [FIIX DEBUG] Campos disponibles en tu WO: {list(closed_wos[0].keys())}")
-                
-                for wo in closed_wos:
-                    # Probamos nombres comunes; si no existen, sumamos 0
-                    c1 = float(wo.get("dblLaborCost") or 0)
-                    c2 = float(wo.get("dblPartsCost") or 0)
-                    c3 = float(wo.get("dblTotalCost") or 0) # Por si acaso
-                    total_cost += (c1 + c2 + c3)
-
-            print(f"📊 [FIIX] OK -> Backlog: {backlog_count} | Urgentes: {urgent_count} | Coste Mes: {total_cost}€")
-
-            # --- 4. BROADCAST ---
-            ts = datetime.utcnow().isoformat() + "Z"
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_cost, "timestamp": ts})
-
+            if cost_res:
+                total_cost = sum(float(wo.get("dblTotalWorkOrderCost") or 0) for wo in cost_res)
+            else:
+                # Si dblTotalWorkOrderCost falló o dio vacío, intentamos una última vez con '*' 
+                # en una sola WO para ver qué columnas existen
+                body_debug = {"_maCn":"FindRequest","className":"WorkOrder","fields":"*","maxObjects":1}
+                debug_res = await self._fiix_rpc(body_debug)
+                if debug_res:
+                    print(f"🛠️ [FIIX DEBUG] COLUMNAS DISPONIBLES: {list(debug_res[0].keys())}")
+        
         except Exception as e:
-            # Este print es vital para ver si la API nos vuelve a rechazar por los nombres de columna
-            print(f"⚠️ [FIIX] Aviso: Error en campos de coste, saltando... Detalle: {e}")
-            # Si el coste falla, al menos mandamos Backlog y Urgentes
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": len(open_wos) if 'open_wos' in locals() else 0, "timestamp": datetime.utcnow().isoformat() + "Z"})
+            print(f"ℹ️ [FIIX] Columnas de coste no accesibles: {e}")
+
+        print(f"📊 [FIIX] FINAL -> Backlog: {backlog_count} | Urgentes: {urgent_count} | Coste: {total_cost}€")
+
+        # --- PARTE 3: BROADCAST (WEBSOCKET) ---
+        # No te preocupes por el mensaje "No hay conexiones", es normal si el dashboard está cerrado.
+        ts = datetime.utcnow().isoformat() + "Z"
+        await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
+        await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
+        await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_cost, "timestamp": ts})
 
 
 
@@ -4690,6 +4689,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
