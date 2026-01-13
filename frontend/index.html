@@ -4104,8 +4104,19 @@ function processTaskUpdate(data) {
                 const el = document.getElementById('fiix-urgent');
                 if (el) {
                     el.textContent = data.value;
-                    const tile = document.getElementById('tile-fiix-urgent');
-                    if(tile) tile.style.backgroundColor = Number(data.value) > 0 ? '#fef2f2' : '#fff';
+                    const tile = el.closest('.kpi-tile');
+                    if (tile) {
+                        // Si hay más de 0 urgentes, parpadeo rojo suave
+                        if (Number(data.value) > 0) {
+                            tile.style.background = "#fff1f2";
+                            tile.style.borderLeft = "6px solid #ef4444";
+                            tile.style.animation = "pulse-red 2s infinite";
+                        } else {
+                            tile.style.background = "#fff";
+                            tile.style.borderLeft = "4px solid #f59e0b";
+                            tile.style.animation = "none";
+                        }
+                    }
                 }
                 return;
             }
@@ -7114,6 +7125,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
