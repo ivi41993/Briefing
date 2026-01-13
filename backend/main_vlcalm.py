@@ -28,6 +28,8 @@ from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconne
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+# --- NUEVO IMPORT PARA SQL ---
+from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
 # ==========================================
 # CONFIGURACIÓN VLC (VALENCIA)
@@ -40,14 +42,10 @@ ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
 ROSTER_POLL_SECONDS = int(os.getenv("ROSTER_POLL_SECONDS", "60"))
 ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "true"
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "./data/Informe diario.xlsx")
-
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 # === RUTAS DE DATOS ESPECÍFICAS VLC ===
-TASKS_DB = os.getenv("TASKS_DB_VLC", "./data/tasks_vlc.json")
-INCIDENTS_DB = os.getenv("INCIDENTS_DB_VLC", "./data/incidents_table_vlc.json")
-ATTENDANCE_DB = os.getenv("ATTENDANCE_DB_VLC", "./data/attendance_vlc.json")
-ROSTER_DB = os.getenv("ROSTER_DB_VLC", "./data/roster_store_vlc.json")
-BRIEFING_DB = os.getenv("BRIEFING_DB_VLC", "./data/briefings_vlc.json")
-SUMMARIES_DB = os.getenv("SUMMARIES_DB_VLC", "./data/summaries_vlc.json")
+
 
 # Configuración GitHub
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "file").lower()
@@ -75,6 +73,163 @@ ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
+
+# ==========================================
+# 🧱 NUEVA CAPA DE DATOS SQL (COPIAR Y PEGAR)
+# ==========================================
+
+# 1. TAREAS (Tasks)
+def load_tasks_from_disk():
+    global tasks_in_memory_store
+    db = SessionLocal()
+    try:
+        tasks_db = db.query(TaskDB).all()
+        tasks_in_memory_store.clear()
+        for t in tasks_db:
+            # Mezclamos datos planos con extra_data para el frontend
+            task_dict = t.extra_data.copy() if t.extra_data else {}
+            task_dict.update({
+                "id": t.id,
+                "title": t.title,
+                "status": t.status,
+                "task_type": t.task_type,
+                "is_completed": t.is_completed,
+                "created_at": t.created_at
+            })
+            tasks_in_memory_store[t.id] = task_dict
+        print(f"🗂️ [SQL] Cargadas {len(tasks_in_memory_store)} tareas.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Tasks Load: {e}")
+    finally:
+        db.close()
+
+def save_tasks_to_disk():
+    db = SessionLocal()
+    try:
+        # Estrategia simple: Upsert manual
+        for t_id, t_data in tasks_in_memory_store.items():
+            extra = t_data.copy()
+            # Quitamos las columnas fijas para dejar solo lo 'extra'
+            for k in ["id", "title", "status", "task_type", "is_completed", "created_at"]:
+                extra.pop(k, None)
+            
+            existing = db.query(TaskDB).filter(TaskDB.id == t_id).first()
+            if existing:
+                existing.title = t_data.get("title")
+                existing.status = t_data.get("status")
+                existing.task_type = t_data.get("task_type")
+                existing.is_completed = t_data.get("is_completed", False)
+                existing.extra_data = extra
+            else:
+                new_task = TaskDB(
+                    id=t_id,
+                    title=t_data.get("title"),
+                    status=t_data.get("status"),
+                    task_type=t_data.get("task_type"),
+                    is_completed=t_data.get("is_completed", False),
+                    created_at=t_data.get("created_at"),
+                    extra_data=extra
+                )
+                db.add(new_task)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Tasks Save: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# 2. INCIDENTES (Incidents)
+def load_incidents_from_disk():
+    global latest_incidents_table
+    db = SessionLocal()
+    try:
+        last = db.query(IncidentDB).order_by(IncidentDB.id.desc()).first()
+        if last and last.data:
+            latest_incidents_table.update(last.data)
+            if not latest_incidents_table.get("version"):
+                 latest_incidents_table["version"] = last.version
+            print(f"🗂️ [SQL] Incidentes cargados (v{last.version}).")
+    except Exception as e:
+        print(f"⚠️ Error SQL Incidents Load: {e}")
+    finally:
+        db.close()
+
+def save_incidents_to_disk():
+    db = SessionLocal()
+    try:
+        new_entry = IncidentDB(
+            data=latest_incidents_table,
+            version=int(latest_incidents_table.get("version", 1))
+        )
+        db.add(new_entry)
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Incidents Save: {e}")
+    finally:
+        db.close()
+
+# 3. ASISTENCIA (Attendance)
+def load_attendance_from_disk():
+    global attendance_store
+    db = SessionLocal()
+    try:
+        records = db.query(AttendanceDB).all()
+        attendance_store.clear()
+        for r in records:
+            attendance_store[r.shift_key] = r.data
+        print(f"🗂️ [SQL] Asistencia cargada: {len(attendance_store)} registros.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Attendance Load: {e}")
+    finally:
+        db.close()
+
+def save_attendance_to_disk():
+    db = SessionLocal()
+    try:
+        for key, data in attendance_store.items():
+            existing = db.query(AttendanceDB).filter(AttendanceDB.shift_key == key).first()
+            if existing:
+                existing.data = data
+            else:
+                db.add(AttendanceDB(shift_key=key, data=data))
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Error SQL Attendance Save: {e}")
+    finally:
+        db.close()
+
+# 4. BRIEFING (Briefings)
+def _append_briefing(data: dict):
+    db = SessionLocal()
+    try:
+        new_br = BriefingDB(
+            id=data.get("id", str(uuid.uuid4())),
+            date=str(data.get("date_iso", "")),
+            shift=data.get("shift", ""),
+            full_snapshot=data
+        )
+        db.add(new_br)
+        db.commit()
+        print(f"✅ [SQL] Briefing guardado.")
+    except Exception as e:
+        print(f"⚠️ Error SQL Briefing Save: {e}")
+    finally:
+        db.close()
+
+def _load_last_briefing() -> dict:
+    db = SessionLocal()
+    try:
+        last = db.query(BriefingDB).order_by(BriefingDB.created_at.desc()).first()
+        if last and last.full_snapshot:
+            return last.full_snapshot
+    except Exception:
+        pass
+    finally:
+        db.close()
+    return _last_briefing_cache or {}
+
 # -----------------------------------
 # Modelos de Datos (VLC Default)
 # -----------------------------------
@@ -93,7 +248,6 @@ class BriefingSnapshot(BaseModel):
     kanban_counts: Dict[str, int] = {}
     kanban_details: str = ""
     roster_stats: str = ""
-    # 👇 ESTA LÍNEA ES OBLIGATORIA:
     briefing_time: Optional[str] = None 
 
     class Config: extra = "allow"
@@ -266,32 +420,7 @@ def merge_preserve_server(existing: dict | None, incoming: dict | None) -> dict:
             if f in existing and f not in (incoming or {}): base[f] = existing[f]
     return sanitize_task(base)
 
-# Cargas de disco
-def load_tasks_from_disk():
-    global tasks_in_memory_store, sp_last_update_ts
-    arr = store_read_json(TASKS_DB, [])
-    tasks_in_memory_store.clear()
-    for t in arr:
-        t = sanitize_task(t)
-        if t.get("id"): tasks_in_memory_store[t["id"]] = t
-    print(f"🗂️ [VLC] Cargadas {len(tasks_in_memory_store)} tareas")
 
-def save_tasks_to_disk():
-    store_write_json(TASKS_DB, list(tasks_in_memory_store.values()), "Update tasks VLC")
-
-def load_incidents_from_disk():
-    global latest_incidents_table
-    latest_incidents_table.update(store_read_json(INCIDENTS_DB, {}) or {})
-
-def save_incidents_to_disk():
-    store_write_json(INCIDENTS_DB, latest_incidents_table, "Update incidents VLC")
-
-def load_attendance_from_disk():
-    global attendance_store
-    attendance_store.update(store_read_json(ATTENDANCE_DB, {}) or {})
-
-def save_attendance_to_disk():
-    store_write_json(ATTENDANCE_DB, attendance_store, "Update attendance VLC")
 
 def load_roster_from_disk():
     global roster_store
@@ -300,8 +429,7 @@ def load_roster_from_disk():
 def save_roster_to_disk():
     store_write_json(ROSTER_DB, roster_store, "Update roster VLC")
 
-def _append_briefing(data: dict):
-    store_append_json(BRIEFING_DB, data, "Append briefing VLC")
+
 
 def _append_summary(data: dict):
     store_append_json(SUMMARIES_DB, data, "Append summary VLC")
@@ -401,21 +529,142 @@ def _read_sheet_people(path, sheet, shift):
     return people
 
 def _now_local(): return datetime.now(ZoneInfo(ROSTER_TZ))
+# --- 1. CLASIFICACIÓN EXACTA DE TURNOS ---
 def _current_shift_info(now):
     hhmm = now.strftime("%H:%M")
-    if "06:00" <= hhmm < "14:00": return "Mañana", now.date(), "06:00", "14:00"
-    if "14:00" <= hhmm < "22:00": return "Tarde", now.date(), "14:00", "22:00"
-    sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY and hhmm < "06:00" else now.date()
+    # Mañana: de 06:00 a 13:59
+    if "06:00" <= hhmm < "14:00":
+        return "Mañana", now.date(), "06:00", "14:00"
+    # Tarde: de 14:00 a 21:59
+    if "14:00" <= hhmm < "22:00":
+        return "Tarde", now.date(), "14:00", "22:00"
+    # Noche: de 22:00 a 05:59
+    # Si es madrugada (antes de las 06:00), solemos usar la hoja del día anterior para el turno de noche
+    sheet_date = now.date() - timedelta(days=1) if hhmm < "06:00" else now.date()
     return "Noche", sheet_date, "22:00", "06:00"
 
-async def _build_roster_state(force=False):
+# --- 2. FILTRADO INTELIGENTE DE LA API ---
+def filter_api_people_by_shift(api_data: list, current_shift: str):
+    filtered = []
+    for p in api_data:
+        try:
+            # Sacamos la hora de inicio del trabajador (ej: "14:00")
+            h_inicio = int(p.get("horaInicio", "00").split(":")[0])
+            
+            # Clasificamos según la hora de entrada real contratada
+            # Mañana: entran entre las 04 y las 11
+            # Tarde: entran entre las 12 y las 18
+            # Noche: entran entre las 19 y las 03
+            es_gente_mañana = (4 <= h_inicio <= 11)
+            es_gente_tarde  = (12 <= h_inicio <= 18)
+            es_gente_noche  = (19 <= h_inicio <= 23 or h_inicio <= 3)
+
+            if (current_shift == "Mañana" and es_gente_mañana) or \
+               (current_shift == "Tarde" and es_gente_tarde) or \
+               (current_shift == "Noche" and es_gente_noche):
+                
+                filtered.append({
+                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                    "nomina": p.get("nomina"),
+                    "horario": f"{p.get('horaInicio')} - {p.get('horaFin')}",
+                    "observaciones": p.get("nombreGrupoTrabajo", ""),
+                    "is_incidencia": p.get("IsIncidencias", False)
+                })
+        except: continue
+    return filtered
+
+# --- 3. CONSTRUCTOR DE ESTADO (Prioridad API) ---
+
+# 1. Función de llamada a la API (Copia exacta de tu lógica de VS Code)
+async def fetch_vlc_roster_from_api():
+    url = os.getenv("ROSTER_API_URL")
+    key = os.getenv("ROSTER_API_KEY")
+    
+    if not url or not key:
+        print("⚠️ Error: Credenciales de API no encontradas en el entorno.")
+        return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    # Formato dd/mm/yyyy requerido
+    fecha_formateada = ahora.strftime("%d/%m/%Y")
+
+    payload = {
+        "escala": "VLC",
+        "fecha": fecha_formateada
+    }
+    
+    headers = {
+        "api-key": key,
+        "Accept": "application/json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Usamos 'data=payload' para enviar como form-data, tal cual tu script exitoso
+            response = await client.post(url, headers=headers, data=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ API VLC: Recibidos {len(data)} trabajadores para hoy.")
+                return data
+            else:
+                print(f"❌ Error API VLC: Código {response.status_code}")
+                return None
+    except Exception as e:
+        print(f"💥 Error de conexión API VLC: {e}")
+        return None
+
+# 2. Procesador de datos (Limpia el formato de la hora para el Dashboard)
+def filter_api_people_by_shift(api_data: list, current_shift: str):
+    normalized = []
+    for p in api_data:
+        try:
+            # Entrada: "05/01/2026 14:00" -> Salida: "14:00"
+            raw_inicio = p.get("horaInicio", "")
+            raw_fin = p.get("horaFin", "")
+            
+            h_ini = raw_inicio.split(" ")[1] if " " in raw_inicio else raw_inicio
+            h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+
+            normalized.append({
+                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                "nomina": p.get("nomina"),
+                "horario": f"{h_ini} - {h_fin}",
+                "observaciones": p.get("nombreGrupoTrabajo", ""),
+                "is_incidencia": p.get("IsIncidencias", False)
+            })
+        except:
+            continue
+    return normalized
+
+# 3. Constructor de estado (Actualiza el Dashboard)
+async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
-    if not force and roster_cache.get("shift") == shift and roster_cache.get("sheet_date") == sdate:
-        return roster_cache
-    sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-    people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
-    roster_cache.update({"sheet_date": sdate, "shift": shift, "people": people, "sheet": sheet, "updated_at": datetime.utcnow().isoformat()+"Z", "window": {"from": start, "to": end}})
+    
+    # Intentamos API primero
+    raw_api_data = await fetch_vlc_roster_from_api()
+    
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        people = filter_api_people_by_shift(raw_api_data, shift)
+        source = "api"
+    else:
+        # Fallback a Excel si la API falla o viene vacía
+        print("ℹ️ Usando Excel de respaldo para VLC.")
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+        source = "excel"
+
+    roster_cache.update({
+        "sheet_date": sdate,
+        "shift": shift,
+        "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end},
+        "source": source
+    })
+    
+    # Broadcast inmediato para que el Dashboard se refresque sin F5
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
@@ -443,7 +692,7 @@ def extract_incidents_from_pdf(raw_pdf: bytes, target_station="Madrid Cargo WFS4
 # Webhook Excel VLC
 # -----------------------------------
 async def send_to_excel_online(data: BriefingSnapshot):
-    url = os.getenv("EXCEL_WEBHOOK_URL_VLCALM") or os.getenv("EXCEL_WEBHOOK_URL")
+    url = os.getenv("EXCEL_WEBHOOK_URL_VLC") or os.getenv("EXCEL_WEBHOOK_URL")
     if not url:
         print("⚠️ EXCEL_WEBHOOK_URL_VLC no configurada.")
         return
@@ -509,6 +758,104 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 # -----------------------------------
 # Endpoints API
 # -----------------------------------
+
+roster_cache: dict[str, Any] = {
+    "file_mtime": None,
+    "sheet_date": None,
+    "shift": None,         # 'Mañana'|'Tarde'|'Noche'
+    "people": [],
+    "updated_at": None,
+    "window": None,
+    "sheet": None,
+}
+
+def _now_local():
+    return datetime.now(ZoneInfo(ROSTER_TZ))
+
+def _current_shift_info(now):
+    hhmm = now.strftime("%H:%M")
+    if "06:00" <= hhmm < "14:00":
+        return "Mañana", now.date(), "06:00", "14:00"
+    if "14:00" <= hhmm < "22:00":
+        return "Tarde", now.date(), "14:00", "22:00"
+    # Noche → si son de 00:00 a 05:59, usamos la hoja de AYER
+    sheet_date = now.date() - timedelta(days=1) if hhmm < "06:00" and ROSTER_NIGHT_PREV_DAY else now.date()
+    return "Noche", sheet_date, "22:00", "06:00"
+
+
+
+async def fetch_bcn_roster_from_api():
+    """Llamada POST a la API para obtener el personal de Barcelona"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ API VLC no configurada.")
+        return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    payload = {
+        "escala": "VLC",
+        "fecha": ahora.strftime("%d/%m/%Y") # Formato dd/mm/yyyy
+    }
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ API BCN: Recibidos {len(data)} trabajadores.")
+                return data
+    except Exception as e:
+        print(f"❌ Error API BCN: {e}")
+    return None
+
+def filter_api_people_by_shift(api_data: list, current_shift: str):
+    """Procesador de datos para BCN"""
+    normalized = []
+    for p in api_data:
+        try:
+            # Limpiar "07/01/2026 14:00" -> "14:00"
+            raw_inicio = p.get("horaInicio", "")
+            raw_fin = p.get("horaFin", "")
+            h_ini = raw_inicio.split(" ")[1] if " " in raw_inicio else raw_inicio
+            h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
+
+            normalized.append({
+                "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
+                "nomina": p.get("nomina"),
+                "horario": f"{h_ini} - {h_fin}",
+                "observaciones": p.get("nombreGrupoTrabajo", ""),
+                "is_incidencia": p.get("IsIncidencias", False)
+            })
+        except: continue
+    return normalized
+
+async def _build_roster_state(force=False) -> dict:
+    now = _now_local()
+    shift, sdate, start, end = _current_shift_info(now)
+    
+    # 1. Intentar API
+    raw_api_data = await fetch_bcn_roster_from_api()
+    people = []
+    source = "excel"
+
+    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+        people = filter_api_people_by_shift(raw_api_data, shift)
+        source = "api"
+    else:
+        # 2. Fallback a Excel
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+
+    roster_cache.update({
+        "sheet_date": sdate, "shift": shift, "people": people,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "window": {"from": start, "to": end}, "source": source
+    })
+    
+    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
+    return roster_cache
+
+
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
@@ -658,7 +1005,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # -----------------------------------
 # Frontend VLC (Configurado para salir a la raíz)
 # -----------------------------------
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_vlcalm"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_vlc"
 
 print(f"🔍 DEBUG PATH VLC: {FRONTEND_DIR}")
 if not FRONTEND_DIR.exists():
@@ -668,4 +1015,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     # Puerto local diferente (8005)
-    uvicorn.run("main_vlc:app", host="0.0.0.0", port=10080, reload=True)
+    uvicorn.run("main_vlc:app", host="0.0.0.0", port=8005, reload=True)
