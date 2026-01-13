@@ -2936,12 +2936,8 @@ class FiixConnector:
         now = datetime.now()
         first_day_month = now.replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
 
-        backlog_count = 0
-        urgent_count = 0
-        total_monthly_cost = 0.0
-
         try:
-            # --- 1. BACKLOG Y URGENCIAS (Mantenemos lo que funciona) ---
+            # --- 1. BACKLOG Y URGENCIAS (Órdenes Abiertas) ---
             body_open = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
@@ -2953,66 +2949,40 @@ class FiixConnector:
             backlog_count = len(open_wos)
             urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
 
-            # --- 2. COSTES: PASO A (Obtener IDs de órdenes cerradas este mes) ---
-            body_closed_ids = {
+            # --- 2. EQUIPOS FUERA DE SERVICIO (Assets con Status 'Down' o similar) ---
+            # Vamos a contar cuántos Assets en tu Site NO están en estado 'Normal' (ID 1 suele ser Normal)
+            body_assets_down = {
+                "_maCn": "FindRequest",
+                "className": "Asset",
+                "fields": "id",
+                "filters": [{"ql": "intSiteID = ? AND intAssetStatusID != ?", "parameters": [site_id, 1]}],
+                "maxObjects": 100
+            }
+            assets_down_res = await self._fiix_rpc(body_assets_down)
+            assets_down_count = len(assets_down_res)
+
+            # --- 3. ÓRDENES FINALIZADAS ESTE MES (Productividad) ---
+            body_closed = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
                 "fields": "id",
                 "filters": [{"ql": "dtmDateCompleted >= ? AND intSiteID = ?", "parameters": [first_day_month, site_id]}],
-                "maxObjects": 500
+                "maxObjects": 1000
             }
-            closed_wos = await self._fiix_rpc(body_closed_ids)
-            
-            if closed_wos:
-                closed_ids = [str(wo['id']) for wo in closed_wos]
-                print(f"📂 [FIIX] Analizando costes de {len(closed_ids)} órdenes...")
+            closed_wos = await self._fiix_rpc(body_closed)
+            closed_count = len(closed_wos)
 
-                # --- COSTES: PASO B y C (Mano de Obra y Repuestos) ---
-                # Probamos con los nombres de clase 'WorkOrderTaskLabor' y 'WorkOrderTaskPart'
-                # que son los nombres internos correctos en la mayoría de implementaciones J2EE de Fiix
-                
-                for i in range(0, len(closed_ids), 100):
-                    batch = closed_ids[i:i+100]
-                    # CORRECCIÓN DE SINTAXIS: Construimos el IN como un string (id1,id2,id3)
-                    ids_string = ",".join(batch)
-                    
-                    # --- Intento con MANO DE OBRA ---
-                    for class_name in ["WorkOrderTaskLabor", "WorkOrderLabor"]:
-                        body_labor = {
-                            "_maCn": "FindRequest",
-                            "className": class_name,
-                            "fields": "dblCost",
-                            "filters": [{"ql": f"intWorkOrderID IN ({ids_string})", "parameters": []}]
-                        }
-                        labor_entries = await self._fiix_rpc(body_labor)
-                        if labor_entries:
-                            total_monthly_cost += sum(float(l.get("dblCost") or 0) for l in labor_entries)
-                            break # Si esta clase funcionó, no probamos la siguiente
+            print(f"📊 [FIIX MAD] Abiertas: {backlog_count} | Urgentes: {urgent_count} | Equipos Down: {assets_down_count} | Cerradas Mes: {closed_count}")
 
-                    # --- Intento con REPUESTOS ---
-                    for class_name in ["WorkOrderTaskPart", "WorkOrderPart"]:
-                        body_parts = {
-                            "_maCn": "FindRequest",
-                            "className": class_name,
-                            "fields": "dblPartCost",
-                            "filters": [{"ql": f"intWorkOrderID IN ({ids_string})", "parameters": []}]
-                        }
-                        parts_entries = await self._fiix_rpc(body_parts)
-                        if parts_entries:
-                            # dblPartCost suele ser el total de la línea de repuesto
-                            total_monthly_cost += sum(float(p.get("dblPartCost") or 0) for p in parts_entries)
-                            break
-
-            print(f"📊 [FIIX] RESULTADO FINAL -> Backlog: {backlog_count} | Urgentes: {urgent_count} | Coste Mes: {total_monthly_cost}€")
-
-            # --- 3. BROADCAST ---
+            # --- 4. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
             await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
             await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_monthly_cost, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_assets_down", "value": assets_down_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_closed_month", "value": closed_count, "timestamp": ts})
 
         except Exception as e:
-            print(f"❌ [FIIX] Error crítico en agregación: {e}")
+            print(f"❌ [FIIX] Error en métricas operativas: {e}")
 
 
 
@@ -4710,6 +4680,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
