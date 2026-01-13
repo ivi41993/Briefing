@@ -2465,106 +2465,112 @@ shift: TEAM_STATE?.shift || null
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
-    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {} };
+    if (!window.TEAM_STATE) {
+        window.TEAM_STATE = { attendance: {}, zones: {}, people: [] };
+    }
 
-    // 1. CLASIFICACIÓN LÓGICA DE ALMACÉN
+    // 1. Agrupación Lógica por Categoría (Metadatos)
     const groups = {
-        "SUPERVISORES ALM": [],
-        "CAPATACES / EPAs": [],
-        "OPERARIOS / ETT": [],
-        "OTROS": []
+        "MANDOS INTERMEDIOS / SUPERVISIÓN": [],
+        "CAPATACES Y EPAs": [],
+        "OPERARIOS Y ETT": []
     };
 
+    // Clasificamos a todo el personal recibido (ya filtrado por horario desde el backend)
     people.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-
+        
         if (grupo.includes("01-SUPERVISORES-ALM")) {
-            groups["SUPERVISORES ALM"].push(p);
+            groups["MANDOS INTERMEDIOS / SUPERVISIÓN"].push(p);
         } else if (grupo.includes("02-CAPATACES") || grupo.includes("EPAS")) {
-            groups["CAPATACES / EPAs"].push(p);
-        } else if (grupo.includes("OPERARIO") || grupo.includes("ETT")) {
-            groups["OPERARIOS / ETT"].push(p);
+            groups["CAPATACES Y EPAs"].push(p);
         } else {
-            groups["OTROS"].push(p);
+            // Aquí entran OPERARIO, ETT y cualquier otra categoría no clasificada
+            groups["OPERARIOS Y ETT"].push(p);
         }
     });
 
+    window.TEAM_STATE.people = people;
     listEl.innerHTML = '';
+    const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
-    // 2. RENDERIZADO POR SECCIONES
+    // 2. Renderizado por Secciones Visuales
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
-        const sectionHeader = document.createElement('div');
-        sectionHeader.className = 'roster-group-title';
-        sectionHeader.textContent = `${groupName} (${groupPeople.length})`;
-        listEl.appendChild(sectionHeader);
+        // Título de Sección
+        const header = document.createElement('div');
+        header.className = 'roster-category-header';
+        header.textContent = `${groupName} (${groupPeople.length})`;
+        listEl.appendChild(header);
 
         groupPeople.forEach(p => {
             const name = p.nombre_completo;
             const isIncidencia = p.is_incidencia === true;
-            let currentAtt = window.TEAM_STATE.attendance[name];
+            
+            // Estado de Presencia (Undefined por defecto)
+            let currentAtt = window.TEAM_STATE.attendance[name]; 
             if (currentAtt === undefined) currentAtt = "undefined";
 
             const safeId = name.replace(/[^a-z0-9]/gi, '_');
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            // Asignación de Color Vivid por categoría
-            let vividClass = "card-vivid-blue";
-            if (groupName === "SUPERVISORES ALM") vividClass = "card-vivid-gold";
-            if (groupName === "CAPATACES / EPAs") vividClass = "card-vivid-purple";
+            // Definir clase Vivid según grupo
+            let vividClass = "vivid-blue";
+            if (groupName.includes("SUPERVISIÓN")) vividClass = "vivid-gold";
+            if (groupName.includes("CAPATACES")) vividClass = "vivid-purple";
 
             const row = document.createElement('div');
             row.className = `team-row ${vividClass}`;
             row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#ef4444' : '#e2e8f0'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
 
             row.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                    <div>
-                        <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${name}</div>
-                        <div style="font-size:0.72rem; color:#64748b; font-weight:600; margin-top:2px;">
-                            🕒 ${p.horario} | <span style="color:#2563eb">${p.grupo}</span>
-                        </div>
+                <div>
+                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${name}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${p.horario}</span>
+                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${p.funcion}</span>
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
-                        <label for="u_${safeId}" class="state-pending" title="Pendiente">➖</label>
+                        <label for="u_${safeId}" class="pending" title="Pendiente">➖</label>
 
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes" title="Presente">✅</label>
-
+                        <label for="y_${safeId}" class="yes" title="Presente">✅ OK</label>
+                        
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="false" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no" title="Ausente">❌</label>
+                        <label for="n_${safeId}" class="no" title="Ausente">❌ NO</label>
                     </div>
-                    
                     <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                         <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
-                        <option value="IMPORT" ${currentZone === 'IMPORT' ? 'selected' : ''}>IMPORT</option>
-                        <option value="EXPORT" ${currentZone === 'EXPORT' ? 'selected' : ''}>EXPORT</option>
-                        <option value="MUELLE" ${currentZone === 'MUELLE' ? 'selected' : ''}>MUELLE</option>
+                        ${ZONES.map(z => `<option value="${esc(z)}" ${z === currentZone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
                     </select>
                 </div>
             `;
 
-            // Listeners de estado
-            row.querySelectorAll('input[type="radio"]').forEach(radio => {
-                radio.addEventListener('change', () => {
-                    let val = (radio.value === "true") ? true : (radio.value === "false" ? false : undefined);
+            // Listeners de Presencia (3 Estados)
+            row.querySelectorAll('input[type="radio"]').forEach(r => {
+                r.addEventListener('click', () => {
+                    let val;
+                    if (r.value === 'true') val = true;
+                    else if (r.value === 'false') val = false;
+                    else val = undefined;
+
                     window.TEAM_STATE.attendance[name] = val;
                     if (typeof updatePresenceOnServer === 'function') updatePresenceOnServer(name, val);
-                    if (window.updateSpotlightRouting) window.updateSpotlightRouting();
+                    updateTeamMeta(window.TEAM_STATE);
                 });
             });
 
             listEl.appendChild(row);
         });
     });
+    
     if (typeof updateTeamMeta === 'function') updateTeamMeta(window.TEAM_STATE);
 }
-
 async function initTeamRoster(){
     const listEl = document.getElementById('team-list');
     if(!listEl) return;
