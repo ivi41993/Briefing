@@ -2324,6 +2324,12 @@ body.card-open #timer-reset {
 }
 .btn-tiny:hover { background: #f3f4f6; }
 .btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
+<div class="kpi-tile" style="border-left: 6px solid #10b981; background: #f0fdf4;"> <!-- Verde Esmeralda -->
+  <div class="kpi-label" style="color: #065f46;">Gasto Mto. (Mes)</div>
+  <div class="kpi-value" style="color: #047857;">
+    <span id="fiix-cost">0,00</span><span class="kpi-currency">€</span>
+  </div>
+</div>
 </style>
 </head>
 <body>
@@ -4123,45 +4129,40 @@ loadIncidentes();
 return;
 }
 
-if(data && (data.type==='kpi_update'||data.type==='kpi_state'||(data.metric&&data.tab))){
-const metric=String(data.metric||'').trim().toLowerCase(); const tab=String(data.tab||'').trim();
-if(metric==='total cost' && (!tab || tab==='MAD WFS4')){
-let v=data.value;
-if(typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
-else if(Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
-else if(v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
-if(typeof v==='number' && Number.isFinite(v)){ updateKpiTotalCost(v, data.timestamp); try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{} }
+// Dentro de processTaskUpdate(data)
+
+if (data && data.type === 'kpi_update') {
+    // Manejo de Backlog
+    if (data.metric === 'fiix_backlog') {
+        setKpiValue('fiix-backlog', null, data.value);
+        return;
+    }
+
+    // Manejo de Urgencias (Correctivos)
+    if (data.metric === 'fiix_urgent') {
+        setKpiValue('fiix-urgent', null, data.value);
+        const tile = document.getElementById('tile-fiix-urgent');
+        if (tile) {
+            // Si hay correctivos urgentes, ponemos el fondo en alerta (rojo suave)
+            tile.style.backgroundColor = Number(data.value) > 0 ? '#fff1f2' : '#fff';
+            tile.style.borderColor = Number(data.value) > 0 ? '#fecaca' : '#e6e8ec';
+        }
+        return;
+    }
+
+    // Manejo de COSTE FIIX
+    if (data.metric === 'fiix_cost') {
+        const costValue = Number(data.value) || 0;
+        // Formatear a moneda Euro: 1.250,50
+        const formatted = new Intl.NumberFormat('es-ES', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(costValue);
+        
+        setKpiValue('fiix-cost', null, formatted);
+        return;
+    }
 }
-return;
-}
-if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)){
-  const metric = String(data.metric||'').trim().toLowerCase();
-  const tab    = String(data.tab||'').trim();
-
-  
-  
-
-
-  if (data.metric === 'fiix_backlog') {
-      setKpiValue('fiix-backlog', null, data.value); // null porque no puse meta de fecha
-      return;
-  }
-  if (data.metric === 'fiix_urgent') {
-      setKpiValue('fiix-urgent', null, data.value);
-      // Alerta visual si hay urgencias
-      const tile = document.getElementById('tile-fiix-urgent');
-      if(tile) {
-          if(Number(data.value) > 0) tile.style.backgroundColor = '#fef2f2'; // Rojo suave
-          else tile.style.backgroundColor = '#fff';
-      }
-      return;
-  }
-  if (data.metric === 'fiix_cost') {
-      // Formatear dinero
-      const val = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(data.value);
-      setKpiValue('fiix-cost', null, val);
-      return;
-  }
 
   
   // Coste total (ya lo tenías)
@@ -7203,6 +7204,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
