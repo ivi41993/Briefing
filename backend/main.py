@@ -4433,84 +4433,70 @@ async def fetch_mad_roster_from_api():
         print(f"❌ Error API MAD: {e}")
     return None
 
-# ANTES: def filter_mad_people_by_shift_and_nave(api_data: list, current_shift: str):
-# DESPUÉS (Copia esta línea):
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
-    """
-    Filtra por turno y por identificador de nave. 
-    Detecta automáticamente si los datos vienen envueltos en un diccionario o son una lista.
-    """
     normalized = []
-    target = target_nave.upper() 
+    target = target_nave.upper() # "N4"
 
-    # --- CORRECCIÓN CRÍTICA: Asegurar que trabajamos con una lista de diccionarios ---
+    # 1. Localizar la lista de trabajadores
     workers_list = []
-    if isinstance(api_data, list):
-        workers_list = api_data
+    if isinstance(api_data, list): workers_list = api_data
     elif isinstance(api_data, dict):
-        # Si la API devuelve algo como {"value": [...]}, {"data": [...]}, etc.
         for key in ("value", "data", "items", "workers", "body"):
             if isinstance(api_data.get(key), list):
                 workers_list = api_data[key]
                 break
-        else:
-            # Si no encontramos una lista dentro, quizás el dict es un único trabajador
-            workers_list = [api_data]
-    else:
-        print(f"⚠️ Los datos de la API no tienen un formato procesable: {type(api_data)}")
-        return []
+    
+    if not workers_list: return []
 
     for p in workers_list:
-        # Si por algún motivo un elemento de la lista no es un dict, lo saltamos
-        if not isinstance(p, dict):
-            continue
-
+        if not isinstance(p, dict): continue
         try:
-            # --- EXTRACCIÓN DE METADATOS ---
             nomina = p.get("nomina", {}) if isinstance(p.get("nomina"), dict) else {}
             
-            # Buscamos en raíz o en nomina (Normalización)
-            cod_destino = str(p.get("codDestino") or nomina.get("codDestino") or "").upper()
-            desc_destino = str(p.get("descDestino") or nomina.get("descDestino") or "").upper()
-            grupo = str(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo") or "").upper()
+            # --- NORMALIZACIÓN DE TEXTOS ---
+            def clean(t): return str(t or "").upper().replace("-", " ").strip()
+
+            cod_destino  = clean(p.get("codDestino") or nomina.get("codDestino"))
+            desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
+            grupo_raw    = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
             
-            # --- FILTRO DE NAVE ---
-            if target not in cod_destino and target not in desc_destino and target not in grupo:
+            # --- FILTRO DE NAVE (N4) ---
+            # Verificamos si "N4" o "NAVE 4" está en alguno de los campos de destino o en el grupo
+            is_in_nave = (target in cod_destino or "NAVE 4" in desc_destino or target in grupo_raw)
+            if not is_in_nave:
+                continue
+
+            # --- FILTRO DE CATEGORÍA LOGÍSTICA ---
+            # Si contiene "SUPERVISOR", "DGR" o "OPERARIO" (más flexible que OPERARIO-OPS)
+            es_personal_valido = any(x in grupo_raw for x in ("SUPERVISOR", "DGR", "OPERARIO", "ETT", "EPA"))
+            if not es_personal_valido:
                 continue
 
             # --- FILTRO DE TURNO (HORAS) ---
             raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
-            if not raw_inicio or " " not in raw_inicio:
-                continue
+            if " " not in raw_inicio: continue
             
-            hora_completa = raw_inicio.split(" ")[1]
-            h_inicio = int(hora_completa.split(":")[0])
+            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            # Horquillas de turno
-            is_mañana = (4 <= h_inicio < 14)
-            is_tarde  = (14 <= h_inicio < 22)
-            is_noche  = (h_inicio >= 22 or h_inicio < 4)
-
+            # Horquillas (Mañana: 4-14, Tarde: 14-22, Noche: 22-4)
             match = False
-            if current_shift == "Mañana" and is_mañana: match = True
-            elif current_shift == "Tarde" and is_tarde: match = True
-            elif current_shift == "Noche" and is_noche: match = True
+            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
+            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
+            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
 
             if match:
                 raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
-                h_fin_limpia = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else ""
 
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
-                    "horario": f"{hora_completa} - {h_fin_limpia}",
-                    "grupo": grupo,
+                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
+                    "grupo": grupo_raw,
                     "cod_destino": cod_destino,
                     "desc_destino": desc_destino,
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except Exception as e:
-            print(f"⚠️ Error procesando empleado individual: {e}")
-            continue
+        except: continue
             
     return normalized
 # Modificación del constructor de estado
@@ -4792,6 +4778,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
