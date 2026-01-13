@@ -2465,84 +2465,124 @@ shift: TEAM_STATE?.shift || null
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
+    
+    // 1. Inicialización del Estado
     if (!window.TEAM_STATE) {
-        window.TEAM_STATE = { attendance: {}, zones: {}, people: [] };
+        window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
+    }
+    
+    // Guardar lista maestra recibida del servidor
+    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+    const masterList = window.TEAM_STATE.allPeopleRaw;
+
+    if (!masterList || masterList.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal BCN...</div>';
+        return;
     }
 
-    // 1. Agrupación Lógica por Categoría (Metadatos)
-    const groups = {
-        "MANDOS INTERMEDIOS / SUPERVISIÓN": [],
-        "CAPATACES Y EPAs": [],
-        "OPERARIOS Y ETT": []
+    // --- 2. LÓGICA DE TURNOS (Respetando tu horquilla original) ---
+    const hNow = new Date().getHours();
+    let currentShiftLabel = "Noche";
+    if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
+    else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
+
+    const extractHours = (str) => {
+        const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
+        if (!times) return [];
+        return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // Clasificamos a todo el personal recibido (ya filtrado por horario desde el backend)
-    people.forEach(p => {
-        const grupo = (p.grupo || "").toUpperCase();
+    // --- 3. FILTRADO POR HORARIO (Eliminado el filtro de nombres) ---
+    const filteredPeople = masterList.filter(p => {
+        const hours = extractHours(p.horario);
+        if (hours.length === 0) return true; // Si no hay hora, lo dejamos pasar por seguridad
         
-        if (grupo.includes("01-SUPERVISORES-ALM")) {
-            groups["MANDOS INTERMEDIOS / SUPERVISIÓN"].push(p);
-        } else if (grupo.includes("02-CAPATACES") || grupo.includes("EPAS")) {
-            groups["CAPATACES Y EPAs"].push(p);
+        const hInicio = hours[0];
+        const hFin = hours.length > 1 ? hours[1] : hInicio;
+        
+        // Filtro estricto por la horquilla del turno actual
+        if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
+        if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
+        if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
+        return false;
+    });
+
+    window.TEAM_STATE.people = filteredPeople;
+
+    // --- 4. CLASIFICACIÓN POR CATEGORÍAS LOGÍSTICAS ---
+    const groups = {
+        "SUPERVISORES ALM": [],
+        "CAPATACES / EPAs": [],
+        "OPERARIOS / ETT": []
+    };
+
+    filteredPeople.forEach(p => {
+        // Usamos observaciones o grupo para clasificar
+        const categoriaInfo = (p.observaciones || p.grupo || "").toUpperCase();
+        
+        if (categoriaInfo.includes("01-SUPERVISORES-ALM")) {
+            groups["SUPERVISORES ALM"].push(p);
+        } else if (categoriaInfo.includes("02-CAPATACES") || categoriaInfo.includes("EPAS")) {
+            groups["CAPATACES / EPAs"].push(p);
         } else {
-            // Aquí entran OPERARIO, ETT y cualquier otra categoría no clasificada
-            groups["OPERARIOS Y ETT"].push(p);
+            groups["OPERARIOS / ETT"].push(p);
         }
     });
 
-    window.TEAM_STATE.people = people;
     listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
-    // 2. Renderizado por Secciones Visuales
+    // --- 5. RENDERIZADO POR BLOQUES (Vivid CSS) ---
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
-        // Título de Sección
+        // Título de la Sección
         const header = document.createElement('div');
-        header.className = 'roster-category-header';
+        header.className = 'roster-group-title';
+        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.85rem; color:#475569; border-radius:8px; text-transform:uppercase; border-bottom:2px solid #cbd5e1;";
         header.textContent = `${groupName} (${groupPeople.length})`;
         listEl.appendChild(header);
 
-        groupPeople.forEach(p => {
+        groupPeople.forEach((p) => {
             const name = p.nombre_completo;
             const isIncidencia = p.is_incidencia === true;
+            const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
             
-            // Estado de Presencia (Undefined por defecto)
+            // Estado de Presencia (3 estados: true, false, undefined)
             let currentAtt = window.TEAM_STATE.attendance[name]; 
             if (currentAtt === undefined) currentAtt = "undefined";
 
-            const safeId = name.replace(/[^a-z0-9]/gi, '_');
             const currentZone = window.TEAM_STATE.zones[name] || '';
+            const safeId = name.replace(/[^a-z0-9]/gi, '_');
 
-            // Definir clase Vivid según grupo
-            let vividClass = "vivid-blue";
-            if (groupName.includes("SUPERVISIÓN")) vividClass = "vivid-gold";
-            if (groupName.includes("CAPATACES")) vividClass = "vivid-purple";
+            // Definición de Colores Vivid por Categoría
+            let borderColor = "#3b82f6"; // Azul por defecto (Operarios)
+            if (groupName === "SUPERVISORES ALM") borderColor = "#fbbf24"; // Oro
+            if (groupName === "CAPATACES / EPAs") borderColor = "#8b5cf6"; // Púrpura
 
             const row = document.createElement('div');
-            row.className = `team-row ${vividClass}`;
-            row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#ef4444' : '#e2e8f0'}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
+            row.className = 'team-row';
+            row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#dc2626' : '#e2e8f0'}; border-left:6px solid ${borderColor}; background:${isIncidencia ? '#fff1f2' : '#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
 
             row.innerHTML = `
                 <div>
-                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${name}</div>
+                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${p.horario}</span>
-                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${p.funcion}</span>
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
+                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 5px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones || "PERSONAL")}</span>
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
-                        <label for="u_${safeId}" class="pending" title="Pendiente">➖</label>
+                        <label for="u_${safeId}" style="padding:4px 10px; font-size:0.75rem;">➖</label>
 
-                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes" title="Presente">✅ OK</label>
+                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✅</label>
                         
-                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="false" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no" title="Ausente">❌ NO</label>
+                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                        <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">❌</label>
                     </div>
                     <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                         <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
@@ -2551,16 +2591,16 @@ function renderRoster(listEl, people, state) {
                 </div>
             `;
 
-            // Listeners de Presencia (3 Estados)
+            // Listeners para los 3 estados de presencia
             row.querySelectorAll('input[type="radio"]').forEach(r => {
                 r.addEventListener('click', () => {
                     let val;
-                    if (r.value === 'true') val = true;
-                    else if (r.value === 'false') val = false;
+                    if (r.value === 'yes') val = true;
+                    else if (r.value === 'no') val = false;
                     else val = undefined;
 
                     window.TEAM_STATE.attendance[name] = val;
-                    if (typeof updatePresenceOnServer === 'function') updatePresenceOnServer(name, val);
+                    updatePresenceOnServer(name, val);
                     updateTeamMeta(window.TEAM_STATE);
                 });
             });
@@ -2568,8 +2608,7 @@ function renderRoster(listEl, people, state) {
             listEl.appendChild(row);
         });
     });
-    
-    if (typeof updateTeamMeta === 'function') updateTeamMeta(window.TEAM_STATE);
+    updateTeamMeta(window.TEAM_STATE);
 }
 async function initTeamRoster(){
     const listEl = document.getElementById('team-list');
