@@ -2932,43 +2932,73 @@ class FiixConnector:
             return []
 
     async def fetch_metrics(self):
-        print("🔍 [FIIX] Buscando IDs de Ubicaciones (Facilities/Sites)...")
+        # 1. Recuperar Site ID (29449435)
+        site_id_raw = os.getenv("FIIX_SITE_ID", "29449435").strip()
+        site_id = int(site_id_raw)
         
-        # En Fiix, los Sites son Assets con la propiedad isFacility = 1
-        body = {
-            "_maCn": "FindRequest",
-            "className": "Asset",
-            "fields": "id, strName, strCode",
-            "filters": [
-                {
-                    "ql": "isFacility = ?",
-                    "parameters": [1]
-                }
-            ]
-        }
+        print(f"📡 [FIIX] Sincronizando Nave MAD (ID: {site_id})")
 
-        results = await self._fiix_rpc(body)
+        # 2. Fecha de inicio del mes actual para los costes
+        # Formato Fiix: YYYY-MM-DD HH:MM:SS
+        now = datetime.now()
+        first_day_month = now.replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
 
-        if results:
-            print("\n--- 📍 UBICACIONES / SITES ENCONTRADOS ---")
-            for s in results:
-                print(f"ID: {s.get('id')} | NOMBRE: {s.get('strName')} | CÓDIGO: {s.get('strCode')}")
-            print("------------------------------------------\n")
-            print("💡 Copia el ID de la ubicación que corresponda a Madrid y ponlo en tu .env como FIIX_SITE_ID")
-        else:
-            print("⚠️ No se encontraron ubicaciones con 'isFacility = 1'.")
-            print("Intentando búsqueda general de los primeros 10 Assets para inspeccionar...")
-            
-            # Intento de backup: ver cualquier cosa para ver qué IDs tienen
-            body_backup = {
+        try:
+            # --- QUERY A: BACKLOG Y URGENCIAS (Abiertas) ---
+            body_open = {
                 "_maCn": "FindRequest",
-                "className": "Asset",
-                "fields": "id, strName, intSiteID",
-                "maxObjects": 10
+                "className": "WorkOrder",
+                "fields": "id, intPriorityID",
+                "filters": [
+                    {
+                        "ql": "dtmDateCompleted IS NULL AND intSiteID = ?",
+                        "parameters": [site_id]
+                    }
+                ],
+                "maxObjects": 1000
             }
-            res_backup = await self._fiix_rpc(body_backup)
-            for b in res_backup:
-                print(f"Asset: {b.get('strName')} | Pertenece al Site ID: {b.get('intSiteID')}")
+
+            # --- QUERY B: COSTES (Cerradas este mes) ---
+            body_closed = {
+                "_maCn": "FindRequest",
+                "className": "WorkOrder",
+                "fields": "id, dblTotalCost",
+                "filters": [
+                    {
+                        "ql": "dtmDateCompleted >= ? AND intSiteID = ?",
+                        "parameters": [first_day_month, site_id]
+                    }
+                ],
+                "maxObjects": 1000
+            }
+
+            # Ejecutar llamadas
+            open_wos = await self._fiix_rpc(body_open)
+            closed_wos = await self._fiix_rpc(body_closed)
+
+            # --- 3. PROCESAMIENTO ---
+            
+            backlog_count = len(open_wos)
+            
+            # En Fiix, las prioridades suelen ser: 1: Alta/Emergencia, 2: Media-Alta.
+            # Contamos como 'Urgentes' los IDs 1 y 2.
+            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") in [1, 2])
+            
+            # Sumamos dblTotalCost (mano de obra + repuestos añadidos a la WO)
+            total_cost = sum(float(wo.get("dblTotalCost") or 0) for wo in closed_wos)
+
+            print(f"📊 [FIIX] BACKLOG: {backlog_count} | URGENTES: {urgent_count} | COSTES: {total_cost}€")
+
+            # --- 4. BROADCAST ---
+            ts = datetime.utcnow().isoformat() + "Z"
+            
+            # Mandamos los datos al Dashboard
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_cost", "value": total_cost, "timestamp": ts})
+
+        except Exception as e:
+            print(f"❌ [FIIX] Error al procesar métricas: {e}")
 
 
 
@@ -4666,6 +4696,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
