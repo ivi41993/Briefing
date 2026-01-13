@@ -3515,40 +3515,39 @@ function renderRoster(listEl, people, state) {
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
     if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal MAD N4...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal de Madrid Ops...</div>';
         return;
     }
 
-    // 1. SECCIONAMIENTO POR CATEGORÍAS
+    // 1. CLASIFICACIÓN POR CATEGORÍAS OPS
     const groups = {
-        "SUPERVISIÓN MAD N4": [],
+        "SUPERVISORES OPS MAD": [],
         "ESPECIALISTAS DGR": [],
-        "OPERARIOS NAVE 4": []
+        "OPERARIOS OPS NAVE 4": []
     };
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
         
-        // Clasificación jerárquica
+        // Reglas de seccionamiento visual
         if (grupo.includes("SUPERVISOR")) {
-            groups["SUPERVISIÓN MAD N4"].push(p);
+            groups["SUPERVISORES OPS MAD"].push(p);
         } else if (grupo.includes("DGR")) {
             groups["ESPECIALISTAS DGR"].push(p);
         } else {
-            // Todo lo demás que pasó el filtro del backend (Operarios, ETTs, EPAs)
-            groups["OPERARIOS NAVE 4"].push(p);
+            // Operarios-Ops y resto de personal operativo filtrado por el backend
+            groups["OPERARIOS OPS NAVE 4"].push(p);
         }
     });
 
     listEl.innerHTML = '';
     const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
-    // 2. RENDERIZADO VISUAL
+    // 2. RENDERIZADO VIVID
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
-        // Header de Sección
         const header = document.createElement('div');
         header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
         header.textContent = `${groupName} (${groupPeople.length})`;
@@ -3561,7 +3560,7 @@ function renderRoster(listEl, people, state) {
             if (currentAtt === undefined) currentAtt = "undefined";
 
             let colorVivid = "#3b82f6"; // Azul
-            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24"; // Oro
+            if (groupName.includes("SUPERVISORES")) colorVivid = "#fbbf24"; // Oro
             if (groupName.includes("DGR")) colorVivid = "#ef4444"; // Rojo
 
             const card = document.createElement('div');
@@ -3582,8 +3581,8 @@ function renderRoster(listEl, people, state) {
                         <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
                     </div>
                     <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem; font-weight:700; background:#fff;">
-                        <option value="" disabled>ZONA...</option>
-                        ${ZONES.map(z => `<option value="${z}">${z}</option>`).join('')}
+                        <option value="" disabled ${!window.TEAM_STATE.zones[name] ? 'selected' : ''}>ZONA...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${window.TEAM_STATE.zones[name] === z ? 'selected' : ''}>${z}</option>`).join('')}
                     </select>
                 </div>
             `;
@@ -7204,6 +7203,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
