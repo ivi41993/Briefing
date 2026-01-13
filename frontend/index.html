@@ -2691,24 +2691,21 @@ body.card-open #timer-reset {
   
   <div class="kpi-grid">
     <!-- Backlog -->
-    <div class="kpi-tile" style="border-left: 4px solid #3b82f6;">
-      <div class="kpi-label">Backlog (Abiertas)</div>
-      <div class="kpi-value" id="fiix-backlog">—</div>
+    <!-- Fila de Fiix -->
+<div class="kpi-tile">
+    <div class="kpi-label">Backlog (Fiix)</div>
+    <div class="kpi-value" id="fiix-backlog">—</div> <!-- ID correcto -->
+</div>
+<div class="kpi-tile" id="tile-fiix-urgent">
+    <div class="kpi-label">Urgentes</div>
+    <div class="kpi-value" id="fiix-urgent">—</div> <!-- ID correcto -->
+</div>
+<div class="kpi-tile">
+    <div class="kpi-label">Gasto Mes</div>
+    <div class="kpi-value">
+        <span id="fiix-cost">0,00</span><span class="kpi-currency">€</span> <!-- ID correcto -->
     </div>
-
-    <!-- Urgencias (Si > 0 se pondrá rojo por JS) -->
-    <div class="kpi-tile" id="tile-fiix-urgent" style="border-left: 4px solid #f59e0b;">
-      <div class="kpi-label">Correctivos</div>
-      <div class="kpi-value" id="fiix-urgent">—</div>
-    </div>
-
-    <!-- Costes Mto. (Mes) -->
-    <div class="kpi-tile" style="border-left: 4px solid #10b981;">
-      <div class="kpi-label">Gasto Mes (Mto)</div>
-      <div class="kpi-value">
-        <span id="fiix-cost">—</span><span class="kpi-currency">€</span>
-      </div>
-    </div>
+</div>
   </div>
 
   <!-- SEPARADOR -->
@@ -4068,170 +4065,94 @@ async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/$
 async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
 
 /* Render tarjetas */
-function processTaskUpdate(data){
-if (!data) return;
-    
-    // --- CORRECCIÓN: Manejar borrado globalmente ---
+function processTaskUpdate(data) {
+    if (!data) return;
+
+    // --- 1. LOG DE DEPURACIÓN (MIRA LA CONSOLA DEL NAVEGADOR F12) ---
+    if (data.metric && data.metric.startsWith('fiix')) {
+        console.log("📥 Datos recibidos de Fiix:", data);
+    }
+
+    // --- 2. MANEJO DE BORRADO ---
     if (data.action === 'delete') {
-        // Intentar borrar de cualquier lista posible por ID
         const elOps = document.getElementById(`ops-${data.id}`);
         if (elOps) elOps.remove();
-
         const elTask = document.getElementById(`task-${data.id}`);
         if (elTask) elTask.remove();
-        
-        // Actualizar contadores si es Kanban
-        if (updateAllColumnCounts) updateAllColumnCounts();
-        return; // <--- IMPORTANTE: Parar aquí
-    }
-    // -----------------------------------------------
-
-
-if (!isForThisStation(data)) return;      // DESPUÉS
-
-
-if (data && data.type==='presence_update'){
-// sólo si coincide con el turno/fecha que estoy viendo
-if (TEAM_STATE 
-&& TEAM_STATE.sheet_date === data.sheet_date
-&& TEAM_STATE.shift === data.shift){
-const yesSel = `.att-radio[data-person="${CSS.escape(data.person)}"][value="yes"]`;
-const noSel  = `.att-radio[data-person="${CSS.escape(data.person)}"][value="no"]`;
-const yesEl  = document.querySelector(yesSel);
-const noEl   = document.querySelector(noSel);
-if (yesEl && noEl){
-if (data.present) { yesEl.checked = true; } else { noEl.checked = true; }
-TEAM_STATE.attendance = TEAM_STATE.attendance || {};
-TEAM_STATE.attendance[data.person] = !!data.present;
-updateTeamMeta(TEAM_STATE);
-updateSpotlightRouting?.();
-}
-}
-return;
-
-}
-if (data && data.type==='zone_update'){
-if (TEAM_STATE
-&& TEAM_STATE.sheet_date === data.sheet_date
-&& TEAM_STATE.shift === data.shift){
-TEAM_STATE.zones = TEAM_STATE.zones || {};
-TEAM_STATE.zones[data.person] = data.zone || '';
-// Re-render para reflejar cambio en select y chip
-renderRoster(document.getElementById('team-list'), TEAM_STATE.people||[], TEAM_STATE);
-}
-return;
-}
-
-
-// ping de incidentes (Enablon)
-if (data && (data.type==='table_ping'||data.type==='table_state') && data.table==='incidents'){
-loadIncidentes();
-return;
-}
-
-// Dentro de processTaskUpdate(data)
-
-if (data && data.type === 'kpi_update') {
-    // Manejo de Backlog
-    if (data.metric === 'fiix_backlog') {
-        setKpiValue('fiix-backlog', null, data.value);
+        if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
         return;
     }
 
-    // Manejo de Urgencias (Correctivos)
-    if (data.metric === 'fiix_urgent') {
-        setKpiValue('fiix-urgent', null, data.value);
-        const tile = document.getElementById('tile-fiix-urgent');
-        if (tile) {
-            // Si hay correctivos urgentes, ponemos el fondo en alerta (rojo suave)
-            tile.style.backgroundColor = Number(data.value) > 0 ? '#fff1f2' : '#fff';
-            tile.style.borderColor = Number(data.value) > 0 ? '#fecaca' : '#e6e8ec';
+    // --- 3. VERIFICAR ESTACIÓN ---
+    if (!isForThisStation(data)) return;
+
+    // --- 4. ACTUALIZACIÓN DE ROSTER / PRESENCIA ---
+    if (data.type === 'presence_update' || data.type === 'zone_update') {
+        // ... (tu lógica de roster existente es correcta, mantenla si quieres o usa la simplificada)
+        if (window.TEAM_STATE && window.TEAM_STATE.sheet_date === data.sheet_date) {
+            if (data.type === 'presence_update') {
+                window.TEAM_STATE.attendance[data.person] = !!data.present;
+                updateTeamMeta(window.TEAM_STATE);
+            }
+            // Refrescar visualmente
+            renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people || [], window.TEAM_STATE);
         }
         return;
     }
 
-    // Manejo de COSTE FIIX
-    if (data.metric === 'fiix_cost') {
-        const costValue = Number(data.value) || 0;
-        // Formatear a moneda Euro: 1.250,50
-        const formatted = new Intl.NumberFormat('es-ES', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(costValue);
-        
-        setKpiValue('fiix-cost', null, formatted);
-        return;
+    // --- 5. LÓGICA UNIFICADA DE KPIs (Fiix + PowerBI) ---
+    if (data.metric || data.type === 'kpi_update') {
+        // Definimos las variables al principio del bloque para evitar ReferenceError
+        const metricName = String(data.metric || '').trim().toLowerCase();
+        const tabName = String(data.tab || '').trim().toUpperCase();
+
+        // A. MÉTRICAS ESPECÍFICAS DE FIIX (No suelen llevar 'tab')
+        if (metricName === 'fiix_backlog') {
+            setKpiValue('fiix-backlog', null, data.value);
+            return;
+        }
+        if (metricName === 'fiix_urgent') {
+            setKpiValue('fiix-urgent', null, data.value);
+            const tile = document.getElementById('tile-fiix-urgent');
+            if (tile) tile.style.backgroundColor = Number(data.value) > 0 ? '#fef2f2' : '#fff';
+            return;
+        }
+        if (metricName === 'fiix_cost') {
+            const val = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(data.value);
+            setKpiValue('fiix-cost', null, val);
+            return;
+        }
+
+        // B. MÉTRICAS DE POWER BI (Filtradas por Tab MAD WFS4)
+        if (tabName === 'MAD WFS4' || tabName === '') {
+            if (metricName === 'total cost') {
+                updateKpiTotalCost(data.value, data.timestamp);
+                return;
+            }
+            if (metricName === 'uph') {
+                setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(data.value));
+                return;
+            }
+            if (metricName === 'otif') {
+                setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(data.value) + ' %');
+                return;
+            }
+            if (metricName === 'backlog') {
+                setKpiValue('kpi-backlog', 'kpi-backlog-meta', data.value);
+                return;
+            }
+        }
     }
-}
 
-  
-  // Coste total (ya lo tenías)
-  if (metric === 'total cost' && (!tab || tab === 'MAD WFS4')){
-    let v = data.value;
-    if (typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
-    else if (Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
-    else if (v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
-    if (typeof v==='number' && Number.isFinite(v)){
-      updateKpiTotalCost(v, data.timestamp);
-      try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{}
+    // --- 6. RENDER DE TARJETAS (KANBAN, KAIZEN, OPS) ---
+    const elementId = `task-${data.id}`;
+    switch (data.task_type) {
+        case 'kanban_rapida': renderBoardCard(data, elementId); break;
+        case 'kaizen': renderKaizenCard(data, elementId); break;
+        case 'gw_task': GW_MAP.set(data.id, data); renderGwTop3(); break;
+        case 'ops_update': if (window.renderOpsCard) window.renderOpsCard(data); break;
     }
-    return;
-  }
-
-  // UPH
-  if (metric === 'uph' && (!tab || tab === 'MAD WFS4')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
-    return;
-  }
-  // OTIF
-  if (metric === 'otif' && (!tab || tab === 'MAD WFS4')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(v) + ' %');
-    return;
-  }
-  // Backlog
-  if (metric === 'backlog' && (!tab || tab === 'MAD WFS4')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-backlog', 'kpi-backlog-meta', new Intl.NumberFormat('es-ES').format(v));
-    return;
-  }
-
-
-const elementId = `task-${data.id}`;
-if (data.action === 'delete') {
-  // Kanban/Kaizen
-  const el1 = document.getElementById(`task-${data.id}`);
-  if (el1) el1.remove();
-
-  // OPS
-  const el2 =
-    document.getElementById(`ops-${data.id}`) ||
-    document.querySelector(`.ops-item[data-id="${CSS.escape(String(data.id))}"]`) ||
-    document.querySelector(`.ops-item [data-id="${CSS.escape(String(data.id))}"]`)?.closest('.ops-item');
-
-  if (el2) el2.remove();
-
-  updateAllColumnCounts && updateAllColumnCounts();
-
-  if (data.task_type === 'gw_task') {
-    GW_MAP.delete(data.id);
-    renderGwTop3();
-  }
-  return;
-}
-
-
-
-switch(data.task_type){
-case 'kanban_rapida': renderBoardCard(data, elementId); updateAllColumnCounts(); break;
-case 'kaizen':        renderKaizenCard(data, elementId); updateAllColumnCounts(); break;
-case 'gw_task':       GW_MAP.set(data.id, data); renderGwTop3(); break;
-case 'ops_update':    renderOpsCard(data);
-  break;
-
-default: console.warn('task_type desconocido:', data.task_type);
-}
+    if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
@@ -7204,6 +7125,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
