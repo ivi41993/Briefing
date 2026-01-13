@@ -2700,11 +2700,15 @@ body.card-open #timer-reset {
     <div class="kpi-label">Urgentes</div>
     <div class="kpi-value" id="fiix-urgent">—</div> <!-- ID correcto -->
 </div>
-<div class="kpi-tile">
-    <div class="kpi-label">Gasto Mes</div>
-    <div class="kpi-value">
-        <span id="fiix-cost">0,00</span><span class="kpi-currency">€</span> <!-- ID correcto -->
-    </div>
+<div class="kpi-tile" id="tile-fiix-down" style="border-left: 4px solid #334155;">
+  <div class="kpi-label">Equipos Down</div>
+  <div class="kpi-value" id="fiix-assets-down">0</div>
+  <small class="kpi-text">Fuera de servicio</small>
+</div>
+<div class="kpi-tile" style="border-left: 4px solid #8b5cf6;">
+  <div class="kpi-label">Cerradas Mes</div>
+  <div class="kpi-value" id="fiix-closed-month">0</div>
+  <small class="kpi-text">Tareas completadas</small>
 </div>
   </div>
 
@@ -4096,40 +4100,44 @@ function processTaskUpdate(data) {
             const mKey = String(data.metric || '').toLowerCase();
 
             if (mKey === 'fiix_backlog') {
-                const el = document.getElementById('fiix-backlog');
-                if (el) el.textContent = data.value;
-                return;
-            }
-            if (mKey === 'fiix_urgent') {
-                const el = document.getElementById('fiix-urgent');
-                if (el) {
-                    el.textContent = data.value;
-                    const tile = el.closest('.kpi-tile');
-                    if (tile) {
-                        // Si hay más de 0 urgentes, parpadeo rojo suave
-                        if (Number(data.value) > 0) {
-                            tile.style.background = "#fff1f2";
-                            tile.style.borderLeft = "6px solid #ef4444";
-                            tile.style.animation = "pulse-red 2s infinite";
-                        } else {
-                            tile.style.background = "#fff";
-                            tile.style.borderLeft = "4px solid #f59e0b";
-                            tile.style.animation = "none";
-                        }
+                        document.getElementById('fiix-backlog').textContent = data.value;
+                        return;
                     }
-                }
-                return;
-            }
-            if (mKey === 'fiix_cost') {
-                const el = document.getElementById('fiix-cost');
-                if (el) {
-                    el.textContent = new Intl.NumberFormat('es-ES', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    }).format(data.value);
-                }
-                return;
-            }
+                    if (mKey === 'fiix_urgent') {
+                        document.getElementById('fiix-urgent').textContent = data.value;
+                        const tile = document.getElementById('tile-fiix-urgent');
+                        if(tile) {
+                            if(Number(data.value) > 0) tile.classList.add('tile-critical');
+                            else tile.classList.remove('tile-critical');
+                        }
+                        return;
+                    }
+                    if (mKey === 'fiix_assets_down') {
+                        const el = document.getElementById('fiix-assets-down');
+                        if (el) el.textContent = data.value;
+                        const tile = document.getElementById('tile-fiix-down');
+                        if (tile) {
+                            // Si hay máquinas rotas, ponemos el fondo en ámbar/naranja
+                            tile.style.background = Number(data.value) > 0 ? '#fffbeb' : '#fff';
+                            tile.style.borderColor = Number(data.value) > 0 ? '#fde68a' : '#e6e8ec';
+                        }
+                        return;
+                    }
+                    if (mKey === 'fiix_closed_month') {
+                        const el = document.getElementById('fiix-closed-month');
+                        if (el) el.textContent = data.value;
+                        return;
+                    }
+                        if (mKey === 'fiix_cost') {
+                            const el = document.getElementById('fiix-cost');
+                            if (el) {
+                                el.textContent = new Intl.NumberFormat('es-ES', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                }).format(data.value);
+                            }
+                            return;
+                        }
 
         // B. KPIs de PowerBI (Pestaña MAD WFS4)
         if (tName === 'MAD WFS4' || tName === '') {
@@ -7125,6 +7133,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
