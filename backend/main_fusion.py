@@ -5,6 +5,7 @@ import os
 from main import app as app_madrid
 from main_bcn import app as app_bcn
 from main_vlc import app as app_vlc
+from main_vlcalm import app as app_vlcalm
 from main_alm import app as app_alm
 from main_wfs1 import app as app_wfs1
 from main_wfs2 import app as app_wfs2
