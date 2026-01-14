@@ -2933,56 +2933,62 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         site_id = 29449435
-        now = datetime.now()
-        first_day_month = now.replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
+        now_ms = int(time.time() * 1000)
+        # Hace 24 horas en milisegundos
+        day_ago_ms = now_ms - (24 * 60 * 60 * 1000)
 
         try:
-            # --- 1. BACKLOG Y URGENCIAS (Órdenes Abiertas) ---
-            body_open = {
-                "_maCn": "FindRequest",
-                "className": "WorkOrder",
-                "fields": "id, intPriorityID",
-                "filters": [{"ql": "dtmDateCompleted IS NULL AND intSiteID = ?", "parameters": [site_id]}],
-                "maxObjects": 1000
-            }
-            open_wos = await self._fiix_rpc(body_open)
-            backlog_count = len(open_wos)
-            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
-
-            # --- 2. EQUIPOS FUERA DE SERVICIO (Assets con Status 'Down' o similar) ---
-            # Vamos a contar cuántos Assets en tu Site NO están en estado 'Normal' (ID 1 suele ser Normal)
-            body_assets_down = {
+            # --- 1. ESTADO DE MÁQUINAS (ASSETS) ---
+            # Consultamos todos los equipos de la Nave 1
+            body_assets = {
                 "_maCn": "FindRequest",
                 "className": "Asset",
-                "fields": "id",
-                "filters": [{"ql": "intSiteID = ? AND intAssetStatusID != ?", "parameters": [site_id, 1]}],
-                "maxObjects": 100
+                "fields": "id, intAssetStatusID",
+                "filters": [{"ql": "intSiteID = ?", "parameters": [site_id]}],
+                "maxObjects": 1000
             }
-            assets_down_res = await self._fiix_rpc(body_assets_down)
-            assets_down_count = len(assets_down_res)
+            assets_res = await self._fiix_rpc(body_assets)
+            
+            total_assets = len(assets_res)
+            # intAssetStatusID: 1 suele ser 'Normal/Up'. Cualquier otro es 'Down' o 'In Repair'
+            assets_down = sum(1 for a in assets_res if a.get("intAssetStatusID") != 1)
+            availability_pct = round(((total_assets - assets_down) / total_assets) * 100) if total_assets > 0 else 100
 
-            # --- 3. ÓRDENES FINALIZADAS ESTE MES (Productividad) ---
+            # --- 2. FLUJO DE ÓRDENES (TRABAJO DE LAS ÚLTIMAS 24H) ---
+            # Órdenes creadas en las últimas 24h
+            body_created = {
+                "_maCn": "FindRequest",
+                "className": "WorkOrder",
+                "fields": "id",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [site_id, day_ago_ms]}]
+            }
+            # Órdenes CERRADAS en las últimas 24h
             body_closed = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
                 "fields": "id",
-                "filters": [{"ql": "dtmDateCompleted >= ? AND intSiteID = ?", "parameters": [first_day_month, site_id]}],
-                "maxObjects": 1000
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCompleted >= ?", "parameters": [site_id, day_ago_ms]}]
             }
-            closed_wos = await self._fiix_rpc(body_closed)
-            closed_count = len(closed_wos)
 
-            print(f"📊 [FIIX MAD] Abiertas: {backlog_count} | Urgentes: {urgent_count} | Equipos Down: {assets_down_count} | Cerradas Mes: {closed_count}")
+            created_today = len(await self._fiix_rpc(body_created))
+            closed_today = len(await self._fiix_rpc(body_closed))
 
-            # --- 4. BROADCAST ---
+            print(f"📊 [FIIX MAD] Disponibilidad: {availability_pct}% | Roto: {assets_down} | Creadas 24h: {created_today} | Cerradas 24h: {closed_today}")
+
+            # --- 3. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_assets_down", "value": assets_down_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_closed_month", "value": closed_count, "timestamp": ts})
+            metrics = [
+                ("fiix_availability", availability_pct),
+                ("fiix_assets_down", assets_down),
+                ("fiix_wo_created_24h", created_today),
+                ("fiix_wo_closed_24h", closed_today)
+            ]
+            
+            for m, v in metrics:
+                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
 
         except Exception as e:
-            print(f"❌ [FIIX] Error en métricas operativas: {e}")
+            print(f"❌ [FIIX] Error operativo: {e}")
 
 
 
@@ -4680,6 +4686,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
