@@ -2692,21 +2692,23 @@ body.card-open #timer-reset {
   <div class="kpi-grid">
     <!-- Backlog -->
     <!-- Fila de Fiix -->
-<div class="kpi-tile" id="tile-fiix-availability">
-        <div class="kpi-label">Disponibilidad Nave 1</div>
+<!-- Tarjeta de Disponibilidad -->
+    <div class="kpi-tile" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Disponibilidad</div>
         <div class="kpi-value"><span id="fiix-availability">100</span>%</div>
-        <small class="kpi-text" id="fiix-down-text">Todo operativo</small>
+        <small class="kpi-text" id="fiix-down-text">Verificando equipos...</small>
     </div>
 
-    <!-- Balance de Trabajo (Creadas vs Cerradas) -->
-    <div class="kpi-tile" id="tile-fiix-balance">
-        <div class="kpi-label">Flujo de Trabajo (24h)</div>
-        <div style="display: flex; align-items: baseline; gap: 10px;">
-            <div class="kpi-value" id="fiix-closed-24h" style="color: #10b981;">0</div>
-            <span style="font-size: 1.2rem; color: #94a3b8;">/</span>
-            <div class="kpi-value" id="fiix-created-24h" style="font-size: 1.8rem; color: #64748b;">0</div>
+    <!-- Tarjeta de Flujo (Balance) -->
+    <div class="kpi-tile" style="border-left: 4px solid #3b82f6;">
+        <div class="kpi-label">Balance Mto. (24h)</div>
+        <div style="display: flex; align-items: baseline; gap: 10px; margin: 5px 0;">
+            <span style="font-size: 0.8rem; font-weight: 700; color: #10b981;">HECHO:</span>
+            <div class="kpi-value" id="fiix-closed-24h" style="font-size: 2.2rem; color: #10b981;">0</div>
+            <span style="font-size: 0.8rem; font-weight: 700; color: #64748b;">NUEVAS:</span>
+            <div class="kpi-value" id="fiix-created-24h" style="font-size: 1.5rem; color: #64748b;">0</div>
         </div>
-        <small class="kpi-text">Cerradas vs. Nuevas</small>
+        <small class="kpi-text">Órdenes cerradas vs abiertas</small>
     </div>
   </div>
 
@@ -4094,52 +4096,44 @@ function processTaskUpdate(data) {
     }
 
     // 4. KPIs (FIIX + PowerBI)
-    if (data.type === 'kpi_update' || data.metric) {
-            const mKey = String(data.metric || '').toLowerCase();
+    // Dentro de processTaskUpdate(data) en tu index.html
 
-            if (mKey === 'fiix_availability') {
-            document.getElementById('fiix-availability').textContent = data.value;
-            const tile = document.getElementById('tile-fiix-availability');
-            // Si la disponibilidad baja del 90%, alerta visual
-            tile.style.borderLeft = data.value < 90 ? '6px solid #ef4444' : '6px solid #10b981';
-            tile.style.background = data.value < 90 ? '#fff1f2' : '#fff';
-            return;
-        }
+if (data.metric && data.metric.startsWith('fiix_')) {
+    const val = data.value;
+    const m = data.metric;
 
-        if (mKey === 'fiix_assets_down') {
-            const txt = document.getElementById('fiix-down-text');
-            if (txt) txt.textContent = data.value > 0 ? `${data.value} máquinas paradas` : 'Todo operativo';
-            return;
+    // --- KPI DISPONIBILIDAD ---
+    if (m === 'fiix_availability') {
+        const el = document.getElementById('fiix-availability');
+        if (el) {
+            el.textContent = val;
+            const tile = el.closest('.kpi-tile');
+            // Cambia color según el % (Verde si > 95, Ámbar si > 80, Rojo si < 80)
+            if (val >= 95) tile.style.borderLeft = "6px solid #10b981";
+            else if (val >= 80) tile.style.borderLeft = "6px solid #f59e0b";
+            else tile.style.borderLeft = "6px solid #ef4444";
         }
+    } 
 
-        // --- FLUJO ---
-        if (mKey === 'fiix_wo_created_24h') {
-            document.getElementById('fiix-created-24h').textContent = data.value;
-            return;
-        }
+    // --- KPI MÁQUINAS DOWN ---
+    else if (m === 'fiix_assets_down') {
+        const el = document.getElementById('fiix-down-text');
+        if (el) el.textContent = val > 0 ? `${val} equipos parados` : 'Todo operativo';
+    } 
 
-        if (mKey === 'fiix_wo_closed_24h') {
-            document.getElementById('fiix-closed-24h').textContent = data.value;
-            // Si cerramos más de lo que abrimos, color verde éxito
-            const created = parseInt(document.getElementById('fiix-created-24h').textContent);
-            const el = document.getElementById('fiix-closed-24h');
-            el.style.color = data.value >= created ? '#10b981' : '#f97316';
-            return;
-        }
+    // --- KPI ÓRDENES CREADAS ---
+    else if (m === 'fiix_wo_created_24h') {
+        const el = document.getElementById('fiix-created-24h');
+        if (el) el.textContent = val;
+    } 
 
-        // B. KPIs de PowerBI (Pestaña MAD WFS4)
-        if (tName === 'MAD WFS4' || tName === '') {
-            if (mName === 'total cost') {
-                updateKpiTotalCost(data.value, data.timestamp);
-            } else if (mName === 'uph') {
-                setKpiValue('kpi-uph', 'kpi-uph-meta', data.value);
-            } else if (mName === 'otif') {
-                setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(data.value) + ' %');
-            } else if (mName === 'backlog') {
-                setKpiValue('kpi-backlog', 'kpi-backlog-meta', data.value);
-            }
-        }
+    // --- KPI ÓRDENES CERRADAS ---
+    else if (m === 'fiix_wo_closed_24h') {
+        const el = document.getElementById('fiix-closed-24h');
+        if (el) el.textContent = val;
     }
+    return;
+}
 
     // 5. Render de tarjetas normales
     const elementId = `task-${data.id}`;
@@ -7121,6 +7115,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
