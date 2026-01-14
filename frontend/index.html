@@ -2690,25 +2690,29 @@ body.card-open #timer-reset {
   <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
   
   <div class="kpi-grid">
-    <!-- Backlog -->
-    <!-- Fila de Fiix -->
-<!-- Tarjeta de Disponibilidad -->
-    <div class="kpi-tile" style="border-left: 6px solid #10b981;">
-        <div class="kpi-label">Disponibilidad</div>
+    <<!-- BLOQUE A: DISPONIBILIDAD -->
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Disponibilidad Almacén</div>
         <div class="kpi-value"><span id="fiix-availability">100</span>%</div>
-        <small class="kpi-text" id="fiix-down-text">Verificando equipos...</small>
+        <small class="kpi-text" id="fiix-down-text">Todo operativo</small>
     </div>
 
-    <!-- Tarjeta de Flujo (Balance) -->
-    <div class="kpi-tile" style="border-left: 4px solid #3b82f6;">
-        <div class="kpi-label">Balance Mto. (24h)</div>
-        <div style="display: flex; align-items: baseline; gap: 10px; margin: 5px 0;">
-            <span style="font-size: 0.8rem; font-weight: 700; color: #10b981;">HECHO:</span>
-            <div class="kpi-value" id="fiix-closed-24h" style="font-size: 2.2rem; color: #10b981;">0</div>
-            <span style="font-size: 0.8rem; font-weight: 700; color: #64748b;">NUEVAS:</span>
+    <!-- BLOQUE B: FLUJO DE TRABAJO -->
+    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">Balance Trabajo (24h)</div>
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+            <div class="kpi-value" id="fiix-closed-24h" style="color: #10b981;">0</div>
+            <span style="color: #94a3b8; font-size: 1.5rem;">/</span>
             <div class="kpi-value" id="fiix-created-24h" style="font-size: 1.5rem; color: #64748b;">0</div>
         </div>
-        <small class="kpi-text">Órdenes cerradas vs abiertas</small>
+        <small class="kpi-text">Cerradas vs. Creadas</small>
+    </div>
+
+    <!-- BLOQUE C: IMPACTO ECONÓMICO -->
+    <div class="kpi-tile" id="tile-fiix-loss" style="border-left: 6px solid #64748b;">
+        <div class="kpi-label">Impacto Gasto (Ayer)</div>
+        <div class="kpi-value" id="fiix-ratio-loss">0%</div>
+        <small class="kpi-text" id="fiix-loss-text">Ratio Correctivo</small>
     </div>
   </div>
 
@@ -4103,41 +4107,47 @@ if (data.metric && data.metric.startsWith('fiix_')) {
     const m = data.metric;
 
     // --- KPI DISPONIBILIDAD ---
-    if (m === 'fiix_availability') {
-        const el = document.getElementById('fiix-availability');
-        if (el) {
-            el.textContent = val;
-            const tile = el.closest('.kpi-tile');
-            // Cambia color según el % (Verde si > 95, Ámbar si > 80, Rojo si < 80)
-            if (val >= 95) tile.style.borderLeft = "6px solid #10b981";
-            else if (val >= 80) tile.style.borderLeft = "6px solid #f59e0b";
-            else tile.style.borderLeft = "6px solid #ef4444";
+    // --- 1. DISPONIBILIDAD ---
+        if (mKey === 'fiix_availability') {
+            document.getElementById('fiix-availability').textContent = data.value;
+            const tile = document.getElementById('tile-fiix-availability');
+            // Alerta si baja del 90%
+            tile.style.background = data.value < 90 ? '#fff1f2' : '#fff';
+            tile.style.borderLeftColor = data.value < 90 ? '#ef4444' : '#10b981';
+            return;
         }
-    } 
-
-    // --- KPI MÁQUINAS DOWN ---
-    if (m === 'fiix_assets_down') {
-        const el = document.getElementById('fiix-down-text');
-        if (el) {
-            // Si el valor es 0, mostramos mensaje positivo
-            el.textContent = val > 0 ? `${val} equipos parados ahora` : 'Todos los equipos operativos';
-            el.style.color = val > 0 ? '#ef4444' : '#64748b'; // Rojo si hay fallos
+        if (mKey === 'fiix_assets_down') {
+            document.getElementById('fiix-down-text').textContent = data.value > 0 ? `${data.value} equipos parados` : 'Todo operativo';
+            return;
         }
-    }
 
-    // --- KPI ÓRDENES CREADAS ---
-    else if (m === 'fiix_wo_created_24h') {
-        const el = document.getElementById('fiix-created-24h');
-        if (el) el.textContent = val;
-    } 
+        // --- 2. FLUJO ---
+        if (mKey === 'fiix_wo_created_24h') document.getElementById('fiix-created-24h').textContent = data.value;
+        if (mKey === 'fiix_wo_closed_24h') document.getElementById('fiix-closed-24h').textContent = data.value;
 
-    // --- KPI ÓRDENES CERRADAS ---
-    else if (m === 'fiix_wo_closed_24h') {
-        const el = document.getElementById('fiix-closed-24h');
-        if (el) el.textContent = val;
-    }
-    return;
-}
+        // --- 3. IMPACTO ECONÓMICO (Link con costes) ---
+        if (mKey === 'fiix_ratio_loss') {
+            const val = data.value;
+            const el = document.getElementById('fiix-ratio-loss');
+            const tile = document.getElementById('tile-fiix-loss');
+            const txt = document.getElementById('fiix-loss-text');
+
+            el.textContent = val + "%";
+            
+            // Si el ratio de correctivo es > 40%, el impacto económico es ALTO (Rojo)
+            if (val > 40) {
+                tile.style.background = "#fef2f2";
+                tile.style.borderLeftColor = "#dc2626";
+                txt.textContent = "ALTO IMPACTO ECONÓMICO";
+                txt.style.color = "#dc2626";
+            } else {
+                tile.style.background = "#fff";
+                tile.style.borderLeftColor = "#64748b";
+                txt.textContent = "Gasto bajo control";
+                txt.style.color = "#64748b";
+            }
+            return;
+        }
 
     // 5. Render de tarjetas normales
     const elementId = `task-${data.id}`;
@@ -4147,6 +4157,7 @@ if (data.metric && data.metric.startsWith('fiix_')) {
         case 'gw_task': GW_MAP.set(data.id, data); renderGwTop3(); break;
         case 'ops_update': if(window.renderOpsCard) window.renderOpsCard(data); break;
     }
+}
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
@@ -7119,6 +7130,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
