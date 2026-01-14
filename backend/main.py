@@ -2941,22 +2941,39 @@ class FiixConnector:
 
         try:
             # --- 1. ESTADO DE MÁQUINAS (ASSETS) ---
+            # --- 1. ESTADO DE MÁQUINAS (ASSETS) ---
             body_assets = {
                 "_maCn": "FindRequest",
                 "className": "Asset",
-                "fields": "id, intAssetStatusID",
-                "filters": [{"ql": "intSiteID = ?", "parameters": [site_id]}],
+                # Usamos bolIsOnline que es el campo booleano real de estado
+                # intCategoryKind: 2 suele filtrar solo máquinas/equipos (evita carpetas)
+                "fields": "id, bolIsOnline, strName", 
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND bolIsExternalAccount = ?", 
+                        "parameters": [site_id, 0] # Solo activos internos
+                    }
+                ],
                 "maxObjects": 1000
             }
-            # Importante: Asegúrate de que el método en tu clase se llame _fiix_rpc
             assets_res = await self._fiix_rpc(body_assets)
             
-            total_assets = len(assets_res)
-            # intAssetStatusID: 1 es 'Normal/Up'.
-            assets_down = sum(1 for a in assets_res if a.get("intAssetStatusID") != 1)
+            # Filtramos para asegurarnos de que solo contamos los que tienen información de estado
+            # bolIsOnline: True (o 1) significa funcionando. False (o 0) significa parado.
+            total_assets_list = [a for a in assets_res if a.get("bolIsOnline") is not None]
+            total_assets = len(total_assets_list)
             
-            # Usamos round() de Python
-            availability_pct = round(((total_assets - assets_down) / total_assets) * 100) if total_assets > 0 else 100
+            # Contamos como parados solo los que explícitamente están en 0 (Offline)
+            assets_down = sum(1 for a in total_assets_list if a.get("bolIsOnline") == 0)
+            
+            # Recalcular disponibilidad
+            if total_assets > 0:
+                availability_pct = round(((total_assets - assets_down) / total_assets) * 100)
+            else:
+                availability_pct = 100
+
+            print(f"🔍 [FIIX DEBUG] Analizados {total_assets} equipos reales.")
+            print(f"📊 [FIIX MAD] Disponibilidad: {availability_pct}% | Roto: {assets_down}")
 
             # --- 2. FLUJO DE ÓRDENES (TRABAJO DE LAS ÚLTIMAS 24H) ---
             # Filtro de Creadas: dtmDateCreated >= ayer (en formato texto)
@@ -4699,6 +4716,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
