@@ -2682,6 +2682,24 @@ body.card-open #timer-reset {
         <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
       </div>
     </div>
+    <div class="kpi-tile">
+        <div class="kpi-label">Tareas Pendientes</div>
+        <div class="kpi-value" id="fiix-backlog">0</div>
+    </div>
+
+    <!-- Tareas Vencidas (Alerta Naranja) -->
+    <div class="kpi-tile" id="tile-fiix-overdue">
+        <div class="kpi-label">Vencidas</div>
+        <div class="kpi-value" id="fiix-overdue">0</div>
+        <small class="kpi-text">Fuera de plazo</small>
+    </div>
+
+    <!-- Tareas Sin Asignar (Alerta Gris/Azul) -->
+    <div class="kpi-tile" id="tile-fiix-unassigned">
+        <div class="kpi-label">Sin Asignar</div>
+        <div class="kpi-value" id="fiix-unassigned">0</div>
+        <small class="kpi-text">Sin técnico</small>
+    </div>
   </div>
 
   <hr style="border:0; border-top:1px solid var(--border); margin: 10px 0;">
@@ -4120,6 +4138,31 @@ function processTaskUpdate(data) {
                             // Si hay máquinas rotas, ponemos el fondo en ámbar/naranja
                             tile.style.background = Number(data.value) > 0 ? '#fffbeb' : '#fff';
                             tile.style.borderColor = Number(data.value) > 0 ? '#fde68a' : '#e6e8ec';
+                        }
+                        return;
+                    }
+                    // --- Vencidas ---
+                    if (mKey === 'fiix_overdue') {
+                        const el = document.getElementById('fiix-overdue');
+                        if (el) el.textContent = data.value;
+                        const tile = document.getElementById('tile-fiix-overdue');
+                        if (tile) {
+                            // Si hay más de 10 vencidas, color de advertencia naranja
+                            tile.style.background = data.value > 10 ? '#fff7ed' : '#fff';
+                            tile.style.borderLeft = data.value > 10 ? '6px solid #f97316' : '4px solid #e5e7eb';
+                        }
+                        return;
+                    }
+            
+                    // --- Sin Asignar ---
+                    if (mKey === 'fiix_unassigned') {
+                        const el = document.getElementById('fiix-unassigned');
+                        if (el) el.textContent = data.value;
+                        const tile = document.getElementById('tile-fiix-unassigned');
+                        if (tile) {
+                            // Si hay tareas sin dueño, resaltar en azul informativo
+                            tile.style.background = data.value > 0 ? '#eff6ff' : '#fff';
+                            tile.style.borderLeft = data.value > 0 ? '6px solid #3b82f6' : '4px solid #e5e7eb';
                         }
                         return;
                     }
@@ -7133,6 +7176,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
