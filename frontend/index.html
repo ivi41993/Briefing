@@ -2682,23 +2682,25 @@ body.card-open #timer-reset {
         <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
       </div>
     </div>
-    <div class="kpi-tile">
-        <div class="kpi-label">Tareas Pendientes</div>
-        <div class="kpi-value" id="fiix-backlog">0</div>
+    <!-- Salud del Almacén (Circular o Barra) -->
+    <div class="kpi-tile" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Salud del Almacén</div>
+        <div class="kpi-value"><span id="fiix-health">100</span>%</div>
+        <small class="kpi-text">Mto. Preventivo activo</small>
     </div>
 
-    <!-- Tareas Vencidas (Alerta Naranja) -->
-    <div class="kpi-tile" id="tile-fiix-overdue">
-        <div class="kpi-label">Vencidas</div>
-        <div class="kpi-value" id="fiix-overdue">0</div>
-        <small class="kpi-text">Fuera de plazo</small>
+    <!-- Tareas Planificadas para Hoy -->
+    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">Plan de Hoy</div>
+        <div class="kpi-value" id="fiix-today-work">0</div>
+        <small class="kpi-text">Órdenes asignadas a este turno</small>
     </div>
 
-    <!-- Tareas Sin Asignar (Alerta Gris/Azul) -->
-    <div class="kpi-tile" id="tile-fiix-unassigned">
-        <div class="kpi-label">Sin Asignar</div>
-        <div class="kpi-value" id="fiix-unassigned">0</div>
-        <small class="kpi-text">Sin técnico</small>
+    <!-- Alerta de Seguridad (Solo destaca si es > 0) -->
+    <div class="kpi-tile" id="tile-fiix-safety" style="border-left: 4px solid #e5e7eb;">
+        <div class="kpi-label">Alertas de Seguridad</div>
+        <div class="kpi-value" id="fiix-safety">0</div>
+        <small class="kpi-text">Averías con riesgo PRL</small>
     </div>
   </div>
 
@@ -4126,36 +4128,44 @@ if (data.metric && data.metric.startsWith('fiix_')) {
     const val = data.value;
     const m = data.metric;
 
-    if (m === 'fiix_backlog') {
-        const el = document.getElementById('fiix-backlog');
-        if (el) el.textContent = val;
-    } 
-    else if (m === 'fiix_urgent') {
-        const el = document.getElementById('fiix-urgent');
-        if (el) {
-            el.textContent = val;
-            const tile = el.closest('.kpi-tile');
-            if (tile) {
-                // Alerta roja si hay urgencias (prioridad 278571)
-                if (Number(val) > 0) tile.classList.add('tile-critical');
-                else tile.classList.remove('tile-critical');
+    // --- Ratio de Salud ---
+        if (mKey === 'fiix_health_ratio') {
+            const el = document.getElementById('fiix-health');
+            if (el) {
+                el.textContent = data.value;
+                const tile = el.closest('.kpi-tile');
+                // Si la salud baja del 50%, el almacén está en modo "caos"
+                tile.style.color = data.value < 50 ? '#991b1b' : '#065f46';
+                tile.style.background = data.value < 50 ? '#fef2f2' : '#f0fdf4';
             }
+            return;
         }
-    } 
-    else if (m === 'fiix_overdue') {
-        const el = document.getElementById('fiix-overdue');
-        if (el) el.textContent = val;
-        const tile = document.getElementById('tile-fiix-overdue');
-        if (tile) {
-            // Naranja si hay retrasos
-            tile.style.background = val > 0 ? '#fff7ed' : '#fff';
-            tile.style.borderLeft = val > 0 ? '6px solid #f97316' : '1px solid #e6e8ec';
+
+        // --- Alertas de Seguridad ---
+        if (mKey === 'fiix_safety_issues') {
+            const el = document.getElementById('fiix-safety');
+            if (el) {
+                el.textContent = data.value;
+                const tile = document.getElementById('tile-fiix-safety');
+                if (tile) {
+                    if (data.value > 0) {
+                        tile.style.background = '#fff1f2'; // Rojo suave
+                        tile.style.borderLeft = '6px solid #ef4444';
+                        tile.classList.add('pulse-alert'); // Necesitas un CSS de parpadeo
+                    } else {
+                        tile.style.background = '#fff';
+                        tile.style.borderLeft = '4px solid #e5e7eb';
+                    }
+                }
+            }
+            return;
         }
-    } 
-    else if (m === 'fiix_unassigned') {
-        const el = document.getElementById('fiix-unassigned');
-        if (el) el.textContent = val;
-    }
+
+        // --- Plan de Hoy ---
+        if (mKey === 'fiix_today_work') {
+            document.getElementById('fiix-today-work').textContent = data.value;
+            return;
+        }
     return; // Fin de procesamiento para métricas Fiix
 }
 
@@ -7153,6 +7163,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
