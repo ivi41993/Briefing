@@ -2933,89 +2933,58 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         site_id = 29449435
-        # --- CORRECCIÓN CRÍTICA: Fiix requiere las fechas como STRING 'YYYY-MM-DD HH:MM:SS' ---
         now = datetime.now()
         yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-        
-        print(f"📡 [FIIX] Sincronizando Nave MAD (Desde: {yesterday_str})")
 
         try:
-            # --- 1. ESTADO DE MÁQUINAS (ASSETS) ---
-            # --- 1. ESTADO DE MÁQUINAS (ASSETS) ---
+            # --- 1. DISPONIBILIDAD (ASSETS) ---
             body_assets = {
                 "_maCn": "FindRequest",
                 "className": "Asset",
-                # Usamos bolIsOnline que es el campo booleano real de estado
-                # intCategoryKind: 2 suele filtrar solo máquinas/equipos (evita carpetas)
-                "fields": "id, bolIsOnline, strName", 
-                "filters": [
-                    {
-                        "ql": "intSiteID = ? AND bolIsExternalAccount = ?", 
-                        "parameters": [site_id, 0] # Solo activos internos
-                    }
-                ],
+                "fields": "id, bolIsOnline",
+                "filters": [{"ql": "intSiteID = ? AND bolIsExternalAccount = ?", "parameters": [site_id, 0]}],
                 "maxObjects": 1000
             }
             assets_res = await self._fiix_rpc(body_assets)
             
-            # Filtramos para asegurarnos de que solo contamos los que tienen información de estado
-            # bolIsOnline: True (o 1) significa funcionando. False (o 0) significa parado.
             total_assets_list = [a for a in assets_res if a.get("bolIsOnline") is not None]
             total_assets = len(total_assets_list)
-            
-            # Contamos como parados solo los que explícitamente están en 0 (Offline)
             assets_down = sum(1 for a in total_assets_list if a.get("bolIsOnline") == 0)
-            
-            # Recalcular disponibilidad
-            if total_assets > 0:
-                availability_pct = round(((total_assets - assets_down) / total_assets) * 100)
-            else:
-                availability_pct = 100
+            availability_pct = round(((total_assets - assets_down) / total_assets) * 100) if total_assets > 0 else 100
 
-            print(f"🔍 [FIIX DEBUG] Analizados {total_assets} equipos reales.")
-            print(f"📊 [FIIX MAD] Disponibilidad: {availability_pct}% | Roto: {assets_down}")
-
-            # --- 2. FLUJO DE ÓRDENES (TRABAJO DE LAS ÚLTIMAS 24H) ---
-            # Filtro de Creadas: dtmDateCreated >= ayer (en formato texto)
-            body_created = {
+            # --- 2. FLUJO Y COSTES PROYECTADOS (WORK ORDERS) ---
+            body_wo = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [site_id, yesterday_str]}]
+                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCompleted",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [site_id, yesterday_str]}],
+                "maxObjects": 1000
             }
-            # Filtro de Cerradas: dtmDateCompleted >= ayer (en formato texto)
-            body_closed = {
-                "_maCn": "FindRequest",
-                "className": "WorkOrder",
-                "fields": "id",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCompleted >= ?", "parameters": [site_id, yesterday_str]}]
-            }
-
-            created_today_res = await self._fiix_rpc(body_created)
-            closed_today_res = await self._fiix_rpc(body_closed)
+            wo_res = await self._fiix_rpc(body_wo)
             
-            created_today = len(created_today_res)
-            closed_today = len(closed_today_res)
+            n_created = len(wo_res)
+            # Órdenes cerradas de ese grupo de creadas hoy
+            n_closed = sum(1 for wo in wo_res if wo.get("dtmDateCompleted") is not None)
+            
+            # Cálculo de Impacto Económico (Correctivo ID 2 cuesta más que Preventivo ID 1)
+            correctivos = sum(1 for wo in wo_res if wo.get("intMaintenanceTypeID") == 2)
+            # Ratio de pérdida: Qué % del dinero de hoy se ha ido a "reparar roturas"
+            ratio_perdida = round((correctivos / n_created) * 100) if n_created > 0 else 0
 
-            print(f"📊 [FIIX MAD] Disponibilidad: {availability_pct}% | Roto: {assets_down} | Creadas 24h: {created_today} | Cerradas 24h: {closed_today}")
+            print(f"📊 [FIIX MAD] Disp: {availability_pct}% | Roto: {assets_down} | Creadas: {n_created} | Pérdida: {ratio_perdida}%")
 
             # --- 3. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
             metrics = [
                 ("fiix_availability", availability_pct),
                 ("fiix_assets_down", assets_down),
-                ("fiix_wo_created_24h", created_today),
-                ("fiix_wo_closed_24h", closed_today)
+                ("fiix_wo_created_24h", n_created),
+                ("fiix_wo_closed_24h", n_closed),
+                ("fiix_ratio_loss", ratio_perdida)
             ]
             
             for m, v in metrics:
-                await manager.broadcast({
-                    "type": "kpi_update", 
-                    "metric": m, 
-                    "value": v, 
-                    "timestamp": ts, 
-                    "station": "MAD"
-                })
+                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
 
         except Exception as e:
             print(f"❌ [FIIX] Error operativo: {e}")
@@ -4716,6 +4685,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
