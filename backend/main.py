@@ -2934,10 +2934,11 @@ class FiixConnector:
     async def fetch_metrics(self):
         site_id = 29449435
         now_ms = int(time.time() * 1000)
-        day_ms = 24 * 60 * 60 * 1000 # Un día en milisegundos
+        # Margen de tiempo para "Plan de Hoy" (24 horas)
+        next_24h_ms = now_ms + (24 * 60 * 60 * 1000)
 
         try:
-            # Traemos todas las abiertas para el Site
+            # --- 1. CARGA DE ÓRDENES ABIERTAS ---
             body_wo = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
@@ -2947,45 +2948,52 @@ class FiixConnector:
             }
             open_wos = await self._fiix_rpc(body_wo)
             
-            # --- CÁLCULOS DE SALUD OPERATIVA ---
             total_open = len(open_wos)
             
-            # 1. Separación Preventivo (ID 1) vs Correctivo (ID 2/Especial)
-            # En Fiix 1 suele ser preventivo y 2 correctivo.
+            # --- 2. CÁLCULO: % SALUD (Preventivo vs Correctivo) ---
+            # intMaintenanceTypeID: 1 suelen ser preventivas (preventive)
             preventivos = sum(1 for wo in open_wos if wo.get("intMaintenanceTypeID") == 1)
-            correctivos = total_open - preventivos
             
-            # Calculamos el % de Salud (cuanto más preventivo, mejor)
-            health_ratio = Math.round((preventivos / total_open) * 100) if total_open > 0 else 100
+            # Usamos round() de Python (NO Math.round)
+            health_ratio = round((preventivos / total_open) * 100) if total_open > 0 else 100
 
-            # 2. Órdenes para HOY (Próximas 24 horas)
+            # --- 3. CÁLCULO: PLAN DE HOY (Próximas 24h) ---
             hoy_planificadas = 0
             for wo in open_wos:
                 sugg = wo.get("dtmSuggestedCompletionDate")
-                if sugg and isinstance(sugg, int):
-                    # Si la fecha está entre (Ahora - 4h) y (Ahora + 20h)
-                    if (now_ms - (4*3600*1000)) <= sugg <= (now_ms + (20*3600*1000)):
-                        hoy_planificadas += 1
+                if isinstance(sugg, int) and now_ms <= sugg <= next_24h_ms:
+                    hoy_planificadas += 1
 
-            # 3. Averías Críticas de Seguridad
-            # Buscamos palabras clave en la descripción
-            criticas_seguridad = sum(1 for wo in open_wos if any(x in str(wo.get("strDescription", "")).lower() for x in ["seguridad", "safety", "riesgo", "caida"]))
+            # --- 4. CÁLCULO: ALERTAS DE SEGURIDAD ---
+            # Buscamos palabras críticas en la descripción de las averías
+            palabras_peligro = ["seguridad", "safety", "prl", "caida", "riesgo", "fuego", "electrico"]
+            criticas_seguridad = 0
+            for wo in open_wos:
+                desc = str(wo.get("strDescription") or "").lower()
+                if any(p in desc for p in palabras_peligro):
+                    criticas_seguridad += 1
 
-            print(f"✅ [FIIX] Salud: {health_ratio}% | Hoy: {hoy_planificadas} | Seguridad: {criticas_seguridad}")
+            print(f"📊 [FIIX MAD] Salud: {health_ratio}% | Hoy: {hoy_planificadas} | Seguridad: {criticas_seguridad}")
 
+            # --- 5. BROADCAST VÍA WEBSOCKET ---
             ts = datetime.utcnow().isoformat() + "Z"
             metrics = [
                 ("fiix_health_ratio", health_ratio),
                 ("fiix_today_work", hoy_planificadas),
-                ("fiix_safety_issues", criticas_seguridad),
-                ("fiix_total_open", total_open)
+                ("fiix_safety_issues", criticas_seguridad)
             ]
             
             for m, v in metrics:
-                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
+                await manager.broadcast({
+                    "type": "kpi_update", 
+                    "metric": m, 
+                    "value": v, 
+                    "timestamp": ts, 
+                    "station": "MAD"
+                })
 
         except Exception as e:
-            print(f"❌ [FIIX] Error: {e}")
+            print(f"❌ [FIIX] Error en el cálculo de métricas: {e}")
 
 
 
@@ -4683,6 +4691,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
