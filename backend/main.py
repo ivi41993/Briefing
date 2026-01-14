@@ -2933,67 +2933,56 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         site_id = 29449435
-        now_ms = int(time.time() * 1000)
-        # Margen de tiempo para "Plan de Hoy" (24 horas)
-        next_24h_ms = now_ms + (24 * 60 * 60 * 1000)
+        now = datetime.now()
+        first_day_month = now.replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            # --- 1. CARGA DE ÓRDENES ABIERTAS ---
-            body_wo = {
+            # --- 1. BACKLOG Y URGENCIAS (Órdenes Abiertas) ---
+            body_open = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, dtmSuggestedCompletionDate, strDescription",
+                "fields": "id, intPriorityID",
                 "filters": [{"ql": "dtmDateCompleted IS NULL AND intSiteID = ?", "parameters": [site_id]}],
                 "maxObjects": 1000
             }
-            open_wos = await self._fiix_rpc(body_wo)
-            
-            total_open = len(open_wos)
-            
-            # --- 2. CÁLCULO: % SALUD (Preventivo vs Correctivo) ---
-            # intMaintenanceTypeID: 1 suelen ser preventivas (preventive)
-            preventivos = sum(1 for wo in open_wos if wo.get("intMaintenanceTypeID") == 1)
-            
-            # Usamos round() de Python (NO Math.round)
-            health_ratio = round((preventivos / total_open) * 100) if total_open > 0 else 100
+            open_wos = await self._fiix_rpc(body_open)
+            backlog_count = len(open_wos)
+            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
 
-            # --- 3. CÁLCULO: PLAN DE HOY (Próximas 24h) ---
-            hoy_planificadas = 0
-            for wo in open_wos:
-                sugg = wo.get("dtmSuggestedCompletionDate")
-                if isinstance(sugg, int) and now_ms <= sugg <= next_24h_ms:
-                    hoy_planificadas += 1
+            # --- 2. EQUIPOS FUERA DE SERVICIO (Assets con Status 'Down' o similar) ---
+            # Vamos a contar cuántos Assets en tu Site NO están en estado 'Normal' (ID 1 suele ser Normal)
+            body_assets_down = {
+                "_maCn": "FindRequest",
+                "className": "Asset",
+                "fields": "id",
+                "filters": [{"ql": "intSiteID = ? AND intAssetStatusID != ?", "parameters": [site_id, 1]}],
+                "maxObjects": 100
+            }
+            assets_down_res = await self._fiix_rpc(body_assets_down)
+            assets_down_count = len(assets_down_res)
 
-            # --- 4. CÁLCULO: ALERTAS DE SEGURIDAD ---
-            # Buscamos palabras críticas en la descripción de las averías
-            palabras_peligro = ["seguridad", "safety", "prl", "caida", "riesgo", "fuego", "electrico"]
-            criticas_seguridad = 0
-            for wo in open_wos:
-                desc = str(wo.get("strDescription") or "").lower()
-                if any(p in desc for p in palabras_peligro):
-                    criticas_seguridad += 1
+            # --- 3. ÓRDENES FINALIZADAS ESTE MES (Productividad) ---
+            body_closed = {
+                "_maCn": "FindRequest",
+                "className": "WorkOrder",
+                "fields": "id",
+                "filters": [{"ql": "dtmDateCompleted >= ? AND intSiteID = ?", "parameters": [first_day_month, site_id]}],
+                "maxObjects": 1000
+            }
+            closed_wos = await self._fiix_rpc(body_closed)
+            closed_count = len(closed_wos)
 
-            print(f"📊 [FIIX MAD] Salud: {health_ratio}% | Hoy: {hoy_planificadas} | Seguridad: {criticas_seguridad}")
+            print(f"📊 [FIIX MAD] Abiertas: {backlog_count} | Urgentes: {urgent_count} | Equipos Down: {assets_down_count} | Cerradas Mes: {closed_count}")
 
-            # --- 5. BROADCAST VÍA WEBSOCKET ---
+            # --- 4. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
-            metrics = [
-                ("fiix_health_ratio", health_ratio),
-                ("fiix_today_work", hoy_planificadas),
-                ("fiix_safety_issues", criticas_seguridad)
-            ]
-            
-            for m, v in metrics:
-                await manager.broadcast({
-                    "type": "kpi_update", 
-                    "metric": m, 
-                    "value": v, 
-                    "timestamp": ts, 
-                    "station": "MAD"
-                })
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_assets_down", "value": assets_down_count, "timestamp": ts})
+            await manager.broadcast({"type": "kpi_update", "metric": "fiix_closed_month", "value": closed_count, "timestamp": ts})
 
         except Exception as e:
-            print(f"❌ [FIIX] Error en el cálculo de métricas: {e}")
+            print(f"❌ [FIIX] Error en métricas operativas: {e}")
 
 
 
@@ -4691,11 +4680,6 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-
-
-
-
 
 
 
