@@ -2324,16 +2324,6 @@ body.card-open #timer-reset {
 }
 .btn-tiny:hover { background: #f3f4f6; }
 .btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
-@keyframes pulse-red-soft {
-    0% { background-color: #fff1f2; }
-    50% { background-color: #fee2e2; border-color: #ef4444; }
-    100% { background-color: #fff1f2; }
-}
-
-.alert-danger-vivid {
-    animation: pulse-red-soft 2s infinite ease-in-out;
-    border-left: 6px solid #dc2626 !important;
-}
 <div class="kpi-tile" style="border-left: 6px solid #10b981; background: #f0fdf4;"> <!-- Verde Esmeralda -->
   <div class="kpi-label" style="color: #065f46;">Gasto Mto. (Mes)</div>
   <div class="kpi-value" style="color: #047857;">
@@ -2692,26 +2682,6 @@ body.card-open #timer-reset {
         <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
       </div>
     </div>
-    <!-- Salud del Almacén (Circular o Barra) -->
-    <div class="kpi-tile" id="tile-fiix-health">
-        <div class="kpi-label">Salud Almacén</div>
-        <div class="kpi-value"><span id="fiix-health">0</span>%</div>
-        <small class="kpi-text">Mto. Preventivo</small>
-    </div>
-
-    <!-- 2. Plan de Hoy -->
-    <div class="kpi-tile">
-        <div class="kpi-label">Plan de Hoy</div>
-        <div class="kpi-value" id="fiix-today-work">0</div>
-        <small class="kpi-text">Órdenes para este turno</small>
-    </div>
-
-    <!-- 3. Alertas de Seguridad -->
-    <div class="kpi-tile" id="tile-fiix-safety">
-        <div class="kpi-label">Riesgos PRL</div>
-        <div class="kpi-value" id="fiix-safety">0</div>
-        <small class="kpi-text">Averías críticas</small>
-    </div>
   </div>
 
   <hr style="border:0; border-top:1px solid var(--border); margin: 10px 0;">
@@ -2723,29 +2693,23 @@ body.card-open #timer-reset {
     <!-- Backlog -->
     <!-- Fila de Fiix -->
 <div class="kpi-tile">
-        <div class="kpi-label">Backlog (Abiertas)</div>
-        <div class="kpi-value" id="fiix-backlog">0</div>
-    </div>
-
-    <!-- Urgentes -->
-    <div class="kpi-tile" id="tile-fiix-urgent">
-        <div class="kpi-label">Urgentes</div>
-        <div class="kpi-value" id="fiix-urgent">0</div>
-    </div>
-
-    <!-- Vencidas -->
-    <div class="kpi-tile" id="tile-fiix-overdue">
-        <div class="kpi-label">Vencidas</div>
-        <div class="kpi-value" id="fiix-overdue">0</div>
-        <small class="kpi-text">Fuera de plazo</small>
-    </div>
-
-    <!-- Sin Asignar -->
-    <div class="kpi-tile" id="tile-fiix-unassigned">
-        <div class="kpi-label">Sin Asignar</div>
-        <div class="kpi-value" id="fiix-unassigned">0</div>
-        <small class="kpi-text">Tareas sin dueño</small>
-    </div>
+    <div class="kpi-label">Backlog (Fiix)</div>
+    <div class="kpi-value" id="fiix-backlog">—</div> <!-- ID correcto -->
+</div>
+<div class="kpi-tile" id="tile-fiix-urgent">
+    <div class="kpi-label">Urgentes</div>
+    <div class="kpi-value" id="fiix-urgent">—</div> <!-- ID correcto -->
+</div>
+<div class="kpi-tile" id="tile-fiix-down" style="border-left: 4px solid #334155;">
+  <div class="kpi-label">Equipos Down</div>
+  <div class="kpi-value" id="fiix-assets-down">0</div>
+  <small class="kpi-text">Fuera de servicio</small>
+</div>
+<div class="kpi-tile" style="border-left: 4px solid #8b5cf6;">
+  <div class="kpi-label">Cerradas Mes</div>
+  <div class="kpi-value" id="fiix-closed-month">0</div>
+  <small class="kpi-text">Tareas completadas</small>
+</div>
   </div>
 
   <!-- SEPARADOR -->
@@ -4132,47 +4096,48 @@ function processTaskUpdate(data) {
     }
 
     // 4. KPIs (FIIX + PowerBI)
-    // Dentro de processTaskUpdate(data) en index.html
+    if (data.type === 'kpi_update' || data.metric) {
+            const mKey = String(data.metric || '').toLowerCase();
 
-if (data.metric && data.metric.startsWith('fiix_')) {
-    const val = data.value;
-    const m = data.metric;
-
-    // --- Ratio de Salud ---
-       if (mKey === 'fiix_health_ratio') {
-            const el = document.getElementById('fiix-health');
-            if (el) {
-                el.textContent = data.value;
-                const tile = el.closest('.kpi-tile');
-                // Rojo si la salud es baja (< 50%), verde si es alta
-                tile.style.borderLeft = data.value < 50 ? '6px solid #dc2626' : '6px solid #10b981';
-            }
-            return;
-        }
-
-        // --- PLAN DE HOY ---
-        if (mKey === 'fiix_today_work') {
-            const el = document.getElementById('fiix-today-work');
-            if (el) el.textContent = data.value;
-            return;
-        }
-
-        // --- ALERTAS DE SEGURIDAD (PRL) ---
-        if (mKey === 'fiix_safety_issues') {
-            const el = document.getElementById('fiix-safety');
-            if (el) {
-                el.textContent = data.value;
-                const tile = el.closest('.kpi-tile');
-                if (tile) {
-                    if (Number(data.value) > 0) {
-                        tile.classList.add('alert-danger-vivid');
-                    } else {
-                        tile.classList.remove('alert-danger-vivid');
+            if (mKey === 'fiix_backlog') {
+                        document.getElementById('fiix-backlog').textContent = data.value;
+                        return;
                     }
-                }
-            }
-            return;
-        }
+                    if (mKey === 'fiix_urgent') {
+                        document.getElementById('fiix-urgent').textContent = data.value;
+                        const tile = document.getElementById('tile-fiix-urgent');
+                        if(tile) {
+                            if(Number(data.value) > 0) tile.classList.add('tile-critical');
+                            else tile.classList.remove('tile-critical');
+                        }
+                        return;
+                    }
+                    if (mKey === 'fiix_assets_down') {
+                        const el = document.getElementById('fiix-assets-down');
+                        if (el) el.textContent = data.value;
+                        const tile = document.getElementById('tile-fiix-down');
+                        if (tile) {
+                            // Si hay máquinas rotas, ponemos el fondo en ámbar/naranja
+                            tile.style.background = Number(data.value) > 0 ? '#fffbeb' : '#fff';
+                            tile.style.borderColor = Number(data.value) > 0 ? '#fde68a' : '#e6e8ec';
+                        }
+                        return;
+                    }
+                    if (mKey === 'fiix_closed_month') {
+                        const el = document.getElementById('fiix-closed-month');
+                        if (el) el.textContent = data.value;
+                        return;
+                    }
+                        if (mKey === 'fiix_cost') {
+                            const el = document.getElementById('fiix-cost');
+                            if (el) {
+                                el.textContent = new Intl.NumberFormat('es-ES', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                }).format(data.value);
+                            }
+                            return;
+                        }
 
         // B. KPIs de PowerBI (Pestaña MAD WFS4)
         if (tName === 'MAD WFS4' || tName === '') {
@@ -4186,7 +4151,7 @@ if (data.metric && data.metric.startsWith('fiix_')) {
                 setKpiValue('kpi-backlog', 'kpi-backlog-meta', data.value);
             }
         }
-    
+    }
 
     // 5. Render de tarjetas normales
     const elementId = `task-${data.id}`;
@@ -4196,7 +4161,6 @@ if (data.metric && data.metric.startsWith('fiix_')) {
         case 'gw_task': GW_MAP.set(data.id, data); renderGwTop3(); break;
         case 'ops_update': if(window.renderOpsCard) window.renderOpsCard(data); break;
     }
-}
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
@@ -7169,14 +7133,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
 
 
 
