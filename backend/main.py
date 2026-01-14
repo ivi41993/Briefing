@@ -2934,55 +2934,54 @@ class FiixConnector:
     async def fetch_metrics(self):
         site_id = 29449435
         now = datetime.now()
-        first_day_month = now.replace(day=1, hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
+        today_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            # --- 1. BACKLOG Y URGENCIAS (Órdenes Abiertas) ---
-            body_open = {
+            # --- 1. CARGA TOTAL Y PRIORIDADES ---
+            body_wo = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, intPriorityID",
+                "fields": "id, intPriorityID, intMaintenanceTypeID, dtmSuggestedCompletionDate, strAssignedUsers",
                 "filters": [{"ql": "dtmDateCompleted IS NULL AND intSiteID = ?", "parameters": [site_id]}],
                 "maxObjects": 1000
             }
-            open_wos = await self._fiix_rpc(body_open)
-            backlog_count = len(open_wos)
-            urgent_count = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
+            open_wos = await self._fiix_rpc(body_wo)
+            
+            # --- 2. CÁLCULOS OPERATIVOS ---
+            backlog = len(open_wos)
+            
+            # Urgentes (ID 278571 que detectamos antes)
+            urgentes = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
+            
+            # Preventivos vs Correctivos (intMaintenanceTypeID: 1 es preventivo, 2 correctivo usualmente)
+            # Si no sabes los IDs, los contamos por exclusión
+            preventivos = sum(1 for wo in open_wos if "prev" in str(wo.get("strDescription", "")).lower())
+            
+            # Órdenes Vencidas (Fecha sugerida < Hoy)
+            vencidas = 0
+            for wo in open_wos:
+                sugg = wo.get("dtmSuggestedCompletionDate")
+                if sugg and sugg < today_str:
+                    vencidas += 1
+            
+            # Sin Asignar
+            sin_asignar = sum(1 for wo in open_wos if not wo.get("strAssignedUsers"))
 
-            # --- 2. EQUIPOS FUERA DE SERVICIO (Assets con Status 'Down' o similar) ---
-            # Vamos a contar cuántos Assets en tu Site NO están en estado 'Normal' (ID 1 suele ser Normal)
-            body_assets_down = {
-                "_maCn": "FindRequest",
-                "className": "Asset",
-                "fields": "id",
-                "filters": [{"ql": "intSiteID = ? AND intAssetStatusID != ?", "parameters": [site_id, 1]}],
-                "maxObjects": 100
-            }
-            assets_down_res = await self._fiix_rpc(body_assets_down)
-            assets_down_count = len(assets_down_res)
+            print(f"📊 [FIIX MAD] Backlog: {backlog} | Vencidas: {vencidas} | Sin Asignar: {sin_asignar}")
 
-            # --- 3. ÓRDENES FINALIZADAS ESTE MES (Productividad) ---
-            body_closed = {
-                "_maCn": "FindRequest",
-                "className": "WorkOrder",
-                "fields": "id",
-                "filters": [{"ql": "dtmDateCompleted >= ? AND intSiteID = ?", "parameters": [first_day_month, site_id]}],
-                "maxObjects": 1000
-            }
-            closed_wos = await self._fiix_rpc(body_closed)
-            closed_count = len(closed_wos)
-
-            print(f"📊 [FIIX MAD] Abiertas: {backlog_count} | Urgentes: {urgent_count} | Equipos Down: {assets_down_count} | Cerradas Mes: {closed_count}")
-
-            # --- 4. BROADCAST ---
+            # --- 3. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_backlog", "value": backlog_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_urgent", "value": urgent_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_assets_down", "value": assets_down_count, "timestamp": ts})
-            await manager.broadcast({"type": "kpi_update", "metric": "fiix_closed_month", "value": closed_count, "timestamp": ts})
+            payloads = [
+                ("fiix_backlog", backlog),
+                ("fiix_urgent", urgentes),
+                ("fiix_overdue", vencidas),
+                ("fiix_unassigned", sin_asignar)
+            ]
+            for m, v in payloads:
+                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
 
         except Exception as e:
-            print(f"❌ [FIIX] Error en métricas operativas: {e}")
+            print(f"❌ [FIIX] Error: {e}")
 
 
 
@@ -4680,6 +4679,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
