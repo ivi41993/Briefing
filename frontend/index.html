@@ -4116,10 +4116,14 @@ if (data.metric && data.metric.startsWith('fiix_')) {
     } 
 
     // --- KPI MÁQUINAS DOWN ---
-    else if (m === 'fiix_assets_down') {
+    if (m === 'fiix_assets_down') {
         const el = document.getElementById('fiix-down-text');
-        if (el) el.textContent = val > 0 ? `${val} equipos parados` : 'Todo operativo';
-    } 
+        if (el) {
+            // Si el valor es 0, mostramos mensaje positivo
+            el.textContent = val > 0 ? `${val} equipos parados ahora` : 'Todos los equipos operativos';
+            el.style.color = val > 0 ? '#ef4444' : '#64748b'; // Rojo si hay fallos
+        }
+    }
 
     // --- KPI ÓRDENES CREADAS ---
     else if (m === 'fiix_wo_created_24h') {
@@ -7115,6 +7119,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
