@@ -2693,24 +2693,24 @@ body.card-open #timer-reset {
       </div>
     </div>
     <!-- Salud del Almacén (Circular o Barra) -->
-    <div class="kpi-tile" style="border-left: 6px solid #10b981;">
-        <div class="kpi-label">Salud del Almacén</div>
-        <div class="kpi-value"><span id="fiix-health">100</span>%</div>
-        <small class="kpi-text">Mto. Preventivo activo</small>
+    <div class="kpi-tile" id="tile-fiix-health">
+        <div class="kpi-label">Salud Almacén</div>
+        <div class="kpi-value"><span id="fiix-health">0</span>%</div>
+        <small class="kpi-text">Mto. Preventivo</small>
     </div>
 
-    <!-- Tareas Planificadas para Hoy -->
-    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+    <!-- 2. Plan de Hoy -->
+    <div class="kpi-tile">
         <div class="kpi-label">Plan de Hoy</div>
         <div class="kpi-value" id="fiix-today-work">0</div>
-        <small class="kpi-text">Órdenes asignadas a este turno</small>
+        <small class="kpi-text">Órdenes para este turno</small>
     </div>
 
-    <!-- Alerta de Seguridad (Solo destaca si es > 0) -->
-    <div class="kpi-tile" id="tile-fiix-safety" style="border-left: 4px solid #e5e7eb;">
-        <div class="kpi-label">Alertas de Seguridad</div>
+    <!-- 3. Alertas de Seguridad -->
+    <div class="kpi-tile" id="tile-fiix-safety">
+        <div class="kpi-label">Riesgos PRL</div>
         <div class="kpi-value" id="fiix-safety">0</div>
-        <small class="kpi-text">Averías con riesgo PRL</small>
+        <small class="kpi-text">Averías críticas</small>
     </div>
   </div>
 
@@ -7168,6 +7168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
