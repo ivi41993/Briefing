@@ -2933,55 +2933,61 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         site_id = 29449435
-        now = datetime.now()
-        today_str = now.strftime("%Y-%m-%d %H:%M:%S")
+        # Obtenemos el tiempo actual en milisegundos (formato nativo de Fiix)
+        now_ms = int(time.time() * 1000)
 
         try:
             # --- 1. CARGA TOTAL Y PRIORIDADES ---
             body_wo = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, intPriorityID, intMaintenanceTypeID, dtmSuggestedCompletionDate, strAssignedUsers",
+                # Pedimos campos clave para salud operativa
+                "fields": "id, intPriorityID, dtmSuggestedCompletionDate, strAssignedUserIds",
                 "filters": [{"ql": "dtmDateCompleted IS NULL AND intSiteID = ?", "parameters": [site_id]}],
                 "maxObjects": 1000
             }
             open_wos = await self._fiix_rpc(body_wo)
             
-            # --- 2. CÁLCULOS OPERATIVOS ---
+            # --- 2. CÁLCULOS OPERATIVOS SEGUROS ---
             backlog = len(open_wos)
             
-            # Urgentes (ID 278571 que detectamos antes)
+            # Urgentes (ID 278571 detectado antes)
             urgentes = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
             
-            # Preventivos vs Correctivos (intMaintenanceTypeID: 1 es preventivo, 2 correctivo usualmente)
-            # Si no sabes los IDs, los contamos por exclusión
-            preventivos = sum(1 for wo in open_wos if "prev" in str(wo.get("strDescription", "")).lower())
-            
-            # Órdenes Vencidas (Fecha sugerida < Hoy)
+            # Órdenes Vencidas (dtmSuggestedCompletionDate < Ahora)
             vencidas = 0
             for wo in open_wos:
                 sugg = wo.get("dtmSuggestedCompletionDate")
-                if sugg and sugg < today_str:
+                # Verificamos que sea un número antes de comparar
+                if sugg and isinstance(sugg, int) and sugg < now_ms:
                     vencidas += 1
             
-            # Sin Asignar
-            sin_asignar = sum(1 for wo in open_wos if not wo.get("strAssignedUsers"))
+            # Sin Asignar (Si la cadena de IDs de usuarios está vacía o es None)
+            sin_asignar = sum(1 for wo in open_wos if not wo.get("strAssignedUserIds"))
 
-            print(f"📊 [FIIX MAD] Backlog: {backlog} | Vencidas: {vencidas} | Sin Asignar: {sin_asignar}")
+            print(f"📊 [FIIX MAD] Backlog: {backlog} | Vencidas: {vencidas} | Sin Asignar: {sin_asignar} | Urgentes: {urgentes}")
 
             # --- 3. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
-            payloads = [
+            # Enviamos a MAD
+            metrics_to_send = [
                 ("fiix_backlog", backlog),
                 ("fiix_urgent", urgentes),
                 ("fiix_overdue", vencidas),
                 ("fiix_unassigned", sin_asignar)
             ]
-            for m, v in payloads:
-                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
+            
+            for m, v in metrics_to_send:
+                await manager.broadcast({
+                    "type": "kpi_update", 
+                    "metric": m, 
+                    "value": v, 
+                    "timestamp": ts, 
+                    "station": "MAD"
+                })
 
         except Exception as e:
-            print(f"❌ [FIIX] Error: {e}")
+            print(f"❌ [FIIX] Error en cálculos: {e}")
 
 
 
@@ -4679,6 +4685,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
