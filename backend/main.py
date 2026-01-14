@@ -2933,11 +2933,11 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         site_id = 29449435
-        # Obtenemos las fechas en el formato string que Fiix acepta: 'YYYY-MM-DD HH:MM:SS'
+        # --- CORRECCIÓN CRÍTICA: Fiix requiere las fechas como STRING 'YYYY-MM-DD HH:MM:SS' ---
         now = datetime.now()
-        yesterday = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
         
-        print(f"📡 [FIIX] Sincronizando Nave MAD (Desde: {yesterday})")
+        print(f"📡 [FIIX] Sincronizando Nave MAD (Desde: {yesterday_str})")
 
         try:
             # --- 1. ESTADO DE MÁQUINAS (ASSETS) ---
@@ -2946,37 +2946,41 @@ class FiixConnector:
                 "className": "Asset",
                 "fields": "id, intAssetStatusID",
                 "filters": [{"ql": "intSiteID = ?", "parameters": [site_id]}],
-                "maxObjects": 500
+                "maxObjects": 1000
             }
-            assets_res = await self._fiix_call(body_assets)
+            # Importante: Asegúrate de que el método en tu clase se llame _fiix_rpc
+            assets_res = await self._fiix_rpc(body_assets)
             
             total_assets = len(assets_res)
-            # intAssetStatusID: 1 es 'Normal'. Contamos los que NO están en 1.
+            # intAssetStatusID: 1 es 'Normal/Up'.
             assets_down = sum(1 for a in assets_res if a.get("intAssetStatusID") != 1)
+            
+            # Usamos round() de Python
             availability_pct = round(((total_assets - assets_down) / total_assets) * 100) if total_assets > 0 else 100
 
-            # --- 2. FLUJO DE ÓRDENES (ÚLTIMAS 24H) ---
-            # Filtro corregido: Usamos el string 'yesterday' en lugar de milisegundos
+            # --- 2. FLUJO DE ÓRDENES (TRABAJO DE LAS ÚLTIMAS 24H) ---
+            # Filtro de Creadas: dtmDateCreated >= ayer (en formato texto)
             body_created = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
                 "fields": "id",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [site_id, yesterday]}]
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [site_id, yesterday_str]}]
             }
+            # Filtro de Cerradas: dtmDateCompleted >= ayer (en formato texto)
             body_closed = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
                 "fields": "id",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCompleted >= ?", "parameters": [site_id, yesterday]}]
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCompleted >= ?", "parameters": [site_id, yesterday_str]}]
             }
 
-            created_res = await self._fiix_call(body_created)
-            closed_res = await self._fiix_call(body_closed)
+            created_today_res = await self._fiix_rpc(body_created)
+            closed_today_res = await self._fiix_rpc(body_closed)
             
-            created_today = len(created_res)
-            closed_today = len(closed_res)
+            created_today = len(created_today_res)
+            closed_today = len(closed_today_res)
 
-            print(f"📊 [FIIX MAD] Disponibilidad: {availability_pct}% | Creadas: {created_today} | Cerradas: {closed_today}")
+            print(f"📊 [FIIX MAD] Disponibilidad: {availability_pct}% | Roto: {assets_down} | Creadas 24h: {created_today} | Cerradas 24h: {closed_today}")
 
             # --- 3. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
@@ -2988,10 +2992,16 @@ class FiixConnector:
             ]
             
             for m, v in metrics:
-                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
+                await manager.broadcast({
+                    "type": "kpi_update", 
+                    "metric": m, 
+                    "value": v, 
+                    "timestamp": ts, 
+                    "station": "MAD"
+                })
 
         except Exception as e:
-            print(f"❌ [FIIX] Error en el proceso: {e}")
+            print(f"❌ [FIIX] Error operativo: {e}")
 
 
 
@@ -4689,6 +4699,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
