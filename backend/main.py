@@ -2933,61 +2933,59 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         site_id = 29449435
-        # Obtenemos el tiempo actual en milisegundos (formato nativo de Fiix)
         now_ms = int(time.time() * 1000)
+        day_ms = 24 * 60 * 60 * 1000 # Un día en milisegundos
 
         try:
-            # --- 1. CARGA TOTAL Y PRIORIDADES ---
+            # Traemos todas las abiertas para el Site
             body_wo = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                # Pedimos campos clave para salud operativa
-                "fields": "id, intPriorityID, dtmSuggestedCompletionDate, strAssignedUserIds",
+                "fields": "id, intMaintenanceTypeID, dtmSuggestedCompletionDate, strDescription",
                 "filters": [{"ql": "dtmDateCompleted IS NULL AND intSiteID = ?", "parameters": [site_id]}],
                 "maxObjects": 1000
             }
             open_wos = await self._fiix_rpc(body_wo)
             
-            # --- 2. CÁLCULOS OPERATIVOS SEGUROS ---
-            backlog = len(open_wos)
+            # --- CÁLCULOS DE SALUD OPERATIVA ---
+            total_open = len(open_wos)
             
-            # Urgentes (ID 278571 detectado antes)
-            urgentes = sum(1 for wo in open_wos if wo.get("intPriorityID") == 278571)
+            # 1. Separación Preventivo (ID 1) vs Correctivo (ID 2/Especial)
+            # En Fiix 1 suele ser preventivo y 2 correctivo.
+            preventivos = sum(1 for wo in open_wos if wo.get("intMaintenanceTypeID") == 1)
+            correctivos = total_open - preventivos
             
-            # Órdenes Vencidas (dtmSuggestedCompletionDate < Ahora)
-            vencidas = 0
+            # Calculamos el % de Salud (cuanto más preventivo, mejor)
+            health_ratio = Math.round((preventivos / total_open) * 100) if total_open > 0 else 100
+
+            # 2. Órdenes para HOY (Próximas 24 horas)
+            hoy_planificadas = 0
             for wo in open_wos:
                 sugg = wo.get("dtmSuggestedCompletionDate")
-                # Verificamos que sea un número antes de comparar
-                if sugg and isinstance(sugg, int) and sugg < now_ms:
-                    vencidas += 1
-            
-            # Sin Asignar (Si la cadena de IDs de usuarios está vacía o es None)
-            sin_asignar = sum(1 for wo in open_wos if not wo.get("strAssignedUserIds"))
+                if sugg and isinstance(sugg, int):
+                    # Si la fecha está entre (Ahora - 4h) y (Ahora + 20h)
+                    if (now_ms - (4*3600*1000)) <= sugg <= (now_ms + (20*3600*1000)):
+                        hoy_planificadas += 1
 
-            print(f"📊 [FIIX MAD] Backlog: {backlog} | Vencidas: {vencidas} | Sin Asignar: {sin_asignar} | Urgentes: {urgentes}")
+            # 3. Averías Críticas de Seguridad
+            # Buscamos palabras clave en la descripción
+            criticas_seguridad = sum(1 for wo in open_wos if any(x in str(wo.get("strDescription", "")).lower() for x in ["seguridad", "safety", "riesgo", "caida"]))
 
-            # --- 3. BROADCAST ---
+            print(f"✅ [FIIX] Salud: {health_ratio}% | Hoy: {hoy_planificadas} | Seguridad: {criticas_seguridad}")
+
             ts = datetime.utcnow().isoformat() + "Z"
-            # Enviamos a MAD
-            metrics_to_send = [
-                ("fiix_backlog", backlog),
-                ("fiix_urgent", urgentes),
-                ("fiix_overdue", vencidas),
-                ("fiix_unassigned", sin_asignar)
+            metrics = [
+                ("fiix_health_ratio", health_ratio),
+                ("fiix_today_work", hoy_planificadas),
+                ("fiix_safety_issues", criticas_seguridad),
+                ("fiix_total_open", total_open)
             ]
             
-            for m, v in metrics_to_send:
-                await manager.broadcast({
-                    "type": "kpi_update", 
-                    "metric": m, 
-                    "value": v, 
-                    "timestamp": ts, 
-                    "station": "MAD"
-                })
+            for m, v in metrics:
+                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
 
         except Exception as e:
-            print(f"❌ [FIIX] Error en cálculos: {e}")
+            print(f"❌ [FIIX] Error: {e}")
 
 
 
@@ -4685,6 +4683,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
