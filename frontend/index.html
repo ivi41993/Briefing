@@ -2324,6 +2324,16 @@ body.card-open #timer-reset {
 }
 .btn-tiny:hover { background: #f3f4f6; }
 .btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
+@keyframes pulse-red-soft {
+    0% { background-color: #fff1f2; }
+    50% { background-color: #fee2e2; border-color: #ef4444; }
+    100% { background-color: #fff1f2; }
+}
+
+.alert-danger-vivid {
+    animation: pulse-red-soft 2s infinite ease-in-out;
+    border-left: 6px solid #dc2626 !important;
+}
 <div class="kpi-tile" style="border-left: 6px solid #10b981; background: #f0fdf4;"> <!-- Verde Esmeralda -->
   <div class="kpi-label" style="color: #065f46;">Gasto Mto. (Mes)</div>
   <div class="kpi-value" style="color: #047857;">
@@ -4129,45 +4139,40 @@ if (data.metric && data.metric.startsWith('fiix_')) {
     const m = data.metric;
 
     // --- Ratio de Salud ---
-        if (mKey === 'fiix_health_ratio') {
+       if (mKey === 'fiix_health_ratio') {
             const el = document.getElementById('fiix-health');
             if (el) {
                 el.textContent = data.value;
                 const tile = el.closest('.kpi-tile');
-                // Si la salud baja del 50%, el almacén está en modo "caos"
-                tile.style.color = data.value < 50 ? '#991b1b' : '#065f46';
-                tile.style.background = data.value < 50 ? '#fef2f2' : '#f0fdf4';
+                // Rojo si la salud es baja (< 50%), verde si es alta
+                tile.style.borderLeft = data.value < 50 ? '6px solid #dc2626' : '6px solid #10b981';
             }
             return;
         }
 
-        // --- Alertas de Seguridad ---
+        // --- PLAN DE HOY ---
+        if (mKey === 'fiix_today_work') {
+            const el = document.getElementById('fiix-today-work');
+            if (el) el.textContent = data.value;
+            return;
+        }
+
+        // --- ALERTAS DE SEGURIDAD (PRL) ---
         if (mKey === 'fiix_safety_issues') {
             const el = document.getElementById('fiix-safety');
             if (el) {
                 el.textContent = data.value;
-                const tile = document.getElementById('tile-fiix-safety');
+                const tile = el.closest('.kpi-tile');
                 if (tile) {
-                    if (data.value > 0) {
-                        tile.style.background = '#fff1f2'; // Rojo suave
-                        tile.style.borderLeft = '6px solid #ef4444';
-                        tile.classList.add('pulse-alert'); // Necesitas un CSS de parpadeo
+                    if (Number(data.value) > 0) {
+                        tile.classList.add('alert-danger-vivid');
                     } else {
-                        tile.style.background = '#fff';
-                        tile.style.borderLeft = '4px solid #e5e7eb';
+                        tile.classList.remove('alert-danger-vivid');
                     }
                 }
             }
             return;
         }
-
-        // --- Plan de Hoy ---
-        if (mKey === 'fiix_today_work') {
-            document.getElementById('fiix-today-work').textContent = data.value;
-            return;
-        }
-    return; // Fin de procesamiento para métricas Fiix
-}
 
         // B. KPIs de PowerBI (Pestaña MAD WFS4)
         if (tName === 'MAD WFS4' || tName === '') {
@@ -7163,6 +7168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
