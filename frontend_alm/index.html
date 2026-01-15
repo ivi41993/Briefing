@@ -3518,82 +3518,107 @@ console.error('PUT /api/roster/zone falló', e);
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
+    // 1. BLINDAJE DE ESTADO: Inicialización segura
+    if (!window.TEAM_STATE) window.TEAM_STATE = {};
+    if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
+    if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
+    
     // Sincronizar datos recibidos
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
     
     const masterList = window.TEAM_STATE.allPeopleRaw || [];
-    window.TEAM_STATE.people = masterList; // Guardar para el Excel
 
-    if (masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal...</div>';
+    // --- 2. FILTRADO POR NAVE 3 (codDestino === "N3") ---
+    const peopleInN3 = masterList.filter(p => {
+        const destino = (p.cod_destino || p.codDestino || "").toUpperCase().trim();
+        return destino === "N3";
+    });
+
+    // Guardar para el generador de resumen de Excel
+    window.TEAM_STATE.people = peopleInN3; 
+
+    if (peopleInN3.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No hay personal asignado a Nave 3 (N3)...</div>';
         return;
     }
 
-   // 1. CLASIFICACIÓN POR JERARQUÍA DE ALMACÉN
+    // --- 3. CLASIFICACIÓN ESTRICTA (ALM vs OPS) ---
     const groups = {
         "SUPERVISIÓN ALMACÉN": [],
         "CAPATACES": [],
-        "OPERARIOS NAVE 4": []
+        "OPERARIOS NAVE 3": []
     };
 
-    masterList.forEach(p => {
-        const grupo = (p.grupo || "").toUpperCase();
-        if (grupo.includes("01-SUPERVISORES-ALM")) groups["SUPERVISIÓN ALMACÉN"].push(p);
-        else if (grupo.includes("02-CAPATACES")) groups["CAPATACES"].push(p);
-        else if (grupo.includes("OPERARIOS-N4")) groups["OPERARIOS NAVE 4"].push(p);
+    peopleInN3.forEach(p => {
+        const grupo = (p.grupo || p.observaciones || "").toUpperCase();
+        
+        // Regla 1: Debe ser 01-SUPERVISORES y contener ALM (excluir OPS)
+        if (grupo.includes("01") && grupo.includes("ALM")) {
+            groups["SUPERVISIÓN ALMACÉN"].push(p);
+        } 
+        // Regla 2: Capataces (02)
+        else if (grupo.includes("02") || grupo.includes("CAPATAZ")) {
+            groups["CAPATACES"].push(p);
+        } 
+        // Regla 3: Operarios específicos de la Nave 3
+        else if (grupo.includes("OPERARIO") || grupo.includes("ETT") || grupo.includes("N3")) {
+            groups["OPERARIOS NAVE 3"].push(p);
+        }
     });
 
     listEl.innerHTML = '';
-    const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
+    const ZONES = ['N3 MUELLE', 'N3 INTERIOR', 'CÁMARA FRÍA', 'OFICINA ALM', 'ENTRADA', 'SALIDA'];
 
+    // 4. RENDERIZADO VISUAL VIVID
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
         const header = document.createElement('div');
-        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; text-transform:uppercase;";
+        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.85rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
         header.textContent = `${groupName} (${groupPeople.length})`;
         listEl.appendChild(header);
 
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
-            // safeId: reemplaza espacios y caracteres raros para que el ID sea válido en HTML
-            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/=/g, ""); 
+            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g, ""); 
             
-            const currentAtt = window.TEAM_STATE.attendance[name];
+            let currentAtt = window.TEAM_STATE.attendance[name];
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            let colorVivid = "#3b82f6";
-            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24";
-            if (groupName.includes("DGR")) colorVivid = "#ef4444";
+            // Colores Vivid (Oro para Supers, Púrpura para Capataces, Azul para Operarios)
+            let borderColor = "#3b82f6"; 
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; 
+            if (groupName.includes("CAPATACES")) borderColor = "#8b5cf6"; 
 
             const card = document.createElement('div');
             card.className = 'team-row';
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff;`;
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:8px solid ${borderColor}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
 
             card.innerHTML = `
                 <div>
-                    <div style="font-weight:800; font-size:0.9rem;">${esc(name)}</div>
-                    <div style="font-size:0.7rem; color:#64748b;">🕒 ${esc(p.horario || '—')}</div>
+                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${esc(name)}</div>
+                    <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
+                        <span style="font-size:0.62rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800;">${esc(p.grupo)}</span>
+                        <span style="font-size:0.62rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">N3</span>
+                    </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
-                        <!-- PENDIENTE -->
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
-                        <label for="u_${safeId}">➖</label>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">➖</label>
 
-                        <!-- OK -->
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes">✅</label>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">✅</label>
                         
-                        <!-- NO -->
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no">❌</label>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">❌</label>
                     </div>
-                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem;">
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                         <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
-                        ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
+                        ${ZONES.map(z => `<option value="${z}" ${z === currentZone ? 'selected' : ''}>${z}</option>`).join('')}
                     </select>
                 </div>
             `;
@@ -3606,15 +3631,8 @@ function renderRoster(listEl, people, state) {
                     if (val === "yes") finalVal = true;
                     if (val === "no") finalVal = false;
 
-                    // 1. Guardar en memoria local
                     window.TEAM_STATE.attendance[name] = finalVal;
-
-                    // 2. Enviar al servidor (solo si es true/false para evitar 422)
-                    if (finalVal !== undefined) {
-                        updatePresenceOnServer(name, finalVal);
-                    }
-                    
-                    // 3. Actualizar contador visual
+                    if (finalVal !== undefined) updatePresenceOnServer(name, finalVal);
                     updateTeamMeta(window.TEAM_STATE);
                 });
             });
