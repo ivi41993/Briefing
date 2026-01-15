@@ -3520,40 +3520,52 @@ console.error('PUT /api/roster/zone falló', e);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
-    
-    // Sincronizar datos con el estado global
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-    if (state && state.sheet_date) window.TEAM_STATE.sheet_date = state.sheet_date;
-    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
+    // --- SOLUCIÓN AL ERROR: Inicialización segura del estado ---
+    if (!window.TEAM_STATE) {
+        window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
+    }
+
+    // Sincronizar lista maestra
+    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     const masterList = window.TEAM_STATE.allPeopleRaw || [];
+
     if (masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal MAD N4...</div>';
         return;
     }
 
-    // 1. Clasificación por categorías
+    // 1. SECCIONAMIENTO POR CATEGORÍAS (Madrid Nave 4)
     const groups = {
-        "SUPERVISORES OPS MAD": [],
+        "SUPERVISIÓN MAD N4": [],
         "ESPECIALISTAS DGR": [],
-        "OPERARIOS OPS NAVE 4": []
+        "OPERARIOS NAVE 4": []
     };
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        if (grupo.includes("SUPERVISOR")) groups["SUPERVISORES OPS MAD"].push(p);
-        else if (grupo.includes("DGR")) groups["ESPECIALISTAS DGR"].push(p);
-        else groups["OPERARIOS OPS NAVE 4"].push(p);
+        const codD = (p.cod_destino || "").toUpperCase();
+        const descD = (p.desc_destino || "").toUpperCase();
+
+        // Clasificación lógica
+        if (grupo.includes("01-SUPERVISORES-OPS")) {
+            groups["SUPERVISIÓN MAD N4"].push(p);
+        } else if (grupo.includes("03-DGR") && (codD.includes("N4") || descD.includes("NAVE 4"))) {
+            groups["ESPECIALISTAS DGR"].push(p);
+        } else {
+            groups["OPERARIOS NAVE 4"].push(p);
+        }
     });
 
     listEl.innerHTML = '';
     const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
-    // 2. Renderizado
+    // 2. RENDERIZADO VISUAL VIVID
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
+        // Header de Sección
         const header = document.createElement('div');
         header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
         header.textContent = `${groupName} (${groupPeople.length})`;
@@ -3563,64 +3575,85 @@ function renderRoster(listEl, people, state) {
             const name = p.nombre_completo;
             const safeId = name.replace(/[^a-z0-9]/gi, '_');
             
-            // Acceso seguro al estado de asistencia
-            if (window.TEAM_STATE.attendance[name] === undefined) {
-                window.TEAM_STATE.attendance[name] = undefined; 
-            }
+            // Acceso seguro al estado de asistencia (true, false o undefined)
             let currentAtt = window.TEAM_STATE.attendance[name];
+            const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            let colorVivid = "#3b82f6";
-            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24";
-            if (groupName.includes("DGR")) colorVivid = "#ef4444";
+            // Colores Vivid laterales
+            let borderColor = "#3b82f6"; // Azul Operarios
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; // Oro
+            if (groupName.includes("DGR")) borderColor = "#ef4444"; // Rojo
 
             const card = document.createElement('div');
             card.className = 'team-row';
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${borderColor}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
 
             card.innerHTML = `
                 <div>
-                    <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${name}</div>
-                    <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-top:2px;">🕒 ${p.horario || '—'} | ${p.grupo || ''}</div>
+                    <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${esc(name)}</div>
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
+                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.grupo)}</span>
+                    </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
-                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" || currentAtt === undefined ? 'checked' : ''}>
+                        <!-- Estado Pendiente (➖) -->
+                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === undefined ? 'checked' : ''}>
                         <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
+
+                        <!-- Estado OK (✅) -->
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
                         <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
+                        
+                        <!-- Estado NO (❌) -->
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="false" ${currentAtt === false ? 'checked' : ''}>
                         <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
                     </div>
                     <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem; font-weight:700; background:#fff;">
-                        <option value="" disabled ${!window.TEAM_STATE.zones[name] ? 'selected' : ''}>ZONA...</option>
-                        ${ZONES.map(z => `<option value="${z}" ${window.TEAM_STATE.zones[name] === z ? 'selected' : ''}>${z}</option>`).join('')}
+                        <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
                     </select>
                 </div>
             `;
 
-            // EVENTOS DE BOTONES
+            // --- FUNCIONALIDAD DE LOS BOTONES (FIX) ---
             card.querySelectorAll('input[type="radio"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
-                    const val = e.target.value;
+                    const valStr = e.target.value;
                     let finalVal = undefined;
-                    if (val === "true") finalVal = true;
-                    if (val === "false") finalVal = false;
+                    if (valStr === "true") finalVal = true;
+                    if (valStr === "false") finalVal = false;
                     
+                    // Guardar en el estado local
                     window.TEAM_STATE.attendance[name] = finalVal;
-                    updatePresenceOnServer(name, finalVal);
-                    updateTeamMeta(window.TEAM_STATE);
+                    
+                    // Enviar al servidor
+                    if (typeof updatePresenceOnServer === 'function') {
+                        updatePresenceOnServer(name, finalVal);
+                    }
+                    
+                    // Actualizar contadores (X de Y presentes)
+                    if (typeof updateTeamMeta === 'function') {
+                        updateTeamMeta(window.TEAM_STATE);
+                    }
                 });
             });
 
+            // Funcionalidad de Zonas
             card.querySelector('.zone-select').addEventListener('change', (e) => {
-                window.TEAM_STATE.zones[name] = e.target.value;
-                updateZoneOnServer(name, e.target.value);
+                const zone = e.target.value;
+                window.TEAM_STATE.zones[name] = zone;
+                if (typeof updateZoneOnServer === 'function') {
+                    updateZoneOnServer(name, zone);
+                }
             });
 
             listEl.appendChild(card);
         });
     });
-    updateTeamMeta(window.TEAM_STATE);
+
+    if (typeof updateTeamMeta === 'function') updateTeamMeta(window.TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
@@ -7151,6 +7184,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
