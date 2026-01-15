@@ -739,6 +739,34 @@ async def fetch_mad_roster_from_api():
 
 # --- FILTRO ROBUSTO CON PROTECCIÓN CONTRA STRINGS ---
 
+
+
+async def fetch_roster_api_data(escala: str, fecha: str):
+    url = os.getenv("ROSTER_API_URL")
+    key = os.getenv("ROSTER_API_KEY")
+    
+    if not url or not key:
+        print(f"⚠️ [API {escala}] URL o KEY no configuradas en el .env")
+        return None
+    
+    headers = {"api-key": key, "Accept": "application/json"}
+    payload = {"escala": escala, "fecha": fecha}
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Enviamos como POST con data=payload (form-data)
+            response = await client.post(url, headers=headers, data=payload)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ [API {escala}] Recibidos {len(data)} registros totales.")
+                return data
+            else:
+                print(f"❌ [API {escala}] Error HTTP {response.status_code}: {response.text[:100]}")
+                return None
+    except Exception as e:
+        print(f"💥 [API {escala}] Fallo de conexión: {str(e)}")
+        return None
+
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str = "N1"):
     """
     Filtro estricto para Madrid Nave 1.
@@ -813,32 +841,6 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
                 })
         except: continue
     return normalized
-
-async def fetch_roster_api_data(escala: str, fecha: str):
-    url = os.getenv("ROSTER_API_URL")
-    key = os.getenv("ROSTER_API_KEY")
-    
-    if not url or not key:
-        print(f"⚠️ [API {escala}] URL o KEY no configuradas en el .env")
-        return None
-    
-    headers = {"api-key": key, "Accept": "application/json"}
-    payload = {"escala": escala, "fecha": fecha}
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # Enviamos como POST con data=payload (form-data)
-            response = await client.post(url, headers=headers, data=payload)
-            if response.status_code == 200:
-                data = response.json()
-                print(f"✅ [API {escala}] Recibidos {len(data)} registros totales.")
-                return data
-            else:
-                print(f"❌ [API {escala}] Error HTTP {response.status_code}: {response.text[:100]}")
-                return None
-    except Exception as e:
-        print(f"💥 [API {escala}] Fallo de conexión: {str(e)}")
-        return None
 
 # Constructor de estado actualizado
 async def _build_roster_state(force=False) -> dict:
