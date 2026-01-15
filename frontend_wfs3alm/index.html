@@ -3549,19 +3549,14 @@ function renderRoster(listEl, people, state) {
     const groups = {
         "SUPERVISIÓN ALMACÉN": [],
         "CAPATACES": [],
-        "OPERARIOS NAVE 3": []
+        "OPERARIOS NAVE 4": []
     };
 
-    peopleInN3.forEach(p => {
-        const grupo = (p.grupo || p.observaciones || "").toUpperCase().replace(/-/g, " ");
-        
-        if (grupo.includes("SUPERVISORES-ALM") && grupo.includes("ALM")) {
-            groups["SUPERVISIÓN ALMACÉN"].push(p);
-        } else if (grupo.includes("CAPATAZ") || grupo.includes("02")) {
-            groups["CAPATACES"].push(p);
-        } else {
-            groups["OPERARIOS NAVE 3"].push(p);
-        }
+    masterList.forEach(p => {
+        const grupo = (p.grupo || "").toUpperCase();
+        if (grupo.includes("01-SUPERVISORES-ALM")) groups["SUPERVISIÓN ALMACÉN"].push(p);
+        else if (grupo.includes("02-CAPATACES")) groups["CAPATACES"].push(p);
+        else if (grupo.includes("OPERARIOS-N3")) groups["OPERARIOS NAVE 4"].push(p);
     });
 
     listEl.innerHTML = '';
