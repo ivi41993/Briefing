@@ -3531,11 +3531,17 @@ function renderRoster(listEl, people, state) {
         const grupo = (p.grupo || "").toUpperCase();
         
         // Reglas de seccionamiento visual
-        if (grupo.includes("SUPERVISOR-OPS")) {
+        if (grupo.includes("SUPERVISORES-OPS")) {
             groups["SUPERVISORES OPS MAD"].push(p);
         } else if (grupo.includes("DGR")) {
             groups["ESPECIALISTAS DGR"].push(p);
         } else if (grupo.includes("OPERARIOS-OPS")) {
+            
+            groups["OPERARIOS OPS NAVE 3"].push(p);
+        } else if (grupo.includes("APOYO-N3")) {
+            
+            groups["OPERARIOS OPS NAVE 3"].push(p);
+        } else if (grupo.includes("EPA")) {
             
             groups["OPERARIOS OPS NAVE 3"].push(p);
         }
