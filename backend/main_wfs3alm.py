@@ -131,7 +131,7 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
 
             # --- FILTRO 2: DEPARTAMENTO (SOLO OPS, BLOQUEAR ALM) ---
             # Bloqueamos explícitamente a cualquiera de Almacén aunque esté en N4
-            if any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD"):
+            if any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD")
                 continue
             
             # Solo permitimos grupos que contengan estas palabras clave de Operaciones
