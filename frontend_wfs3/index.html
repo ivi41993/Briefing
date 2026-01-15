@@ -3524,25 +3524,25 @@ function renderRoster(listEl, people, state) {
     const groups = {
         "SUPERVISORES OPS MAD": [],
         "ESPECIALISTAS DGR": [],
-        "OPERARIOS OPS NAVE 4": []
+        "OPERARIOS OPS NAVE 3": []
     };
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
         
         // Reglas de seccionamiento visual
-        if (grupo.includes("SUPERVISOR")) {
+        if (grupo.includes("SUPERVISOR-OPS")) {
             groups["SUPERVISORES OPS MAD"].push(p);
         } else if (grupo.includes("DGR")) {
             groups["ESPECIALISTAS DGR"].push(p);
         } else {
             // Operarios-Ops y resto de personal operativo filtrado por el backend
-            groups["OPERARIOS OPS NAVE 4"].push(p);
+            groups["OPERARIOS OPS NAVE 3"].push(p);
         }
     });
 
     listEl.innerHTML = '';
-    const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
+    const ZONES = ['N3 MUELLE', 'N3 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
     // 2. RENDERIZADO VIVID
     Object.keys(groups).forEach(groupName => {
@@ -3591,6 +3591,7 @@ function renderRoster(listEl, people, state) {
         });
     });
 }
+
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Con Editar/Eliminar) ===== */
