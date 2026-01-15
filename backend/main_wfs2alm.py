@@ -172,8 +172,8 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             
             # --- FILTRO 1: DESTINO FÍSICO (DEBE SER NAVE 4) ---
             # Si no pone N4 o NAVE 4 en el destino, queda fuera
-            es_nave_4 = (target in cod_destino or "NAVE 2" in desc_destino)
-            if not es_nave_4:
+            es_nave_2 = (target in cod_destino or "NAVE 2" in desc_destino)
+            if not es_nave_2:
                 continue
 
             # --- FILTRO 2: DEPARTAMENTO (SOLO OPS, BLOQUEAR ALM) ---
@@ -182,7 +182,7 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
                 continue
             
             # Solo permitimos grupos que contengan estas palabras clave de Operaciones
-            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD"))
+            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD", "CAPATACES"))
             if not es_ops:
                 continue
 
