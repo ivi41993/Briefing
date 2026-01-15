@@ -146,7 +146,7 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
                 continue
             
             # Solo permitimos grupos que contengan estas palabras clave de Operaciones
-            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD", "APOYO", "EPA"))
+            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD", "APOYO", "EPA","MOSTRADOR"))
             if not es_ops:
                 continue
 
