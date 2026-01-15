@@ -3521,12 +3521,12 @@ console.error('PUT /api/roster/zone falló', e);
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
 
-    // --- SOLUCIÓN AL ERROR: Inicialización segura del estado ---
-    if (!window.TEAM_STATE) {
-        window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
-    }
+    // 1. Inicialización ultra-segura del estado
+    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
+    if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
+    if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
 
-    // Sincronizar lista maestra
+    // Sincronizar datos
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     const masterList = window.TEAM_STATE.allPeopleRaw || [];
 
@@ -3535,7 +3535,7 @@ function renderRoster(listEl, people, state) {
         return;
     }
 
-    // 1. SECCIONAMIENTO POR CATEGORÍAS (Madrid Nave 4)
+    // 2. Clasificación por categorías (MAD N4)
     const groups = {
         "SUPERVISIÓN MAD N4": [],
         "ESPECIALISTAS DGR": [],
@@ -3546,26 +3546,19 @@ function renderRoster(listEl, people, state) {
         const grupo = (p.grupo || "").toUpperCase();
         const codD = (p.cod_destino || "").toUpperCase();
         const descD = (p.desc_destino || "").toUpperCase();
-
-        // Clasificación lógica
-        if (grupo.includes("01-SUPERVISORES-OPS")) {
-            groups["SUPERVISIÓN MAD N4"].push(p);
-        } else if (grupo.includes("03-DGR") && (codD.includes("N4") || descD.includes("NAVE 4"))) {
-            groups["ESPECIALISTAS DGR"].push(p);
-        } else {
-            groups["OPERARIOS NAVE 4"].push(p);
-        }
+        if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N4"].push(p);
+        else if (grupo.includes("03-DGR") && (codD.includes("N4") || descD.includes("NAVE 4"))) groups["ESPECIALISTAS DGR"].push(p);
+        else groups["OPERARIOS NAVE 4"].push(p);
     });
 
     listEl.innerHTML = '';
     const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
-    // 2. RENDERIZADO VISUAL VIVID
+    // 3. Renderizado
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
-        // Header de Sección
         const header = document.createElement('div');
         header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
         header.textContent = `${groupName} (${groupPeople.length})`;
@@ -3573,80 +3566,80 @@ function renderRoster(listEl, people, state) {
 
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
-            const safeId = name.replace(/[^a-z0-9]/gi, '_');
+            // Generar un ID único basado en el nombre para los radio buttons
+            const safeId = name.toLowerCase().replace(/[^a-z0-9]/gi, '_');
             
-            // Acceso seguro al estado de asistencia (true, false o undefined)
-            let currentAtt = window.TEAM_STATE.attendance[name];
+            // Estado actual
+            const currentAtt = window.TEAM_STATE.attendance[name];
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            // Colores Vivid laterales
-            let borderColor = "#3b82f6"; // Azul Operarios
-            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; // Oro
-            if (groupName.includes("DGR")) borderColor = "#ef4444"; // Rojo
+            let borderColor = "#3b82f6"; 
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; 
+            if (groupName.includes("DGR")) borderColor = "#ef4444"; 
 
             const card = document.createElement('div');
             card.className = 'team-row';
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${borderColor}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:8px solid ${borderColor}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
 
             card.innerHTML = `
-                <div>
+                <div style="pointer-events:none;">
                     <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${esc(name)}</div>
-                    <div style="display:flex; gap:6px; margin-top:4px;">
-                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
-                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.grupo)}</span>
-                    </div>
+                    <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-top:2px;">🕒 ${esc(p.horario || '—')}</div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
-                        <!-- Estado Pendiente (➖) -->
-                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === undefined ? 'checked' : ''}>
-                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
+                        <!-- PENDIENTE -->
+                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">➖</label>
 
-                        <!-- Estado OK (✅) -->
-                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
+                        <!-- OK -->
+                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">✅</label>
                         
-                        <!-- Estado NO (❌) -->
-                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="false" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
+                        <!-- NO -->
+                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">❌</label>
                     </div>
-                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem; font-weight:700; background:#fff;">
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem; font-weight:700;">
                         <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
                         ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
                     </select>
                 </div>
             `;
 
-            // --- FUNCIONALIDAD DE LOS BOTONES (FIX) ---
+            // EVENTOS DE LOS BOTONES
             card.querySelectorAll('input[type="radio"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
-                    const valStr = e.target.value;
-                    let finalVal = undefined;
-                    if (valStr === "true") finalVal = true;
-                    if (valStr === "false") finalVal = false;
-                    
-                    // Guardar en el estado local
+                    const val = e.target.value;
+                    let finalVal;
+
+                    if (val === "yes") {
+                        finalVal = true;
+                    } else if (val === "no") {
+                        finalVal = false;
+                    } else {
+                        finalVal = undefined; // Estado ➖
+                    }
+
+                    // Guardar en memoria local
                     window.TEAM_STATE.attendance[name] = finalVal;
-                    
-                    // Enviar al servidor
-                    if (typeof updatePresenceOnServer === 'function') {
+
+                    // --- EVITAR ERROR 422 ---
+                    // Solo enviamos al servidor si es true o false. 
+                    // Si es undefined (➖), no enviamos la petición porque el backend no lo acepta.
+                    if (finalVal !== undefined) {
                         updatePresenceOnServer(name, finalVal);
                     }
                     
-                    // Actualizar contadores (X de Y presentes)
-                    if (typeof updateTeamMeta === 'function') {
-                        updateTeamMeta(window.TEAM_STATE);
-                    }
+                    updateTeamMeta(window.TEAM_STATE);
                 });
             });
 
-            // Funcionalidad de Zonas
+            // Evento Zonas
             card.querySelector('.zone-select').addEventListener('change', (e) => {
                 const zone = e.target.value;
                 window.TEAM_STATE.zones[name] = zone;
-                if (typeof updateZoneOnServer === 'function') {
-                    updateZoneOnServer(name, zone);
-                }
+                if (typeof updateZoneOnServer === 'function') updateZoneOnServer(name, zone);
             });
 
             listEl.appendChild(card);
@@ -7184,6 +7177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
