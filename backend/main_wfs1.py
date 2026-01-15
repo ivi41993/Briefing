@@ -715,27 +715,7 @@ app.add_middleware(
 
 # --- LOGICA DE EXTRACCIÓN ROBUSTA (MADRID N1) ---
 
-async def fetch_mad_roster_from_api():
-    """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API MAD no configurada.")
-        return None
 
-    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
-    payload = {
-        "escala": "MAD",
-        "fecha": ahora.strftime("%d/%m/%Y")
-    }
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200:
-                return response.json()
-    except Exception as e:
-        print(f"❌ Error API MAD: {e}")
-    return None
 
 # --- FILTRO ROBUSTO CON PROTECCIÓN CONTRA STRINGS ---
 
@@ -847,7 +827,7 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    raw_api_data = await fetch_mad_roster_from_api()
+    raw_api_data = await filter_mad_people_by_shift_and_nave()
     people = []
     source = "ninguno"
 
