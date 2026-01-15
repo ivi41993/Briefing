@@ -226,7 +226,7 @@ async def _build_roster_state(force=False) -> dict:
     people = []
     if raw_api_data and isinstance(raw_api_data, list):
         # Usamos el filtro de N3 que acabamos de definir arriba
-        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N3")
+        people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N2")
         source = "api"
     else:
         # Fallback Excel si falla la API
