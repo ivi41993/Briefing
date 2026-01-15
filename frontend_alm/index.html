@@ -3418,8 +3418,14 @@ function initEhsSimple(){
     render();
 }
 
-/* Equipo (roster) */
-let TEAM_STATE = null; // cache de estado actual {shift, sheet_date, window, people, attendance, ...}
+window.TEAM_STATE = window.TEAM_STATE || { 
+    attendance: {}, 
+    zones: {}, 
+    allPeopleRaw: [], 
+    people: [], 
+    shift: "—", 
+    sheet_date: new Date().toISOString().slice(0,10)
+};
 
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
@@ -3508,19 +3514,23 @@ console.error('PUT /api/roster/zone falló', e);
 }
 }
 
+
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
-    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
+    // Sincronizar datos recibidos
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-    const masterList = window.TEAM_STATE.allPeopleRaw;
+    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
+    
+    const masterList = window.TEAM_STATE.allPeopleRaw || [];
+    window.TEAM_STATE.people = masterList; // Guardar para el Excel
 
-    if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando dotación de Almacén...</div>';
+    if (masterList.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal...</div>';
         return;
     }
 
-    // 1. CLASIFICACIÓN POR JERARQUÍA DE ALMACÉN
+   // 1. CLASIFICACIÓN POR JERARQUÍA DE ALMACÉN
     const groups = {
         "SUPERVISIÓN ALMACÉN": [],
         "CAPATACES": [],
@@ -3535,70 +3545,95 @@ function renderRoster(listEl, people, state) {
     });
 
     listEl.innerHTML = '';
-    const ZONES = ['MUELLE N4', 'ESTANTERÍAS', 'ZONA FRÍA', 'OFICINA ALM', 'ENTRADA', 'SALIDA'];
+    const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
-    // 2. RENDERIZADO VISUAL
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
         const header = document.createElement('div');
-        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
+        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; text-transform:uppercase;";
         header.textContent = `${groupName} (${groupPeople.length})`;
         listEl.appendChild(header);
 
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
-            const safeId = name.replace(/[^a-z0-9]/gi, '_');
-            let currentAtt = window.TEAM_STATE.attendance[name]; 
-            if (currentAtt === undefined) currentAtt = "undefined";
+            // safeId: reemplaza espacios y caracteres raros para que el ID sea válido en HTML
+            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/=/g, ""); 
+            
+            const currentAtt = window.TEAM_STATE.attendance[name];
+            const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            // Asignación de Colores Vivid por Rango
-            let colorVivid = "#3b82f6"; // Azul para Operarios
-            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24"; // Oro
-            if (groupName.includes("CAPATACES")) colorVivid = "#8b5cf6"; // Púrpura
+            let colorVivid = "#3b82f6";
+            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24";
+            if (groupName.includes("DGR")) colorVivid = "#ef4444";
 
             const card = document.createElement('div');
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
+            card.className = 'team-row';
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff;`;
 
-            row_html = `
+            card.innerHTML = `
                 <div>
-                    <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${name}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <span style="font-size:0.7rem; color:#64748b; font-weight:700;">🕒 ${p.horario}</span>
-                        <span style="font-size:0.65rem; background:#f3f4f6; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">${p.grupo}</span>
-                    </div>
+                    <div style="font-weight:800; font-size:0.9rem;">${esc(name)}</div>
+                    <div style="font-size:0.7rem; color:#64748b;">🕒 ${esc(p.horario || '—')}</div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
-                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
-                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
-                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
-                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="false" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
+                        <!-- PENDIENTE -->
+                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
+                        <label for="u_${safeId}">➖</label>
+
+                        <!-- OK -->
+                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                        <label for="y_${safeId}" class="yes">✅</label>
+                        
+                        <!-- NO -->
+                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                        <label for="n_${safeId}" class="no">❌</label>
                     </div>
-                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem; font-weight:700; background:#fff;">
-                        <option value="" disabled ${!window.TEAM_STATE.zones[name] ? 'selected' : ''}>ZONA...</option>
-                        ${ZONES.map(z => `<option value="${z}" ${window.TEAM_STATE.zones[name] === z ? 'selected' : ''}>${z}</option>`).join('')}
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem;">
+                        <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
                     </select>
                 </div>
             `;
-            card.innerHTML = row_html;
 
-            // Listeners de Presencia
-            card.querySelectorAll('input[type="radio"]').forEach(r => {
-                r.addEventListener('click', () => {
-                    let val = (r.value === 'true') ? true : (r.value === 'false' ? false : undefined);
-                    window.TEAM_STATE.attendance[name] = val;
-                    updatePresenceOnServer(name, val);
+            // EVENTOS DE LOS BOTONES
+            card.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const val = e.target.value;
+                    let finalVal = undefined;
+                    if (val === "yes") finalVal = true;
+                    if (val === "no") finalVal = false;
+
+                    // 1. Guardar en memoria local
+                    window.TEAM_STATE.attendance[name] = finalVal;
+
+                    // 2. Enviar al servidor (solo si es true/false para evitar 422)
+                    if (finalVal !== undefined) {
+                        updatePresenceOnServer(name, finalVal);
+                    }
+                    
+                    // 3. Actualizar contador visual
+                    updateTeamMeta(window.TEAM_STATE);
                 });
+            });
+
+            // Evento Zonas
+            card.querySelector('.zone-select').addEventListener('change', (e) => {
+                const zone = e.target.value;
+                window.TEAM_STATE.zones[name] = zone;
+                updateZoneOnServer(name, zone);
             });
 
             listEl.appendChild(card);
         });
     });
+    updateTeamMeta(window.TEAM_STATE);
 }
+
+
+
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Con Editar/Eliminar) ===== */
@@ -7086,15 +7121,17 @@ async function generateAndSendToExcel() {
     try {
         // A. Card 1: Equipo (CORREGIDO)
        // --- DENTRO DEL EVENTO CLICK DEL BOTÓN GENERAR RESUMEN ---
-        const team = window.TEAM_STATE || { people: [], attendance: {} };
+        const team = window.TEAM_STATE;
+        
+        // Recoger lista filtrada y cruzar con asistencia real en memoria
         const rosterDetails = (team.people || []).map(p => {
-            const name = p.nombre_completo || "Desconocido";
-            const isP = team.attendance[name];
-            let status = "➖"; // No marcado
-            if (isP === true) status = "✅";
-            if (isP === false) status = "❌";
-            return `${name} (${status})`;
-        }).join(", ") || "Sin datos de personal";
+            const name = p.nombre_completo;
+            const status = team.attendance[name];
+            let icon = "➖"; 
+            if (status === true) icon = "✅";
+            if (status === false) icon = "❌";
+            return `${name} (${icon})`;
+        }).join(", ") || "Sin personal marcado";;
 
         // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
