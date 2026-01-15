@@ -3520,17 +3520,19 @@ console.error('PUT /api/roster/zone falló', e);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
-    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
+    // Sincronizar datos con el estado global
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-    const masterList = window.TEAM_STATE.allPeopleRaw;
+    if (state && state.sheet_date) window.TEAM_STATE.sheet_date = state.sheet_date;
+    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
-    if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal de Madrid Ops...</div>';
+    const masterList = window.TEAM_STATE.allPeopleRaw || [];
+    if (masterList.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal...</div>';
         return;
     }
 
-    // 1. CLASIFICACIÓN POR CATEGORÍAS OPS
+    // 1. Clasificación por categorías
     const groups = {
         "SUPERVISORES OPS MAD": [],
         "ESPECIALISTAS DGR": [],
@@ -3539,22 +3541,15 @@ function renderRoster(listEl, people, state) {
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        
-        // Reglas de seccionamiento visual
-        if (grupo.includes("SUPERVISOR")) {
-            groups["SUPERVISORES OPS MAD"].push(p);
-        } else if (grupo.includes("DGR")) {
-            groups["ESPECIALISTAS DGR"].push(p);
-        } else {
-            // Operarios-Ops y resto de personal operativo filtrado por el backend
-            groups["OPERARIOS OPS NAVE 4"].push(p);
-        }
+        if (grupo.includes("SUPERVISOR")) groups["SUPERVISORES OPS MAD"].push(p);
+        else if (grupo.includes("DGR")) groups["ESPECIALISTAS DGR"].push(p);
+        else groups["OPERARIOS OPS NAVE 4"].push(p);
     });
 
     listEl.innerHTML = '';
     const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
-    // 2. RENDERIZADO VIVID
+    // 2. Renderizado
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
@@ -3567,24 +3562,29 @@ function renderRoster(listEl, people, state) {
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
             const safeId = name.replace(/[^a-z0-9]/gi, '_');
-            let currentAtt = window.TEAM_STATE.attendance[name]; 
-            if (currentAtt === undefined) currentAtt = "undefined";
+            
+            // Acceso seguro al estado de asistencia
+            if (window.TEAM_STATE.attendance[name] === undefined) {
+                window.TEAM_STATE.attendance[name] = undefined; 
+            }
+            let currentAtt = window.TEAM_STATE.attendance[name];
 
-            let colorVivid = "#3b82f6"; // Azul
-            if (groupName.includes("SUPERVISORES")) colorVivid = "#fbbf24"; // Oro
-            if (groupName.includes("DGR")) colorVivid = "#ef4444"; // Rojo
+            let colorVivid = "#3b82f6";
+            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24";
+            if (groupName.includes("DGR")) colorVivid = "#ef4444";
 
             const card = document.createElement('div');
+            card.className = 'team-row';
             card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
 
             card.innerHTML = `
                 <div>
                     <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${name}</div>
-                    <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-top:2px;">🕒 ${p.horario} | <span style="color:#475569">${p.grupo}</span></div>
+                    <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-top:2px;">🕒 ${p.horario || '—'} | ${p.grupo || ''}</div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
-                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
+                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" || currentAtt === undefined ? 'checked' : ''}>
                         <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
                         <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
@@ -3597,9 +3597,30 @@ function renderRoster(listEl, people, state) {
                     </select>
                 </div>
             `;
+
+            // EVENTOS DE BOTONES
+            card.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const val = e.target.value;
+                    let finalVal = undefined;
+                    if (val === "true") finalVal = true;
+                    if (val === "false") finalVal = false;
+                    
+                    window.TEAM_STATE.attendance[name] = finalVal;
+                    updatePresenceOnServer(name, finalVal);
+                    updateTeamMeta(window.TEAM_STATE);
+                });
+            });
+
+            card.querySelector('.zone-select').addEventListener('change', (e) => {
+                window.TEAM_STATE.zones[name] = e.target.value;
+                updateZoneOnServer(name, e.target.value);
+            });
+
             listEl.appendChild(card);
         });
     });
+    updateTeamMeta(window.TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
@@ -3808,13 +3829,14 @@ updateAllColumnCounts();
     if (!name) return;
 
     // Inicializa TEAM_STATE si aún no existe (arranque “en frío”)
-    window.TEAM_STATE = window.TEAM_STATE || {
-      shift: guessShift(),
-      sheet_date: new Date().toISOString().slice(0,10),
-      window: null,
-      people: [],
-      attendance: {},
-      zones: {}
+    // Única definición de estado
+    window.TEAM_STATE = { 
+        attendance: {}, 
+        zones: {}, 
+        allPeopleRaw: [], 
+        people: [], 
+        shift: "—", 
+        sheet_date: new Date().toISOString().slice(0,10)
     };
 
     // Evita duplicados por nombre completo
@@ -4076,7 +4098,7 @@ async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/n
 function processTaskUpdate(data) {
     if (!data) return;
 
-    // 1. Manejo de borrado (Global)
+    // 1. Manejo de borrado global
     if (data.action === 'delete') {
         const el = document.getElementById(`task-${data.id}`) || document.getElementById(`ops-${data.id}`);
         if (el) el.remove();
@@ -4084,70 +4106,69 @@ function processTaskUpdate(data) {
         return;
     }
 
-    // 2. Verificar estación (MAD)
+    // 2. Verificar estación
     if (!isForThisStation(data)) return;
 
-    // 3. Lógica de Roster / Presencia
+    // 3. Roster / Presencia vía WebSocket
     if (data.type === 'presence_update' || data.type === 'zone_update') {
         if (window.TEAM_STATE && window.TEAM_STATE.sheet_date === data.sheet_date) {
             if (data.type === 'presence_update') {
-                window.TEAM_STATE.attendance[data.person] = !!data.present;
-                updateTeamMeta(window.TEAM_STATE);
+                window.TEAM_STATE.attendance[data.person] = data.present;
+            } else if (data.type === 'zone_update') {
+                window.TEAM_STATE.zones[data.person] = data.zone;
             }
-            renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people || [], window.TEAM_STATE);
+            updateTeamMeta(window.TEAM_STATE);
+            renderRoster(document.getElementById('team-list'), window.TEAM_STATE.allPeopleRaw, window.TEAM_STATE);
         }
         return;
     }
 
     // 4. KPIs (FIIX + PowerBI)
-    // Dentro de processTaskUpdate(data) en tu index.html
+    if (data.type === 'kpi_update' || data.metric) {
+        const mKey = String(data.metric || '').toLowerCase();
+        const tabName = String(data.tab || '').toUpperCase();
 
-if (data.metric && data.metric.startsWith('fiix_')) {
-    const val = data.value;
-    const m = data.metric;
-
-    // --- KPI DISPONIBILIDAD ---
-    // --- 1. DISPONIBILIDAD ---
-        if (mKey === 'fiix_availability') {
-            document.getElementById('fiix-availability').textContent = data.value;
-            const tile = document.getElementById('tile-fiix-availability');
-            // Alerta si baja del 90%
-            tile.style.background = data.value < 90 ? '#fff1f2' : '#fff';
-            tile.style.borderLeftColor = data.value < 90 ? '#ef4444' : '#10b981';
-            return;
-        }
-        if (mKey === 'fiix_assets_down') {
-            document.getElementById('fiix-down-text').textContent = data.value > 0 ? `${data.value} equipos parados` : 'Todo operativo';
-            return;
-        }
-
-        // --- 2. FLUJO ---
-        if (mKey === 'fiix_wo_created_24h') document.getElementById('fiix-created-24h').textContent = data.value;
-        if (mKey === 'fiix_wo_closed_24h') document.getElementById('fiix-closed-24h').textContent = data.value;
-
-        // --- 3. IMPACTO ECONÓMICO (Link con costes) ---
-        if (mKey === 'fiix_ratio_loss') {
-            const val = data.value;
-            const el = document.getElementById('fiix-ratio-loss');
-            const tile = document.getElementById('tile-fiix-loss');
-            const txt = document.getElementById('fiix-loss-text');
-
-            el.textContent = val + "%";
-            
-            // Si el ratio de correctivo es > 40%, el impacto económico es ALTO (Rojo)
-            if (val > 40) {
-                tile.style.background = "#fef2f2";
-                tile.style.borderLeftColor = "#dc2626";
-                txt.textContent = "ALTO IMPACTO ECONÓMICO";
-                txt.style.color = "#dc2626";
-            } else {
-                tile.style.background = "#fff";
-                tile.style.borderLeftColor = "#64748b";
-                txt.textContent = "Gasto bajo control";
-                txt.style.color = "#64748b";
+        // Bloque FIIX
+        if (mKey.startsWith('fiix_')) {
+            if (mKey === 'fiix_availability') {
+                const el = document.getElementById('fiix-availability');
+                if (el) el.textContent = data.value;
+                const tile = document.getElementById('tile-fiix-availability');
+                if (tile) tile.style.borderLeftColor = data.value < 90 ? '#ef4444' : '#10b981';
+            } 
+            else if (mKey === 'fiix_assets_down') {
+                const el = document.getElementById('fiix-down-text');
+                if (el) el.textContent = data.value > 0 ? `${data.value} equipos parados` : 'Todo operativo';
             }
-            return;
+            else if (mKey === 'fiix_wo_created_24h') {
+                const el = document.getElementById('fiix-created-24h');
+                if (el) el.textContent = data.value;
+            }
+            else if (mKey === 'fiix_wo_closed_24h') {
+                const el = document.getElementById('fiix-closed-24h');
+                if (el) el.textContent = data.value;
+            }
+            else if (mKey === 'fiix_ratio_loss') {
+                const el = document.getElementById('fiix-ratio-loss');
+                if (el) el.textContent = data.value + "%";
+                const tile = document.getElementById('tile-fiix-loss');
+                if (tile) {
+                    tile.style.background = data.value > 30 ? '#fff1f2' : '#fff';
+                    tile.style.borderLeftColor = data.value > 30 ? '#dc2626' : '#64748b';
+                }
+            }
+            return; // Fin bloque FIIX
         }
+
+        // Bloque PowerBI
+        if (tabName === 'MAD WFS4' || tabName === '') {
+            if (mKey === 'total cost') updateKpiTotalCost(data.value, data.timestamp);
+            else if (mKey === 'uph') setKpiValue('kpi-uph', 'kpi-uph-meta', data.value);
+            else if (mKey === 'otif') setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(data.value) + ' %');
+            else if (mKey === 'backlog') setKpiValue('kpi-backlog', 'kpi-backlog-meta', data.value);
+        }
+        return;
+    }
 
     // 5. Render de tarjetas normales
     const elementId = `task-${data.id}`;
@@ -4155,9 +4176,9 @@ if (data.metric && data.metric.startsWith('fiix_')) {
         case 'kanban_rapida': renderBoardCard(data, elementId); break;
         case 'kaizen': renderKaizenCard(data, elementId); break;
         case 'gw_task': GW_MAP.set(data.id, data); renderGwTop3(); break;
-        case 'ops_update': if(window.renderOpsCard) window.renderOpsCard(data); break;
+        case 'ops_update': if (window.renderOpsCard) window.renderOpsCard(data); break;
     }
-}
+    if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
@@ -7130,6 +7151,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
