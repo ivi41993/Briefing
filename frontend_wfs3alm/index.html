@@ -3520,7 +3520,7 @@ console.error('PUT /api/roster/zone falló', e);
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. BLINDAJE DE ESTADO: Inicialización ultra-segura para evitar errores de undefined
+    // 1. BLINDAJE DE ESTADO: Inicialización segura
     if (!window.TEAM_STATE) window.TEAM_STATE = {};
     if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
     if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
@@ -3531,7 +3531,7 @@ function renderRoster(listEl, people, state) {
     
     const masterList = window.TEAM_STATE.allPeopleRaw || [];
 
-    // --- 2. FILTRADO POR NAVE 4 (codDestino === "N4") ---
+    // --- 2. FILTRADO POR NAVE 3 (codDestino === "N3") ---
     const peopleInN3 = masterList.filter(p => {
         const destino = (p.cod_destino || p.codDestino || "").toUpperCase().trim();
         return destino === "N3";
@@ -3541,28 +3541,38 @@ function renderRoster(listEl, people, state) {
     window.TEAM_STATE.people = peopleInN3; 
 
     if (peopleInN3.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No hay personal asignado a Nave 4 (N4)...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No hay personal asignado a Nave 3 (N3)...</div>';
         return;
     }
 
-    // 3. CLASIFICACIÓN POR JERARQUÍA (Almacén Nave 4)
+    // --- 3. CLASIFICACIÓN ESTRICTA (ALM vs OPS) ---
     const groups = {
         "SUPERVISIÓN ALMACÉN": [],
         "CAPATACES": [],
-        "OPERARIOS NAVE 4": []
+        "OPERARIOS NAVE 3": []
     };
 
-    masterList.forEach(p => {
-        const grupo = (p.grupo || "").toUpperCase();
-        if (grupo.includes("01-SUPERVISORES-ALM")) groups["SUPERVISIÓN ALMACÉN"].push(p);
-        else if (grupo.includes("02-CAPATACES")) groups["CAPATACES"].push(p);
-        else if (grupo.includes("OPERARIOS-N3")) groups["OPERARIOS NAVE 4"].push(p);
+    peopleInN3.forEach(p => {
+        const grupo = (p.grupo || p.observaciones || "").toUpperCase();
+        
+        // Regla 1: Debe ser 01-SUPERVISORES y contener ALM (excluir OPS)
+        if (grupo.includes("01") && grupo.includes("ALM")) {
+            groups["SUPERVISIÓN ALMACÉN"].push(p);
+        } 
+        // Regla 2: Capataces (02)
+        else if (grupo.includes("02") || grupo.includes("CAPATAZ")) {
+            groups["CAPATACES"].push(p);
+        } 
+        // Regla 3: Operarios específicos de la Nave 3
+        else if (grupo.includes("OPERARIO") || grupo.includes("ETT") || grupo.includes("N3")) {
+            groups["OPERARIOS NAVE 3"].push(p);
+        }
     });
 
     listEl.innerHTML = '';
-    const ZONES = ['N3 MUELLE', 'N3 INTERIOR', 'ZONA CARGAS', 'OFICINA ALM', 'ENTRADA', 'SALIDA'];
+    const ZONES = ['N3 MUELLE', 'N3 INTERIOR', 'CÁMARA FRÍA', 'OFICINA ALM', 'ENTRADA', 'SALIDA'];
 
-    // 4. RENDERIZADO POR GRUPOS
+    // 4. RENDERIZADO VISUAL VIVID
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
@@ -3574,40 +3584,39 @@ function renderRoster(listEl, people, state) {
 
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
-            // safeId: identificador único para los radio buttons
             const safeId = btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g, ""); 
             
             let currentAtt = window.TEAM_STATE.attendance[name];
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            // Colores Vivid laterales
-            let borderColor = "#3b82f6"; // Azul
-            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; // Oro
-            if (groupName.includes("CAPATACES")) borderColor = "#8b5cf6"; // Púrpura
+            // Colores Vivid (Oro para Supers, Púrpura para Capataces, Azul para Operarios)
+            let borderColor = "#3b82f6"; 
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; 
+            if (groupName.includes("CAPATACES")) borderColor = "#8b5cf6"; 
 
             const card = document.createElement('div');
             card.className = 'team-row';
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${borderColor}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:8px solid ${borderColor}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
 
             card.innerHTML = `
                 <div>
                     <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${esc(name)}</div>
-                    <div style="display:flex; gap:6px; margin-top:4px;">
+                    <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
                         <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
                         <span style="font-size:0.62rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800;">${esc(p.grupo)}</span>
-                        <span style="font-size:0.62rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">DESTINO: ${esc(p.cod_destino || p.codDestino)}</span>
+                        <span style="font-size:0.62rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">N3</span>
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
-                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">➖</label>
 
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">✅</label>
                         
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">❌</label>
                     </div>
                     <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                         <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
