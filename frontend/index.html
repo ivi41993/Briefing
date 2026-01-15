@@ -3543,13 +3543,15 @@ function renderRoster(listEl, people, state) {
     const groups = {
         "SUPERVISIÓN MAD N4": [],
         "ESPECIALISTAS DGR": [],
-        "OPERARIOS NAVE 4": []
+        "OPERARIOS NAVE 4": [],
+        "MOSTRADOR NAVE 4": []
     };
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
         if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N4"].push(p);
         else if (grupo.includes("03-DGR")) groups["ESPECIALISTAS DGR"].push(p);
+        else if (grupo.includes("MOSTRADOR NAVE 4")) groups["MOSTRADOR NAVE 4"].push(p);
         else groups["OPERARIOS NAVE 4"].push(p);
     });
 
@@ -7169,3 +7171,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
