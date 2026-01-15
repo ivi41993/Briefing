@@ -631,7 +631,7 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
 
             # --- FILTRO 2: CATEGORÍAS ESPECÍFICAS DE ALMACÉN ---
             # Solo permitimos estos 3 grupos exactos
-            categorias_validas = ("01-SUPERVISORES-ALM", "02-CAPATACES", "OPERARIOS-N4")
+            categorias_validas = ("01-SUPERVISORES-ALM", "02-CAPATACES", "OPERARIOS-N4", "MOSTRADOR NAVE 4")
             if not any(cat in grupo_raw for cat in categorias_validas):
                 continue
 
