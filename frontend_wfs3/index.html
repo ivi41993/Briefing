@@ -3535,8 +3535,8 @@ function renderRoster(listEl, people, state) {
             groups["SUPERVISORES OPS MAD"].push(p);
         } else if (grupo.includes("DGR")) {
             groups["ESPECIALISTAS DGR"].push(p);
-        } else {
-            // Operarios-Ops y resto de personal operativo filtrado por el backend
+        } else (grupo.includes("OPERARIOS-OPS")) {
+            
             groups["OPERARIOS OPS NAVE 3"].push(p);
         }
     });
