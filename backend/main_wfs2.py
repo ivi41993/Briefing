@@ -93,6 +93,30 @@ ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
 
+async def fetch_roster_api_data(escala: str, fecha: str):
+    """Realiza la llamada POST a la API externa para obtener el personal"""
+    if not ROSTER_API_URL or not ROSTER_API_KEY:
+        print("⚠️ Error: ROSTER_API_URL o ROSTER_API_KEY no detectadas")
+        return None
+    
+    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    payload = {"escala": escala, "fecha": fecha} # fecha debe ser DD/MM/YYYY
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Enviamos como POST tal como requiere la documentación
+            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ API MAD: Datos recibidos para Nave 3.")
+                return data
+            else:
+                print(f"❌ Error API MAD: {response.status_code}")
+                return None
+    except Exception as e:
+        print(f"💥 Fallo de conexión API: {e}")
+        return None
+
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
     target = target_nave.upper() # "N4"
@@ -673,27 +697,7 @@ def _current_shift_info(now):
     sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY and hhmm < "06:00" else now.date()
     return "Noche", sheet_date, "22:00", "06:00"
 
-async def _build_roster_state(force=False):
-    # Lógica simplificada para no extender demasiado
-    now = _now_local()
-    shift, sdate, start, end = _current_shift_info(now)
-    
-    # Si ya tenemos datos en memoria para este turno, retornamos
-    if not force and roster_cache.get("shift") == shift and roster_cache.get("sheet_date") == sdate:
-        return roster_cache
 
-    sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-    people = []
-    if sheet:
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift)
-    
-    roster_cache.update({
-        "sheet_date": sdate, "shift": shift, "people": people, "sheet": sheet,
-        "updated_at": datetime.utcnow().isoformat()+"Z",
-        "window": {"from": start, "to": end}
-    })
-    await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
-    return roster_cache
 
 def _att_key(d, s): return f"{d.isoformat()}|{s}"
 
@@ -864,127 +868,9 @@ def _att_key(d, s):
 # LÓGICA DE EXTRACCIÓN Y FILTRADO ROBUSTA
 # ==========================================
 
-async def fetch_roster_api_data(escala: str, fecha: str):
-    url = os.getenv("ROSTER_API_URL")
-    key = os.getenv("ROSTER_API_KEY")
-    
-    if not url or not key:
-        print(f"⚠️ [API {escala}] URL o KEY no configuradas en el .env")
-        return None
-    
-    headers = {"api-key": key, "Accept": "application/json"}
-    payload = {"escala": escala, "fecha": fecha}
 
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # Enviamos como POST con data=payload (form-data)
-            response = await client.post(url, headers=headers, data=payload)
-            if response.status_code == 200:
-                data = response.json()
-                print(f"✅ [API {escala}] Recibidos {len(data)} registros totales.")
-                return data
-            else:
-                print(f"❌ [API {escala}] Error HTTP {response.status_code}: {response.text[:100]}")
-                return None
-    except Exception as e:
-        print(f"💥 [API {escala}] Fallo de conexión: {str(e)}")
-        return None
 
-def filter_people_logic(api_data: list, current_shift: str, target: str):
-    normalized = []
-    target_up = target.upper() # Ej: "N4" o "TODO"
-    
-    for p in api_data:
-        try:
-            # 1. FILTRO DE UBICACIÓN (Aislamos Nave)
-            cod = str(p.get("codDestino") or "").upper()
-            desc = str(p.get("descDestino") or "").upper()
-            grupo = str(p.get("nombreGrupoTrabajo") or "").upper()
-            
-            if target_up != "TODO":
-                # Si no hay rastro del código de nave (N1, N2, N3, N4), saltamos
-                if target_up not in cod and target_up not in desc and target_up not in grupo:
-                    continue
 
-            # 2. FILTRO DE TURNO (Analizamos horario)
-            raw_inicio = str(p.get("horaInicio") or "")
-            if not raw_inicio or " " not in raw_inicio:
-                continue
-            
-            # De "08/01/2026 14:00" sacamos el 14
-            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
-            
-            # Horquillas de turno VLC/MAD
-            is_m = (4 <= h_inicio < 14)
-            is_t = (14 <= h_inicio < 22)
-            is_n = (h_inicio >= 22 or h_inicio < 4)
-
-            match = False
-            if current_shift == "Mañana" and is_m: match = True
-            elif current_shift == "Tarde" and is_t: match = True
-            elif current_shift == "Noche" and is_n: match = True
-
-            if match:
-                # Limpiar hora fin para el front
-                raw_fin = str(p.get("horaFin") or "")
-                h_fin = raw_fin.split(" ")[1] if " " in raw_fin else raw_fin
-                
-                normalized.append({
-                    "nombre_completo": p.get("nombreApellidos", "Sin Nombre"),
-                    "nomina": p.get("nomina"),
-                    "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
-                    "observaciones": p.get("nombreGrupoTrabajo", ""),
-                    "is_incidencia": p.get("IsIncidencias", False)
-                })
-        except Exception as e:
-            continue
-    return normalized
-
-async def _build_roster_state(force=False) -> dict:
-    now = _now_local()
-    shift, sdate, start, end = _current_shift_info(now)
-    
-    # 1. Intentar API
-    api_date_str = sdate.strftime("%d/%m/%Y") # DD/MM/AAAA
-    
-    # IMPORTANTE: Asegúrate de que STATION_CODE_API esté definido arriba como "MAD", "BCN", etc.
-    raw_api_data = await fetch_roster_api_data(STATION_CODE_API, api_date_str)
-    
-    people = []
-    source = "ninguno" # Por defecto
-
-    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
-        # AQUÍ USAMOS EL TARGET NAVE (N1, N2, N3, N4 o TODO)
-        people = filter_people_logic(raw_api_data, shift, NAVE_TARGET)
-        source = "api"
-    else:
-        # 2. Fallback Excel
-        print(f"ℹ️ [SQL] Fallo API o vacía, buscando en Excel para {sdate}")
-        sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        if sheet_real:
-            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift)
-            source = "excel"
-
-    # Actualizar el caché global
-    roster_cache.update({
-        "sheet_date": sdate,
-        "shift": shift,
-        "people": people,
-        "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end},
-        "source": source,
-        "sheet": roster_cache.get("sheet") or "Sin Hoja"
-    })
-    
-    # Emitir por WebSocket
-    await manager.broadcast({
-        "type": "roster_update",
-        **roster_cache,
-        "sheet_date": sdate.isoformat(),
-        "source": source
-    })
-    
-    return roster_cache
 
 # ==========================================
 # 3. ENDPOINTS DE ASISTENCIA
