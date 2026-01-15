@@ -3428,7 +3428,14 @@ function initEhsSimple(){
     render();
 }
 
-
+window.TEAM_STATE = window.TEAM_STATE || { 
+    attendance: {}, 
+    zones: {}, 
+    allPeopleRaw: [], 
+    people: [], 
+    shift: "—", 
+    sheet_date: new Date().toISOString().slice(0,10)
+};
 
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
@@ -3519,17 +3526,16 @@ console.error('PUT /api/roster/zone falló', e);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
-
-    // Inicialización segura sin borrar datos previos
-    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     
-    // Sincronizar lista maestra si viene del servidor
+    // Sincronizar datos recibidos
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
     
     const masterList = window.TEAM_STATE.allPeopleRaw || [];
+    window.TEAM_STATE.people = masterList; // Guardar para el Excel
 
     if (masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal MAD N4...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal...</div>';
         return;
     }
 
@@ -3542,15 +3548,10 @@ function renderRoster(listEl, people, state) {
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        const codD = (p.cod_destino || "").toUpperCase();
-        const descD = (p.desc_destino || "").toUpperCase();
         if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N4"].push(p);
-        else if (grupo.includes("03-DGR") && (codD.includes("N4") || descD.includes("NAVE 4"))) groups["ESPECIALISTAS DGR"].push(p);
+        else if (grupo.includes("03-DGR")) groups["ESPECIALISTAS DGR"].push(p);
         else groups["OPERARIOS NAVE 4"].push(p);
     });
-
-    // IMPORTANTE: Guardar en el estado global qué personas están visibles
-    window.TEAM_STATE.people = masterList; 
 
     listEl.innerHTML = '';
     const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
@@ -3560,56 +3561,84 @@ function renderRoster(listEl, people, state) {
         if (groupPeople.length === 0) return;
 
         const header = document.createElement('div');
-        header.className = 'roster-group-title';
         header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; text-transform:uppercase;";
         header.textContent = `${groupName} (${groupPeople.length})`;
         listEl.appendChild(header);
 
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
-            const safeId = name.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+            // safeId: reemplaza espacios y caracteres raros para que el ID sea válido en HTML
+            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/=/g, ""); 
             
-            // Recuperar asistencia (true, false o undefined)
             const currentAtt = window.TEAM_STATE.attendance[name];
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
+            let colorVivid = "#3b82f6";
+            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24";
+            if (groupName.includes("DGR")) colorVivid = "#ef4444";
+
             const card = document.createElement('div');
             card.className = 'team-row';
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; background:#fff;`;
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff;`;
 
             card.innerHTML = `
                 <div>
                     <div style="font-weight:800; font-size:0.9rem;">${esc(name)}</div>
                     <div style="font-size:0.7rem; color:#64748b;">🕒 ${esc(p.horario || '—')}</div>
                 </div>
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
+                        <!-- PENDIENTE -->
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
                         <label for="u_${safeId}">➖</label>
+
+                        <!-- OK -->
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}">✅</label>
+                        <label for="y_${safeId}" class="yes">✅</label>
+                        
+                        <!-- NO -->
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}">❌</label>
+                        <label for="n_${safeId}" class="no">❌</label>
                     </div>
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem;">
+                        <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
+                    </select>
                 </div>
             `;
 
-            // EVENTO DE CLIC
-            card.querySelectorAll('input').forEach(input => {
-                input.onchange = (e) => {
-                    let val = undefined;
-                    if (e.target.value === "yes") val = true;
-                    if (e.target.value === "no") val = false;
+            // EVENTOS DE LOS BOTONES
+            card.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const val = e.target.value;
+                    let finalVal = undefined;
+                    if (val === "yes") finalVal = true;
+                    if (val === "no") finalVal = false;
+
+                    // 1. Guardar en memoria local
+                    window.TEAM_STATE.attendance[name] = finalVal;
+
+                    // 2. Enviar al servidor (solo si es true/false para evitar 422)
+                    if (finalVal !== undefined) {
+                        updatePresenceOnServer(name, finalVal);
+                    }
                     
-                    window.TEAM_STATE.attendance[name] = val;
-                    updatePresenceOnServer(name, val); // Sincroniza con DB
-                    updateTeamMeta(window.TEAM_STATE); // Actualiza contador
-                };
+                    // 3. Actualizar contador visual
+                    updateTeamMeta(window.TEAM_STATE);
+                });
+            });
+
+            // Evento Zonas
+            card.querySelector('.zone-select').addEventListener('change', (e) => {
+                const zone = e.target.value;
+                window.TEAM_STATE.zones[name] = zone;
+                updateZoneOnServer(name, zone);
             });
 
             listEl.appendChild(card);
         });
     });
+    updateTeamMeta(window.TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
@@ -3793,39 +3822,107 @@ updateAllColumnCounts();
 }
 }
 
-// Única definición global. NO LA REPITAS dentro de otras funciones.
-window.TEAM_STATE = window.TEAM_STATE || { 
-    attendance: {}, 
-    zones: {}, 
-    allPeopleRaw: [], 
-    people: [], 
-    shift: "—", 
-    sheet_date: new Date().toISOString().slice(0,10)
-};
-  
 /* ===== Equipo: alta manual segura ===== */
 (function initTeamManualAdd(){
   const form = document.getElementById('team-form');
   const input = document.getElementById('team-name');
-  if (!form || !input) return;
+  const listEl = document.getElementById('team-list');
+  if (!form || !input || !listEl) return;
+
+  // PEQUEÑO FIX de tipografía en las zonas (había "Muele")
+  const ZONES_CANON = ['Isla','Dorada','Muelle Imp','Muelle Exp','Import','Export'];
+
+  function guessShift(){
+    // si el backend ya puso turno en TEAM_STATE, úsalo
+    if (window.TEAM_STATE && TEAM_STATE.shift) return TEAM_STATE.shift;
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Mañana';
+    if (h >= 14 && h < 22) return 'Tarde';
+    return 'Noche';
+  }
 
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const name = (input.value || '').trim();
     if (!name) return;
 
-    // FIX: Usar el estado existente, no crear uno nuevo vacío
-    window.TEAM_STATE = window.TEAM_STATE || {};
-    window.TEAM_STATE.attendance = window.TEAM_STATE.attendance || {};
-    window.TEAM_STATE.people = window.TEAM_STATE.people || [];
+    // Inicializa TEAM_STATE si aún no existe (arranque “en frío”)
+    window.TEAM_STATE = window.TEAM_STATE || {
+      shift: guessShift(),
+      sheet_date: new Date().toISOString().slice(0,10),
+      window: null,
+      people: [],
+      attendance: {},
+      zones: {}
+    };
 
-    const newPerson = { nombre_completo: name, horario: '', grupo: 'MANUAL' };
-    window.TEAM_STATE.people.push(newPerson);
-    window.TEAM_STATE.attendance[name] = false; // Por defecto ausente
+    // Evita duplicados por nombre completo
+    const exists = (TEAM_STATE.people || []).some(p => (p.nombre_completo || '').toLowerCase() === name.toLowerCase());
+    if (exists){
+      alert('Esa persona ya está en la lista.');
+      input.value = '';
+      return;
+    }
 
-    renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people, window.TEAM_STATE);
+    // Alta optimista en UI
+    const newPerson = { nombre_completo: name, horario: '', observaciones: '' };
+    TEAM_STATE.people = Array.isArray(TEAM_STATE.people) ? TEAM_STATE.people.slice() : [];
+    TEAM_STATE.people.push(newPerson);
+
+    // Por defecto, al dar de alta la marcamos como ausente (puedes poner true si prefieres)
+    TEAM_STATE.attendance = TEAM_STATE.attendance || {};
+    TEAM_STATE.attendance[name] = false;
+
+    // Render inmediato
+    try {
+      renderRoster(listEl, TEAM_STATE.people, TEAM_STATE);
+    } catch(err){
+      console.error('renderRoster falló tras alta manual:', err);
+    }
     input.value = '';
+
+    // Intento de persistencia en servidor (si lo tienes)
+    try{
+      const res = await fetch('/api/roster/add', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          person: name,
+          date: TEAM_STATE.sheet_date || null,
+          shift: TEAM_STATE.shift || guessShift(),
+          station: (window.STATION_OVERRIDE || '').toUpperCase() || (typeof STATION_CODE!=='undefined'?STATION_CODE:'MAD')
+        })
+      });
+
+      if (!res.ok){
+        // Si tu backend aún no tiene /api/roster/add, no rompemos la UI
+        const err = await res.json().catch(()=>({detail: res.statusText}));
+        console.warn('POST /api/roster/add no disponible:', err.detail || res.statusText);
+      }else{
+        // Si el backend devuelve el roster normalizado, úsalo para refrescar
+        const serverState = await res.json().catch(()=>null);
+        if (serverState && serverState.people){
+          renderRoster(listEl, serverState.people, serverState);
+        }
+      }
+    }catch(err){
+      console.warn('No se pudo persistir el alta manual (se mantiene local):', err);
+    }
   });
+
+  // (Opcional) corrige las etiquetas de zona en el render si venían con la errata
+  const _oldRender = window.renderRoster;
+  window.renderRoster = function(listEl, people, state){
+    // normaliza posibles "Muele" -> "Muelle"
+    if (state && state.zones){
+      const z = state.zones;
+      Object.keys(z).forEach(k=>{
+        if (z[k] === 'Muele Imp') z[k] = 'Muelle Imp';
+        if (z[k] === 'Muele Exp') z[k] = 'Muelle Exp';
+      });
+    }
+    return _oldRender(listEl, people, state);
+  };
 })();
 
 function setupEventListeners() {
@@ -4018,7 +4115,7 @@ async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/n
 function processTaskUpdate(data) {
     if (!data) return;
 
-    // 1. Manejo de borrado global
+    // 1. Manejo de borrado (Global)
     if (data.action === 'delete') {
         const el = document.getElementById(`task-${data.id}`) || document.getElementById(`ops-${data.id}`);
         if (el) el.remove();
@@ -4026,69 +4123,70 @@ function processTaskUpdate(data) {
         return;
     }
 
-    // 2. Verificar estación
+    // 2. Verificar estación (MAD)
     if (!isForThisStation(data)) return;
 
-    // 3. Roster / Presencia vía WebSocket
+    // 3. Lógica de Roster / Presencia
     if (data.type === 'presence_update' || data.type === 'zone_update') {
         if (window.TEAM_STATE && window.TEAM_STATE.sheet_date === data.sheet_date) {
             if (data.type === 'presence_update') {
-                window.TEAM_STATE.attendance[data.person] = data.present;
-            } else if (data.type === 'zone_update') {
-                window.TEAM_STATE.zones[data.person] = data.zone;
+                window.TEAM_STATE.attendance[data.person] = !!data.present;
+                updateTeamMeta(window.TEAM_STATE);
             }
-            updateTeamMeta(window.TEAM_STATE);
-            renderRoster(document.getElementById('team-list'), window.TEAM_STATE.allPeopleRaw, window.TEAM_STATE);
+            renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people || [], window.TEAM_STATE);
         }
         return;
     }
 
     // 4. KPIs (FIIX + PowerBI)
-    if (data.type === 'kpi_update' || data.metric) {
-        const mKey = String(data.metric || '').toLowerCase();
-        const tabName = String(data.tab || '').toUpperCase();
+    // Dentro de processTaskUpdate(data) en tu index.html
 
-        // Bloque FIIX
-        if (mKey.startsWith('fiix_')) {
-            if (mKey === 'fiix_availability') {
-                const el = document.getElementById('fiix-availability');
-                if (el) el.textContent = data.value;
-                const tile = document.getElementById('tile-fiix-availability');
-                if (tile) tile.style.borderLeftColor = data.value < 90 ? '#ef4444' : '#10b981';
-            } 
-            else if (mKey === 'fiix_assets_down') {
-                const el = document.getElementById('fiix-down-text');
-                if (el) el.textContent = data.value > 0 ? `${data.value} equipos parados` : 'Todo operativo';
-            }
-            else if (mKey === 'fiix_wo_created_24h') {
-                const el = document.getElementById('fiix-created-24h');
-                if (el) el.textContent = data.value;
-            }
-            else if (mKey === 'fiix_wo_closed_24h') {
-                const el = document.getElementById('fiix-closed-24h');
-                if (el) el.textContent = data.value;
-            }
-            else if (mKey === 'fiix_ratio_loss') {
-                const el = document.getElementById('fiix-ratio-loss');
-                if (el) el.textContent = data.value + "%";
-                const tile = document.getElementById('tile-fiix-loss');
-                if (tile) {
-                    tile.style.background = data.value > 30 ? '#fff1f2' : '#fff';
-                    tile.style.borderLeftColor = data.value > 30 ? '#dc2626' : '#64748b';
-                }
-            }
-            return; // Fin bloque FIIX
+if (data.metric && data.metric.startsWith('fiix_')) {
+    const val = data.value;
+    const m = data.metric;
+
+    // --- KPI DISPONIBILIDAD ---
+    // --- 1. DISPONIBILIDAD ---
+        if (mKey === 'fiix_availability') {
+            document.getElementById('fiix-availability').textContent = data.value;
+            const tile = document.getElementById('tile-fiix-availability');
+            // Alerta si baja del 90%
+            tile.style.background = data.value < 90 ? '#fff1f2' : '#fff';
+            tile.style.borderLeftColor = data.value < 90 ? '#ef4444' : '#10b981';
+            return;
+        }
+        if (mKey === 'fiix_assets_down') {
+            document.getElementById('fiix-down-text').textContent = data.value > 0 ? `${data.value} equipos parados` : 'Todo operativo';
+            return;
         }
 
-        // Bloque PowerBI
-        if (tabName === 'MAD WFS4' || tabName === '') {
-            if (mKey === 'total cost') updateKpiTotalCost(data.value, data.timestamp);
-            else if (mKey === 'uph') setKpiValue('kpi-uph', 'kpi-uph-meta', data.value);
-            else if (mKey === 'otif') setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(data.value) + ' %');
-            else if (mKey === 'backlog') setKpiValue('kpi-backlog', 'kpi-backlog-meta', data.value);
+        // --- 2. FLUJO ---
+        if (mKey === 'fiix_wo_created_24h') document.getElementById('fiix-created-24h').textContent = data.value;
+        if (mKey === 'fiix_wo_closed_24h') document.getElementById('fiix-closed-24h').textContent = data.value;
+
+        // --- 3. IMPACTO ECONÓMICO (Link con costes) ---
+        if (mKey === 'fiix_ratio_loss') {
+            const val = data.value;
+            const el = document.getElementById('fiix-ratio-loss');
+            const tile = document.getElementById('tile-fiix-loss');
+            const txt = document.getElementById('fiix-loss-text');
+
+            el.textContent = val + "%";
+            
+            // Si el ratio de correctivo es > 40%, el impacto económico es ALTO (Rojo)
+            if (val > 40) {
+                tile.style.background = "#fef2f2";
+                tile.style.borderLeftColor = "#dc2626";
+                txt.textContent = "ALTO IMPACTO ECONÓMICO";
+                txt.style.color = "#dc2626";
+            } else {
+                tile.style.background = "#fff";
+                tile.style.borderLeftColor = "#64748b";
+                txt.textContent = "Gasto bajo control";
+                txt.style.color = "#64748b";
+            }
+            return;
         }
-        return;
-    }
 
     // 5. Render de tarjetas normales
     const elementId = `task-${data.id}`;
@@ -4096,9 +4194,9 @@ function processTaskUpdate(data) {
         case 'kanban_rapida': renderBoardCard(data, elementId); break;
         case 'kaizen': renderKaizenCard(data, elementId); break;
         case 'gw_task': GW_MAP.set(data.id, data); renderGwTop3(); break;
-        case 'ops_update': if (window.renderOpsCard) window.renderOpsCard(data); break;
+        case 'ops_update': if(window.renderOpsCard) window.renderOpsCard(data); break;
     }
-    if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
+}
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
@@ -6963,19 +7061,17 @@ async function generateAndSendToExcel() {
 
     try {
         // 1. Recoger Equipo (Nombres de la API + su asistencia)
-         const team = window.TEAM_STATE || { people: [], attendance: {} };
-    
-          // RECOGEMOS LOS DATOS REALES DEL OBJETO TEAM_STATE
-          const rosterDetails = (team.allPeopleRaw || team.people || []).map(p => {
-              const name = p.nombre_completo;
-              const status = team.attendance[name];
-              let icon = "➖"; 
-              if (status === true) icon = "✅";
-              if (status === false) icon = "❌";
-              return `${name} (${icon})`;
-          }).join(", ") || "Sin datos de personal";
-      
-          console.log("📤 Enviando equipo:", rosterDetails);
+         const team = window.TEAM_STATE;
+        
+        // Recoger lista filtrada y cruzar con asistencia real en memoria
+        const rosterDetails = (team.people || []).map(p => {
+            const name = p.nombre_completo;
+            const status = team.attendance[name];
+            let icon = "➖"; 
+            if (status === true) icon = "✅";
+            if (status === false) icon = "❌";
+            return `${name} (${icon})`;
+        }).join(", ") || "Sin personal marcado";
 
         // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
@@ -7073,59 +7169,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
