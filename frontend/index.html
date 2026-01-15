@@ -7072,14 +7072,19 @@ async function generateAndSendToExcel() {
          const team = window.TEAM_STATE || { people: [], attendance: {} };
         
         // Creamos la variable que te faltaba
+       const team = window.TEAM_STATE || { people: [], attendance: {} };
+        
+        // Mapeamos la lista de personas filtradas actualmente con su estado de asistencia
         const rosterDetails = (team.people || []).map(p => {
-            const name = p.nombre_completo || "Desconocido";
-            const isP = team.attendance[name];
-            let status = "➖"; // No marcado
-            if (isP === true) status = "✅";
-            if (isP === false) status = "❌";
-            return `${name} (${status})`;
-        }).join(", ") || "Sin datos de personal";
+            const name = p.nombre_completo;
+            const statusValue = team.attendance[name]; // true, false o undefined
+
+            let icon = "➖"; // Por defecto: Pendiente
+            if (statusValue === true) icon = "✅";
+            else if (statusValue === false) icon = "❌";
+
+            return `${name} (${icon})`;
+        }).join(", ") || "Sin datos de personal marcados";
 
         // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
@@ -7177,6 +7182,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
