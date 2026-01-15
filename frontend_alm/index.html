@@ -3535,8 +3535,7 @@ function renderRoster(listEl, people, state) {
     const groups = {
         "SUPERVISIÓN ALMACÉN": [],
         "CAPATACES": [],
-        "OPERARIOS NAVE 4": [],
-        "MOSTRADOR NAVE 4": []
+        "OPERARIOS NAVE 4": []
     };
 
     masterList.forEach(p => {
@@ -3544,7 +3543,6 @@ function renderRoster(listEl, people, state) {
         if (grupo.includes("01-SUPERVISORES-ALM")) groups["SUPERVISIÓN ALMACÉN"].push(p);
         else if (grupo.includes("02-CAPATACES")) groups["CAPATACES"].push(p);
         else if (grupo.includes("OPERARIOS-N4")) groups["OPERARIOS NAVE 4"].push(p);
-        else if (grupo.includes("MOSTRADOR NAVE 4")) groups["MOSTRADOR NAVE 4"].push(p);
     });
 
     listEl.innerHTML = '';
