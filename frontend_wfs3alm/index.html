@@ -3520,51 +3520,64 @@ console.error('PUT /api/roster/zone falló', e);
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. BLINDAJE DE ESTADO: Inicialización segura
+    // 1. BLINDAJE DE ESTADO
     if (!window.TEAM_STATE) window.TEAM_STATE = {};
     if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
     if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
     
-    // Sincronizar datos recibidos
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
     
     const masterList = window.TEAM_STATE.allPeopleRaw || [];
 
-    // --- 2. FILTRADO POR NAVE 3 (codDestino === "N3") ---
-    const peopleInN3 = masterList.filter(p => {
+    // --- 2. FILTRADO INTELIGENTE (Inclusión de Mandos) ---
+    const filteredPeople = masterList.filter(p => {
         const destino = (p.cod_destino || p.codDestino || "").toUpperCase().trim();
-        return destino === "N3";
+        const grupo = (p.grupo || p.observaciones || "").toUpperCase();
+
+        // Identificamos si es un mando (Supervisor 01 o Capataz 02)
+        const esMando = grupo.includes("01") || grupo.includes("02") || grupo.includes("SUPERVISOR") || grupo.includes("CAPATAZ");
+        const esDeAlmacen = grupo.includes("ALM") || grupo.includes("ALMACEN");
+
+        // REGLA A: Si es Operario, TIENE que ser de la Nave 3
+        if (!esMando) {
+            return destino === "N3" || grupo.includes("N3");
+        }
+
+        // REGLA B: Si es Mando de Almacén, lo mostramos si:
+        // 1. Su destino es N3 
+        // 2. O su destino es general (MAD, ALM, WFS) y no pertenece a N1, N2 o N4
+        if (esMando && esDeAlmacen) {
+            const destinoOtrasNaves = ["N1", "N2", "N4"];
+            const estaEnOtraNave = destinoOtrasNaves.some(n => destino.includes(n));
+            return (destino === "N3" || !estaEnOtraNave);
+        }
+
+        return false;
     });
 
-    // Guardar para el generador de resumen de Excel
-    window.TEAM_STATE.people = peopleInN3; 
+    window.TEAM_STATE.people = filteredPeople; 
 
-    if (peopleInN3.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No hay personal asignado a Nave 3 (N3)...</div>';
+    if (filteredPeople.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No se ha encontrado personal para los filtros de Nave 3...</div>';
         return;
     }
 
-    // --- 3. CLASIFICACIÓN ESTRICTA (ALM vs OPS) ---
+    // --- 3. CLASIFICACIÓN POR JERARQUÍA ---
     const groups = {
         "SUPERVISIÓN ALMACÉN": [],
         "CAPATACES": [],
         "OPERARIOS NAVE 3": []
     };
 
-    peopleInN3.forEach(p => {
+    filteredPeople.forEach(p => {
         const grupo = (p.grupo || p.observaciones || "").toUpperCase();
         
-        // Regla 1: Debe ser 01-SUPERVISORES y contener ALM (excluir OPS)
-        if (grupo.includes("01") && grupo.includes("ALM")) {
+        if (grupo.includes("01") || grupo.includes("SUPERVISOR")) {
             groups["SUPERVISIÓN ALMACÉN"].push(p);
-        } 
-        // Regla 2: Capataces (02)
-        else if (grupo.includes("02") || grupo.includes("CAPATAZ")) {
+        } else if (grupo.includes("02") || grupo.includes("CAPATAZ")) {
             groups["CAPATACES"].push(p);
-        } 
-        // Regla 3: Operarios específicos de la Nave 3
-        else if (grupo.includes("OPERARIO") || grupo.includes("ETT") || grupo.includes("N3")) {
+        } else {
             groups["OPERARIOS NAVE 3"].push(p);
         }
     });
@@ -3572,7 +3585,7 @@ function renderRoster(listEl, people, state) {
     listEl.innerHTML = '';
     const ZONES = ['N3 MUELLE', 'N3 INTERIOR', 'CÁMARA FRÍA', 'OFICINA ALM', 'ENTRADA', 'SALIDA'];
 
-    // 4. RENDERIZADO VISUAL VIVID
+    // --- 4. RENDERIZADO VISUAL ---
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
@@ -3589,14 +3602,13 @@ function renderRoster(listEl, people, state) {
             let currentAtt = window.TEAM_STATE.attendance[name];
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            // Colores Vivid (Oro para Supers, Púrpura para Capataces, Azul para Operarios)
-            let borderColor = "#3b82f6"; 
-            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; 
-            if (groupName.includes("CAPATACES")) borderColor = "#8b5cf6"; 
+            let borderColor = "#3b82f6"; // Azul
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; // Oro
+            if (groupName.includes("CAPATACES")) borderColor = "#8b5cf6"; // Púrpura
 
             const card = document.createElement('div');
             card.className = 'team-row';
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:8px solid ${borderColor}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${borderColor}; background:#fff;`;
 
             card.innerHTML = `
                 <div>
@@ -3604,19 +3616,17 @@ function renderRoster(listEl, people, state) {
                     <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
                         <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
                         <span style="font-size:0.62rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800;">${esc(p.grupo)}</span>
-                        <span style="font-size:0.62rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">N3</span>
+                        <span style="font-size:0.62rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:800;">LOC: ${esc(p.cod_destino || p.codDestino || 'MAD')}</span>
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
-                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">➖</label>
-
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">✅</label>
-                        
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">❌</label>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
                     </div>
                     <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                         <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
@@ -3625,25 +3635,15 @@ function renderRoster(listEl, people, state) {
                 </div>
             `;
 
-            // EVENTOS DE LOS BOTONES
+            // EVENTOS
             card.querySelectorAll('input[type="radio"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
                     const val = e.target.value;
-                    let finalVal = undefined;
-                    if (val === "yes") finalVal = true;
-                    if (val === "no") finalVal = false;
-
+                    let finalVal = (val === "yes") ? true : (val === "no" ? false : undefined);
                     window.TEAM_STATE.attendance[name] = finalVal;
                     if (finalVal !== undefined) updatePresenceOnServer(name, finalVal);
                     updateTeamMeta(window.TEAM_STATE);
                 });
-            });
-
-            // Evento Zonas
-            card.querySelector('.zone-select').addEventListener('change', (e) => {
-                const zone = e.target.value;
-                window.TEAM_STATE.zones[name] = zone;
-                updateZoneOnServer(name, zone);
             });
 
             listEl.appendChild(card);
