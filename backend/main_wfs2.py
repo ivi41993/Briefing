@@ -92,6 +92,14 @@ ENA_USER_AGENT = os.getenv("ENA_USER_AGENT") or os.getenv("ENABLON_USER_AGENT") 
 ENA_BEARER = os.getenv("ENA_BEARER") or os.getenv("ENABLON_BEARER")
 ENA_VERIFY_MODE = (os.getenv("ENA_VERIFY_MODE") or os.getenv("EXT_VERIFY_MODE") or "TRUSTSTORE").upper()
 ENA_CAFILE = os.getenv("ENA_CAFILE") or os.getenv("EXT_CAFILE") or ""
+# CAMBIA ESTO SEGÚN LA SEDE:
+SCALA_API = "MAD"   # Opciones: "MAD", "BCN", "VLC", "ALM"
+NAVE_TARGET = "N2"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/ALM)
+STATION_LABEL = "WFS2 MAD" # Etiqueta para el Excel
+
+# --- Variables de Entorno ---
+ROSTER_API_URL = os.getenv("ROSTER_API_URL")
+ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 
 async def fetch_roster_api_data(escala: str, fecha: str):
     """Realiza la llamada POST a la API externa para obtener el personal"""
@@ -145,8 +153,8 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             
             # --- FILTRO 1: DESTINO FÍSICO (DEBE SER NAVE 4) ---
             # Si no pone N4 o NAVE 4 en el destino, queda fuera
-            es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
-            if not es_nave_4:
+            es_nave_2 = (target in cod_destino or "NAVE 2" in desc_destino)
+            if not es_nave_2:
                 continue
 
             # --- FILTRO 2: DEPARTAMENTO (SOLO OPS, BLOQUEAR ALM) ---
