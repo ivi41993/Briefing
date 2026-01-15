@@ -7071,8 +7071,6 @@ async function generateAndSendToExcel() {
         // 1. Recoger Equipo (Nombres de la API + su asistencia)
          const team = window.TEAM_STATE || { people: [], attendance: {} };
         
-        // Creamos la variable que te faltaba
-       const team = window.TEAM_STATE || { people: [], attendance: {} };
         
         // Mapeamos la lista de personas filtradas actualmente con su estado de asistencia
         const rosterDetails = (team.people || []).map(p => {
@@ -7182,6 +7180,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
