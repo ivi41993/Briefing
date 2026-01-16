@@ -3072,7 +3072,7 @@ function renderRoster(listEl, people, state) {
         if (grupo.includes("SUPERVISOR")) groups["SUPERVISIÓN MAD N1"].push(p);
         else if (grupo.includes("DGR")) groups["ESPECIALISTAS DGR"].push(p);
         else if (grupo.includes("MOSTRADOR")) groups["MOSTRADOR"].push(p);
-        else groups["OPERARIOS OPS"].push(p);
+        else if (grupo.includes("OPERARIOS-OPS")) groups["OPERARIOS OPS"].push(p);
     });
 
     listEl.innerHTML = '';
