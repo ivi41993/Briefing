@@ -41,16 +41,24 @@ def _now_local():
     return datetime.now(ZoneInfo(ROSTER_TZ))
 
 def _current_shift_info(now):
+    """Calcula el turno operativo de BCN con 2 horas de antelación."""
     hhmm = now.strftime("%H:%M")
-    if "06:00" <= hhmm < "14:00":
+    
+    # Mañana oficial: 06:00 - 14:00. Se muestra desde las 04:00
+    if "04:00" <= hhmm < "12:00":
         return "Mañana", now.date(), "06:00", "14:00"
-    if "14:00" <= hhmm < "22:00":
+    
+    # Tarde oficial: 14:00 - 22:00. Se muestra desde las 12:00
+    if "12:00" <= hhmm < "20:00":
         return "Tarde", now.date(), "14:00", "22:00"
-    # Noche
-    if hhmm < "06:00":
-        sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY else now.date()
+    
+    # Noche oficial: 22:00 - 06:00. Se muestra desde las 20:00
+    # Caso especial: Si es madrugada (entre 00:00 y 03:59), el "día operativo" es el anterior
+    if hhmm < "04:00":
+        sheet_date = now.date() - timedelta(days=1)
     else:
         sheet_date = now.date()
+        
     return "Noche", sheet_date, "22:00", "06:00"
 
 def _parse_range_to_tuple(s: str) -> tuple[int,int] | None:
