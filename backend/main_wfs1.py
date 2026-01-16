@@ -785,11 +785,12 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             es_personal_n1 = False
             
             # Caso 1: Supervisores o DGR de OPS que estén en N1
-            if ("SUPERVISORES-OPS" in grupo or "03-DGR" in grupo) and es_destino_n1:
+            if ("SUPERVISORES-OPS" in grupo or "03-DGR" or "EPA" or "MOSTRADOR" in grupo) and es_destino_n1:
                 es_personal_n1 = True
             # Caso 2: Operarios específicos de N1
             elif "OPERARIOS-N1" in grupo:
                 es_personal_n1 = True
+            
             # Caso 3: Operarios generales de OPS pero con destino confirmado en N1
             elif "OPERARIOS-OPS" in grupo and es_destino_n1:
                 es_personal_n1 = True
