@@ -3063,13 +3063,15 @@ function renderRoster(listEl, people, state) {
     const groups = {
         "SUPERVISIÓN MAD N1": [],
         "ESPECIALISTAS DGR": [],
-        "OPERARIOS OPS": []
+        "OPERARIOS OPS": [],
+        "MOSTRADOR": []
     };
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
         if (grupo.includes("SUPERVISOR")) groups["SUPERVISIÓN MAD N1"].push(p);
         else if (grupo.includes("DGR")) groups["ESPECIALISTAS DGR"].push(p);
+        else if (grupo.includes("MOSTRADOR")) groups["MOSTRADOR"].push(p);
         else groups["OPERARIOS OPS"].push(p);
     });
 
