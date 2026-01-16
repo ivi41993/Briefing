@@ -3069,7 +3069,7 @@ function renderRoster(listEl, people, state) {
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        if (grupo.includes("SUPERVISOR")) groups["SUPERVISIÓN MAD N1"].push(p);
+        if (grupo.includes("SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N1"].push(p);
         else if (grupo.includes("DGR")) groups["ESPECIALISTAS DGR"].push(p);
         else if (grupo.includes("MOSTRADOR")) groups["MOSTRADOR"].push(p);
         else if (grupo.includes("OPERARIOS-OPS")) groups["OPERARIOS OPS"].push(p);
