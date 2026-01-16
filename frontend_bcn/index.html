@@ -2448,12 +2448,11 @@ shift: TEAM_STATE?.shift || null
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. Inicialización de Estado Global
+    // 1. Inicialización de Estado Global (Mantenemos tu código)
     if (!window.TEAM_STATE) {
         window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     }
     
-    // Guardar lista maestra recibida del servidor
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
@@ -2462,11 +2461,19 @@ function renderRoster(listEl, people, state) {
         return;
     }
 
-    // --- 2. LÓGICA DE TURNOS (Filtro por Horquilla de Horario) ---
+    // --- 2. LÓGICA DE TURNOS CORREGIDA (Anticipación 2h) ---
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
-    if (hNow >= 6 && hNow < 14) currentShiftLabel = "Mañana";
-    else if (hNow >= 14 && hNow < 22) currentShiftLabel = "Tarde";
+
+    // Mañana: Si son las 04:00 hasta las 11:59
+    if (hNow >= 4 && hNow < 12) {
+        currentShiftLabel = "Mañana";
+    } 
+    // Tarde: Si son las 12:00 hasta las 19:59
+    else if (hNow >= 12 && hNow < 20) {
+        currentShiftLabel = "Tarde";
+    }
+    // Noche: Si son las 20:00 hasta las 03:59 (implícito por el else)
 
     const extractHours = (str) => {
         const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
@@ -2474,24 +2481,24 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // --- 3. FILTRADO POR CATEGORÍAS DE OPERACIONES Y HORARIO ---
-    // Categorías: US Carriers, OPS, LEADS, 02-DGR, 01-SUPERVISORES-OPS
+    // --- 3. FILTRADO (Categorías + Horquilla oficial) ---
     const CATEGORIAS_OPS = ["US CARRIERS", "OPS", "LEADS", "02-DGR", "01-SUPERVISORES-OPS"];
 
     const filteredPeople = masterList.filter(p => {
-        // A. Filtro de Categoría (nombreGrupoTrabajo / observaciones)
+        // A. Filtro Categoría
         const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
         const cumpleCategoria = CATEGORIAS_OPS.some(cat => infoCategoria.includes(cat));
-        
         if (!cumpleCategoria) return false;
 
-        // B. Filtro de Horquilla de Horario
+        // B. Filtro Horquilla Horaria (Comparamos contra las horas OFICIALES del turno)
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true; 
         
         const hInicio = hours[0];
         const hFin = hours.length > 1 ? hours[1] : hInicio;
         
+        // Aunque estemos a las 12:00 (Turno Tarde), el trabajador entra a las 14:00.
+        // La lógica sigue funcionando porque hInicio (14) está en el rango (14-22).
         if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
         if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
         if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
