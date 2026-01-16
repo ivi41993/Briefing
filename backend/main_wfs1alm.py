@@ -775,7 +775,7 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             # --- 3. FILTRO DE CATEGORÍA (ALM) ---
             # Solo permitimos Supervisores ALM, Capataces y personal base de Almacén
             es_mando_alm = ("01-SUPERVISORES-ALM" in grupo or "02-CAPATACES" in grupo)
-            es_base_alm = any(x in grupo for x in ("OPERARIO", "ETT", "EPAS"))
+            es_base_alm = any(x in grupo for x in ("OPERARIOS-N1", "ETT", "EPAS"))
 
             if not (es_mando_alm or es_base_alm):
                 continue
