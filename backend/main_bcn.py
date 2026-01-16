@@ -196,18 +196,24 @@ def _now_local():
     return datetime.now(ZoneInfo(ROSTER_TZ))
 
 def _current_shift_info(now):
+    # HH:MM actual
     hhmm = now.strftime("%H:%M")
-    if "06:00" <= hhmm < "14:00":
-        return "Mañana", now.date(), "06:00", "14:00"
-    if "14:00" <= hhmm < "22:00":
+    
+    # 12:00 a 19:59 -> Ya muestra TARDE (que empieza a las 14:00)
+    if "12:00" <= hhmm < "20:00":
         return "Tarde", now.date(), "14:00", "22:00"
-    # Noche
-    if hhmm < "06:00":
-        sheet_date = now.date() - timedelta(days=1) if ROSTER_NIGHT_PREV_DAY else now.date()
-    else:
-        sheet_date = now.date()
-    return "Noche", sheet_date, "22:00", "06:00"
-
+    
+    # 20:00 a 03:59 -> Ya muestra NOCHE (que empieza a las 22:00)
+    if hhmm >= "20:00" or hhmm < "04:00":
+        # Si es antes de las 04:00 am, la hoja de Excel/Datos suele ser la del día anterior
+        if hhmm < "04:00":
+            sheet_date = now.date() - timedelta(days=1)
+        else:
+            sheet_date = now.date()
+        return "Noche", sheet_date, "22:00", "06:00"
+    
+    # 04:00 a 11:59 -> Ya muestra MAÑANA (que empieza a las 06:00)
+    return "Mañana", now.date(), "06:00", "14:00"
 def _parse_range_to_tuple(s: str) -> tuple[int,int] | None:
     if not isinstance(s, str): return None
     m = re.search(r'(\d{1,2})(?::?(\d{2}))?\s*[-–]\s*(\d{1,2})(?::?(\d{2}))?', s)
@@ -2113,6 +2119,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
