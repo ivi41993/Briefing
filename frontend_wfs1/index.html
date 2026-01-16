@@ -3062,7 +3062,7 @@ function renderRoster(listEl, people, state) {
     // 1. SECCIONAMIENTO POR CATEGORÍAS (MAD N1)
     const groups = {
         "SUPERVISIÓN MAD N1": [],
-        "ESPECIALISTAS DGR": [],
+        "LEAD AGENT": [],
         "OPERARIOS OPS": [],
         "MOSTRADOR": []
     };
@@ -3070,7 +3070,7 @@ function renderRoster(listEl, people, state) {
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
         if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N1"].push(p);
-        else if (grupo.includes("03-DGR")) groups["ESPECIALISTAS DGR"].push(p);
+        else if (grupo.includes("LEAD AGENT")) groups["LEAD AGENT"].push(p);
         else if (grupo.includes("MOSTRADOR NAVE 1")) groups["MOSTRADOR"].push(p);
         else if (grupo.includes("OPERARIOS-OPS")) groups["OPERARIOS OPS"].push(p);
     });
