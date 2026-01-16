@@ -770,7 +770,7 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
     # Palabras clave permitidas en nombreGrupoTrabajo
     ALLOWED_GROUPS = [
         "01-SUPERVISORES-OPS", 
-        "03-DGR", 
+        "LEAD AGENT", 
         "MOSTRADOR", 
         "OPERARIOS-OPS"
     ]
