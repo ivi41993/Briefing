@@ -730,19 +730,23 @@ async def fetch_mad_roster_from_api():
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str = "N1"):
     """
-    Filtro avanzado para Almacén Madrid Nave 1.
-    Prioriza la visibilidad de Supervisores-ALM y Capataces.
+    Filtro estricto para Almacén Madrid Nave 1.
+    Tanto mandos (Supervisores/Capataces) como operarios DEBEN pertenecer a la N1.
     """
     normalized = []
     
+    # 1. Localizar la lista de trabajadores (Flexible si viene en dict o list)
     workers_list = []
-    if isinstance(api_data, list): workers_list = api_data
+    if isinstance(api_data, list): 
+        workers_list = api_data
     elif isinstance(api_data, dict):
         for key in ("value", "data", "items", "workers", "body"):
             if isinstance(api_data.get(key), list):
                 workers_list = api_data[key]
                 break
-    if not workers_list: return []
+    
+    if not workers_list: 
+        return []
 
     for p in workers_list:
         try:
@@ -753,42 +757,50 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             cod_destino = clean(p.get("codDestino") or nomina.get("codDestino"))
             desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
             
-            # --- REGLA DE EXCLUSIÓN DE OTRAS NAVES ---
-            # Si explícitamente pone N2, N3 o N4, fuera.
+            # --- 1. REGLA DE EXCLUSIÓN INMEDIATA ---
+            # Si el registro menciona explícitamente otras naves, lo descartamos
             if any(x in grupo or x in cod_destino for x in ("-N2", "-N3", "-N4")):
                 continue
 
-            # --- LÓGICA DE INCLUSIÓN POR JERARQUÍA ---
-            es_personal_valido = False
-            
-            # 1. Mando Directo de Almacén (Inclusión prioritaria)
-            if "01-SUPERVISORES-ALM" in grupo or "02-CAPATACES" in grupo:
-                es_personal_valido = True
-                
-            # 2. Operarios, EPAs y ETTs (Solo si el destino confirma Nave 1)
-            else:
-                es_destino_n1 = (cod_destino == "N1" or "NAVE 1" in desc_destino or "WFS1" in desc_destino)
-                es_grupo_alm = any(x in grupo for x in ("OPERARIO", "ETT", "EPAS"))
-                
-                if es_destino_n1 and es_grupo_alm:
-                    es_personal_valido = True
+            # --- 2. FILTRO ESTRICTO DE UBICACIÓN (N1) ---
+            # Se considera N1 si está en codDestino, descDestino o el propio nombre del grupo
+            es_ubicacion_n1 = (cod_destino == "N1" or 
+                               "NAVE 1" in desc_destino or 
+                               "WFS1" in desc_destino or 
+                               "-N1" in grupo)
 
-            if not es_personal_valido:
+            if not es_ubicacion_n1:
                 continue
 
-            # --- FILTRO DE TURNO (MAD 04:00 AM) ---
+            # --- 3. FILTRO DE CATEGORÍA (ALM) ---
+            # Solo permitimos Supervisores ALM, Capataces y personal base de Almacén
+            es_mando_alm = ("01-SUPERVISORES-ALM" in grupo or "02-CAPATACES" in grupo)
+            es_base_alm = any(x in grupo for x in ("OPERARIO", "ETT", "EPAS"))
+
+            if not (es_mando_alm or es_base_alm):
+                continue
+
+            # --- 4. FILTRO DE TURNO (Horquilla MAD 04:00 AM) ---
             raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
             if " " not in raw_inicio: continue
-            h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            match = False
-            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
-            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
-            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
+            # Extraemos la hora de inicio (ej: "06:00" -> 6)
+            try:
+                h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
+            except:
+                continue
             
-            if match:
+            match_turno = False
+            if current_shift == "Mañana" and (4 <= h_inicio < 14): 
+                match_turno = True
+            elif current_shift == "Tarde" and (14 <= h_inicio < 22): 
+                match_turno = True
+            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): 
+                match_turno = True
+            
+            if match_turno:
                 raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
-                h_fin = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else raw_fin
+                h_fin = raw_fin.split(" ")[1] if (raw_fin and " " in raw_fin) else ""
 
                 normalized.append({
                     "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
@@ -798,7 +810,9 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
                     "desc_destino": desc_destino,
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
-        except: continue
+        except: 
+            continue
+            
     return normalized
 async def fetch_roster_api_data(escala: str, fecha: str):
     url = os.getenv("ROSTER_API_URL")
