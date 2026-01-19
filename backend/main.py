@@ -3015,6 +3015,70 @@ class FiixConnector:
             print(json.dumps(sample, indent=4))
         else:
             print(f"⚠️ La tabla {class_name} no devolvió datos o no tienes permiso.")
+    
+    async def discover_full_hierarchy(self):
+        """Mapea la estructura completa: Edificios > Áreas > Equipos"""
+        SITE_ID_MADRID = 29449435
+        
+        print("\n" + "═"*60)
+        print("🏗️  GENERANDO MAPA ESTRUCTURAL DE MADRID")
+        print("═"*60)
+
+        # 1. Traemos TODOS los activos de Madrid para procesarlos en memoria (es más rápido)
+        body = {
+            "_maCn": "FindRequest",
+            "className": "Asset",
+            "fields": "id, strName, strCode, intKind, intAssetLocationID",
+            "filters": [{"ql": "intSiteID = ?", "parameters": [SITE_ID_MADRID]}],
+            "maxObjects": 5000 
+        }
+        
+        all_assets = await self._fiix_rpc(body)
+        
+        if not all_assets:
+            print("❌ No se pudieron recuperar activos.")
+            return
+
+        # 2. Organizamos por "Padre"
+        # Usamos un diccionario donde la llave es el ID del padre y el valor es una lista de hijos
+        tree = {}
+        for a in all_assets:
+            parent = a.get("intAssetLocationID", 0) or 0
+            if parent not in tree:
+                tree[parent] = []
+            tree[parent].append(a)
+
+        # 3. Función recursiva para imprimir el árbol en la terminal
+        def print_level(parent_id, level=0):
+            if parent_id not in tree:
+                return
+            
+            # Ordenar: primero carpetas/edificios (Kind 1), luego máquinas (Kind 2)
+            sorted_items = sorted(tree[parent_id], key=lambda x: x.get("intKind", 1))
+            
+            for item in sorted_items:
+                indent = "  " * level
+                icon = "🏢" if item.get("intKind") == 1 else "⚙️ "
+                # Si es un edificio (Kind 1), resaltamos el texto
+                prefix = ">> " if item.get("intKind") == 1 else ""
+                
+                print(f"{indent}{icon} {prefix}{item.get('strName')} [ID: {item.get('id')}] (Código: {item.get('strCode')})")
+                
+                # Llamada recursiva para bajar al siguiente nivel
+                print_level(item.get("id"), level + 1)
+
+        # 4. Empezamos a imprimir desde la raíz (padre = 0 o el nodo de España/Madrid)
+        # Buscamos el nodo raíz de Madrid (el que no tiene padre o cuyo nombre es CGO - Madrid)
+        roots = [a for a in all_assets if "MADRID" in str(a.get("strName")).upper() and a.get("intAssetLocationID") is None]
+        
+        if not roots:
+            # Si no detecta raíz, imprimimos todo lo que cuelga de 0
+            print_level(0)
+        else:
+            for r in roots:
+                print_level(r['id'])
+
+        print("═"*60 + "\n")
 
 
 
@@ -4457,7 +4521,13 @@ async def _build_roster_state(force=False) -> dict:
     
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
-
+@app.get("/api/fiix/mapa")
+async def map_fiix_assets():
+    """Llamada: https://tu-url.onrender.com/api/fiix/mapa"""
+    f = FiixConnector()
+    await f.discover_full_hierarchy()
+    return {"status": "Mapa generado", "check_logs": "Mira la terminal de Render"}
+    
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
@@ -4741,6 +4811,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
