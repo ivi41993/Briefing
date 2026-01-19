@@ -2932,70 +2932,77 @@ class FiixConnector:
             return []
 
     async def fetch_metrics(self):
-        # Configuración extraída de tus logs
-        SITE_ID_MADRID = 29449435
+        SITE_ID = 29449435
+        TAG_NAVE = "WFS4"
         ID_PREVENTIVO = 531546
         ID_URGENTE = 278571
-        TAG_NAVE = "-WFS4-" # Filtro por código de activo
         
         now = datetime.now()
         yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            # --- 1. ACTIVOS: Disponibilidad Real de la Nave 4 ---
-            body_assets = {
-                "_maCn": "FindRequest",
-                "className": "Asset",
-                "fields": "id, bolIsOnline, strCode",
-                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID_MADRID]}],
-                "maxObjects": 2000 
-            }
-            all_assets = await self._fiix_rpc(body_assets)
-            
-            # Segmentación: Solo activos que tienen "-WFS4-" en su código
-            assets_n4 = [a for a in all_assets if TAG_NAVE in str(a.get("strCode", ""))]
-            
-            total_n4 = len(assets_n4)
-            down_n4 = sum(1 for a in assets_n4 if a.get("bolIsOnline") == 0)
-            availability_n4 = round(((total_n4 - down_n4) / total_n4) * 100) if total_n4 > 0 else 100
-
-            # --- 2. ÓRDENES: Flujo de Trabajo de la Nave 4 ---
-            body_wo = {
+            # --- 1. ÓRDENES CERRADAS (Para calcular Coste Estimado y Tiempo de Parada) ---
+            body_closed = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCompleted, strAssets",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [SITE_ID_MADRID, yesterday_str]}],
-                "maxObjects": 1000
+                "fields": "id, dtmDateCreated, dtmDateCompleted, intMaintenanceTypeID, intPriorityID, strAssets",
+                "filters": [
+                    {"ql": "intSiteID = ? AND dtmDateCompleted >= ? AND strAssets LIKE ?", 
+                     "parameters": [SITE_ID, yesterday_str, f"%{TAG_NAVE}%"]}
+                ],
+                "maxObjects": 100
             }
-            all_wos = await self._fiix_rpc(body_wo)
+            closed_res = await self._fiix_rpc(body_closed)
             
-            # Segmentación: Solo órdenes donde los activos vinculados contengan "WFS4"
-            wos_n4 = [wo for wo in all_wos if "WFS4" in str(wo.get("strAssets", ""))]
+            total_est_cost = 0.0
+            total_downtime_mins = 0
             
-            n_created = len(wos_n4)
-            n_closed = sum(1 for wo in wos_n4 if wo.get("dtmDateCompleted"))
-            
-            # Cálculo de "Pérdida" (Correctivos que no son Preventivo ID 531546)
-            correctivos = sum(1 for wo in wos_n4 if wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
-            urgentes = sum(1 for wo in wos_n4 if wo.get("intPriorityID") == ID_URGENTE)
-            
-            ratio_perdida = round((correctivos / n_created) * 100) if n_created > 0 else 0
+            for wo in closed_res:
+                # A. Cálculo de Tiempo de Parada (Downtime)
+                start = wo.get("dtmDateCreated") # Milisegundos
+                end = wo.get("dtmDateCompleted")
+                if start and end:
+                    diff_mins = (end - start) / (1000 * 60)
+                    total_downtime_mins += diff_mins
+                
+                # B. Lógica de Coste Estimado (Heurística Industrial)
+                # Una avería correctiva (rotura) cuesta de media 5 veces más que un preventivo
+                if wo.get("intPriorityID") == ID_URGENTE:
+                    total_est_cost += 450.0  # Coste impacto urgencia (Técnicos + paradas)
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO:
+                    total_est_cost += 120.0  # Coste correctivo estándar
+                else:
+                    total_est_cost += 35.0   # Coste preventivo (inspección)
 
-            print(f"📊 [FIIX WFS4] Activos: {total_n4} | Rotos: {down_n4} | Creadas: {n_created} | Pérdida: {ratio_perdida}%")
+            # --- 2. BACKLOG Y DISPONIBILIDAD (Estado actual) ---
+            body_open = {
+                "_maCn": "FindRequest",
+                "className": "WorkOrder",
+                "fields": "id",
+                "filters": [
+                    {"ql": "intSiteID = ? AND dtmDateCompleted IS NULL AND strAssets LIKE ?", 
+                     "parameters": [SITE_ID, f"%{TAG_NAVE}%"]}
+                ]
+            }
+            open_res = await self._fiix_rpc(body_open)
+            backlog = len(open_res)
 
             # --- 3. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
+            # MTTR en horas
+            mttr = round((total_downtime_mins / len(closed_res)) / 60, 1) if closed_res else 0
+            
             metrics = [
-                ("fiix_availability", availability_n4),
-                ("fiix_assets_down", down_n4),
-                ("fiix_wo_created_24h", n_created),
-                ("fiix_wo_closed_24h", n_closed),
-                ("fiix_ratio_loss", ratio_perdida),
-                ("fiix_urgentes", urgentes)
+                ("fiix_wfs4_backlog", backlog),
+                ("fiix_wfs4_cost_est", round(total_est_cost, 2)),
+                ("fiix_wfs4_mttr", mttr), # Tiempo medio de reparación
+                ("fiix_wfs4_closed", len(closed_res))
             ]
             
             for m, v in metrics:
                 await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
+
+            print(f"📊 [WFS4] Coste Est: {total_est_cost}€ | MTTR: {mttr}h | Backlog: {backlog}")
 
         except Exception as e:
             print(f"❌ [FIIX WFS4] Error: {e}")
@@ -4873,6 +4880,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
