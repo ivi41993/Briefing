@@ -2521,7 +2521,7 @@ function renderRoster(listEl, people, state) {
             groups["SUPERVISIÓN OPS"].push(p);
         } else if (cat.includes("DGR")) {
             groups["DGR"].push(p);
-        } else {
+        } else if (cat.includes("OPERARIOS-OPS")) {
             groups["OPERARIOS"].push(p);
         }
     });
