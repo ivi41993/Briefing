@@ -2507,7 +2507,7 @@ function renderRoster(listEl, people, state) {
 
     // --- 3. FILTRADO POR CATEGORÍAS VLC Y HORARIO ---
     // Ajustado a Agentes, Leads y Especialistas
-    const CATEGORIAS_VLC = ["LEAD", "AGENTE", "ESPECIALISTA", "OPS", "DGR"];
+    const CATEGORIAS_VLC = ["CAPATACES", "SUPERVISORES", "ESPECIALISTAS"];
 
     const filteredPeople = masterList.filter(p => {
         // A. Filtro Categoría
@@ -2528,15 +2528,15 @@ function renderRoster(listEl, people, state) {
 
     // --- 4. SECCIONAMIENTO POR JERARQUÍA VALENCIA ---
     const groups = {
-        "Superviosres": [],
-        "Capataces": [],
+        "SUPERVISORES": [],
+        "CAPATACES": [],
         "ESPECIALISTAS": []
     };
 
     filteredPeople.forEach(p => {
         const cat = (p.observaciones || p.grupo || "").toUpperCase();
         if (cat.includes("SUPERVISORES")) {
-            groups["SUPERVIOSRES"].push(p);
+            groups["SUPERVISORES"].push(p);
         } else if (cat.includes("CAPATACES") || cat.includes("OPS")) {
             groups["CAPATACES"].push(p);
         } else {
