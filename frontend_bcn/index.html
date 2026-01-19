@@ -2482,7 +2482,8 @@ function renderRoster(listEl, people, state) {
     };
 
     // --- 3. FILTRADO (Categorías + Horquilla oficial) ---
-  const filteredPeople = masterList.filter(p => {
+    const CATEGORIAS_OPS = ["US CARRIERS", "OPS", "LEADS", "02-DGR", "01-SUPERVISORES-OPS"];
+    const filteredPeople = masterList.filter(p => {
         // --- A. REGLA DE EXCLUSIÓN POR NOMBRE (NUEVO) ---
         const nombreUpper = (p.nombre_completo || "").toUpperCase();
         if (nombreUpper.includes("CUSTOMER/TRACING OPS")) {
