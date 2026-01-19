@@ -2932,62 +2932,73 @@ class FiixConnector:
             return []
 
     async def fetch_metrics(self):
-        site_id = 29449435
+        # Configuración extraída de tus logs
+        SITE_ID_MADRID = 29449435
+        ID_PREVENTIVO = 531546
+        ID_URGENTE = 278571
+        TAG_NAVE = "-WFS4-" # Filtro por código de activo
+        
         now = datetime.now()
         yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            # --- 1. DISPONIBILIDAD (ASSETS) ---
+            # --- 1. ACTIVOS: Disponibilidad Real de la Nave 4 ---
             body_assets = {
                 "_maCn": "FindRequest",
                 "className": "Asset",
-                "fields": "id, bolIsOnline",
-                "filters": [{"ql": "intSiteID = ? AND bolIsExternalAccount = ?", "parameters": [site_id, 0]}],
-                "maxObjects": 1000
+                "fields": "id, bolIsOnline, strCode",
+                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID_MADRID]}],
+                "maxObjects": 2000 
             }
-            assets_res = await self._fiix_rpc(body_assets)
+            all_assets = await self._fiix_rpc(body_assets)
             
-            total_assets_list = [a for a in assets_res if a.get("bolIsOnline") is not None]
-            total_assets = len(total_assets_list)
-            assets_down = sum(1 for a in total_assets_list if a.get("bolIsOnline") == 0)
-            availability_pct = round(((total_assets - assets_down) / total_assets) * 100) if total_assets > 0 else 100
+            # Segmentación: Solo activos que tienen "-WFS4-" en su código
+            assets_n4 = [a for a in all_assets if TAG_NAVE in str(a.get("strCode", ""))]
+            
+            total_n4 = len(assets_n4)
+            down_n4 = sum(1 for a in assets_n4 if a.get("bolIsOnline") == 0)
+            availability_n4 = round(((total_n4 - down_n4) / total_n4) * 100) if total_n4 > 0 else 100
 
-            # --- 2. FLUJO Y COSTES PROYECTADOS (WORK ORDERS) ---
+            # --- 2. ÓRDENES: Flujo de Trabajo de la Nave 4 ---
             body_wo = {
                 "_maCn": "FindRequest",
                 "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCompleted",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [site_id, yesterday_str]}],
+                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCompleted, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [SITE_ID_MADRID, yesterday_str]}],
                 "maxObjects": 1000
             }
-            wo_res = await self._fiix_rpc(body_wo)
+            all_wos = await self._fiix_rpc(body_wo)
             
-            n_created = len(wo_res)
-            # Órdenes cerradas de ese grupo de creadas hoy
-            n_closed = sum(1 for wo in wo_res if wo.get("dtmDateCompleted") is not None)
+            # Segmentación: Solo órdenes donde los activos vinculados contengan "WFS4"
+            wos_n4 = [wo for wo in all_wos if "WFS4" in str(wo.get("strAssets", ""))]
             
-            # Cálculo de Impacto Económico (Correctivo ID 2 cuesta más que Preventivo ID 1)
-            correctivos = sum(1 for wo in wo_res if wo.get("intMaintenanceTypeID") == 2)
-            # Ratio de pérdida: Qué % del dinero de hoy se ha ido a "reparar roturas"
+            n_created = len(wos_n4)
+            n_closed = sum(1 for wo in wos_n4 if wo.get("dtmDateCompleted"))
+            
+            # Cálculo de "Pérdida" (Correctivos que no son Preventivo ID 531546)
+            correctivos = sum(1 for wo in wos_n4 if wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+            urgentes = sum(1 for wo in wos_n4 if wo.get("intPriorityID") == ID_URGENTE)
+            
             ratio_perdida = round((correctivos / n_created) * 100) if n_created > 0 else 0
 
-            print(f"📊 [FIIX MAD] Disp: {availability_pct}% | Roto: {assets_down} | Creadas: {n_created} | Pérdida: {ratio_perdida}%")
+            print(f"📊 [FIIX WFS4] Activos: {total_n4} | Rotos: {down_n4} | Creadas: {n_created} | Pérdida: {ratio_perdida}%")
 
             # --- 3. BROADCAST ---
             ts = datetime.utcnow().isoformat() + "Z"
             metrics = [
-                ("fiix_availability", availability_pct),
-                ("fiix_assets_down", assets_down),
+                ("fiix_availability", availability_n4),
+                ("fiix_assets_down", down_n4),
                 ("fiix_wo_created_24h", n_created),
                 ("fiix_wo_closed_24h", n_closed),
-                ("fiix_ratio_loss", ratio_perdida)
+                ("fiix_ratio_loss", ratio_perdida),
+                ("fiix_urgentes", urgentes)
             ]
             
             for m, v in metrics:
                 await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
 
         except Exception as e:
-            print(f"❌ [FIIX] Error operativo: {e}")
+            print(f"❌ [FIIX WFS4] Error: {e}")
 
 
     # --- 1. AÑADE ESTE MÉTODO DENTRO DE LA CLASE FiixConnector ---
@@ -4811,6 +4822,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
