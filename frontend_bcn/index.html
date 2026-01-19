@@ -2479,7 +2479,7 @@ function renderRoster(listEl, people, state) {
     };
 
     // --- 3. FILTRADO MEJORADO (Exclusión por Nombre + Categoría + Horquilla) ---
-    const CATEGORIAS_OPS = [ "OPERARIO", "DGR", "01-SUPERVISORES-OPS"];
+    const CATEGORIAS_OPS = [ "OPS", "DGR", "01-SUPERVISORES-OPS"];
 
     const filteredPeople = masterList.filter(p => {
         // --- A. REGLA DE EXCLUSIÓN POR NOMBRE (NUEVO) ---
@@ -2521,7 +2521,7 @@ function renderRoster(listEl, people, state) {
             groups["SUPERVISIÓN OPS"].push(p);
         } else if (cat.includes("DGR")) {
             groups["DGR"].push(p);
-        } else if (cat.includes("OPERARIO")) {
+        } else if (cat.includes("OPS")) {
             groups["OPERARIOS"].push(p);
         }
     });
