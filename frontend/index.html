@@ -2713,6 +2713,30 @@ body.card-open #timer-reset {
         <small class="kpi-text">Tareas pendientes N4</small>
     </div>
   </div>
+  <div class="kpi-grid">
+    <!-- DISPONIBILIDAD DE EQUIPOS (NUEVO) -->
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Estado de Flota WFS4</div>
+        <div class="kpi-value">
+            <span id="fiix-availability">100</span>%
+        </div>
+        <small class="kpi-text" id="fiix-broken-text">Todos los equipos operativos</small>
+    </div>
+
+    <!-- IMPACTO ECONÓMICO -->
+    <div class="kpi-tile" id="tile-fiix-cost" style="border-left: 6px solid #b91c1c;">
+        <div class="kpi-label">Gasto Proyectado (24h)</div>
+        <div class="kpi-value"><span id="fiix-cost-est">0.00</span>€</div>
+        <small class="kpi-text">Correctivo vs Preventivo</small>
+    </div>
+
+    <!-- TIEMPO DE REPARACIÓN -->
+    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">Respuesta Técnica</div>
+        <div class="kpi-value"><span id="fiix-mttr">0</span>h</div>
+        <small class="kpi-text">Media de cierre N4</small>
+    </div>
+</div>
 
   <!-- SEPARADOR -->
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
@@ -4145,14 +4169,32 @@ if (data.metric.startsWith('fiix_wfs4_')) {
         const m = data.metric;
         const val = data.value;
 
-        if (m === 'fiix_wfs4_cost_est') {
+        if (m === 'fiix_wfs4_availability') {
+            document.getElementById('fiix-availability').textContent = val;
+            const tile = document.getElementById('tile-fiix-availability');
+            
+            // Lógica de colores: 100% Verde, <100% Ámbar, <90% Rojo
+            if (val === 100) {
+                tile.style.background = "#f0fdf4"; // Verde suave
+                tile.style.borderLeftColor = "#10b981";
+            } else if (val >= 90) {
+                tile.style.background = "#fffbeb"; // Ámbar suave
+                tile.style.borderLeftColor = "#f59e0b";
+            } else {
+                tile.style.background = "#fef2f2"; // Rojo suave
+                tile.style.borderLeftColor = "#ef4444";
+            }
+        }
+        else if (m === 'fiix_wfs4_broken_count') {
+            const txt = document.getElementById('fiix-broken-text');
+            txt.textContent = val > 0 ? `${val} equipos fuera de servicio` : 'Todos los equipos operativos';
+            txt.style.color = val > 0 ? "#b91c1c" : "#64748b";
+        }
+        else if (m === 'fiix_wfs4_cost_est') {
             document.getElementById('fiix-cost-est').textContent = new Intl.NumberFormat('es-ES').format(val);
         }
         else if (m === 'fiix_wfs4_mttr') {
             document.getElementById('fiix-mttr').textContent = val;
-        }
-        else if (m === 'fiix_wfs4_backlog') {
-            document.getElementById('fiix-backlog').textContent = val;
         }
         return;
     }
@@ -7138,6 +7180,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
