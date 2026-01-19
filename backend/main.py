@@ -3092,9 +3092,54 @@ class FiixConnector:
         print("═"*60 + "\n")
 
 
+    async def wfs4_cost_deep_dive(self):
+        """Busca órdenes cerradas de WFS4 e inspecciona cada rincón en busca de costes"""
+        SITE_ID = 29449435
+        TAG_NAVE = "WFS4"
+        
+        print("\n" + "🔍" * 20)
+        print("🕵️  INICIANDO AUDITORÍA DE COSTES NAVE 4")
+        print("🔍" * 20)
+
+        # 1. Buscamos las últimas 3 órdenes COMPLETADAS de la Nave 4
+        # Las órdenes completadas son las únicas que tienen costes grabados
+        body = {
+            "_maCn": "FindRequest",
+            "className": "WorkOrder",
+            "fields": "*", # Traemos TODO
+            "filters": [
+                {
+                    "ql": "intSiteID = ? AND dtmDateCompleted IS NOT NULL AND strAssets LIKE ?", 
+                    "parameters": [SITE_ID, f"%{TAG_NAVE}%"]
+                }
+            ],
+            "maxObjects": 3,
+            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
+        }
+
+        results = await self._fiix_rpc(body)
+
+        if not results:
+            print("⚠️ No se encontraron órdenes cerradas en WFS4 para inspeccionar.")
+            return
+
+        for i, wo in enumerate(results):
+            print(f"\n📦 ANÁLISIS DE ORDEN CERRADA #{i+1} (Código: {wo.get('strCode')})")
+            print("-" * 40)
+            
+            # Buscamos campos que contengan números (posibles costes)
+            # Filtramos los campos que empiezan por 'dbl' (Double/Decimal) o 'int' (Integer)
+            for key, value in wo.items():
+                # Si el campo tiene valor y parece ser de dinero o mediciones
+                if value and (key.startswith("dbl") or key.startswith("cf_") or "cost" in key.lower()):
+                    print(f"💰 POSIBLE CAMPO DE COSTE -> {key}: {value}")
+            
+            print("\n📄 DUMP COMPLETO DE ESTA ORDEN (Copia esto para analizar):")
+            print(json.dumps(wo, indent=4))
+            print("-" * 40)
 
 
-
+    
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -3676,7 +3721,13 @@ def get_incidents_table(limit: int = Query(None, ge=1, le=1000)):
         "limit": lim,
         "limited": True,
     }
-
+# --- ENDPOINT DE AUDITORÍA ---
+@app.get("/api/fiix/auditoria-wfs4")
+async def audit_wfs4():
+    f = FiixConnector()
+    await f.wfs4_cost_deep_dive()
+    return {"status": "Auditoría realizada", "check_logs": "Busca 'Análisis de orden cerrada' en los logs de Render"}
+    
 @app.get("/api/incidents")
 def get_incidents_alias():
     """
@@ -4822,6 +4873,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
