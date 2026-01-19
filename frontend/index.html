@@ -2690,29 +2690,25 @@ body.card-open #timer-reset {
   <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
   
   <div class="kpi-grid">
-    <<!-- BLOQUE A: DISPONIBILIDAD -->
+    <!-- DISPONIBILIDAD ESPECÍFICA -->
     <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
-        <div class="kpi-label">Disponibilidad Almacén</div>
+        <div class="kpi-label">Disponibilidad WFS4</div>
         <div class="kpi-value"><span id="fiix-availability">100</span>%</div>
-        <small class="kpi-text" id="fiix-down-text">Todo operativo</small>
+        <small class="kpi-text" id="fiix-down-text">Equipos Nave 4</small>
     </div>
 
-    <!-- BLOQUE B: FLUJO DE TRABAJO -->
-    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
-        <div class="kpi-label">Balance Trabajo (24h)</div>
-        <div style="display: flex; align-items: baseline; gap: 8px;">
-            <div class="kpi-value" id="fiix-closed-24h" style="color: #10b981;">0</div>
-            <span style="color: #94a3b8; font-size: 1.5rem;">/</span>
-            <div class="kpi-value" id="fiix-created-24h" style="font-size: 1.5rem; color: #64748b;">0</div>
-        </div>
-        <small class="kpi-text">Cerradas vs. Creadas</small>
-    </div>
-
-    <!-- BLOQUE C: IMPACTO ECONÓMICO -->
-    <div class="kpi-tile" id="tile-fiix-loss" style="border-left: 6px solid #64748b;">
-        <div class="kpi-label">Impacto Gasto (Ayer)</div>
+    <!-- IMPACTO GASTO NAVE 4 -->
+    <div class="kpi-tile" id="tile-fiix-loss" style="border-left: 6px solid #f59e0b;">
+        <div class="kpi-label">Eficiencia Operativa</div>
         <div class="kpi-value" id="fiix-ratio-loss">0%</div>
-        <small class="kpi-text" id="fiix-loss-text">Ratio Correctivo</small>
+        <small class="kpi-text">Correctivo vs Preventivo</small>
+    </div>
+
+    <!-- TAREAS CRÍTICAS NAVE 4 -->
+    <div class="kpi-tile" id="tile-fiix-urgent" style="border-left: 6px solid #ef4444;">
+        <div class="kpi-label">Urgencias N4</div>
+        <div class="kpi-value" id="fiix-urgentes">0</div>
+        <small class="kpi-text">Órdenes Prioridad Alta</small>
     </div>
   </div>
 
@@ -7171,4 +7167,5 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
