@@ -2990,7 +2990,63 @@ class FiixConnector:
             print(f"❌ [FIIX] Error operativo: {e}")
 
 
+    # --- 1. AÑADE ESTE MÉTODO DENTRO DE LA CLASE FiixConnector ---
+    async def get_full_schema(self, class_name: str):
+        """Inspecciona todos los campos de una tabla y los imprime en la terminal"""
+        print(f"\n🔍 [FIIX INSPECTOR] Analizando tabla: {class_name}...")
+        
+        body = {
+            "_maCn": "FindRequest",
+            "className": class_name,
+            "fields": "*", # Traer todas las columnas
+            "maxObjects": 1,
+            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
+        }
+        
+        results = await self._fiix_rpc(body)
+        
+        if results:
+            sample = results[0]
+            keys = sorted(list(sample.keys()))
+            print(f"✅ TABLA {class_name} LOCALIZADA")
+            print(f"📋 CAMPOS DISPONIBLES ({len(keys)}):")
+            print(f"   {', '.join(keys)}")
+            print(f"📄 EJEMPLO DE DATOS REALES (Primer registro):")
+            print(json.dumps(sample, indent=4))
+        else:
+            print(f"⚠️ La tabla {class_name} no devolvió datos o no tienes permiso.")
 
+# --- 2. AÑADE ESTE NUEVO ENDPOINT AL FINAL DE TU ARCHIVO (Cerca de los otros @app.get) ---
+@app.get("/api/fiix/inspect")
+async def inspect_fiix_api():
+    """
+    Llamada manual: https://tu-url.onrender.com/api/fiix/inspect
+    Muestra el esquema completo en la terminal de Render.
+    """
+    f = FiixConnector()
+    print("\n" + "="*50)
+    print("🚀 INICIANDO INSPECCIÓN PROFUNDA DE FIIX")
+    print("="*50)
+    
+    # Inspeccionamos las tablas clave
+    # Puedes añadir o quitar tablas aquí
+    tablas = ["WorkOrder", "Asset", "User", "Priority", "MaintenanceType"]
+    
+    for tabla in tablas:
+        try:
+            await f.get_full_schema(tabla)
+        except Exception as e:
+            print(f"❌ Error inspeccionando {tabla}: {e}")
+            
+    print("\n" + "="*50)
+    print("🏁 INSPECCIÓN FINALIZADA")
+    print("="*50)
+    
+    return {
+        "status": "Inspección completada",
+        "message": "Revisa la terminal de Render para ver el esquema completo.",
+        "tables_checked": tablas
+    }
 
 
 
@@ -4685,6 +4741,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
