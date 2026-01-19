@@ -2536,7 +2536,7 @@ function renderRoster(listEl, people, state) {
         const cat = (p.observaciones || p.grupo || "").toUpperCase();
         if (cat.includes("LEAD")) {
             groups["LEAD AGENT"].push(p);
-        } else (cat.includes("AGENTE") || cat.includes("OPS")) {
+        } else if (cat.includes("AGENTE") || cat.includes("OPS")) {
             groups["AGENTES"].push(p);
         } 
     });
