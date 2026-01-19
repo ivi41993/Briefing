@@ -3574,7 +3574,7 @@ function renderRoster(listEl, people, state) {
         if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N4"].push(p);
         else if (grupo.includes("03-DGR")) groups["ESPECIALISTAS DGR"].push(p);
         else if (grupo.includes("MOSTRADOR NAVE 4")) groups["MOSTRADOR NAVE 4"].push(p);
-        else groups["OPERARIOS NAVE 4"].push(p);
+        else if (grupo.includes("OPERARIOS-OPS")) groups["OPERARIOS NAVE 4"].push(p);
     });
 
     listEl.innerHTML = '';
@@ -7180,6 +7180,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
