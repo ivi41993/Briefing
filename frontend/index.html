@@ -2365,8 +2365,46 @@ body.card-open #timer-reset {
     <!-- NUEVO BOTÓN -->
     <button type="button" id="timer-start-btn" class="timer-start-btn">Comenzar</button>
     <button type="button" class="timer-reset" id="timer-reset">Reiniciar</button>
+    <!-- Botón de Pánico -->
+<button onclick="openIncidentModal()" class="btn-primary" 
+        style="background: linear-gradient(135deg, #dc2626, #991b1b); border: 2px solid #fff; box-shadow: 0 0 15px rgba(220,38,38,0.4);">
+    🚨 REPORTAR BLOQUEO / INCIDENCIA
+</button>
 </div>
 
+<dialog id="incident-modal" style="border:none; border-radius:16px; padding:0; width:450px; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
+    <!-- Cabecera Roja -->
+    <div style="background:#dc2626; color:white; padding:15px 20px; font-weight:800; font-size:1.1rem; display:flex; justify-content:space-between;">
+        <span>AVISO DE INCIDENCIA CRÍTICA</span>
+        <button onclick="closeIncidentModal()" style="background:none; border:none; color:white; cursor:pointer; font-size:1.2rem;">✕</button>
+    </div>
+
+    <!-- Contenido del Formulario -->
+    <div id="incident-form-container" style="padding:20px;">
+        <p style="margin-top:0; font-size:0.95rem; line-height:1.4;">Describa brevemente el problema. Se enviará un aviso <strong>automático e inmediato</strong> por Microsoft Teams a los responsables.</p>
+        
+        <textarea id="incident-desc" placeholder="Ej: Avería motor cinta 4... / Muelle 2 bloqueado por camión..." 
+                  style="width:100%; height:120px; padding:12px; border-radius:10px; border:2px solid #e2e8f0; font-family:inherit; font-size:1rem; outline:none; resize:none;"></textarea>
+        
+        <div style="margin-top:20px; display:flex; gap:10px;">
+            <button onclick="closeIncidentModal()" style="flex:1; padding:12px; border:none; border-radius:10px; cursor:pointer; font-weight:700; background:#f1f5f9;">Cancelar</button>
+            <button onclick="sendIncidentToTeams()" id="btn-confirm-incident" style="flex:1; padding:12px; border:none; border-radius:10px; cursor:pointer; font-weight:700; background:#dc2626; color:white;">ENVIAR AVISO</button>
+        </div>
+    </div>
+
+    <!-- Pantalla de Éxito (Feedback para el usuario) -->
+    <div id="incident-success-container" style="display:none; padding:40px 20px; text-align:center;">
+        <div style="font-size:4rem; margin-bottom:15px;">📡</div>
+        <h2 style="color:#166534; margin-bottom:10px;">¡Aviso enviado!</h2>
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:15px; border-radius:12px; color:#166534; text-align:left; font-size:0.95rem; line-height:1.5;">
+            ✅ Se ha notificado a los responsables por Teams.<br>
+            ⏳ El equipo de guardia revisará la incidencia lo antes posible.<br><br>
+            <strong>🚫 IMPORTANTE: No es necesario que envíes ningún correo manual ni realices llamadas adicionales.</strong>
+        </div>
+        <button onclick="closeIncidentModal()" class="btn-primary" style="margin-top:25px; width:100%;">Entendido</button>
+    </div>
+</dialog>
+  
 <!-- Busca esto en tu header y reemplázalo o modifícalo -->
 <div class="header-controls">
     <!-- El date-picker lo quitamos antes por JS, así que pon esto: -->
@@ -7046,6 +7084,54 @@ window.markOkAndNext = function(checkName, nextId) {
     render();
 })();
 
+const incModal = document.getElementById('incident-modal');
+
+function openIncidentModal() {
+    document.getElementById('incident-form-container').style.display = 'block';
+    document.getElementById('incident-success-container').style.display = 'none';
+    document.getElementById('incident-desc').value = '';
+    incModal.showModal();
+}
+
+function closeIncidentModal() {
+    incModal.close();
+}
+
+async function sendIncidentToTeams() {
+    const desc = document.getElementById('incident-desc').value.trim();
+    if (!desc) return alert("Por favor, describe la situación.");
+
+    const btn = document.getElementById('btn-confirm-incident');
+    btn.disabled = true;
+    btn.textContent = "Notificando...";
+
+    try {
+        const payload = {
+            station: window.STATION_OVERRIDE || "MADRID",
+            supervisor: document.getElementById('briefing-supervisor')?.value || "No especificado",
+            shift: document.getElementById('shift-badge-header')?.innerText || "General",
+            description: desc
+        };
+
+        const res = await fetch('api/report-incident', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error();
+
+        // Éxito: Ocultar formulario y mostrar mensaje de tranquilidad
+        document.getElementById('incident-form-container').style.display = 'none';
+        document.getElementById('incident-success-container').style.display = 'block';
+
+    } catch (err) {
+        alert("Fallo de conexión. Por favor, avisa por los canales habituales.");
+        btn.disabled = false;
+        btn.textContent = "ENVIAR AVISO";
+    }
+}
+
 /* =========================================================
    3. GENERAR RESUMEN (MAPEADO EXACTO PARA MADRID - FIX 422)
    ========================================================= */
@@ -7180,6 +7266,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
