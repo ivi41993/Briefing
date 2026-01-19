@@ -2482,23 +2482,25 @@ function renderRoster(listEl, people, state) {
     };
 
     // --- 3. FILTRADO (Categorías + Horquilla oficial) ---
-    const CATEGORIAS_OPS = ["US CARRIERS", "OPS", "LEADS", "02-DGR", "01-SUPERVISORES-OPS"];
+  const filteredPeople = masterList.filter(p => {
+        // --- A. REGLA DE EXCLUSIÓN POR NOMBRE (NUEVO) ---
+        const nombreUpper = (p.nombre_completo || "").toUpperCase();
+        if (nombreUpper.includes("CUSTOMER/TRACING OPS")) {
+            return false;
+        }
 
-    const filteredPeople = masterList.filter(p => {
-        // A. Filtro Categoría
+        // B. Filtro Categoría
         const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
         const cumpleCategoria = CATEGORIAS_OPS.some(cat => infoCategoria.includes(cat));
         if (!cumpleCategoria) return false;
 
-        // B. Filtro Horquilla Horaria (Comparamos contra las horas OFICIALES del turno)
+        // C. Filtro Horquilla Horaria
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true; 
         
         const hInicio = hours[0];
         const hFin = hours.length > 1 ? hours[1] : hInicio;
         
-        // Aunque estemos a las 12:00 (Turno Tarde), el trabajador entra a las 14:00.
-        // La lógica sigue funcionando porque hInicio (14) está en el rango (14-22).
         if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
         if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
         if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
@@ -2506,7 +2508,6 @@ function renderRoster(listEl, people, state) {
     });
 
     window.TEAM_STATE.people = filteredPeople;
-
     // --- 4. SECCIONAMIENTO POR JERARQUÍA OPERATIVA ---
     const groups = {
         "SUPERVISORES & LEADS": [],
