@@ -2690,25 +2690,27 @@ body.card-open #timer-reset {
   <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
   
   <div class="kpi-grid">
-    <!-- DISPONIBILIDAD ESPECÍFICA -->
-    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
-        <div class="kpi-label">Disponibilidad WFS4</div>
-        <div class="kpi-value"><span id="fiix-availability">100</span>%</div>
-        <small class="kpi-text" id="fiix-down-text">Equipos Nave 4</small>
+    <!-- COSTE ESTIMADO (Linkado a tipos de órdenes) -->
+    <div class="kpi-tile" style="border-left: 6px solid #b91c1c; background: #fff1f2;">
+        <div class="kpi-label" style="color: #991b1b;">Impacto Económico (24h)</div>
+        <div class="kpi-value" style="color: #b91c1c;">
+            <span id="fiix-cost-est">0.00</span><span class="kpi-currency">€</span>
+        </div>
+        <small class="kpi-text">Basado en criticidad N4</small>
     </div>
 
-    <!-- IMPACTO GASTO NAVE 4 -->
-    <div class="kpi-tile" id="tile-fiix-loss" style="border-left: 6px solid #f59e0b;">
-        <div class="kpi-label">Eficiencia Operativa</div>
-        <div class="kpi-value" id="fiix-ratio-loss">0%</div>
-        <small class="kpi-text">Correctivo vs Preventivo</small>
+    <!-- TIEMPO DE RESPUESTA (MTTR) -->
+    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">Tiempo de Reparación</div>
+        <div class="kpi-value"><span id="fiix-mttr">0</span><small style="font-size: 1rem;">h</small></div>
+        <small class="kpi-text">Media de cierre en WFS4</small>
     </div>
 
-    <!-- TAREAS CRÍTICAS NAVE 4 -->
-    <div class="kpi-tile" id="tile-fiix-urgent" style="border-left: 6px solid #ef4444;">
-        <div class="kpi-label">Urgencias N4</div>
-        <div class="kpi-value" id="fiix-urgentes">0</div>
-        <small class="kpi-text">Órdenes Prioridad Alta</small>
+    <!-- BACKLOG NAVE 4 -->
+    <div class="kpi-tile" style="border-left: 6px solid #64748b;">
+        <div class="kpi-label">Backlog Abierto</div>
+        <div class="kpi-value" id="fiix-backlog">0</div>
+        <small class="kpi-text">Tareas pendientes N4</small>
     </div>
   </div>
 
@@ -4139,52 +4141,21 @@ function processTaskUpdate(data) {
     // 4. KPIs (FIIX + PowerBI)
     // Dentro de processTaskUpdate(data) en tu index.html
 
-if (data.metric && data.metric.startsWith('fiix_')) {
-    const val = data.value;
-    const m = data.metric;
+if (data.metric.startsWith('fiix_wfs4_')) {
+        const m = data.metric;
+        const val = data.value;
 
-    // --- KPI DISPONIBILIDAD ---
-    // --- 1. DISPONIBILIDAD ---
-        if (mKey === 'fiix_availability') {
-            document.getElementById('fiix-availability').textContent = data.value;
-            const tile = document.getElementById('tile-fiix-availability');
-            // Alerta si baja del 90%
-            tile.style.background = data.value < 90 ? '#fff1f2' : '#fff';
-            tile.style.borderLeftColor = data.value < 90 ? '#ef4444' : '#10b981';
-            return;
+        if (m === 'fiix_wfs4_cost_est') {
+            document.getElementById('fiix-cost-est').textContent = new Intl.NumberFormat('es-ES').format(val);
         }
-        if (mKey === 'fiix_assets_down') {
-            document.getElementById('fiix-down-text').textContent = data.value > 0 ? `${data.value} equipos parados` : 'Todo operativo';
-            return;
+        else if (m === 'fiix_wfs4_mttr') {
+            document.getElementById('fiix-mttr').textContent = val;
         }
-
-        // --- 2. FLUJO ---
-        if (mKey === 'fiix_wo_created_24h') document.getElementById('fiix-created-24h').textContent = data.value;
-        if (mKey === 'fiix_wo_closed_24h') document.getElementById('fiix-closed-24h').textContent = data.value;
-
-        // --- 3. IMPACTO ECONÓMICO (Link con costes) ---
-        if (mKey === 'fiix_ratio_loss') {
-            const val = data.value;
-            const el = document.getElementById('fiix-ratio-loss');
-            const tile = document.getElementById('tile-fiix-loss');
-            const txt = document.getElementById('fiix-loss-text');
-
-            el.textContent = val + "%";
-            
-            // Si el ratio de correctivo es > 40%, el impacto económico es ALTO (Rojo)
-            if (val > 40) {
-                tile.style.background = "#fef2f2";
-                tile.style.borderLeftColor = "#dc2626";
-                txt.textContent = "ALTO IMPACTO ECONÓMICO";
-                txt.style.color = "#dc2626";
-            } else {
-                tile.style.background = "#fff";
-                tile.style.borderLeftColor = "#64748b";
-                txt.textContent = "Gasto bajo control";
-                txt.style.color = "#64748b";
-            }
-            return;
+        else if (m === 'fiix_wfs4_backlog') {
+            document.getElementById('fiix-backlog').textContent = val;
         }
+        return;
+    }
 
     // 5. Render de tarjetas normales
     const elementId = `task-${data.id}`;
@@ -4195,7 +4166,7 @@ if (data.metric && data.metric.startsWith('fiix_')) {
         case 'ops_update': if(window.renderOpsCard) window.renderOpsCard(data); break;
     }
 }
-}
+
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
 
@@ -7167,5 +7138,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
