@@ -2486,7 +2486,7 @@ function renderRoster(listEl, people, state) {
     const filteredPeople = masterList.filter(p => {
         // --- A. REGLA DE EXCLUSIÓN POR NOMBRE (NUEVO) ---
         const nombreUpper = (p.nombre_completo || "").toUpperCase();
-        if (nombreUpper.includes("CUSTOMER/TRACING OPS")) {
+        if (nombreUpper.includes("Customer/Tracing OPS")) {
             return false;
         }
 
