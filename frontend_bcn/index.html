@@ -2448,7 +2448,7 @@ shift: TEAM_STATE?.shift || null
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. Inicialización de Estado Global (Mantenemos tu código)
+    // 1. Inicialización de Estado Global
     if (!window.TEAM_STATE) {
         window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     }
@@ -2465,15 +2465,12 @@ function renderRoster(listEl, people, state) {
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
 
-    // Mañana: Si son las 04:00 hasta las 11:59
     if (hNow >= 4 && hNow < 12) {
         currentShiftLabel = "Mañana";
     } 
-    // Tarde: Si son las 12:00 hasta las 19:59
     else if (hNow >= 12 && hNow < 20) {
         currentShiftLabel = "Tarde";
     }
-    // Noche: Si son las 20:00 hasta las 03:59 (implícito por el else)
 
     const extractHours = (str) => {
         const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
@@ -2484,9 +2481,11 @@ function renderRoster(listEl, people, state) {
     // --- 3. FILTRADO (Categorías + Horquilla oficial) ---
     const CATEGORIAS_OPS = ["US CARRIERS", "OPS", "LEADS", "02-DGR", "01-SUPERVISORES-OPS"];
     const filteredPeople = masterList.filter(p => {
-        // --- A. REGLA DE EXCLUSIÓN POR NOMBRE (NUEVO) ---
+        
+        // --- A. REGLA DE EXCLUSIÓN POR NOMBRE (CORREGIDA) ---
         const nombreUpper = (p.nombre_completo || "").toUpperCase();
-        if (nombreUpper.includes("Customer/Tracing OPS")) {
+        // Ponemos el filtro en MAYÚSCULAS para que la comparación funcione
+        if (nombreUpper.includes("CUSTOMER/TRACING OPS")) {
             return false;
         }
 
@@ -2509,6 +2508,7 @@ function renderRoster(listEl, people, state) {
     });
 
     window.TEAM_STATE.people = filteredPeople;
+    
     // --- 4. SECCIONAMIENTO POR JERARQUÍA OPERATIVA ---
     const groups = {
         "SUPERVISORES & LEADS": [],
@@ -2535,7 +2535,6 @@ function renderRoster(listEl, people, state) {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
-        // Título de Sección
         const header = document.createElement('div');
         header.style.cssText = "background:#f1f5f9; padding:10px 14px; margin:18px 0 10px 0; font-weight:700; font-size:0.85rem; color:#334155; border-radius:8px; text-transform:uppercase; border-bottom:3px solid #cbd5e1; letter-spacing:0.5px;";
         header.textContent = `${groupName} (${groupPeople.length})`;
@@ -2545,18 +2544,16 @@ function renderRoster(listEl, people, state) {
             const name = p.nombre_completo;
             const isIncidencia = p.is_incidencia === true;
             const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
-            const safeId = name.replace(/[^a-z0-9]/gi, '_');
+            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/[^A-Za-z0-9]/g, ""); 
 
-            // Estado de Presencia: Pendiente (undefined), OK (true), NO (false)
             let currentAtt = window.TEAM_STATE.attendance[name]; 
             if (currentAtt === undefined) currentAtt = "undefined";
 
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            // Colores Vivid (Identidad visual por cargo)
-            let colorVivid = "#3b82f6"; // Azul para Ops General
-            if (groupName === "SUPERVISORES & LEADS") colorVivid = "#fbbf24"; // Oro
-            if (groupName === "OPERACIONES ESPECIALES (DGR)") colorVivid = "#ef4444"; // Rojo (Crítico)
+            let colorVivid = "#3b82f6"; 
+            if (groupName === "SUPERVISORES & LEADS") colorVivid = "#fbbf24"; 
+            if (groupName === "OPERACIONES ESPECIALES (DGR)") colorVivid = "#ef4444"; 
 
             const row = document.createElement('div');
             row.className = 'team-row';
@@ -2574,10 +2571,8 @@ function renderRoster(listEl, people, state) {
                     <div class="presence-toggle">
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
                         <label for="u_${safeId}" style="padding:4px 10px; font-size:0.75rem;">➖</label>
-
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
                         <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✅</label>
-                        
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
                         <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">❌</label>
                     </div>
@@ -2588,7 +2583,6 @@ function renderRoster(listEl, people, state) {
                 </div>
             `;
 
-            // Listeners de Presencia (3 Estados)
             row.querySelectorAll('input[type="radio"]').forEach(r => {
                 r.addEventListener('click', () => {
                     let val = (r.value === 'yes') ? true : (r.value === 'no' ? false : undefined);
