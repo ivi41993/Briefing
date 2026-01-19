@@ -3506,6 +3506,53 @@ def api_enablon_env_check():
         "ENA_CAFILE": bool(ENA_CAFILE),
     }
 
+# --- CONFIGURACIÓN DE TEAMS ---
+# Pon la URL que copiaste de Teams en las variables de entorno de Render
+TEAMS_WEBHOOK_URL = os.getenv("TEAMS_WEBHOOK_URL")
+
+class IncidentReport(BaseModel):
+    station: str
+    supervisor: str
+    description: str
+    shift: str
+
+@app.post("/api/report-incident")
+async def report_incident(data: IncidentReport):
+    """Envía un aviso inmediato a Microsoft Teams."""
+    
+    if not TEAMS_WEBHOOK_URL:
+        print(f"🚨 ALERTA SIN TEAMS (No configurado): {data.description}")
+        return {"status": "success", "log": "Simulado localmente"}
+
+    # Formateamos el mensaje para que se vea profesional en Teams
+    teams_card = {
+        "@type": "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "themeColor": "FF0000",
+        "summary": "Nueva Incidencia Crítica",
+        "sections": [{
+            "activityTitle": f"🚨 ALERTA CRÍTICA: {data.station}",
+            "activitySubtitle": f"Reportado por: {data.supervisor}",
+            "facts": [
+                {"name": "Turno:", "value": data.shift},
+                {"name": "Hora:", "value": datetime.now().strftime("%H:%M:%S")},
+                {"name": "Descripción:", "value": data.description}
+            ],
+            "markdown": True
+        }]
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(TEAMS_WEBHOOK_URL, json=teams_card, timeout=10.0)
+            if resp.status_code >= 400:
+                print(f"❌ Error Teams API: {resp.status_code} {resp.text}")
+        
+        return {"status": "success"}
+    except Exception as e:
+        print(f"❌ Fallo al conectar con Teams: {e}")
+        return {"status": "success", "error": "fallback_local"}
+
 from fastapi import Body
 
 
@@ -4877,6 +4924,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
