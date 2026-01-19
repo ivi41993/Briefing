@@ -4401,7 +4401,7 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
                 continue
             
             # Solo permitimos grupos que contengan estas palabras clave de Operaciones
-            es_ops = any(x in grupo_raw for x in ("OPS", "OPERARIO", "DGR", "SUPERVISOR", "LEAD", "MOSTRADOR"))
+            es_ops = any(x in grupo_raw for x in ( "OPERARIO-OPS", "DGR", "SUPERVISOR", "LEAD", "MOSTRADOR"))
             if not es_ops:
                 continue
 
@@ -4741,6 +4741,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
