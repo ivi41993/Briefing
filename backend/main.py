@@ -3016,37 +3016,7 @@ class FiixConnector:
         else:
             print(f"⚠️ La tabla {class_name} no devolvió datos o no tienes permiso.")
 
-# --- 2. AÑADE ESTE NUEVO ENDPOINT AL FINAL DE TU ARCHIVO (Cerca de los otros @app.get) ---
-@app.get("/api/fiix/inspect")
-async def inspect_fiix_api():
-    """
-    Llamada manual: https://tu-url.onrender.com/api/fiix/inspect
-    Muestra el esquema completo en la terminal de Render.
-    """
-    f = FiixConnector()
-    print("\n" + "="*50)
-    print("🚀 INICIANDO INSPECCIÓN PROFUNDA DE FIIX")
-    print("="*50)
-    
-    # Inspeccionamos las tablas clave
-    # Puedes añadir o quitar tablas aquí
-    tablas = ["WorkOrder", "Asset", "User", "Priority", "MaintenanceType"]
-    
-    for tabla in tablas:
-        try:
-            await f.get_full_schema(tabla)
-        except Exception as e:
-            print(f"❌ Error inspeccionando {tabla}: {e}")
-            
-    print("\n" + "="*50)
-    print("🏁 INSPECCIÓN FINALIZADA")
-    print("="*50)
-    
-    return {
-        "status": "Inspección completada",
-        "message": "Revisa la terminal de Render para ver el esquema completo.",
-        "tables_checked": tablas
-    }
+
 
 
 
@@ -4533,7 +4503,37 @@ def api_roster_sheets():
         "path": ROSTER_XLSX_PATH,
         "sheets": _list_sheet_names(ROSTER_XLSX_PATH),
     }
-
+# --- 2. AÑADE ESTE NUEVO ENDPOINT AL FINAL DE TU ARCHIVO (Cerca de los otros @app.get) ---
+@app.get("/api/fiix/inspect")
+async def inspect_fiix_api():
+    """
+    Llamada manual: https://tu-url.onrender.com/api/fiix/inspect
+    Muestra el esquema completo en la terminal de Render.
+    """
+    f = FiixConnector()
+    print("\n" + "="*50)
+    print("🚀 INICIANDO INSPECCIÓN PROFUNDA DE FIIX")
+    print("="*50)
+    
+    # Inspeccionamos las tablas clave
+    # Puedes añadir o quitar tablas aquí
+    tablas = ["WorkOrder", "Asset", "User", "Priority", "MaintenanceType"]
+    
+    for tabla in tablas:
+        try:
+            await f.get_full_schema(tabla)
+        except Exception as e:
+            print(f"❌ Error inspeccionando {tabla}: {e}")
+            
+    print("\n" + "="*50)
+    print("🏁 INSPECCIÓN FINALIZADA")
+    print("="*50)
+    
+    return {
+        "status": "Inspección completada",
+        "message": "Revisa la terminal de Render para ver el esquema completo.",
+        "tables_checked": tablas
+    }
 @app.get("/api/enablon/candidates")
 async def api_enablon_candidates():
     # usa la URL actual del conector (ENA_URL1/2/3…)
@@ -4741,6 +4741,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
