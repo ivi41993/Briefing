@@ -2958,7 +2958,7 @@ class FiixConnector:
             total_n4 = len(assets_n4)
             # bolIsOnline: 1 es OK, 0 es Averiado/Parado
             broken_n4 = sum(1 for a in assets_n4 if a.get("bolIsOnline") == 0)
-            availability_pct = round(((total_n4 - broken_n4) / total_n4) * 100) if total_n4 > 0 else 100
+            availability_n4 = round(((total_n4 - broken_n4) / total_n4) * 100) if total_n4 > 0 else 100
 
             # --- 2. COSTES Y TIEMPOS (WORK ORDERS) ---
             body_closed = {
@@ -4946,6 +4946,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
