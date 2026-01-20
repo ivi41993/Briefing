@@ -812,6 +812,10 @@ class ConnectionManager:
             self.disconnect(websocket)
 
 async def send_to_excel_online(data: BriefingSnapshot):
+    offset = random.randint(1, 60)
+    print(f"⏳ Esperando {offset}s para evitar colisión en Excel...")
+    await asyncio.sleep(offset)
+    
     # BUSCAMOS LA VARIABLE ESPECÍFICA DE BCN O LA GENÉRICA
     url = os.getenv("BCN_WEBHOOK") 
     if not url:
@@ -2120,6 +2124,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
