@@ -4208,19 +4208,12 @@ if (data.metric.startsWith('fiix_wfs4_')) {
         const val = data.value;
 
         if (m === 'fiix_wfs4_availability') {
-            document.getElementById('fiix-availability').textContent = val;
-            const tile = document.getElementById('tile-fiix-availability');
-            
-            // Lógica de colores: 100% Verde, <100% Ámbar, <90% Rojo
-            if (val === 100) {
-                tile.style.background = "#f0fdf4"; // Verde suave
-                tile.style.borderLeftColor = "#10b981";
-            } else if (val >= 90) {
-                tile.style.background = "#fffbeb"; // Ámbar suave
-                tile.style.borderLeftColor = "#f59e0b";
-            } else {
-                tile.style.background = "#fef2f2"; // Rojo suave
-                tile.style.borderLeftColor = "#ef4444";
+            const el = document.getElementById('fiix-availability');
+            if (el) {
+                el.textContent = val;
+                // Feedback visual de actualización (destello)
+                el.parentElement.classList.add('flash'); 
+                setTimeout(() => el.parentElement.classList.remove('flash'), 1000);
             }
         }
         else if (m === 'fiix_wfs4_broken_count') {
@@ -7266,6 +7259,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
