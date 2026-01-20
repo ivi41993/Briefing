@@ -810,7 +810,8 @@ class ConnectionManager:
             await websocket.send_json(data)
         except Exception:
             self.disconnect(websocket)
-
+import random
+import asyncio
 async def send_to_excel_online(data: BriefingSnapshot):
     offset = random.randint(1, 60)
     print(f"⏳ Esperando {offset}s para evitar colisión en Excel...")
@@ -2124,6 +2125,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
