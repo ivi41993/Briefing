@@ -2988,16 +2988,22 @@ class FiixConnector:
             ts = datetime.utcnow().isoformat() + "Z"
             mttr = round((total_downtime_mins / len(closed_res)) / 60, 1) if closed_res else 0
             
+            ts = datetime.utcnow().isoformat() + "Z"
             metrics = [
-                ("fiix_wfs4_availability", availability_pct), # % de flota operativa
-                ("fiix_wfs4_broken_count", broken_n4),        # cuántas máquinas rotas
-                ("fiix_wfs4_cost_est", round(total_est_cost, 2)),
+                ("fiix_wfs4_availability", availability_n4),
+                ("fiix_wfs4_cost_est", total_est_cost),
                 ("fiix_wfs4_mttr", mttr),
-                ("fiix_wfs4_total_assets", total_n4)
+                ("fiix_wfs4_broken_count", broken_n4)
             ]
             
             for m, v in metrics:
-                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
+                await manager.broadcast({
+                    "type": "kpi_update", 
+                    "metric": m, 
+                    "value": v, 
+                    "timestamp": ts, 
+                    "station": "MAD"
+                })
 
             print(f"📊 [WFS4] Disp: {availability_pct}% | Rotos: {broken_n4} | Coste Est: {total_est_cost}€")
 
@@ -3142,7 +3148,7 @@ class FiixConnector:
             print(json.dumps(wo, indent=4))
             print("-" * 40)
 
-
+FIIX_POLL_SECONDS = int(os.getenv("FIIX_POLL_SECONDS", "300")) 
     
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
@@ -3165,15 +3171,31 @@ async def lifespan(app: FastAPI):
 
     
     fiix = FiixConnector()
-    async def _fiix_loop():
-        await asyncio.sleep(2) # Espera mínima
+    async def _fiix_periodic_worker():
+        print(f"⏳ [FIIX worker] Iniciado. Frecuencia: {FIIX_POLL_SECONDS}s")
+        # Pequeña espera inicial para no saturar el arranque
+        await asyncio.sleep(10) 
         while True:
-            await fiix.fetch_metrics()
-            await asyncio.sleep(300) # 5 minutos
+            try:
+                print("📡 [FIIX worker] Sincronizando datos automáticamente...")
+                await fiix.fetch_metrics()
+            except Exception as e:
+                print(f"❌ [FIIX worker] Error en ejecución: {e}")
             
-    app.state._fiix_task = asyncio.create_task(_fiix_loop())
-    yield
+            # Esperar hasta la siguiente vuelta
+            await asyncio.sleep(FIIX_POLL_SECONDS)
+
+    # Lanzamos el proceso de Fiix como una tarea de fondo
+    app.state._fiix_task = asyncio.create_task(_fiix_periodic_worker())
+    
+    # Heartbeat del WebSocket (Mantenimiento de conexión)
+    app.state._hb = asyncio.create_task(_ws_heartbeat(30))
+
+    yield  # Aquí es donde el servidor se queda funcionando
+
     print("🛑 [SISTEMA] Deteniendo servidor...")
+    app.state._fiix_task.cancel()
+    app.state._hb.cancel()
 
     # --------------------------------
 
@@ -4924,6 +4946,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
