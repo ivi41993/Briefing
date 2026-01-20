@@ -3005,7 +3005,7 @@ class FiixConnector:
                     "station": "MAD"
                 })
 
-            print(f"📊 [WFS4] Disp: {availability_pct}% | Rotos: {broken_n4} | Coste Est: {total_est_cost}€")
+            print(f"📊 [WFS4] Disp: {availability_n4}% | Rotos: {broken_n4} | Coste Est: {total_est_cost}€")
 
         except Exception as e:
             print(f"❌ [FIIX WFS4] Error: {e}")
@@ -4946,6 +4946,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
