@@ -3149,7 +3149,7 @@ class FiixConnector:
             print("-" * 40)
 
 FIIX_POLL_SECONDS = int(os.getenv("FIIX_POLL_SECONDS", "300")) 
-    
+FIIX_CYCLE_SECONDS = 4 * 3600     
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -3171,27 +3171,32 @@ async def lifespan(app: FastAPI):
 
     
     fiix = FiixConnector()
-    async def _fiix_periodic_worker():
-        print(f"⏳ [FIIX worker] Iniciado. Frecuencia: {FIIX_POLL_SECONDS}s")
-        # Pequeña espera inicial para no saturar el arranque
-        await asyncio.sleep(10) 
+    async def _fiix_worker_4h():
+        fiix = FiixConnector()
+        print(f"⏳ [FIIX worker] Iniciado. Ciclo de actualización: cada 4 horas.")
+        
         while True:
             try:
-                print("📡 [FIIX worker] Sincronizando datos automáticamente...")
+                # Ejecutamos la lógica que antes hacías con /api/fiix/test
+                print(f"📡 [FIIX] {datetime.now().strftime('%H:%M:%S')} - Iniciando sincronización programada...")
                 await fiix.fetch_metrics()
+                print("✅ [FIIX] Sincronización completada con éxito.")
+                
             except Exception as e:
-                print(f"❌ [FIIX worker] Error en ejecución: {e}")
+                print(f"❌ [FIIX worker] Error en el ciclo: {e}")
             
-            # Esperar hasta la siguiente vuelta
-            await asyncio.sleep(FIIX_POLL_SECONDS)
+            # El worker se duerme 4 horas hasta la siguiente vuelta
+            print(f"💤 [FIIX worker] Próxima actualización en 4 horas ({FIIX_CYCLE_SECONDS}s)")
+            await asyncio.sleep(FIIX_CYCLE_SECONDS)
 
     # Lanzamos el proceso de Fiix como una tarea de fondo
-    app.state._fiix_task = asyncio.create_task(_fiix_periodic_worker())
+    app.state._fiix_task = asyncio.create_task(_fiix_worker_4h())
     
-    # Heartbeat del WebSocket (Mantenimiento de conexión)
+    # Mantener vivo el WebSocket
     app.state._hb = asyncio.create_task(_ws_heartbeat(30))
 
-    yield  # Aquí es donde el servidor se queda funcionando
+    yield  # El servidor corre aquí...
+# Aquí es donde el servidor se queda funcionando
 
     print("🛑 [SISTEMA] Deteniendo servidor...")
     app.state._fiix_task.cancel()
@@ -4946,6 +4951,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
