@@ -3444,20 +3444,36 @@ class DashboardIssue(BaseModel):
 
 @app.post("/api/report-dashboard-issue")
 async def report_dashboard_issue(data: DashboardIssue):
-    if not URL_TEAMS_SOPORTE:
-        print(f"⚠️ Soporte Dashboard: {data.detalles}")
-        return {"status": "success", "log": "Aviso local"}
+    url = os.getenv("URL_TEAMS_SOPORTE")
+    if not url:
+        print("❌ URL_TEAMS_SOPORTE no configurada en Render")
+        return {"status": "error"}
 
+    # BLINDAJE: Convertimos todo a string y evitamos nulos
     payload = {
-        "estacion": data.estacion,
-        "supervisor": data.supervisor,
-        "tipo_fallo": data.tipo_fallo,
-        "detalles": data.detalles
+        "estacion": str(data.estacion or "Desconocida"),
+        "supervisor": str(data.supervisor or "Anónimo"),
+        "tipo_fallo": str(data.tipo_fallo or "No especificado"),
+        "detalles": str(data.detalles or "Sin detalles")
     }
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(URL_TEAMS_SOPORTE, json=payload, timeout=10.0)
-        return {"status": "success" if resp.status_code < 400 else "error"}
+    print(f"📡 Enviando a Power Automate: {payload}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            # Forzamos los headers de JSON para que Microsoft no lo ignore
+            resp = await client.post(
+                url, 
+                json=payload, 
+                headers={"Content-Type": "application/json"},
+                timeout=15.0
+            )
+            
+            print(f"🔄 Respuesta de Microsoft: {resp.status_code}")
+            return {"status": "success"}
+    except Exception as e:
+        print(f"❌ Error de conexión: {e}")
+        return {"status": "error"}
 
 
 @app.get("/api/roster/needs-update")
@@ -4977,6 +4993,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
