@@ -2359,6 +2359,45 @@ body.card-open #timer-reset {
     <!-- NUEVO BOTÓN -->
     <button type="button" id="timer-start-btn" class="timer-start-btn">Comenzar</button>
     <button type="button" class="timer-reset" id="timer-reset">Reiniciar</button>
+    <!-- Botón de soporte en el Header -->
+    <button onclick="openSupportModal()" style="border:none; background:none; color:#64748b; cursor:pointer; font-size:0.8rem; text-decoration:underline; margin-top:10px;">
+        🔧 Reportar fallo en el Dashboard
+    </button>
+    <dialog id="support-modal" style="border:none; border-radius:12px; padding:20px; width:400px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+    <div id="support-form">
+        <h3 style="margin-top:0; font-family: 'Space Grotesk', sans-serif;">Soporte Técnico Dashboard</h3>
+        <label style="font-size:0.8rem; font-weight:700;">¿Qué falla?</label>
+        <select id="issue-type" style="width:100%; padding:8px; margin:8px 0 15px; border-radius:6px; border:1px solid #ddd; font-family: inherit;">
+            <option>No carga el personal (Roster)</option>
+            <option>Los KPIs no se actualizan</option>
+            <option>Error al guardar resumen</option>
+            <option>Error en los datos de Fiix</option>
+            <option>Otro problema técnico</option>
+        </select>
+        
+        <label style="font-size:0.8rem; font-weight:700;">Describe el error:</label>
+        <textarea id="issue-details" placeholder="Ej: Los costes de Fiix salen en 0..." style="width:100%; height:80px; margin-top:8px; padding:8px; border-radius:6px; border:1px solid #ddd; font-family: inherit; resize: none;"></textarea>
+        
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button onclick="document.getElementById('support-modal').close()" style="flex:1; border:none; padding:10px; border-radius:6px; cursor:pointer; background: #f1f5f9; font-weight: 700;">Cancelar</button>
+            <button onclick="sendDashboardIssue()" id="btn-submit-support" style="flex:1; border:none; padding:10px; border-radius:6px; cursor:pointer; background:#334155; color:white; font-weight:700;">AVISAR A SOPORTE</button>
+        </div>
+    </div>
+
+    <!-- Pantalla de confirmación (Se activa tras el envío) -->
+    <div id="support-thanks" style="display:none; text-align:center; padding: 10px 0;">
+        <div style="font-size:3rem; margin-bottom: 10px;">🛠️</div>
+        <h3 style="color:#334155; margin-bottom: 5px;">Aviso Recibido</h3>
+        <p style="font-size:0.9rem; line-height:1.4; color: #475569;">
+            Se ha notificado al equipo técnico sobre el fallo en:<br>
+            <strong id="display-station-name" style="color: #1e293b;">—</strong>
+        </p>
+        <p style="color:#64748b; font-size:0.8rem; background: #f8fafc; padding: 10px; border-radius: 8px;">
+            <strong>No es necesario enviar correos ni tickets adicionales.</strong>
+        </p>
+        <button onclick="document.getElementById('support-modal').close()" class="btn-primary" style="width:100%; margin-top:15px;">Entendido</button>
+    </div>
+</dialog>
 </div>
 
 <!-- Busca esto en tu header y reemplázalo o modifícalo -->
@@ -7071,6 +7110,55 @@ window.markOkAndNext = function(checkName, nextId) {
     render();
 })();
 
+function openSupportModal() {
+    document.getElementById('support-form').style.display = 'block';
+    document.getElementById('support-thanks').style.display = 'none';
+    document.getElementById('issue-details').value = '';
+    document.getElementById('support-modal').showModal();
+}
+
+async function sendDashboardIssue() {
+    const type = document.getElementById('issue-type').value;
+    const details = document.getElementById('issue-details').value.trim();
+    const btn = document.getElementById('btn-submit-support');
+
+    if (!details) return alert("Por favor, describe el error para poder ayudarte.");
+
+    // IDENTIFICACIÓN AUTOMÁTICA DE LA ESTACIÓN
+    // Combina el Título (Dashboard - WFSx) y la Ruta (/wfsxwh)
+    const stationIdentity = `${document.title} (URL: ${window.location.pathname})`;
+
+    btn.disabled = true;
+    btn.textContent = "Enviando...";
+
+    try {
+        const payload = {
+            estacion: stationIdentity,
+            supervisor: document.getElementById('briefing-supervisor')?.value || "No identificado",
+            tipo_fallo: type,
+            detalles: details
+        };
+
+        const res = await fetch('api/report-dashboard-issue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            document.getElementById('display-station-name').textContent = stationIdentity;
+            document.getElementById('support-form').style.display = 'none';
+            document.getElementById('support-thanks').style.display = 'block';
+        } else {
+            throw new Error("Error en servidor");
+        }
+    } catch (e) {
+        alert("Fallo al contactar con el sistema de soporte técnico.");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "AVISAR A SOPORTE";
+    }
+}
 /* =========================================================
    3. GENERAR RESUMEN (MAPEADO EXACTO PARA MADRID - FIX 422)
    ========================================================= */
