@@ -2366,10 +2366,40 @@ body.card-open #timer-reset {
     <button type="button" id="timer-start-btn" class="timer-start-btn">Comenzar</button>
     <button type="button" class="timer-reset" id="timer-reset">Reiniciar</button>
     <!-- Botón de Pánico -->
-<button onclick="openIncidentModal()" class="btn-primary" 
-        style="background: linear-gradient(135deg, #dc2626, #991b1b); border: 2px solid #fff; box-shadow: 0 0 15px rgba(220,38,38,0.4);">
-    🚨 REPORTAR BLOQUEO / INCIDENCIA
+<!-- Botón discreto de soporte -->
+<button onclick="openSupportModal()" style="border:none; background:none; color:#64748b; cursor:pointer; font-size:0.8rem; text-decoration:underline; margin-top:10px;">
+    🔧 Reportar fallo en el Dashboard
 </button>
+
+<dialog id="support-modal" style="border:none; border-radius:12px; padding:20px; width:400px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+    <div id="support-form">
+        <h3 style="margin-top:0;">Soporte Técnico Dashboard</h3>
+        <label style="font-size:0.8rem; font-weight:700;">¿Qué falla?</label>
+        <select id="issue-type" style="width:100%; padding:8px; margin:8px 0 15px; border-radius:6px; border:1px solid #ddd;">
+            <option>No carga el personal (Roster)</option>
+            <option>Los KPIs no se actualizan</option>
+            <option>Error al guardar resumen</option>
+            <option>Otro problema técnico</option>
+        </select>
+        
+        <label style="font-size:0.8rem; font-weight:700;">Describe el error:</label>
+        <textarea id="issue-details" placeholder="Ej: No aparece nadie en el turno de noche..." style="width:100%; height:80px; margin-top:8px; padding:8px; border-radius:6px; border:1px solid #ddd;"></textarea>
+        
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button onclick="document.getElementById('support-modal').close()" style="flex:1; border:none; padding:10px; border-radius:6px; cursor:pointer;">Cancelar</button>
+            <button onclick="sendDashboardIssue()" style="flex:1; border:none; padding:10px; border-radius:6px; cursor:pointer; background:#334155; color:white; font-weight:700;">AVISAR A SOPORTE</button>
+        </div>
+    </div>
+
+    <!-- Pantalla de confirmación -->
+    <div id="support-thanks" style="display:none; text-align:center;">
+        <div style="font-size:3rem;">🛠️</div>
+        <h3 style="color:#334155;">Aviso Recibido</h3>
+        <p style="font-size:0.9rem; line-height:1.4;">El equipo de desarrollo ha sido notificado vía Teams.<br>Revisaremos el fallo de la <strong>estación ${window.STATION_OVERRIDE}</strong> de inmediato.</p>
+        <p style="color:#64748b; font-size:0.85rem;"><strong>No es necesario enviar correos ni tickets adicionales.</strong></p>
+        <button onclick="document.getElementById('support-modal').close()" class="btn-primary" style="width:100%; margin-top:15px;">Entendido</button>
+    </div>
+</dialog>
 </div>
 
 <dialog id="incident-modal" style="border:none; border-radius:16px; padding:0; width:450px; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
@@ -7077,51 +7107,37 @@ window.markOkAndNext = function(checkName, nextId) {
     render();
 })();
 
-const incModal = document.getElementById('incident-modal');
-
-function openIncidentModal() {
-    document.getElementById('incident-form-container').style.display = 'block';
-    document.getElementById('incident-success-container').style.display = 'none';
-    document.getElementById('incident-desc').value = '';
-    incModal.showModal();
+function openSupportModal() {
+    document.getElementById('support-form').style.display = 'block';
+    document.getElementById('support-thanks').style.display = 'none';
+    document.getElementById('support-modal').showModal();
 }
 
-function closeIncidentModal() {
-    incModal.close();
-}
-
-async function sendIncidentToTeams() {
-    const desc = document.getElementById('incident-desc').value.trim();
-    if (!desc) return alert("Por favor, describe la situación.");
-
-    const btn = document.getElementById('btn-confirm-incident');
-    btn.disabled = true;
-    btn.textContent = "Notificando...";
+async function sendDashboardIssue() {
+    const type = document.getElementById('issue-type').value;
+    const details = document.getElementById('issue-details').value.trim();
+    if (!details) return alert("Por favor, danos algún detalle del error.");
 
     try {
         const payload = {
-            station: window.STATION_OVERRIDE || "MADRID",
-            supervisor: document.getElementById('briefing-supervisor')?.value || "No especificado",
-            shift: document.getElementById('shift-badge-header')?.innerText || "General",
-            description: desc
+            estacion: window.STATION_OVERRIDE || "MAD",
+            supervisor: document.getElementById('briefing-supervisor')?.value || "Anónimo",
+            tipo_fallo: type,
+            detalles: details
         };
 
-        const res = await fetch('api/report-incident', {
+        const res = await fetch('api/report-dashboard-issue', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error();
-
-        // Éxito: Ocultar formulario y mostrar mensaje de tranquilidad
-        document.getElementById('incident-form-container').style.display = 'none';
-        document.getElementById('incident-success-container').style.display = 'block';
-
-    } catch (err) {
-        alert("Fallo de conexión. Por favor, avisa por los canales habituales.");
-        btn.disabled = false;
-        btn.textContent = "ENVIAR AVISO";
+        if (res.ok) {
+            document.getElementById('support-form').style.display = 'none';
+            document.getElementById('support-thanks').style.display = 'block';
+        }
+    } catch (e) {
+        alert("Error al contactar con el servidor de soporte.");
     }
 }
 
@@ -7259,6 +7275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
