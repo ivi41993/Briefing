@@ -3074,6 +3074,14 @@ def get_protocol_dummy():
     # Endpoint vacío para evitar error 404 en el frontend
     return {}
 
+from pydantic import BaseModel
+
+class DashboardIssue(BaseModel):
+    estacion: str = ""
+    supervisor: str = ""
+    tipo_fallo: str = ""
+    detalles: str = ""
+
 @app.post("/api/incidents/protocol")
 def post_protocol_dummy(payload: dict):
     # Endpoint dummy para guardar protocolo
