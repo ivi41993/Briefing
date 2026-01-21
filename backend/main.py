@@ -3444,17 +3444,17 @@ class DashboardIssue(BaseModel):
 
 @app.post("/api/report-dashboard-issue")
 async def report_dashboard_issue(data: DashboardIssue):
+    # Recuperamos la URL. 
+    # IMPORTANTE: En Render pon la URL entre comillas dobles "URL"
     url = os.getenv("URL_TEAMS_SOPORTE")
     
     if not url:
-        print("❌ URL no encontrada")
-        return {"status": "error"}
+        print("❌ ERROR: URL_TEAMS_SOPORTE no configurada.")
+        return {"status": "error", "message": "Configuración de red incompleta"}
 
-    # LOG DE SEGURIDAD: Verifica si la URL llega con la firma
-    print(f"🔗 URL detectada (longitud: {len(url)})")
-    if "sig=" not in url:
-        print("❌ ERROR: A la URL le falta el parámetro de firma 'sig'. Por eso da 401.")
-    
+    # LOG para confirmar que recibimos la estación específica
+    print(f"🛠️ REPORTE TÉCNICO DESDE: {data.estacion}")
+
     payload = {
         "estacion": str(data.estacion),
         "supervisor": str(data.supervisor),
@@ -3464,18 +3464,19 @@ async def report_dashboard_issue(data: DashboardIssue):
 
     try:
         async with httpx.AsyncClient() as client:
-            # IMPORTANTE: No añadas headers manuales de Auth, 
-            # Power Automate usa la firma que ya va en la URL.
+            # Enviamos el reporte
             resp = await client.post(url, json=payload, timeout=15.0)
             
-            print(f"🔄 Respuesta de Microsoft: {resp.status_code}")
+            # Diagnóstico del error 401
             if resp.status_code == 401:
-                print("🔐 Error 401: La firma (sig) de la URL ha caducado o es incorrecta.")
-            
-            return {"status": "success" if resp.status_code < 400 else "error"}
+                print("🔐 ERROR 401: Microsoft rechaza la firma. La URL en Render está incompleta.")
+                print(f"La URL que Python está usando termina en: ...{url[-15:]}")
+                return {"status": "error", "message": "Error de autenticación con Teams (Firma inválida)"}
+
+            return {"status": "success"}
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return {"status": "error"}
+        print(f"❌ Error crítico de envío: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/api/roster/needs-update")
@@ -4995,6 +4996,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
