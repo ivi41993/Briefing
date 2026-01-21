@@ -7118,13 +7118,20 @@ async function sendDashboardIssue() {
     const details = document.getElementById('issue-details').value.trim();
     if (!details) return alert("Por favor, danos algún detalle del error.");
 
+    // Generamos una descripción de ubicación muy específica
+    const nombreDashboard = document.title; // Ej: "Dashboard - WFS4 MAD OPS"
+    const urlActual = window.location.pathname; // Ej: "/mad/n4/ops"
+
     try {
         const payload = {
-            estacion: window.STATION_OVERRIDE || "MAD",
-            supervisor: document.getElementById('briefing-supervisor')?.value || "Anónimo",
+            // Unimos toda la info para que soporte sepa exactamente dónde está el fallo
+            estacion: `${nombreDashboard} (Ruta: ${urlActual})`,
+            supervisor: document.getElementById('briefing-supervisor')?.value || "No identificado",
             tipo_fallo: type,
             detalles: details
         };
+
+        console.log("📤 Enviando reporte detallado:", payload);
 
         const res = await fetch('api/report-dashboard-issue', {
             method: 'POST',
@@ -7135,9 +7142,12 @@ async function sendDashboardIssue() {
         if (res.ok) {
             document.getElementById('support-form').style.display = 'none';
             document.getElementById('support-thanks').style.display = 'block';
+        } else {
+            const errData = await res.json();
+            alert("Error del servidor: " + (errData.message || "Fallo en el envío"));
         }
     } catch (e) {
-        alert("Error al contactar con el servidor de soporte.");
+        alert("Error de conexión con el servidor de soporte.");
     }
 }
 
@@ -7275,6 +7285,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
