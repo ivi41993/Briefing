@@ -3445,34 +3445,36 @@ class DashboardIssue(BaseModel):
 @app.post("/api/report-dashboard-issue")
 async def report_dashboard_issue(data: DashboardIssue):
     url = os.getenv("URL_TEAMS_SOPORTE")
+    
     if not url:
-        print("❌ URL_TEAMS_SOPORTE no configurada en Render")
+        print("❌ URL no encontrada")
         return {"status": "error"}
 
-    # BLINDAJE: Convertimos todo a string y evitamos nulos
+    # LOG DE SEGURIDAD: Verifica si la URL llega con la firma
+    print(f"🔗 URL detectada (longitud: {len(url)})")
+    if "sig=" not in url:
+        print("❌ ERROR: A la URL le falta el parámetro de firma 'sig'. Por eso da 401.")
+    
     payload = {
-        "estacion": str(data.estacion or "Desconocida"),
-        "supervisor": str(data.supervisor or "Anónimo"),
-        "tipo_fallo": str(data.tipo_fallo or "No especificado"),
-        "detalles": str(data.detalles or "Sin detalles")
+        "estacion": str(data.estacion),
+        "supervisor": str(data.supervisor),
+        "tipo_fallo": str(data.tipo_fallo),
+        "detalles": str(data.detalles)
     }
-
-    print(f"📡 Enviando a Power Automate: {payload}")
 
     try:
         async with httpx.AsyncClient() as client:
-            # Forzamos los headers de JSON para que Microsoft no lo ignore
-            resp = await client.post(
-                url, 
-                json=payload, 
-                headers={"Content-Type": "application/json"},
-                timeout=15.0
-            )
+            # IMPORTANTE: No añadas headers manuales de Auth, 
+            # Power Automate usa la firma que ya va en la URL.
+            resp = await client.post(url, json=payload, timeout=15.0)
             
             print(f"🔄 Respuesta de Microsoft: {resp.status_code}")
-            return {"status": "success"}
+            if resp.status_code == 401:
+                print("🔐 Error 401: La firma (sig) de la URL ha caducado o es incorrecta.")
+            
+            return {"status": "success" if resp.status_code < 400 else "error"}
     except Exception as e:
-        print(f"❌ Error de conexión: {e}")
+        print(f"❌ Error: {e}")
         return {"status": "error"}
 
 
@@ -4993,6 +4995,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
