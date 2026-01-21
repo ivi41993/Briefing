@@ -3433,6 +3433,32 @@ def get_roster_by(
         "source": "excel",
     }
 
+# Nueva variable en Render: URL_TEAMS_SOPORTE
+URL_TEAMS_SOPORTE = os.getenv("URL_TEAMS_SOPORTE")
+
+class DashboardIssue(BaseModel):
+    estacion: str
+    supervisor: str
+    tipo_fallo: str
+    detalles: str
+
+@app.post("/api/report-dashboard-issue")
+async def report_dashboard_issue(data: DashboardIssue):
+    if not URL_TEAMS_SOPORTE:
+        print(f"⚠️ Soporte Dashboard: {data.detalles}")
+        return {"status": "success", "log": "Aviso local"}
+
+    payload = {
+        "estacion": data.estacion,
+        "supervisor": data.supervisor,
+        "tipo_fallo": data.tipo_fallo,
+        "detalles": data.detalles
+    }
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(URL_TEAMS_SOPORTE, json=payload, timeout=10.0)
+        return {"status": "success" if resp.status_code < 400 else "error"}
+
 
 @app.get("/api/roster/needs-update")
 def roster_needs_update():
@@ -4951,6 +4977,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
