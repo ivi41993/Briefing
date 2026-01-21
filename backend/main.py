@@ -3444,39 +3444,25 @@ class DashboardIssue(BaseModel):
 
 @app.post("/api/report-dashboard-issue")
 async def report_dashboard_issue(data: DashboardIssue):
-    # Recuperamos la URL. 
-    # IMPORTANTE: En Render pon la URL entre comillas dobles "URL"
+    # La URL en Render debe ir entre comillas: "https://..."
     url = os.getenv("URL_TEAMS_SOPORTE")
     
     if not url:
-        print("❌ ERROR: URL_TEAMS_SOPORTE no configurada.")
-        return {"status": "error", "message": "Configuración de red incompleta"}
-
-    # LOG para confirmar que recibimos la estación específica
-    print(f"🛠️ REPORTE TÉCNICO DESDE: {data.estacion}")
+        print(f"⚠️ AVISO SOPORTE (Local): {data.estacion} - {data.detalles}")
+        return {"status": "success"}
 
     payload = {
-        "estacion": str(data.estacion),
-        "supervisor": str(data.supervisor),
-        "tipo_fallo": str(data.tipo_fallo),
-        "detalles": str(data.detalles)
+        "estacion": data.estacion,
+        "supervisor": data.supervisor,
+        "tipo_fallo": data.tipo_fallo,
+        "detalles": data.detalles
     }
 
-    try:
-        async with httpx.AsyncClient() as client:
-            # Enviamos el reporte
-            resp = await client.post(url, json=payload, timeout=15.0)
-            
-            # Diagnóstico del error 401
-            if resp.status_code == 401:
-                print("🔐 ERROR 401: Microsoft rechaza la firma. La URL en Render está incompleta.")
-                print(f"La URL que Python está usando termina en: ...{url[-15:]}")
-                return {"status": "error", "message": "Error de autenticación con Teams (Firma inválida)"}
-
-            return {"status": "success"}
-    except Exception as e:
-        print(f"❌ Error crítico de envío: {e}")
-        return {"status": "error", "message": str(e)}
+    async with httpx.AsyncClient() as client:
+        # Enviamos la alerta a Power Automate para que llegue a Teams
+        resp = await client.post(url, json=payload, timeout=10.0)
+        print(f"📡 Reporte enviado desde {data.estacion}. Microsoft Status: {resp.status_code}")
+        return {"status": "success"}
 
 
 @app.get("/api/roster/needs-update")
@@ -4996,6 +4982,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
