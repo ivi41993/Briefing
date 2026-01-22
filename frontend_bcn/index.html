@@ -4559,24 +4559,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Incidentes Seguridad
                 const safetyTips = Array.from(document.querySelectorAll('#safety-tips .tip')).map(tip => ({
-                    title: "Recordatorio Diario", 
+                    title: "RECORDATORIO DIARIO", 
                     desc: tip.innerText
                 }));
                 
-                let manualIncidentsPayload = []; 
+                let manualEntries = []; 
                 try {
-                    // Cargamos la clave que definimos en el paso anterior
+                    // Ambas tarjetas usan la misma clave de localStorage: 'safety_manual_incidents_v1'
                     const rawManual = localStorage.getItem('safety_manual_incidents_v1') || '[]';
                     const parsedManual = JSON.parse(rawManual);
                     
-                    // Mapeamos al formato que espera el Excel
-                    manualIncidentsPayload = parsedManual.map(i => ({
-                        title: i.type.toUpperCase() + ": " + i.title,
-                        desc: i.desc
-                    }));
+                    manualEntries = parsedManual.map(i => {
+                        // Card 5 usa 'type' (incident/lesson), Card 4 no. 
+                        // Normalizamos el prefijo para el Excel.
+                        let prefix = "INCIDENCIA";
+                        if (i.type === 'lesson') prefix = "LECCIÓN/APRENDIZAJE";
+                        
+                        return {
+                            title: `${prefix}: ${i.title || 'Sin título'}`,
+                            desc: i.desc || ''
+                        };
+                    });
                 } catch (e) {
-                    console.warn("Error leyendo Tarjeta 5", e);
+                    console.warn("Error leyendo datos manuales de seguridad", e);
                 }
+
+                // C. UNIR TODO EL CONTENIDO DE SEGURIDAD
+                const totalSafetyPayload = [...safetyTips, ...manualEntries];
                 const payload = {
                     station: "BCN",
                     date: (() => {
@@ -4601,7 +4610,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
                     kanban_details: kanbanItems.join(" | "),
                     ops_updates: opsData,
-                    safety_incidents: manualIncidentsPayload
+                    safety_incidents: totalSafetyPayload 
                 };
 
                 const res = await fetch('api/briefing/summary', {
