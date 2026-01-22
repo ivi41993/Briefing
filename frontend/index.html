@@ -3504,7 +3504,7 @@ window.TEAM_STATE = window.TEAM_STATE || {
     zones: {}, 
     allPeopleRaw: [], 
     people: [], 
-    shift: "—", 
+    shift: "Cargando...", 
     sheet_date: new Date().toISOString().slice(0,10)
 };
 
@@ -3597,116 +3597,122 @@ console.error('PUT /api/roster/zone falló', e);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
-    
-    // Sincronizar datos recibidos
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+
+    // --- BLOQUE DE DEFENSA DE MEMORIA (Evita el error de Cristina Pimentel) ---
+    if (!window.TEAM_STATE) window.TEAM_STATE = {};
+    if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
+    if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
+    if (!window.TEAM_STATE.allPeopleRaw) window.TEAM_STATE.allPeopleRaw = [];
+
+    // Fusión inteligente: Añadir gente nueva de la API a la lista global sin duplicados
+    if (people && Array.isArray(people) && people.length > 0) {
+        people.forEach(p => {
+            const existe = window.TEAM_STATE.allPeopleRaw.some(x => x.nombre_completo === p.nombre_completo);
+            if (!existe) window.TEAM_STATE.allPeopleRaw.push(p);
+        });
+    }
+
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
-    
-    const masterList = window.TEAM_STATE.allPeopleRaw || [];
-    window.TEAM_STATE.people = masterList; // Guardar para el Excel
+
+    const masterList = window.TEAM_STATE.allPeopleRaw;
 
     if (masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal...</div>';
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No hay personal cargado...</div>';
         return;
     }
 
-    // Clasificación por categorías
+    // 1. Clasificación por categorías
     const groups = {
-        "SUPERVISIÓN MAD N4": [],
-        "ESPECIALISTAS DGR": [],
-        "OPERARIOS NAVE 4": [],
-        "MOSTRADOR NAVE 4": []
+        "SUPERVISIÓN MAD N1": [],
+        "LEAD AGENT": [],
+        "OPERARIOS OPS": [],
+        "MOSTRADOR": []
     };
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N4"].push(p);
-        else if (grupo.includes("03-DGR")) groups["ESPECIALISTAS DGR"].push(p);
-        else if (grupo.includes("MOSTRADOR NAVE 4")) groups["MOSTRADOR NAVE 4"].push(p);
-        else if (grupo.includes("OPERARIOS-OPS")) groups["OPERARIOS NAVE 4"].push(p);
+        if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N1"].push(p);
+        else if (grupo.includes("LEAD AGENT")) groups["LEAD AGENT"].push(p);
+        else if (grupo.includes("MOSTRADOR")) groups["MOSTRADOR"].push(p);
+        else groups["OPERARIOS OPS"].push(p);
     });
 
     listEl.innerHTML = '';
-    const ZONES = ['N4 MUELLE', 'N4 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
+    const ZONES = ['MUELLE', 'ISLA', 'DORADA', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
+    // 2. Renderizado por Grupos
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
         const header = document.createElement('div');
-        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; text-transform:uppercase;";
+        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
         header.textContent = `${groupName} (${groupPeople.length})`;
         listEl.appendChild(header);
 
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
-            // safeId: reemplaza espacios y caracteres raros para que el ID sea válido en HTML
-            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/=/g, ""); 
+            // Generar ID seguro para HTML
+            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g, ""); 
             
-            const currentAtt = window.TEAM_STATE.attendance[name];
+            // ACCESO SEGURO AL ESTADO
+            const currentAtt = window.TEAM_STATE.attendance[name]; // Puede ser true, false o undefined
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            let colorVivid = "#3b82f6";
-            if (groupName.includes("SUPERVISIÓN")) colorVivid = "#fbbf24";
-            if (groupName.includes("DGR")) colorVivid = "#ef4444";
+            let borderColor = "#3b82f6"; // Azul
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; // Oro
+            if (groupName.includes("LEAD")) borderColor = "#8b5cf6"; // Púrpura
 
             const card = document.createElement('div');
             card.className = 'team-row';
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff;`;
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${borderColor}; background:#fff;`;
 
             card.innerHTML = `
                 <div>
-                    <div style="font-weight:800; font-size:0.9rem;">${esc(name)}</div>
-                    <div style="font-size:0.7rem; color:#64748b;">🕒 ${esc(p.horario || '—')}</div>
+                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${esc(name)}</div>
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
+                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800;">${esc(p.grupo || 'MANUAL')}</span>
+                    </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
-                        <!-- PENDIENTE -->
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
-                        <label for="u_${safeId}">➖</label>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">➖</label>
 
-                        <!-- OK -->
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes">✅</label>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">✅</label>
                         
-                        <!-- NO -->
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no">❌</label>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">❌</label>
                     </div>
-                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem;">
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
                         <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
                         ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
                     </select>
                 </div>
             `;
 
-            // EVENTOS DE LOS BOTONES
+            // EVENTO DE CAMBIO DE ASISTENCIA
             card.querySelectorAll('input[type="radio"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
+                radio.onchange = (e) => {
                     const val = e.target.value;
                     let finalVal = undefined;
                     if (val === "yes") finalVal = true;
                     if (val === "no") finalVal = false;
 
-                    // 1. Guardar en memoria local
                     window.TEAM_STATE.attendance[name] = finalVal;
-
-                    // 2. Enviar al servidor (solo si es true/false para evitar 422)
-                    if (finalVal !== undefined) {
-                        updatePresenceOnServer(name, finalVal);
-                    }
-                    
-                    // 3. Actualizar contador visual
+                    if (finalVal !== undefined) updatePresenceOnServer(name, finalVal);
                     updateTeamMeta(window.TEAM_STATE);
-                });
+                };
             });
 
-            // Evento Zonas
-            card.querySelector('.zone-select').addEventListener('change', (e) => {
+            // EVENTO DE CAMBIO DE ZONA
+            card.querySelector('.zone-select').onchange = (e) => {
                 const zone = e.target.value;
                 window.TEAM_STATE.zones[name] = zone;
-                updateZoneOnServer(name, zone);
-            });
+                if (typeof updateZoneOnServer === 'function') updateZoneOnServer(name, zone);
+            };
 
             listEl.appendChild(card);
         });
@@ -3902,100 +3908,25 @@ updateAllColumnCounts();
   const listEl = document.getElementById('team-list');
   if (!form || !input || !listEl) return;
 
-  // PEQUEÑO FIX de tipografía en las zonas (había "Muele")
-  const ZONES_CANON = ['Isla','Dorada','Muelle Imp','Muelle Exp','Import','Export'];
-
-  function guessShift(){
-    // si el backend ya puso turno en TEAM_STATE, úsalo
-    if (window.TEAM_STATE && TEAM_STATE.shift) return TEAM_STATE.shift;
-    const h = new Date().getHours();
-    if (h >= 6 && h < 14) return 'Mañana';
-    if (h >= 14 && h < 22) return 'Tarde';
-    return 'Noche';
-  }
-
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const name = (input.value || '').trim();
     if (!name) return;
 
-    // Inicializa TEAM_STATE si aún no existe (arranque “en frío”)
-    window.TEAM_STATE = window.TEAM_STATE || {
-      shift: guessShift(),
-      sheet_date: new Date().toISOString().slice(0,10),
-      window: null,
-      people: [],
-      attendance: {},
-      zones: {}
+    // Crear el objeto de persona
+    const newPerson = { 
+        nombre_completo: name, 
+        horario: 'Manual', 
+        grupo: 'MANUAL', 
+        is_incidencia: false 
     };
-
-    // Evita duplicados por nombre completo
-    const exists = (TEAM_STATE.people || []).some(p => (p.nombre_completo || '').toLowerCase() === name.toLowerCase());
-    if (exists){
-      alert('Esa persona ya está en la lista.');
-      input.value = '';
-      return;
-    }
-
-    // Alta optimista en UI
-    const newPerson = { nombre_completo: name, horario: '', observaciones: '' };
-    TEAM_STATE.people = Array.isArray(TEAM_STATE.people) ? TEAM_STATE.people.slice() : [];
-    TEAM_STATE.people.push(newPerson);
-
-    // Por defecto, al dar de alta la marcamos como ausente (puedes poner true si prefieres)
-    TEAM_STATE.attendance = TEAM_STATE.attendance || {};
-    TEAM_STATE.attendance[name] = false;
-
-    // Render inmediato
-    try {
-      renderRoster(listEl, TEAM_STATE.people, TEAM_STATE);
-    } catch(err){
-      console.error('renderRoster falló tras alta manual:', err);
-    }
+    
+    // Llamar al render enviando solo la persona nueva (la función se encargará de fusionar)
+    renderRoster(listEl, [newPerson], window.TEAM_STATE);
+    
     input.value = '';
-
-    // Intento de persistencia en servidor (si lo tienes)
-    try{
-      const res = await fetch('/api/roster/add', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          person: name,
-          date: TEAM_STATE.sheet_date || null,
-          shift: TEAM_STATE.shift || guessShift(),
-          station: (window.STATION_OVERRIDE || '').toUpperCase() || (typeof STATION_CODE!=='undefined'?STATION_CODE:'MAD')
-        })
-      });
-
-      if (!res.ok){
-        // Si tu backend aún no tiene /api/roster/add, no rompemos la UI
-        const err = await res.json().catch(()=>({detail: res.statusText}));
-        console.warn('POST /api/roster/add no disponible:', err.detail || res.statusText);
-      }else{
-        // Si el backend devuelve el roster normalizado, úsalo para refrescar
-        const serverState = await res.json().catch(()=>null);
-        if (serverState && serverState.people){
-          renderRoster(listEl, serverState.people, serverState);
-        }
-      }
-    }catch(err){
-      console.warn('No se pudo persistir el alta manual (se mantiene local):', err);
-    }
+    console.log("👤 Alta manual procesada:", name);
   });
-
-  // (Opcional) corrige las etiquetas de zona en el render si venían con la errata
-  const _oldRender = window.renderRoster;
-  window.renderRoster = function(listEl, people, state){
-    // normaliza posibles "Muele" -> "Muelle"
-    if (state && state.zones){
-      const z = state.zones;
-      Object.keys(z).forEach(k=>{
-        if (z[k] === 'Muele Imp') z[k] = 'Muelle Imp';
-        if (z[k] === 'Muele Exp') z[k] = 'Muelle Exp';
-      });
-    }
-    return _oldRender(listEl, people, state);
-  };
 })();
 
 function setupEventListeners() {
@@ -7296,6 +7227,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
