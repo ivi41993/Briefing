@@ -812,23 +812,7 @@ class FiixConnector:
 # --- WORKER AUTOMÁTICO ---
 fiix_worker_started = False
 
-@app.get("/api/fiix/current")
-async def get_fiix_current():
-    global fiix_worker_started
-    if not fiix_worker_started:
-        asyncio.create_task(fiix_auto_worker())
-        fiix_worker_started = True
-    return fiix_memory_cache
 
-async def fiix_auto_worker():
-    connector = FiixConnector()
-    print("🚀 [WFS1] Worker Fiix iniciado")
-    while True:
-        try:
-            await connector.fetch_metrics()
-        except Exception as e:
-            print(f"❌ [WFS1 Worker Error] {e}")
-        await asyncio.sleep(600) # 10 minutos
 
 # -----------------------------------
 # LIFESPAN & APP
@@ -1110,6 +1094,23 @@ async def create_task(task: Task):
     save_tasks_to_disk()
     await manager.broadcast(t)
     return t
+@app.get("/api/fiix/current")
+async def get_fiix_current():
+    global fiix_worker_started
+    if not fiix_worker_started:
+        asyncio.create_task(fiix_auto_worker())
+        fiix_worker_started = True
+    return fiix_memory_cache
+
+async def fiix_auto_worker():
+    connector = FiixConnector()
+    print("🚀 [WFS1] Worker Fiix iniciado")
+    while True:
+        try:
+            await connector.fetch_metrics()
+        except Exception as e:
+            print(f"❌ [WFS1 Worker Error] {e}")
+        await asyncio.sleep(600) # 10 minutos
 
 @app.put("/api/tasks/{task_id}")
 async def update_task(task_id: str, task: Task):
