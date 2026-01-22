@@ -774,9 +774,6 @@ async def fiix_auto_sync():
         await conn.fetch_metrics(current_station)
         await asyncio.sleep(600) # Cada 10 minutos
 
-@app.get("/api/fiix/current")
-async def get_fiix_current(station: str = "WFS1"):
-    return fiix_data_cache.get(station, {})
 
 async def fiix_auto_worker():
     conn = FiixConnector()
