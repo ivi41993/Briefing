@@ -670,9 +670,18 @@ import time
 import asyncio
 from datetime import datetime, timedelta
 
+# --- 1. CACHÉ DE MEMORIA (Para que el Dashboard cargue al instante) ---
+fiix_data_cache = {
+    "WFS1": {
+        "fiix_availability": 100,
+        "fiix_cost": 0.0,
+        "fiix_broken_count": 0,
+        "fiix_created_24h": 0
+    }
+}
+
 class FiixConnector:
     def __init__(self):
-        # Carga las credenciales del .env
         self.host = os.getenv("FIIX_HOST", "").strip()
         self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
@@ -681,108 +690,76 @@ class FiixConnector:
         self.base_url = f"https://{self.host}/api/"
 
     def _build_auth(self) -> tuple[dict, dict]:
-        """Genera la firma HMAC-SHA256 obligatoria para Fiix"""
         ts_ms = int(time.time() * 1000)
         auth_params = {
-            "accessKey": self.access_key,
-            "appKey": self.app_key,
-            "signatureMethod": "HmacSHA256",
-            "signatureVersion": "1",
+            "accessKey": self.access_key, "appKey": self.app_key,
+            "signatureMethod": "HmacSHA256", "signatureVersion": "1",
             "timestamp": str(ts_ms),
         }
-        # Ordenar parámetros alfabéticamente para la firma
         sorted_keys = sorted(auth_params.keys())
         query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
         signature_base = f"{self.host}/api/?{query_string}"
-        
-        signature = hmac.new(
-            self.secret_key.encode("utf-8"),
-            signature_base.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest().lower()
-        
+        signature = hmac.new(self.secret_key.encode("utf-8"), signature_base.encode("utf-8"), hashlib.sha256).hexdigest().lower()
         return auth_params, {"Content-Type": "application/json", "Authorization": signature}
 
     async def _fiix_rpc(self, body: dict) -> list:
-        """Método centralizado para llamadas RPC"""
         auth_params, headers = self._build_auth()
         body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
         try:
             resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
-            if resp.status_code == 200:
-                res_json = resp.json()
-                return res_json.get("objects") or res_json.get("object") or []
-            return []
-        except Exception:
-            return []
+            return resp.json().get("objects") or []
+        except: return []
 
-    async def fetch_metrics(self, station_code: str):
-        """
-        Calcula KPIs específicos para la estación: WFS1, WFS2A, WFS4, BCN, etc.
-        """
-        # --- CONFIGURACIÓN DE SITIOS ---
-        SITE_MAP = {
-            "WFS1": 29449435, "WFS2A": 29449435, "WFS2B": 29449435,
-            "WFS3": 29449435, "WFS4": 29449435,
-            "BCN": 0, # <-- Rellenar con ID de Barcelona al encontrarlo
-            "VLC": 0  # <-- Rellenar con ID de Valencia al encontrarlo
-        }
-        
-        site_id = SITE_MAP.get(station_code)
-        if not site_id: return
-
-        # IDs de tu sistema (Descubiertos en inspección)
+    async def sync_station(self, station_code: str):
+        global fiix_data_cache
+        SITE_ID = 29449435 # Madrid
         ID_PREVENTIVO = 531546
         ID_URGENTE = 278571
         
-        now = datetime.now()
-        yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-        tag_filter = f"%{station_code}%"
+        yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        tag = f"%{station_code}%"
 
         try:
-            # 1. DISPONIBILIDAD (Filtro por TAG en código de activo)
-            body_assets = {
+            # A. Obtener Activos
+            assets = await self._fiix_rpc({
                 "_maCn": "FindRequest", "className": "Asset",
                 "fields": "id, bolIsOnline, strCode",
-                "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [site_id, tag_filter]}]
-            }
-            assets = await self._fiix_rpc(body_assets)
-            
-            total_assets = len(assets)
-            broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
-            availability = round(((total_assets - broken) / total_assets) * 100) if total_assets > 0 else 100
-
-            # 2. COSTES Y FLUJO (Filtro por TAG en activos de la orden)
-            body_wo = {
+                "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [SITE_ID, tag]}]
+            })
+            # B. Obtener Órdenes
+            wos = await self._fiix_rpc({
                 "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCompleted, strAssets",
+                "fields": "id, intMaintenanceTypeID, intPriorityID",
                 "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                             "parameters": [site_id, yesterday_str, tag_filter]}]
-            }
-            wos = await self._fiix_rpc(body_wo)
+                             "parameters": [SITE_ID, yesterday, tag]}]
+            })
 
-            # --- CÁLCULO DE COSTES ESTIMADOS (Deducción por criticidad) ---
-            coste_total = 0.0
+            # Cálculos
+            total_a = len(assets)
+            broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
+            avail = round(((total_a - broken) / total_a) * 100) if total_a > 0 else 100
+            
+            coste = 0.0
             for wo in wos:
-                if wo.get("intPriorityID") == ID_URGENTE: coste_total += 450.0
-                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: coste_total += 120.0
-                else: coste_total += 35.0
+                if wo.get("intPriorityID") == ID_URGENTE: coste += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: coste += 120.0
+                else: coste += 35.0
 
-            # 3. BROADCAST AL DASHBOARD
-            ts = datetime.utcnow().isoformat() + "Z"
-            kpis = {
-                "fiix_availability": availability,
-                "fiix_cost": round(coste_total, 2),
+            # Actualizar Caché
+            fiix_data_cache[station_code] = {
+                "fiix_availability": avail,
+                "fiix_cost": round(coste, 2),
                 "fiix_broken_count": broken,
                 "fiix_created_24h": len(wos)
             }
 
-            for m, v in kpis.items():
+            # Emitir por WebSocket
+            ts = datetime.utcnow().isoformat() + "Z"
+            for m, v in fiix_data_cache[station_code].items():
                 await manager.broadcast({
                     "type": "kpi_update", "metric": m, "value": v, 
-                    "timestamp": ts, "station": station_code 
+                    "timestamp": ts, "station": station_code
                 })
-                
         except Exception as e:
             print(f"❌ Error Fiix {station_code}: {e}")
 
