@@ -1703,7 +1703,36 @@ async def sharepoint_bulk_update(request: Request, x_api_key: Optional[str] = He
 
 
 
+# Nueva variable en Render: URL_TEAMS_SOPORTE
+URL_TEAMS_SOPORTE = os.getenv("URL_TEAMS_SOPORTE")
 
+class DashboardIssue(BaseModel):
+    estacion: str
+    supervisor: str
+    tipo_fallo: str
+    detalles: str
+
+@app.post("/api/report-dashboard-issue")
+async def report_dashboard_issue(data: DashboardIssue):
+    # La URL en Render debe ir entre comillas: "https://..."
+    url = os.getenv("URL_TEAMS_SOPORTE")
+    
+    if not url:
+        print(f"⚠️ AVISO SOPORTE (Local): {data.estacion} - {data.detalles}")
+        return {"status": "success"}
+
+    payload = {
+        "estacion": data.estacion,
+        "supervisor": data.supervisor,
+        "tipo_fallo": data.tipo_fallo,
+        "detalles": data.detalles
+    }
+
+    async with httpx.AsyncClient() as client:
+        # Enviamos la alerta a Power Automate para que llegue a Teams
+        resp = await client.post(url, json=payload, timeout=10.0)
+        print(f"📡 Reporte enviado desde {data.estacion}. Microsoft Status: {resp.status_code}")
+        return {"status": "success"}
 
 
 
