@@ -3020,9 +3020,7 @@ class FiixConnector:
             print(f"❌ [FIIX worker] Error: {e}")
             
     # --- 3. ENDPOINT DE CONSULTA INICIAL (Para el Dashboard nada más abrirse) ---
-    @app.get("/api/fiix/current")
-    async def get_fiix_current():
-        return fiix_latest_data
+   
     
     # --- 4. EL MOTOR AUTOMÁTICO (Worker de fondo) ---
     async def fiix_auto_worker():
@@ -3391,7 +3389,10 @@ async def upload_roster(file: UploadFile = File(...)):
         "rows_total": total_rows,
         "hint": "Indexado y persistido por fecha; ya se sirve desde el almacén.",
     }
-
+ @app.get("/api/fiix/current")
+    async def get_fiix_current():
+        return fiix_latest_data
+        
 @app.get("/api/fiix-debug")
 async def fiix_debug():
     """
@@ -5009,6 +5010,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
