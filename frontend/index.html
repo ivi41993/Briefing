@@ -6137,6 +6137,32 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   setText();
 })();
 
+async function initFiixDashboard() {
+    try {
+        console.log("🚀 Pidiendo datos iniciales de Fiix...");
+        const res = await fetch('api/fiix/current');
+        const data = await res.json();
+
+        // Pintamos los datos iniciales
+        if (data.fiix_wfs4_availability !== undefined) {
+            document.getElementById('fiix-availability').textContent = data.fiix_wfs4_availability;
+        }
+        if (data.fiix_wfs4_damage_cost !== undefined) {
+            document.getElementById('fiix-damage-cost').textContent = 
+                new Intl.NumberFormat('es-ES', {minimumFractionDigits: 2}).format(data.fiix_wfs4_damage_cost);
+        }
+        if (data.fiix_wfs4_mttr !== undefined) {
+            document.getElementById('fiix-mttr').textContent = data.fiix_wfs4_mttr;
+        }
+        if (data.fiix_wfs4_broken_count !== undefined) {
+            document.getElementById('fiix-broken-text').textContent = 
+                data.fiix_wfs4_broken_count > 0 ? `${data.fiix_wfs4_broken_count} equipos parados` : 'Todo operativo en N4';
+        }
+
+    } catch (e) {
+        console.error("❌ No se pudieron cargar los datos iniciales de Fiix:", e);
+    }
+}
 
   
 /* Init */
@@ -6157,6 +6183,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try { loadIncidentes(); } catch(e){}
     try { connectWebSocket(); } catch(e){}
     try { initTeamRoster(); } catch(e){}
+    try { initFiixDashboard(); } catch(e){}
     try { initEhsSimple(); } catch(e){}
     try { initFullscreenToggles(); } catch(e){}
     try { init5S(); } catch(e){}
@@ -7267,6 +7294,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
