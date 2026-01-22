@@ -2938,43 +2938,106 @@ class FiixConnector:
             print(f"❌ Fiix Exception: {e}")
             return []
 
-   async def fetch_metrics(self):
-        global fiix_latest_data
+    async def fetch_metrics(self):
         SITE_ID = 29449435
         TAG_NAVE = "WFS4"
-        # ... (Toda la lógica de cálculo que hicimos antes) ...
+        ID_PREVENTIVO = 531546
+        ID_URGENTE = 278571
         
-        # Al final, antes de hacer el broadcast, guardamos en el almacén global:
-        fiix_latest_data = {
+        now_ms = int(time.time() * 1000)
+        yesterday_str = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+        # 1. REINICIO DE VARIABLES (Local a la función para evitar el acumulativo)
+        current_damage_cost = 0.0  # Coste de lo que está roto AHORA
+        current_mttr = 0.0        # Tiempo de reparación de las últimas 24h
+        availability_pct = 100    # Disponibilidad de equipos
+        broken_count = 0
+
+        try:
+            # --- A. DISPONIBILIDAD DE EQUIPOS (Snapshot Actual) ---
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode",
+                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID]}],
+                "maxObjects": 2000 
+            }
+            assets_res = await self._fiix_rpc(body_assets)
+            assets_n4 = [a for a in assets_res if f"-{TAG_NAVE}-" in str(a.get("strCode", ""))]
+            
+            if assets_n4:
+                broken_count = sum(1 for a in assets_n4 if a.get("bolIsOnline") == 0)
+                availability_pct = round(((len(assets_n4) - broken_count) / len(assets_n4)) * 100)
+
+            # --- B. COSTE DE DAÑOS ACTIVOS (Backlog Abierto) ---
+            # Solo sumamos el coste estimado de las órdenes que NO se han cerrado aún
+            body_open = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, intPriorityID",
+                "filters": [
+                    {"ql": "intSiteID = ? AND dtmDateCompleted IS NULL AND strAssets LIKE ?", 
+                     "parameters": [SITE_ID, f"%{TAG_NAVE}%"]}
+                ]
+            }
+            open_wos = await self._fiix_rpc(body_open)
+            
+            for wo in open_wos:
+                # Si es urgente (daño crítico), el coste de impacto es mayor
+                if wo.get("intPriorityID") == ID_URGENTE: current_damage_cost += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: current_damage_cost += 120.0
+                else: current_damage_cost += 35.0
+
+            # --- C. TIEMPO DE REPARACIÓN (MTTR de las últimas 24h) ---
+            # Queremos saber cuánto tiempo están tardando en arreglar lo que se rompe
+            body_closed = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, dtmDateCompleted",
+                "filters": [
+                    {"ql": "intSiteID = ? AND dtmDateCompleted >= ? AND strAssets LIKE ?", 
+                     "parameters": [SITE_ID, yesterday_str, f"%{TAG_NAVE}%"]}
+                ]
+            }
+            closed_res = await self._fiix_rpc(body_closed)
+            
+            if closed_res:
+                total_time = sum((w["dtmDateCompleted"] - w["dtmDateCreated"]) for w in closed_res)
+                current_mttr = round((total_time / len(closed_res)) / (1000 * 3600), 1)
+
+            print(f"📊 [Snapshot WFS4] Daños: {current_damage_cost}€ | Rotos: {broken_count} | MTTR: {current_mttr}h")
+
+            # --- D. BROADCAST VÍA WEBSOCKET ---
+            ts = datetime.utcnow().isoformat() + "Z"
+            fiix_latest_data = {
             "fiix_wfs4_availability": availability_pct,
             "fiix_wfs4_broken_count": broken_count,
             "fiix_wfs4_damage_cost": round(current_damage_cost, 2),
             "fiix_wfs4_mttr": current_mttr
         }
+            ts = datetime.utcnow().isoformat() + "Z"
+            for m, v in fiix_latest_data.items():
+                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
 
-        # Broadcast por WebSocket (Para los que ya tienen la web abierta)
-        ts = datetime.utcnow().isoformat() + "Z"
-        for m, v in fiix_latest_data.items():
-            await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
-    # --- 3. ENDPOINT DE CONSULTA INICIAL (Para el Dashboard nada más abrirse) ---
-@app.get("/api/fiix/current")
-async def get_fiix_current():
-    return fiix_latest_data
-
-# --- 4. EL MOTOR AUTOMÁTICO (Worker de fondo) ---
-async def fiix_auto_worker():
-    connector = FiixConnector()
-    print("⏳ [FIIX worker] Iniciado. Ejecutando primera carga...")
-    # Primera carga inmediata al arrancar el servidor
-    await connector.fetch_metrics()
-    
-    while True:
-        await asyncio.sleep(600) # Actualizar cada 10 minutos automáticamente
-        try:
-            print("📡 [FIIX worker] Actualización periódica en curso...")
-            await connector.fetch_metrics()
         except Exception as e:
             print(f"❌ [FIIX worker] Error: {e}")
+            
+    # --- 3. ENDPOINT DE CONSULTA INICIAL (Para el Dashboard nada más abrirse) ---
+    @app.get("/api/fiix/current")
+    async def get_fiix_current():
+        return fiix_latest_data
+    
+    # --- 4. EL MOTOR AUTOMÁTICO (Worker de fondo) ---
+    async def fiix_auto_worker():
+        connector = FiixConnector()
+        print("⏳ [FIIX worker] Iniciado. Ejecutando primera carga...")
+        # Primera carga inmediata al arrancar el servidor
+        await connector.fetch_metrics()
+        
+        while True:
+            await asyncio.sleep(600) # Actualizar cada 10 minutos automáticamente
+            try:
+                print("📡 [FIIX worker] Actualización periódica en curso...")
+                await connector.fetch_metrics()
+            except Exception as e:
+                print(f"❌ [FIIX worker] Error: {e}")
 
 
     # --- 1. AÑADE ESTE MÉTODO DENTRO DE LA CLASE FiixConnector ---
@@ -4946,6 +5009,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
