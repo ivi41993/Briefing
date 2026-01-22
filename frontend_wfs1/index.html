@@ -2721,29 +2721,32 @@ body.card-open #timer-reset {
 
   <!-- FILA 2: MANTENIMIENTO (FIIX) -->
   <!-- SECCIÓN MANTENIMIENTO FIIX (Añadir a la fila de KPIs) -->
-<h3 style="font-size:0.9rem; color:var(--text-muted); margin: 15px 0 10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
-<div class="kpi-grid">
+<!-- FILA 2: MANTENIMIENTO (FIIX) -->
+  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
+  
+  <div class="kpi-grid">
     <!-- DISPONIBILIDAD -->
     <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
-        <div class="kpi-label">Disponibilidad Activos</div>
+        <div class="kpi-label">Disponibilidad Flota</div>
         <div class="kpi-value"><span id="fiix-availability">100</span>%</div>
-        <small class="kpi-text" id="fiix-down-text">Equipos Operativos</small>
+        <!-- Este texto cambiará dinámicamente según 'fiix_broken_count' -->
+        <small class="kpi-text" id="fiix-broken-text">Todo operativo</small>
     </div>
 
-    <!-- IMPACTO GASTO (EFICIENCIA) -->
-    <div class="kpi-tile" id="tile-fiix-loss" style="border-left: 6px solid #f59e0b;">
-        <div class="kpi-label">Eficiencia Operativa</div>
-        <div class="kpi-value"><span id="fiix-ratio-loss">0</span>%</div>
-        <small class="kpi-text">Ratio de Correctivo</small>
+    <!-- COSTE PROYECTADO -->
+    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
+        <div class="kpi-label" style="color:#991b1b">Coste Proyectado</div>
+        <div class="kpi-value" style="color:#dc2626"><span id="fiix-cost">0.00</span>€</div>
+        <small class="kpi-text">Averías Activas</small>
     </div>
 
-    <!-- TIEMPO DE REPARACIÓN -->
-    <div class="kpi-tile" id="tile-fiix-mttr" style="border-left: 6px solid #3b82f6;">
-        <div class="kpi-label">Tiempo de Respuesta</div>
-        <div class="kpi-value"><span id="fiix-mttr">0</span><small style="font-size: 1rem;">h</small></div>
-        <small class="kpi-text">Media de cierre (24h)</small>
+    <!-- ÓRDENES 24H (Antes era MTTR) -->
+    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">Avisos (24h)</div>
+        <div class="kpi-value"><span id="fiix-created">0</span></div>
+        <small class="kpi-text">Nuevas incidencias</small>
     </div>
-</div>
+  </div>
 
   <!-- SEPARADOR -->
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
@@ -4143,17 +4146,13 @@ loadIncidentes();
 return;
 }
 
-if(data && (data.type==='kpi_update'||data.type==='kpi_state'||(data.metric&&data.tab))){
-const metric=String(data.metric||'').trim().toLowerCase(); const tab=String(data.tab||'').trim();
-if(metric==='total cost' && (!tab || tab==='MAD WFS1 MAD OPS')){
-let v=data.value;
-if(typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
-else if(Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
-else if(v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
-if(typeof v==='number' && Number.isFinite(v)){ updateKpiTotalCost(v, data.timestamp); try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{} }
-}
-return;
-}
+if (data.type === 'kpi_update') {
+        // Solo procesar si es para esta estación (o genérico)
+        if (isForThisStation(data)) {
+            updateFiixDisplayBulk(data);
+        }
+        return;
+    }
 if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)){
   const metric = String(data.metric||'').trim().toLowerCase();
   const tab    = String(data.tab||'').trim();
@@ -4271,7 +4270,52 @@ default: console.warn('task_type desconocido:', data.task_type);
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
+function updateFiixDisplayBulk(data) {
+    // 1. Disponibilidad
+    const elAvail = document.getElementById('fiix-availability');
+    if (elAvail && data.fiix_availability !== undefined) {
+        elAvail.textContent = data.fiix_availability;
+        // Color visual: si baja de 90% cambia el borde del padre
+        const tile = elAvail.closest('.kpi-tile');
+        if (tile) tile.style.borderLeftColor = data.fiix_availability < 90 ? '#ef4444' : '#10b981';
+    }
 
+    // 2. Texto de activos rotos (broken count)
+    const elBroken = document.getElementById('fiix-broken-text');
+    if (elBroken && data.fiix_broken_count !== undefined) {
+        if (data.fiix_broken_count === 0) {
+            elBroken.textContent = "Todo operativo";
+            elBroken.style.color = "var(--text-muted)";
+        } else {
+            elBroken.textContent = `⚠️ ${data.fiix_broken_count} activos parados`;
+            elBroken.style.color = "#dc2626"; // Rojo alerta
+            elBroken.style.fontWeight = "bold";
+        }
+    }
+
+    // 3. Costes (Formato moneda)
+    const elCost = document.getElementById('fiix-cost');
+    if (elCost && data.fiix_cost !== undefined) {
+        elCost.textContent = new Intl.NumberFormat('es-ES', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+        }).format(data.fiix_cost);
+        
+        // Efecto flash si el coste sube
+        const tile = elCost.closest('.kpi-tile');
+        if (tile) {
+            tile.classList.remove('flash');
+            void tile.offsetWidth; // trigger reflow
+            tile.classList.add('flash');
+        }
+    }
+
+    // 4. Creados 24h
+    const elCreated = document.getElementById('fiix-created');
+    if (elCreated && data.fiix_created_24h !== undefined) {
+        elCreated.textContent = data.fiix_created_24h;
+    }
+}
 
 (function wireOpsDialog(){
   const btnAdd = document.getElementById('ops-add');
@@ -6159,7 +6203,29 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
   setText();
 })();
+async function initFiixDashboard() {
+    try {
+        // Llamada a la API que devuelve el JSON completo de caché
+        const res = await fetch('api/fiix/current'); 
+        if (!res.ok) throw new Error("Error fetching Fiix");
+        
+        const data = await res.json();
+        console.log("📥 Fiix Snapshot cargado:", data);
 
+        // Usamos la misma función lógica que el WebSocket
+        updateFiixDisplayBulk(data);
+        
+    } catch (e) {
+        console.warn("Fiix offline o esperando datos:", e);
+        // Fallback visual a ceros
+        updateFiixDisplayBulk({
+            fiix_availability: 100,
+            fiix_cost: 0.0,
+            fiix_broken_count: 0,
+            fiix_created_24h: 0
+        });
+    }
+}
 
   
 /* Init */
