@@ -30,6 +30,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+import hmac
+import hashlib
+import time
+import asyncio
+from datetime import datetime, timedelta
+
+# --- CONFIGURACIÓN FIIX WFS1 (MADRID N1) ---
+# IDs de Mantenimiento (Iguales para todo Madrid)
+FIIX_SITE_ID = 29449435 
+ID_PREVENTIVO = 531546
+ID_URGENTE = 278571
+
+# ⚠️ LA CLAVE: El filtro para buscar cosas de la Nave 1
+# Si en Fiix los activos se llaman "MAD-WFS1-..." o "MAD-N1-..." esto es vital.
+FIIX_NAVE_TAG = "WFS1" 
+
+# Caché en memoria
+fiix_data_cache = {
+    "fiix_availability": 100,
+    "fiix_cost": 0.0,
+    "fiix_broken_count": 0,
+    "fiix_created_24h": 0,
+    "last_update": None
+}
 
 # ==========================================
 # CONFIGURACIÓN WFS1 (AISLAMIENTO)
@@ -663,66 +687,41 @@ def _compute_briefing_metrics(sections, duration):
     std = (cov >= 95 and duration <= 600)
     return ok, cov, std
 
-ESTACIONES_ACTIVAS = ["WFS1", "WFS2A", "WFS2B", "WFS3", "WFS4"]
-import hmac
-import hashlib
-import time
-import asyncio
-from datetime import datetime, timedelta
 
-# --- 1. CONFIGURACIÓN FIIX & CACHÉ ---
-# IDs Críticos de Negocio (Mantenimiento)
-FIIX_SITE_ID = 29449435 # Madrid
-ID_PREVENTIVO = 531546
-ID_URGENTE = 278571
-
-# Caché en memoria inicializada defensivamente
-fiix_data_cache: Dict[str, Any] = {
-    STATION_NAME: { # Usamos la variable global STATION_NAME = "WFS1"
-        "fiix_availability": 100,
-        "fiix_cost": 0.0,
-        "fiix_broken_count": 0,
-        "fiix_created_24h": 0,
-        "last_sync": None
-    }
-}
 
 class FiixConnector:
     def __init__(self):
-        self.host = os.getenv("FIIX_HOST", "wfs.macmms.com").strip() # Default host si falla .env
+        self.host = os.getenv("FIIX_HOST", "wfs.macmms.com").strip()
         self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
-        self.client = httpx.AsyncClient(timeout=30.0) # Timeout reducido a 30s
+        self.client = httpx.AsyncClient(timeout=30.0)
         self.base_url = f"https://{self.host}/api/"
 
     def _build_auth(self) -> tuple[dict, dict]:
-        """Genera la firma HMAC-SHA256 requerida por Fiix"""
         ts_ms = int(time.time() * 1000)
         auth_params = {
-            "accessKey": self.access_key, 
+            "accessKey": self.access_key,
             "appKey": self.app_key,
-            "signatureMethod": "HmacSHA256", 
+            "signatureMethod": "HmacSHA256",
             "signatureVersion": "1",
             "timestamp": str(ts_ms),
         }
-        # Ordenar claves alfabéticamente para la firma
         sorted_keys = sorted(auth_params.keys())
         query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
         signature_base = f"{self.host}/api/?{query_string}"
         
         signature = hmac.new(
-            self.secret_key.encode("utf-8"), 
-            signature_base.encode("utf-8"), 
+            self.secret_key.encode("utf-8"),
+            signature_base.encode("utf-8"),
             hashlib.sha256
         ).hexdigest().lower()
         
         return auth_params, {"Content-Type": "application/json", "Authorization": signature}
 
     async def _fiix_rpc(self, body: dict) -> list:
-        """Ejecuta una llamada RPC genérica a Fiix"""
-        if not self.app_key or not self.secret_key:
-            print("⚠️ Faltan credenciales FIIX en .env")
+        if not self.app_key:
+            print("⚠️ [WFS1 FIIX] Faltan credenciales en .env")
             return []
             
         auth_params, headers = self._build_auth()
@@ -731,25 +730,25 @@ class FiixConnector:
         try:
             resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
             if resp.status_code == 200:
-                return resp.json().get("objects") or []
-            print(f"⚠️ Fiix Error {resp.status_code}: {resp.text}")
+                res_json = resp.json()
+                return res_json.get("objects") or []
+            print(f"⚠️ [WFS1 FIIX] Error HTTP {resp.status_code}: {resp.text}")
             return []
         except Exception as e:
-            print(f"⚠️ Fiix Network Error: {e}")
+            print(f"⚠️ [WFS1 FIIX] Error Red: {e}")
             return []
 
-    async def sync_station(self, station_code: str):
-        """Sincroniza datos para una estación específica (ej: WFS1)"""
+    async def sync_station(self):
         global fiix_data_cache
         
-        print(f"🔄 Sincronizando Fiix para {station_code}...")
-        
-        # Filtros temporales y de etiqueta
+        # 1. Definir filtro: Buscar activos que contengan "WFS1" (o "N1" si fallara)
+        tag_filter = f"%{FIIX_NAVE_TAG}%"
         yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-        tag_filter = f"%{station_code}%" # Buscará activos que contengan "WFS1" en su código
+
+        print(f"🔄 [WFS1] Buscando datos Fiix con filtro: {tag_filter}...")
 
         try:
-            # A. Obtener Activos (Assets) de la estación
+            # A. Obtener Activos
             assets = await self._fiix_rpc({
                 "_maCn": "FindRequest", 
                 "className": "Asset",
@@ -757,16 +756,19 @@ class FiixConnector:
                 "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [FIIX_SITE_ID, tag_filter]}]
             })
             
-            # B. Obtener Órdenes de Trabajo (Work Orders) últimas 24h
+            # B. Obtener Órdenes (Últimas 24h)
             wos = await self._fiix_rpc({
                 "_maCn": "FindRequest", 
                 "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID",
+                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated",
                 "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
                              "parameters": [FIIX_SITE_ID, yesterday, tag_filter]}]
             })
 
-            # C. Cálculos de Negocio
+            # Debug: Ver si realmente encuentra cosas
+            print(f"📊 [WFS1 DEBUG] Activos encontrados: {len(assets)} | Órdenes 24h: {len(wos)}")
+
+            # Cálculos
             total_a = len(assets)
             broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
             avail = round(((total_a - broken) / total_a) * 100) if total_a > 0 else 100
@@ -778,48 +780,32 @@ class FiixConnector:
                 
                 if pid == ID_URGENTE: 
                     coste_proyectado += 450.0
-                elif mid != ID_PREVENTIVO: # Correctivo estándar
+                elif mid != ID_PREVENTIVO:
                     coste_proyectado += 120.0
-                else: # Preventivo
+                else:
                     coste_proyectado += 35.0
 
-            # D. Actualizar Caché Atómica
-            new_data = {
+            # Actualizar caché
+            fiix_data_cache = {
                 "fiix_availability": avail,
                 "fiix_cost": round(coste_proyectado, 2),
                 "fiix_broken_count": broken,
                 "fiix_created_24h": len(wos),
-                "last_sync": datetime.utcnow().isoformat() + "Z"
+                "last_update": datetime.utcnow().isoformat() + "Z"
             }
-            fiix_data_cache[station_code] = new_data
 
-            # E. Emitir WebSocket Inmediato
+            # Emitir WebSocket
             await manager.broadcast({
                 "type": "kpi_update", 
-                "station": station_code,
-                **new_data
+                "station": "WFS1",
+                **fiix_data_cache
             })
-            print(f"✅ Fiix {station_code} actualizado: {avail}% Disp, {len(wos)} WOs")
+            print(f"✅ [WFS1] Datos actualizados: {avail}% Disp, {coste_proyectado}€ Coste")
 
         except Exception as e:
-            print(f"❌ Error Crítico Fiix {station_code}: {e}")
+            print(f"❌ [WFS1] Error crítico Fiix: {e}")
 
-# --- WORKER DE FONDO UNIFICADO ---
-async def fiix_background_loop():
-    """Worker perpetuo que actualiza Fiix cada 10 min"""
-    conn = FiixConnector()
-    # Espera inicial pequeña para no bloquear el arranque
-    await asyncio.sleep(5) 
-    
-    while True:
-        try:
-            # Usamos la constante global STATION_NAME definida al inicio del archivo
-            await conn.sync_station(STATION_NAME) 
-        except Exception as e:
-            print(f"⚠️ Error en ciclo del worker Fiix: {e}")
-        
-        # Esperar 10 minutos (600 segundos)
-        await asyncio.sleep(600)
+
 
 
 # -----------------------------------
@@ -1033,19 +1019,21 @@ async def _build_roster_state(force=False) -> dict:
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
+# --- WORKER DE FONDO UNIFICADO ---
+async def fiix_background_loop():
+    conn = FiixConnector()
+    print("🚀 [WFS1] Worker Fiix iniciado")
+    await asyncio.sleep(5) # Espera inicial
+    
+    while True:
+        await conn.sync_station()
+        await asyncio.sleep(600) # 10 minutos
+
+# --- ENDPOINT API ---
 @app.get("/api/fiix/current")
-async def get_fiix_current(station: str = STATION_NAME):
-    # Devuelve datos de caché instantáneos (sin latencia)
-    data = fiix_data_cache.get(station)
-    if not data:
-        # Fallback defensivo si la caché está vacía
-        return {
-            "fiix_availability": 100,
-            "fiix_cost": 0.0,
-            "fiix_broken_count": 0,
-            "fiix_created_24h": 0
-        }
-    return data
+async def get_fiix_current(station: str = "WFS1"):
+    # Devuelve la caché de WFS1 directamente
+    return fiix_data_cache
     
 @app.get("/api/roster/current")
 async def get_roster_current():
