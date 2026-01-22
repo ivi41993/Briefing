@@ -2764,52 +2764,26 @@ body.card-open #timer-reset {
   <!-- FILA 2: MANTENIMIENTO (FIIX) -->
   <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
   
-  <div class="kpi-grid">
-    <!-- COSTE ESTIMADO (Linkado a tipos de órdenes) -->
-    <div class="kpi-tile" style="border-left: 6px solid #b91c1c; background: #fff1f2;">
-        <div class="kpi-label" style="color: #991b1b;">Impacto Económico (24h)</div>
-        <div class="kpi-value" style="color: #b91c1c;">
-            <span id="fiix-cost-est">0.00</span><span class="kpi-currency">€</span>
-        </div>
-        <small class="kpi-text">Basado en criticidad N4</small>
-    </div>
-
-    <!-- TIEMPO DE RESPUESTA (MTTR) -->
-    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
-        <div class="kpi-label">Tiempo de Reparación</div>
-        <div class="kpi-value"><span id="fiix-mttr">0</span><small style="font-size: 1rem;">h</small></div>
-        <small class="kpi-text">Media de cierre en WFS4</small>
-    </div>
-
-    <!-- BACKLOG NAVE 4 -->
-    <div class="kpi-tile" style="border-left: 6px solid #64748b;">
-        <div class="kpi-label">Backlog Abierto</div>
-        <div class="kpi-value" id="fiix-backlog">0</div>
-        <small class="kpi-text">Tareas pendientes N4</small>
-    </div>
-  </div>
-  <div class="kpi-grid">
-    <!-- DISPONIBILIDAD DE EQUIPOS (NUEVO) -->
+<div class="kpi-grid">
+    <!-- DISPONIBILIDAD REAL -->
     <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
-        <div class="kpi-label">Estado de Flota WFS4</div>
-        <div class="kpi-value">
-            <span id="fiix-availability">100</span>%
-        </div>
-        <small class="kpi-text" id="fiix-broken-text">Todos los equipos operativos</small>
+        <div class="kpi-label">Disponibilidad Flota</div>
+        <div class="kpi-value"><span id="fiix-availability">100</span>%</div>
+        <small class="kpi-text" id="fiix-broken-text">Todo operativo en N4</small>
     </div>
 
-    <!-- IMPACTO ECONÓMICO -->
-    <div class="kpi-tile" id="tile-fiix-cost" style="border-left: 6px solid #b91c1c;">
-        <div class="kpi-label">Gasto Proyectado (24h)</div>
-        <div class="kpi-value"><span id="fiix-cost-est">0.00</span>€</div>
-        <small class="kpi-text">Correctivo vs Preventivo</small>
+    <!-- COSTE DE LAS AVERÍAS ACTUALES -->
+    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
+        <div class="kpi-label" style="color:#991b1b">Coste Daños Activos</div>
+        <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">0.00</span>€</div>
+        <small class="kpi-text">Impacto económico actual</small>
     </div>
 
-    <!-- TIEMPO DE REPARACIÓN -->
+    <!-- VELOCIDAD DE REPARACIÓN -->
     <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
-        <div class="kpi-label">Respuesta Técnica</div>
-        <div class="kpi-value"><span id="fiix-mttr">0</span>h</div>
-        <small class="kpi-text">Media de cierre N4</small>
+        <div class="kpi-label">Tiempo medio de respuesta</div>
+        <div class="kpi-value"><span id="fiix-mttr">0</span><small style="font-size:1rem">h</small></div>
+        <small class="kpi-text">MTTR (Últimas 24h)</small>
     </div>
 </div>
 
@@ -4241,31 +4215,25 @@ function processTaskUpdate(data) {
     // Dentro de processTaskUpdate(data) en tu index.html
 
 if (data.metric.startsWith('fiix_wfs4_')) {
-        const m = data.metric;
-        const val = data.value;
+    const val = data.value;
+    const m = data.metric;
 
-        if (m === 'fiix_wfs4_availability') {
-            const el = document.getElementById('fiix-availability');
-            if (el) {
-                el.textContent = val;
-                // Feedback visual de actualización (destello)
-                el.parentElement.classList.add('flash'); 
-                setTimeout(() => el.parentElement.classList.remove('flash'), 1000);
-            }
-        }
-        else if (m === 'fiix_wfs4_broken_count') {
-            const txt = document.getElementById('fiix-broken-text');
-            txt.textContent = val > 0 ? `${val} equipos fuera de servicio` : 'Todos los equipos operativos';
-            txt.style.color = val > 0 ? "#b91c1c" : "#64748b";
-        }
-        else if (m === 'fiix_wfs4_cost_est') {
-            document.getElementById('fiix-cost-est').textContent = new Intl.NumberFormat('es-ES').format(val);
-        }
-        else if (m === 'fiix_wfs4_mttr') {
-            document.getElementById('fiix-mttr').textContent = val;
-        }
-        return;
+    if (m === 'fiix_wfs4_availability') {
+        document.getElementById('fiix-availability').textContent = val;
+        // Si hay máquinas rotas, avisar
+        document.getElementById('tile-fiix-availability').style.background = val < 100 ? '#fffbeb' : '#fff';
+    } 
+    else if (m === 'fiix_wfs4_broken_count') {
+        document.getElementById('fiix-broken-text').textContent = val > 0 ? `${val} equipos parados ahora` : 'Todo operativo en N4';
     }
+    else if (m === 'fiix_wfs4_damage_cost') {
+        // Mostramos el coste acumulado de las órdenes abiertas hoy
+        document.getElementById('fiix-damage-cost').textContent = new Intl.NumberFormat('es-ES', {minimumFractionDigits: 2}).format(val);
+    }
+    else if (m === 'fiix_wfs4_mttr') {
+        document.getElementById('fiix-mttr').textContent = val;
+    }
+}
 
     // 5. Render de tarjetas normales
     const elementId = `task-${data.id}`;
@@ -7299,6 +7267,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
