@@ -3459,7 +3459,14 @@ function initEhsSimple(){
 }
 
 /* Equipo (roster) */
-let TEAM_STATE = null; // cache de estado actual {shift, sheet_date, window, people, attendance, ...}
+window.TEAM_STATE = window.TEAM_STATE || { 
+    attendance: {}, 
+    zones: {}, 
+    allPeopleRaw: [], 
+    people: [], 
+    shift: "Cargando...", 
+    sheet_date: new Date().toISOString().slice(0,10)
+};
 
 
 function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
@@ -3550,48 +3557,50 @@ console.error('PUT /api/roster/zone falló', e);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
-    if (!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
-    
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+
+    // --- BLOQUE DE DEFENSA DE MEMORIA (Evita el error de Cristina Pimentel) ---
+    if (!window.TEAM_STATE) window.TEAM_STATE = {};
+    if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
+    if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
+    if (!window.TEAM_STATE.allPeopleRaw) window.TEAM_STATE.allPeopleRaw = [];
+
+    // Fusión inteligente: Añadir gente nueva de la API a la lista global sin duplicados
+    if (people && Array.isArray(people) && people.length > 0) {
+        people.forEach(p => {
+            const existe = window.TEAM_STATE.allPeopleRaw.some(x => x.nombre_completo === p.nombre_completo);
+            if (!existe) window.TEAM_STATE.allPeopleRaw.push(p);
+        });
+    }
+
+    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
+
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
-    if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal de Madrid Ops...</div>';
+    if (masterList.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No hay personal cargado...</div>';
         return;
     }
 
-    // 1. CLASIFICACIÓN POR CATEGORÍAS OPS
+    // 1. Clasificación por categorías
     const groups = {
-        "SUPERVISORES OPS MAD": [],
-        "ESPECIALISTAS DGR": [],
-        "OPERARIOS OPS NAVE 3": []
+        "SUPERVISIÓN MAD N1": [],
+        "LEAD AGENT": [],
+        "OPERARIOS OPS": [],
+        "MOSTRADOR": []
     };
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        
-        // Reglas de seccionamiento visual
-        if (grupo.includes("SUPERVISORES-OPS")) {
-            groups["SUPERVISORES OPS MAD"].push(p);
-        } else if (grupo.includes("DGR")) {
-            groups["ESPECIALISTAS DGR"].push(p);
-        } else if (grupo.includes("OPERARIOS-OPS")) {
-            groups["OPERARIOS OPS NAVE 3"].push(p);
-        } else if (grupo.includes("APOYO-N3")) {
-            groups["OPERARIOS OPS NAVE 3"].push(p);
-        } else if (grupo.includes("EPA")) {
-            groups["OPERARIOS OPS NAVE 3"].push(p);
-        } else if (grupo.includes("MOSTRADOR NAVE 3")) {
-            groups["OPERARIOS OPS NAVE 3"].push(p);
-        } else if (grupo.includes("UX")) {
-            groups["OPERARIOS OPS NAVE 3"].push(p);
-        }
+        if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N1"].push(p);
+        else if (grupo.includes("LEAD AGENT")) groups["LEAD AGENT"].push(p);
+        else if (grupo.includes("MOSTRADOR")) groups["MOSTRADOR"].push(p);
+        else groups["OPERARIOS OPS"].push(p);
     });
 
     listEl.innerHTML = '';
-    const ZONES = ['N3 MUELLE', 'N3 INTERIOR', 'OFICINA', 'ENTRADA', 'SALIDA'];
+    const ZONES = ['MUELLE', 'ISLA', 'DORADA', 'OFICINA', 'ENTRADA', 'SALIDA'];
 
-    // 2. RENDERIZADO VIVID
+    // 2. Renderizado por Grupos
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
@@ -3603,40 +3612,72 @@ function renderRoster(listEl, people, state) {
 
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
-            const safeId = name.replace(/[^a-z0-9]/gi, '_');
-            let currentAtt = window.TEAM_STATE.attendance[name]; 
-            if (currentAtt === undefined) currentAtt = "undefined";
+            // Generar ID seguro para HTML
+            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g, ""); 
+            
+            // ACCESO SEGURO AL ESTADO
+            const currentAtt = window.TEAM_STATE.attendance[name]; // Puede ser true, false o undefined
+            const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            let colorVivid = "#3b82f6"; // Azul
-            if (groupName.includes("SUPERVISORES")) colorVivid = "#fbbf24"; // Oro
-            if (groupName.includes("DGR")) colorVivid = "#ef4444"; // Rojo
+            let borderColor = "#3b82f6"; // Azul
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; // Oro
+            if (groupName.includes("LEAD")) borderColor = "#8b5cf6"; // Púrpura
 
             const card = document.createElement('div');
-            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${colorVivid}; background:#fff; box-shadow:0 4px 6px rgba(0,0,0,0.02);`;
+            card.className = 'team-row';
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${borderColor}; background:#fff;`;
 
             card.innerHTML = `
                 <div>
-                    <div style="font-weight:800; font-size:0.9rem; color:#1e293b;">${name}</div>
-                    <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-top:2px;">🕒 ${p.horario} | <span style="color:#475569">${p.grupo}</span></div>
+                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${esc(name)}</div>
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
+                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800;">${esc(p.grupo || 'MANUAL')}</span>
+                    </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
-                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
-                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem;">➖</label>
-                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="true" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem;">✅</label>
-                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="false" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem;">❌</label>
+                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">➖</label>
+
+                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">✅</label>
+                        
+                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">❌</label>
                     </div>
-                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.75rem; font-weight:700; background:#fff;">
-                        <option value="" disabled ${!window.TEAM_STATE.zones[name] ? 'selected' : ''}>ZONA...</option>
-                        ${ZONES.map(z => `<option value="${z}" ${window.TEAM_STATE.zones[name] === z ? 'selected' : ''}>${z}</option>`).join('')}
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
+                        <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
                     </select>
                 </div>
             `;
+
+            // EVENTO DE CAMBIO DE ASISTENCIA
+            card.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.onchange = (e) => {
+                    const val = e.target.value;
+                    let finalVal = undefined;
+                    if (val === "yes") finalVal = true;
+                    if (val === "no") finalVal = false;
+
+                    window.TEAM_STATE.attendance[name] = finalVal;
+                    if (finalVal !== undefined) updatePresenceOnServer(name, finalVal);
+                    updateTeamMeta(window.TEAM_STATE);
+                };
+            });
+
+            // EVENTO DE CAMBIO DE ZONA
+            card.querySelector('.zone-select').onchange = (e) => {
+                const zone = e.target.value;
+                window.TEAM_STATE.zones[name] = zone;
+                if (typeof updateZoneOnServer === 'function') updateZoneOnServer(name, zone);
+            };
+
             listEl.appendChild(card);
         });
     });
+    updateTeamMeta(window.TEAM_STATE);
 }
 
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
