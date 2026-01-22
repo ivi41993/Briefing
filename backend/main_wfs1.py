@@ -36,24 +36,6 @@ import time
 import asyncio
 from datetime import datetime, timedelta
 
-# --- CONFIGURACIÓN FIIX WFS1 (MADRID N1) ---
-# IDs de Mantenimiento (Iguales para todo Madrid)
-FIIX_SITE_ID = 29449435 
-ID_PREVENTIVO = 531546
-ID_URGENTE = 278571
-
-# ⚠️ LA CLAVE: El filtro para buscar cosas de la Nave 1
-# Si en Fiix los activos se llaman "MAD-WFS1-..." o "MAD-N1-..." esto es vital.
-FIIX_NAVE_TAG = "WFS1" 
-
-# Caché en memoria
-fiix_data_cache = {
-    "fiix_availability": 100,
-    "fiix_cost": 0.0,
-    "fiix_broken_count": 0,
-    "fiix_created_24h": 0,
-    "last_update": None
-}
 
 # ==========================================
 # CONFIGURACIÓN WFS1 (AISLAMIENTO)
@@ -689,121 +671,7 @@ def _compute_briefing_metrics(sections, duration):
 
 
 
-class FiixConnector:
-    def __init__(self):
-        self.host = os.getenv("FIIX_HOST", "wfs.macmms.com").strip()
-        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
-        self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
-        self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
-        self.client = httpx.AsyncClient(timeout=30.0)
-        self.base_url = f"https://{self.host}/api/"
 
-    def _build_auth(self) -> tuple[dict, dict]:
-        ts_ms = int(time.time() * 1000)
-        auth_params = {
-            "accessKey": self.access_key,
-            "appKey": self.app_key,
-            "signatureMethod": "HmacSHA256",
-            "signatureVersion": "1",
-            "timestamp": str(ts_ms),
-        }
-        sorted_keys = sorted(auth_params.keys())
-        query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
-        signature_base = f"{self.host}/api/?{query_string}"
-        
-        signature = hmac.new(
-            self.secret_key.encode("utf-8"),
-            signature_base.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest().lower()
-        
-        return auth_params, {"Content-Type": "application/json", "Authorization": signature}
-
-    async def _fiix_rpc(self, body: dict) -> list:
-        if not self.app_key:
-            print("⚠️ [WFS1 FIIX] Faltan credenciales en .env")
-            return []
-            
-        auth_params, headers = self._build_auth()
-        body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
-        
-        try:
-            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
-            if resp.status_code == 200:
-                res_json = resp.json()
-                return res_json.get("objects") or []
-            print(f"⚠️ [WFS1 FIIX] Error HTTP {resp.status_code}: {resp.text}")
-            return []
-        except Exception as e:
-            print(f"⚠️ [WFS1 FIIX] Error Red: {e}")
-            return []
-
-    async def sync_station(self):
-        global fiix_data_cache
-        
-        # 1. Definir filtro: Buscar activos que contengan "WFS1" (o "N1" si fallara)
-        tag_filter = f"%{FIIX_NAVE_TAG}%"
-        yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-
-        print(f"🔄 [WFS1] Buscando datos Fiix con filtro: {tag_filter}...")
-
-        try:
-            # A. Obtener Activos
-            assets = await self._fiix_rpc({
-                "_maCn": "FindRequest", 
-                "className": "Asset",
-                "fields": "id, bolIsOnline, strCode",
-                "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [FIIX_SITE_ID, tag_filter]}]
-            })
-            
-            # B. Obtener Órdenes (Últimas 24h)
-            wos = await self._fiix_rpc({
-                "_maCn": "FindRequest", 
-                "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                             "parameters": [FIIX_SITE_ID, yesterday, tag_filter]}]
-            })
-
-            # Debug: Ver si realmente encuentra cosas
-            print(f"📊 [WFS1 DEBUG] Activos encontrados: {len(assets)} | Órdenes 24h: {len(wos)}")
-
-            # Cálculos
-            total_a = len(assets)
-            broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
-            avail = round(((total_a - broken) / total_a) * 100) if total_a > 0 else 100
-            
-            coste_proyectado = 0.0
-            for wo in wos:
-                pid = wo.get("intPriorityID")
-                mid = wo.get("intMaintenanceTypeID")
-                
-                if pid == ID_URGENTE: 
-                    coste_proyectado += 450.0
-                elif mid != ID_PREVENTIVO:
-                    coste_proyectado += 120.0
-                else:
-                    coste_proyectado += 35.0
-
-            # Actualizar caché
-            fiix_data_cache = {
-                "fiix_availability": avail,
-                "fiix_cost": round(coste_proyectado, 2),
-                "fiix_broken_count": broken,
-                "fiix_created_24h": len(wos),
-                "last_update": datetime.utcnow().isoformat() + "Z"
-            }
-
-            # Emitir WebSocket
-            await manager.broadcast({
-                "type": "kpi_update", 
-                "station": "WFS1",
-                **fiix_data_cache
-            })
-            print(f"✅ [WFS1] Datos actualizados: {avail}% Disp, {coste_proyectado}€ Coste")
-
-        except Exception as e:
-            print(f"❌ [WFS1] Error crítico Fiix: {e}")
 
 
 
@@ -867,7 +735,176 @@ app.add_middleware(
 
 # --- FILTRO ROBUSTO CON PROTECCIÓN CONTRA STRINGS ---
 
+import os
+import time
+import hmac
+import hashlib
+import json
+import asyncio
+from datetime import datetime, timedelta
+import httpx
 
+# --- CACHÉ ESPECÍFICA PARA WFS1 ---
+fiix_memory_cache = {
+    "fiix_wfs1_availability": 100,
+    "fiix_wfs1_damage_cost": 0.0,
+    "fiix_wfs1_mttr": 0.0,
+    "fiix_wfs1_broken_count": 0
+}
+
+class FiixConnector:
+    def __init__(self):
+        self.host = os.getenv("FIIX_HOST", "").strip()
+        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
+        self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
+        self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        
+        self.client = httpx.AsyncClient(timeout=30.0)
+        self.base_url = f"https://{self.host}/api/"
+
+    def _build_auth(self) -> tuple[dict, dict]:
+        ts_ms = int(time.time() * 1000)
+        auth_params = {
+            "accessKey": self.access_key,
+            "appKey": self.app_key,
+            "signatureMethod": "HmacSHA256",
+            "signatureVersion": "1",
+            "timestamp": str(ts_ms),
+        }
+        
+        sorted_keys = sorted(auth_params.keys())
+        query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
+        signature_base = f"{self.host}/api/?{query_string}"
+        
+        signature = hmac.new(
+            self.secret_key.encode("utf-8"),
+            signature_base.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest().lower()
+        
+        return auth_params, {"Content-Type": "application/json", "Authorization": signature}
+
+    async def _fiix_rpc(self, body: dict) -> list:
+        auth_params, headers = self._build_auth()
+        body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
+
+        try:
+            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
+            
+            if resp.status_code != 200:
+                print(f"❌ [WFS1] Error HTTP {resp.status_code}: {resp.text}")
+                return []
+
+            res_json = resp.json()
+            if "error" in res_json:
+                print(f"❌ [WFS1] Fiix API Error: {res_json['error'].get('message')}")
+                return []
+
+            return res_json.get("objects") or res_json.get("object") or []
+        except Exception as e:
+            print(f"❌ [WFS1] Fiix Exception: {e}")
+            return []
+
+    async def fetch_metrics(self):
+        global fiix_memory_cache
+        
+        # --- CONFIGURACIÓN WFS1 ---
+        SITE_ID = 29449435
+        TAG_NAVE = "WFS1"  # <--- IMPORTANTE: Filtra todo lo que sea WFS1
+        ID_PREVENTIVO = 531546
+        ID_URGENTE = 278571
+        
+        now = datetime.now()
+        yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+        print(f"🔄 [WFS1] Sincronizando Fiix (Filtro: {TAG_NAVE})...")
+
+        try:
+            # --- A. ACTIVOS (Disponibilidad) ---
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode",
+                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID]}],
+                "maxObjects": 1000
+            }
+            assets_res = await self._fiix_rpc(body_assets)
+            
+            # Filtramos en Python buscando "WFS1" dentro del código del activo
+            assets_n1 = [a for a in assets_res if f"-{TAG_NAVE}-" in str(a.get("strCode", ""))]
+            
+            broken = sum(1 for a in assets_n1 if a.get("bolIsOnline") == 0)
+            total_assets = len(assets_n1)
+            avail = round(((total_assets - broken) / total_assets) * 100) if total_assets > 0 else 100
+
+            # --- B. ÓRDENES (Costes y Tiempos) ---
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, dtmDateCompleted, intMaintenanceTypeID, intPriorityID, strAssets",
+                # Buscamos órdenes creadas en las últimas 24h que contengan "WFS1"
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                             "parameters": [SITE_ID, yesterday_str, f"%{TAG_NAVE}%"]}]
+            }
+            wos_res = await self._fiix_rpc(body_wo)
+            
+            cost = 0.0
+            total_dt = 0
+            for wo in wos_res:
+                # Coste Proyectado
+                if wo.get("intPriorityID") == ID_URGENTE: cost += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: cost += 120.0
+                else: cost += 35.0
+                
+                # Tiempo (MTTR)
+                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
+                    total_dt += (wo["dtmDateCompleted"] - wo["dtmDateCreated"]) / (1000 * 60)
+
+            mttr = round((total_dt / len(wos_res)) / 60, 1) if wos_res else 0
+
+            # 3. ACTUALIZAR CACHÉ GLOBAL (Claves WFS1)
+            fiix_memory_cache = {
+                "fiix_wfs1_availability": avail,
+                "fiix_wfs1_damage_cost": round(cost, 2),
+                "fiix_wfs1_mttr": mttr,
+                "fiix_wfs1_broken_count": broken
+            }
+
+            # Debug en consola para verificar
+            print(f"📊 [WFS1 DEBUG] Activos: {total_assets} | Rotos: {broken} | Órdenes 24h: {len(wos_res)} | Coste: {cost}€")
+
+            # 4. BROADCAST INMEDIATO
+            ts = datetime.utcnow().isoformat() + "Z"
+            for m, v in fiix_memory_cache.items():
+                await manager.broadcast({
+                    "type": "kpi_update", 
+                    "metric": m, 
+                    "value": v, 
+                    "timestamp": ts, 
+                    "station": "MAD" # O "WFS1" si tu front filtra por eso
+                })
+
+        except Exception as e:
+            print(f"❌ [WFS1] Error en worker Fiix: {e}")
+
+# --- WORKER AUTOMÁTICO ---
+fiix_worker_started = False
+
+@app.get("/api/fiix/current")
+async def get_fiix_current():
+    global fiix_worker_started
+    if not fiix_worker_started:
+        asyncio.create_task(fiix_auto_worker())
+        fiix_worker_started = True
+    return fiix_memory_cache
+
+async def fiix_auto_worker():
+    connector = FiixConnector()
+    print("🚀 [WFS1] Worker Fiix iniciado")
+    while True:
+        try:
+            await connector.fetch_metrics()
+        except Exception as e:
+            print(f"❌ [WFS1 Worker Error] {e}")
+        await asyncio.sleep(600) # 10 minutos
 
 async def fetch_roster_api_data(escala: str, fecha: str):
     url = os.getenv("ROSTER_API_URL")
