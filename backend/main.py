@@ -3221,7 +3221,7 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(FIIX_CYCLE_SECONDS)
 
     # Lanzamos el proceso de Fiix como una tarea de fondo
-   app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
+    app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
     yield
     app.state._fiix_task.cancel()
 
@@ -5009,6 +5009,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
