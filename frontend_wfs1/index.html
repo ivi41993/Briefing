@@ -2720,29 +2720,30 @@ body.card-open #timer-reset {
   <hr style="border:0; border-top:1px solid var(--border); margin: 10px 0;">
 
   <!-- FILA 2: MANTENIMIENTO (FIIX) -->
-  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
-  
-  <div class="kpi-grid">
-    <!-- Backlog -->
-    <div class="kpi-tile" style="border-left: 4px solid #3b82f6;">
-      <div class="kpi-label">Backlog (Abiertas)</div>
-      <div class="kpi-value" id="fiix-backlog">—</div>
+  <!-- SECCIÓN MANTENIMIENTO FIIX (Añadir a la fila de KPIs) -->
+<h3 style="font-size:0.9rem; color:var(--text-muted); margin: 15px 0 10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
+<div class="kpi-grid">
+    <!-- DISPONIBILIDAD -->
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Disponibilidad Activos</div>
+        <div class="kpi-value"><span id="fiix-availability">100</span>%</div>
+        <small class="kpi-text" id="fiix-down-text">Equipos Operativos</small>
     </div>
 
-    <!-- Urgencias (Si > 0 se pondrá rojo por JS) -->
-    <div class="kpi-tile" id="tile-fiix-urgent" style="border-left: 4px solid #f59e0b;">
-      <div class="kpi-label">Correctivos</div>
-      <div class="kpi-value" id="fiix-urgent">—</div>
+    <!-- IMPACTO GASTO (EFICIENCIA) -->
+    <div class="kpi-tile" id="tile-fiix-loss" style="border-left: 6px solid #f59e0b;">
+        <div class="kpi-label">Eficiencia Operativa</div>
+        <div class="kpi-value"><span id="fiix-ratio-loss">0</span>%</div>
+        <small class="kpi-text">Ratio de Correctivo</small>
     </div>
 
-    <!-- Costes Mto. (Mes) -->
-    <div class="kpi-tile" style="border-left: 4px solid #10b981;">
-      <div class="kpi-label">Gasto Mes (Mto)</div>
-      <div class="kpi-value">
-        <span id="fiix-cost">—</span><span class="kpi-currency">€</span>
-      </div>
+    <!-- TIEMPO DE REPARACIÓN -->
+    <div class="kpi-tile" id="tile-fiix-mttr" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">Tiempo de Respuesta</div>
+        <div class="kpi-value"><span id="fiix-mttr">0</span><small style="font-size: 1rem;">h</small></div>
+        <small class="kpi-text">Media de cierre (24h)</small>
     </div>
-  </div>
+</div>
 
   <!-- SEPARADOR -->
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
@@ -4161,26 +4162,43 @@ if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)
   
 
 
-  if (data.metric === 'fiix_backlog') {
-      setKpiValue('fiix-backlog', null, data.value); // null porque no puse meta de fecha
-      return;
-  }
-  if (data.metric === 'fiix_urgent') {
-      setKpiValue('fiix-urgent', null, data.value);
-      // Alerta visual si hay urgencias
-      const tile = document.getElementById('tile-fiix-urgent');
-      if(tile) {
-          if(Number(data.value) > 0) tile.style.backgroundColor = '#fef2f2'; // Rojo suave
-          else tile.style.backgroundColor = '#fff';
-      }
-      return;
-  }
-  if (data.metric === 'fiix_cost') {
-      // Formatear dinero
-      const val = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(data.value);
-      setKpiValue('fiix-cost', null, val);
-      return;
-  }
+  // 1. FILTRO DE SEGURIDAD: Solo procesar si el dato es de ESTA estación
+    // Asegúrate de que window.STATION_OVERRIDE esté bien definido (WFS1, WFS4, etc.)
+    if (data.station && data.station !== (window.STATION_OVERRIDE || 'MAD')) return;
+
+    // 2. PROCESAR MÉTRICAS DE FIIX
+    if (data.metric && data.metric.startsWith('fiix_')) {
+        // Convertimos nombre de métrica (fiix_availability) a ID de HTML (fiix-availability)
+        const elId = data.metric.replace(/_/g, '-'); 
+        const el = document.getElementById(elId);
+        
+        if (el) {
+            const val = data.value;
+
+            // Lógica específica por tipo de dato
+            if (elId === 'fiix-availability') {
+                el.textContent = val;
+                const tile = document.getElementById('tile-fiix-availability');
+                // Alerta: Si la disponibilidad de la nave baja del 95%
+                tile.style.background = val < 95 ? '#fff1f2' : '#fff';
+                tile.style.borderLeftColor = val < 95 ? '#ef4444' : '#10b981';
+            } 
+            else if (elId === 'fiix-ratio-loss') {
+                el.textContent = val + "%";
+                const tile = document.getElementById('tile-fiix-loss');
+                // Alerta: Si el gasto en averías supera el 30% del trabajo
+                tile.style.background = val > 30 ? '#fff7ed' : '#fff';
+            }
+            else if (elId === 'fiix-mttr') {
+                el.textContent = val;
+            }
+            else if (m === 'fiix-broken-count') {
+                const txt = document.getElementById('fiix-down-text');
+                if (txt) txt.textContent = val > 0 ? `${val} máquinas paradas` : 'Equipos Operativos';
+            }
+        }
+        return; // Fin de bloque Fiix
+    }
 
   
   // Coste total (ya lo tenías)
