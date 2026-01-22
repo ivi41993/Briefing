@@ -797,19 +797,15 @@ async def fiix_auto_sync():
         await conn.fetch_metrics(current_station)
         await asyncio.sleep(600) # Cada 10 minutos
 
-async def fiix_global_worker():
+@app.get("/api/fiix/current")
+async def get_fiix_current(station: str = "WFS1"):
+    return fiix_data_cache.get(station, {})
+
+async def fiix_auto_worker():
     conn = FiixConnector()
-    print("🚀 [FIIX] Motor Global de Mantenimiento Iniciado.")
     while True:
-        for sede in ESTACIONES_ACTIVAS:
-            try:
-                await conn.fetch_metrics_for_station(sede)
-                await asyncio.sleep(5) # Pausa de seguridad entre naves
-            except Exception as e:
-                print(f"⚠️ Error en ciclo Fiix para {sede}: {e}")
-        
-        # Esperar 10 minutos para la siguiente vuelta completa
-        await asyncio.sleep(600)
+        await conn.sync_station("WFS1") # Aquí pones la de este archivo
+        await asyncio.sleep(600) # Cada 10 min
 
 
 # -----------------------------------
@@ -834,7 +830,7 @@ async def lifespan(app: FastAPI):
             except: pass
     app.state._hb = asyncio.create_task(_hb())
     
-    app.state._fiix_task = asyncio.create_task(fiix_global_worker())
+    app.state._fiix = asyncio.create_task(fiix_auto_worker())
     yield
     app.state._fiix_task.cancel()
     print("🛑 Deteniendo WFS1...")
