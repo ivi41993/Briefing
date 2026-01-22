@@ -663,6 +663,23 @@ def _compute_briefing_metrics(sections, duration):
     std = (cov >= 95 and duration <= 600)
     return ok, cov, std
 
+ESTACIONES_ACTIVAS = ["WFS1", "WFS2A", "WFS2B", "WFS3", "WFS4"]
+
+async def fiix_global_worker():
+    conn = FiixConnector()
+    print("🚀 [FIIX] Motor Global de Mantenimiento Iniciado.")
+    while True:
+        for sede in ESTACIONES_ACTIVAS:
+            try:
+                await conn.fetch_metrics_for_station(sede)
+                await asyncio.sleep(5) # Pausa de seguridad entre naves
+            except Exception as e:
+                print(f"⚠️ Error en ciclo Fiix para {sede}: {e}")
+        
+        # Esperar 10 minutos para la siguiente vuelta completa
+        await asyncio.sleep(600)
+
+
 # -----------------------------------
 # LIFESPAN & APP
 # -----------------------------------
@@ -685,7 +702,9 @@ async def lifespan(app: FastAPI):
             except: pass
     app.state._hb = asyncio.create_task(_hb())
     
+    app.state._fiix_task = asyncio.create_task(fiix_global_worker())
     yield
+    app.state._fiix_task.cancel()
     print("🛑 Deteniendo WFS1...")
     app.state._hb.cancel()
     app.state._roster_task.cancel()
