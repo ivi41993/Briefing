@@ -3623,7 +3623,7 @@ function renderRoster(listEl, people, state) {
 
     // 1. Clasificación por categorías
     const groups = {
-        "SUPERVISIÓN MAD N1": [],
+        "SUPERVISIÓN MAD N4": [],
         "LEAD AGENT": [],
         "OPERARIOS OPS": [],
         "MOSTRADOR": []
@@ -3631,7 +3631,7 @@ function renderRoster(listEl, people, state) {
 
     masterList.forEach(p => {
         const grupo = (p.grupo || "").toUpperCase();
-        if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N1"].push(p);
+        if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N4"].push(p);
         else if (grupo.includes("LEAD AGENT")) groups["LEAD AGENT"].push(p);
         else if (grupo.includes("MOSTRADOR")) groups["MOSTRADOR"].push(p);
         else groups["OPERARIOS OPS"].push(p);
@@ -7227,6 +7227,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
