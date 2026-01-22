@@ -3389,8 +3389,8 @@ async def upload_roster(file: UploadFile = File(...)):
         "rows_total": total_rows,
         "hint": "Indexado y persistido por fecha; ya se sirve desde el almacén.",
     }
- @app.get("/api/fiix/current")
-    async def get_fiix_current():
+@app.get("/api/fiix/current")
+async def get_fiix_current():
         return fiix_latest_data
         
 @app.get("/api/fiix-debug")
@@ -5010,6 +5010,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
