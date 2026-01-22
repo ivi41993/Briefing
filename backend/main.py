@@ -2937,34 +2937,53 @@ class FiixConnector:
         ID_PREVENTIVO = 531546
         ID_URGENTE = 278571
         
-        now = datetime.now()
-        yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        now_ms = int(time.time() * 1000)
+        yesterday_str = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+        # 1. REINICIO DE VARIABLES (Local a la función para evitar el acumulativo)
+        current_damage_cost = 0.0  # Coste de lo que está roto AHORA
+        current_mttr = 0.0        # Tiempo de reparación de las últimas 24h
+        availability_pct = 100    # Disponibilidad de equipos
+        broken_count = 0
 
         try:
-            # --- 1. ESTADO DE EQUIPOS (ASSETS) ---
-            # Consultamos todos los activos de Madrid que sean equipos (intKind=2)
+            # --- A. DISPONIBILIDAD DE EQUIPOS (Snapshot Actual) ---
             body_assets = {
-                "_maCn": "FindRequest",
-                "className": "Asset",
-                "fields": "id, bolIsOnline, strCode, strName",
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode",
                 "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID]}],
                 "maxObjects": 2000 
             }
-            all_assets = await self._fiix_rpc(body_assets)
+            assets_res = await self._fiix_rpc(body_assets)
+            assets_n4 = [a for a in assets_res if f"-{TAG_NAVE}-" in str(a.get("strCode", ""))]
             
-            # Filtramos solo los de la Nave 4 por código
-            assets_n4 = [a for a in all_assets if f"-{TAG_NAVE}-" in str(a.get("strCode", ""))]
-            
-            total_n4 = len(assets_n4)
-            # bolIsOnline: 1 es OK, 0 es Averiado/Parado
-            broken_n4 = sum(1 for a in assets_n4 if a.get("bolIsOnline") == 0)
-            availability_n4 = round(((total_n4 - broken_n4) / total_n4) * 100) if total_n4 > 0 else 100
+            if assets_n4:
+                broken_count = sum(1 for a in assets_n4 if a.get("bolIsOnline") == 0)
+                availability_pct = round(((len(assets_n4) - broken_count) / len(assets_n4)) * 100)
 
-            # --- 2. COSTES Y TIEMPOS (WORK ORDERS) ---
+            # --- B. COSTE DE DAÑOS ACTIVOS (Backlog Abierto) ---
+            # Solo sumamos el coste estimado de las órdenes que NO se han cerrado aún
+            body_open = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, intPriorityID",
+                "filters": [
+                    {"ql": "intSiteID = ? AND dtmDateCompleted IS NULL AND strAssets LIKE ?", 
+                     "parameters": [SITE_ID, f"%{TAG_NAVE}%"]}
+                ]
+            }
+            open_wos = await self._fiix_rpc(body_open)
+            
+            for wo in open_wos:
+                # Si es urgente (daño crítico), el coste de impacto es mayor
+                if wo.get("intPriorityID") == ID_URGENTE: current_damage_cost += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: current_damage_cost += 120.0
+                else: current_damage_cost += 35.0
+
+            # --- C. TIEMPO DE REPARACIÓN (MTTR de las últimas 24h) ---
+            # Queremos saber cuánto tiempo están tardando en arreglar lo que se rompe
             body_closed = {
-                "_maCn": "FindRequest",
-                "className": "WorkOrder",
-                "fields": "id, dtmDateCreated, dtmDateCompleted, intMaintenanceTypeID, intPriorityID, strAssets",
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, dtmDateCompleted",
                 "filters": [
                     {"ql": "intSiteID = ? AND dtmDateCompleted >= ? AND strAssets LIKE ?", 
                      "parameters": [SITE_ID, yesterday_str, f"%{TAG_NAVE}%"]}
@@ -2972,43 +2991,26 @@ class FiixConnector:
             }
             closed_res = await self._fiix_rpc(body_closed)
             
-            total_est_cost = 0.0
-            total_downtime_mins = 0
-            for wo in closed_res:
-                # Downtime
-                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
-                    total_downtime_mins += (wo["dtmDateCompleted"] - wo["dtmDateCreated"]) / (1000 * 60)
-                
-                # Estimación de Coste
-                if wo.get("intPriorityID") == ID_URGENTE: total_est_cost += 450.0
-                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: total_est_cost += 120.0
-                else: total_est_cost += 35.0
+            if closed_res:
+                total_time = sum((w["dtmDateCompleted"] - w["dtmDateCreated"]) for w in closed_res)
+                current_mttr = round((total_time / len(closed_res)) / (1000 * 3600), 1)
 
-            # --- 3. BROADCAST TOTAL ---
-            ts = datetime.utcnow().isoformat() + "Z"
-            mttr = round((total_downtime_mins / len(closed_res)) / 60, 1) if closed_res else 0
-            
+            print(f"📊 [Snapshot WFS4] Daños: {current_damage_cost}€ | Rotos: {broken_count} | MTTR: {current_mttr}h")
+
+            # --- D. BROADCAST VÍA WEBSOCKET ---
             ts = datetime.utcnow().isoformat() + "Z"
             metrics = [
-                ("fiix_wfs4_availability", availability_n4),
-                ("fiix_wfs4_cost_est", total_est_cost),
-                ("fiix_wfs4_mttr", mttr),
-                ("fiix_wfs4_broken_count", broken_n4)
+                ("fiix_wfs4_availability", availability_pct),
+                ("fiix_wfs4_broken_count", broken_count),
+                ("fiix_wfs4_damage_cost", round(current_damage_cost, 2)), # Dinero "en la calle" ahora mismo
+                ("fiix_wfs4_mttr", current_mttr)
             ]
             
             for m, v in metrics:
-                await manager.broadcast({
-                    "type": "kpi_update", 
-                    "metric": m, 
-                    "value": v, 
-                    "timestamp": ts, 
-                    "station": "MAD"
-                })
-
-            print(f"📊 [WFS4] Disp: {availability_n4}% | Rotos: {broken_n4} | Coste Est: {total_est_cost}€")
+                await manager.broadcast({"type": "kpi_update", "metric": m, "value": v, "timestamp": ts, "station": "MAD"})
 
         except Exception as e:
-            print(f"❌ [FIIX WFS4] Error: {e}")
+            print(f"❌ [FIIX worker] Error: {e}")
 
 
     # --- 1. AÑADE ESTE MÉTODO DENTRO DE LA CLASE FiixConnector ---
@@ -4982,6 +4984,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
