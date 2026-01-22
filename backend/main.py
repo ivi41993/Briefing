@@ -3339,16 +3339,32 @@ async def upload_roster(file: UploadFile = File(...)):
         "rows_total": total_rows,
         "hint": "Indexado y persistido por fecha; ya se sirve desde el almacén.",
     }
+# 1. Almacén de datos global
+fiix_memory_cache = {}
+fiix_worker_started = False # Bandera para no duplicar procesos
+
 @app.get("/api/fiix/current")
 async def get_fiix_current():
+    global fiix_worker_started
+    # Si el proceso automático no ha arrancado, lo lanzamos ahora mismo
+    if not fiix_worker_started:
+        asyncio.create_task(fiix_auto_worker())
+        fiix_worker_started = True
+    
     return fiix_memory_cache
 
-# --- WORKER DE FONDO ---
+# --- EL WORKER QUE REALMENTE FUNCIONA ---
 async def fiix_auto_worker():
-    conn = FiixConnector()
+    connector = FiixConnector()
+    print("🚀 [FIIX] Proceso automático despertado por actividad en el Dashboard")
     while True:
-        await conn.fetch_metrics()
-        await asyncio.sleep(600) # Cada 10 minutos
+        try:
+            await connector.fetch_metrics()
+        except Exception as e:
+            print(f"❌ [FIIX worker] Error: {e}")
+        
+        # Actualiza cada 10 minutos
+        await asyncio.sleep(600)
         
 @app.get("/api/fiix-debug")
 async def fiix_debug():
@@ -4967,6 +4983,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
