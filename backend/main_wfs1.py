@@ -995,7 +995,10 @@ async def _build_roster_state(force=False) -> dict:
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
-
+@app.get("/api/fiix/current")
+async def get_fiix_current(station: str = "WFS1"):
+    return fiix_data_cache.get(station, {})
+    
 @app.get("/api/roster/current")
 async def get_roster_current():
     state = await _build_roster_state(force=False)
