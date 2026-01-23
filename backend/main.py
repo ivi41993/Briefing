@@ -4692,36 +4692,44 @@ async def _build_roster_state(force=False) -> dict:
     
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
-@app.get("/api/fiix/discovery-final")
-async def discover_fiix_sites_final():
+@app.get("/api/fiix/get-ids-by-code")
+async def get_fiix_ids_by_exact_code():
     """
-    Consulta la tabla 'Site' de Fiix directamente.
-    Aquí es donde están los IDs que necesitamos (ej: Madrid = 29449435).
+    Busca los IDs numéricos exactos de BCN y VLC usando sus códigos oficiales.
     """
     connector = FiixConnector()
     
-    # Consultamos la clase 'Site', que es la tabla maestra de sedes
+    # Códigos que me has proporcionado
+    codigos_a_buscar = ["ES-CGO-BCN-WFS", "ES-CGO-VLC-WFS"]
+    
     body = {
         "_maCn": "FindRequest",
-        "className": "Site",
-        "fields": "id, strName",
-        "maxObjects": 50
+        "className": "Asset",
+        "fields": "id, strName, strCode",
+        "filters": [
+            {
+                "ql": "strCode = ? OR strCode = ?", 
+                "parameters": codigos_a_buscar
+            }
+        ]
     }
 
     try:
         results = await connector._fiix_rpc(body)
         
-        sedes = []
+        mapping_final = []
         for r in results:
-            sedes.append({
-                "ID_PARA_PYTHON": r.get("id"),
-                "NOMBRE_SEDE": r.get("strName")
+            mapping_final.append({
+                "CIUDAD": "BCN" if "BCN" in r.get("strCode") else "VLC",
+                "ID_PARA_EL_MAIN": r.get("id"),
+                "CODIGO": r.get("strCode"),
+                "NOMBRE_EN_FIIX": r.get("strName")
             })
 
         return {
             "status": "success",
-            "mensaje": "Busca el ID de Barcelona y Valencia en esta lista corta",
-            "sedes_oficiales": sedes
+            "resultado": mapping_final,
+            "nota": "Copia estos IDs en los archivos main_bcn.py y main_vlc.py"
         }
     except Exception as e:
         return {"status": "error", "detail": str(e)}
@@ -5016,6 +5024,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
