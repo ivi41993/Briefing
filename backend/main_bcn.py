@@ -20,9 +20,17 @@ import shlex
 from dataclasses import dataclass, field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
-import hmac
-import hashlib
+import uvicorn
+import os
+import uuid
 import json
+import re
+import asyncio
+import ssl
+import hmac      # <--- ASEGÚRATE DE QUE ESTÁ
+import hashlib   # <--- ASEGÚRATE DE QUE ESTÁ
+import time      # <--- ESTA ES LA QUE FALTA Y DA EL ERROR
+from datetime import datetime, timedelta, date
 
 # --- CONFIGURACIÓN FIIX BCN ---
 FIIX_SITE_ID = 30480896  # ID Maestro de Barcelona
@@ -2308,6 +2316,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
