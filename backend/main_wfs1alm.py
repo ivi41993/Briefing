@@ -848,11 +848,21 @@ fiix_worker_started = False
 # --- WORKER AUTOMÁTICO ---
 async def fiix_auto_worker():
     connector = FiixConnector()
-    print("🚀 [FIIX] Worker iniciado para WFS1 ALM")
-    await asyncio.sleep(5) # Espera inicial
-    while True:
+    print("🚀 [FIIX] Worker iniciado: Cargando datos INMEDIATAMENTE...")
+    
+    # 1. Ejecución inmediata al arrancar (Sin esperas)
+    try:
         await connector.fetch_metrics()
-        await asyncio.sleep(600) # Cada 10 minutos
+    except Exception as e:
+        print(f"⚠️ Error en carga inicial Fiix: {e}")
+
+    # 2. Bucle perpetuo (cada 10 min)
+    while True:
+        await asyncio.sleep(600) # Esperar 10 minutos
+        try:
+            await connector.fetch_metrics()
+        except Exception as e:
+            print(f"❌ [FIIX Loop Error] {e}")
 
 # --- ENDPOINT PARA EL FRONTEND ---
 @app.get("/api/fiix/current")
