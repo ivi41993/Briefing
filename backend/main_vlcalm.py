@@ -31,6 +31,43 @@ from pydantic import BaseModel, Field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
+import hmac
+import hashlib
+import time
+import asyncio
+import json
+from datetime import datetime, timedelta
+import httpx
+
+# --- CONFIGURACIÓN FIIX VLC ---
+FIIX_SITE_ID = 30480904  # ID Maestro de Valencia
+TAG_NAVE = "VLC"         # Filtro para activos y órdenes
+ID_PREVENTIVO = 531546
+ID_URGENTE = 278571
+FIIX_CACHE_FILE = "./data/fiix_cache_vlc.json"
+
+# --- PERSISTENCIA VLC ---
+def save_fiix_cache_to_disk(data):
+    try:
+        os.makedirs(os.path.dirname(FIIX_CACHE_FILE), exist_ok=True)
+        with open(FIIX_CACHE_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"⚠️ Error guardando caché Fiix VLC: {e}")
+
+def load_fiix_cache_from_disk():
+    try:
+        if os.path.exists(FIIX_CACHE_FILE):
+            with open(FIIX_CACHE_FILE, "r") as f:
+                data = json.load(f)
+                print(f"💾 [FIIX VLC] Memoria recuperada: {data.get('fiix_vlc_damage_cost', 0)}€")
+                return data
+    except Exception: pass
+    return {} 
+
+# Inicializar variable global
+fiix_memory_cache = load_fiix_cache_from_disk()
+
 # ==========================================
 # CONFIGURACIÓN VLC (VALENCIA)
 # ==========================================
@@ -720,6 +757,113 @@ async def send_to_excel_online(data: BriefingSnapshot):
     except Exception as e:
         print(f"❌ Error Excel VLC: {e}")
 
+class FiixConnector:
+    def __init__(self):
+        self.host = os.getenv("FIIX_HOST", "wfs.macmms.com").strip()
+        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
+        self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
+        self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        self.client = httpx.AsyncClient(timeout=30.0)
+        self.base_url = f"https://{self.host}/api/"
+
+    def _build_auth(self) -> tuple[dict, dict]:
+        ts_ms = int(time.time() * 1000)
+        auth_params = {
+            "accessKey": self.access_key, "appKey": self.app_key,
+            "signatureMethod": "HmacSHA256", "signatureVersion": "1",
+            "timestamp": str(ts_ms),
+        }
+        sorted_keys = sorted(auth_params.keys())
+        query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
+        signature_base = f"{self.host}/api/?{query_string}"
+        signature = hmac.new(self.secret_key.encode("utf-8"), signature_base.encode("utf-8"), hashlib.sha256).hexdigest().lower()
+        return auth_params, {"Content-Type": "application/json", "Authorization": signature}
+
+    async def _fiix_rpc(self, body: dict) -> list:
+        if not self.app_key: return []
+        auth_params, headers = self._build_auth()
+        body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
+        try:
+            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
+            return resp.json().get("objects") or []
+        except Exception as e:
+            print(f"❌ [FIIX VLC Error]: {e}")
+            return []
+
+    async def fetch_metrics(self):
+        global fiix_memory_cache
+        yesterday_str = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        sql_filter = f"%{TAG_NAVE}%"
+        
+        print(f"🔄 [FIIX VLC] Sincronizando con Fiix...")
+
+        try:
+            # 1. Activos de Valencia
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode, strName",
+                "filters": [{
+                    "ql": "intSiteID = ? AND intKind = 2 AND (strCode LIKE ? OR strName LIKE ?)", 
+                    "parameters": [FIIX_SITE_ID, sql_filter, sql_filter]
+                }],
+                "maxObjects": 1000
+            }
+            assets = await self._fiix_rpc(body_assets)
+            
+            # 2. Órdenes (Costes)
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated, dtmDateCompleted, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                             "parameters": [FIIX_SITE_ID, yesterday_str, sql_filter]}]
+            }
+            wos = await self._fiix_rpc(body_wo)
+
+            # 3. Cálculos
+            total_a = len(assets)
+            broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
+            avail = round(((total_a - broken) / total_a) * 100) if total_a > 0 else 100
+            
+            cost = 0.0
+            total_dt = 0
+            for wo in wos:
+                if wo.get("intPriorityID") == ID_URGENTE: cost += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: cost += 120.0
+                else: cost += 35.0
+                
+                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
+                    start, end = wo["dtmDateCreated"], wo["dtmDateCompleted"]
+                    if isinstance(start, (int,float)) and isinstance(end, (int,float)):
+                         total_dt += (end - start) / (1000 * 60)
+
+            mttr = round((total_dt / len(wos)) / 60, 1) if wos else 0
+
+            # 4. Actualizar Memoria y Disco (Claves VLC)
+            new_data = {
+                "fiix_vlc_availability": avail,
+                "fiix_vlc_damage_cost": round(cost, 2),
+                "fiix_vlc_mttr": mttr,
+                "fiix_vlc_broken_count": broken,
+                "last_update": datetime.utcnow().isoformat() + "Z"
+            }
+            fiix_memory_cache = new_data
+            save_fiix_cache_to_disk(new_data)
+
+            # 5. Broadcast
+            await manager.broadcast({"type": "kpi_update", "station": "VLC", **fiix_memory_cache})
+            print(f"✅ [FIIX VLC] Disp: {avail}% | Coste: {cost}€")
+
+        except Exception as e:
+            print(f"❌ [FIIX VLC Exception]: {e}")
+
+async def fiix_auto_worker():
+    connector = FiixConnector()
+    await asyncio.sleep(10) 
+    while True:
+        try: await connector.fetch_metrics()
+        except: pass
+        await asyncio.sleep(600)
+
 # -----------------------------------
 # LIFESPAN & APP
 # -----------------------------------
@@ -738,6 +882,7 @@ async def lifespan(app: FastAPI):
             try: await manager.broadcast({"type":"server_heartbeat","ts":datetime.utcnow().isoformat()+"Z"})
             except: pass
     app.state._hb = asyncio.create_task(_hb())
+    app.state._fiix = asyncio.create_task(fiix_auto_worker())
     yield
     print("🛑 Deteniendo VLC...")
     app.state._hb.cancel()
@@ -754,6 +899,15 @@ async def _roster_watcher():
 app = FastAPI(title="VLC Dashboard", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+@app.get("/api/fiix/current")
+async def get_fiix_current():
+    global fiix_memory_cache
+    if not fiix_memory_cache or not fiix_memory_cache.get("last_update"):
+        print("⏳ [API VLC] Cache vacía, forzando carga inmediata...")
+        conn = FiixConnector()
+        await conn.fetch_metrics()
+    return fiix_memory_cache
 
 # -----------------------------------
 # Endpoints API
