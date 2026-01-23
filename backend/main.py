@@ -4692,50 +4692,36 @@ async def _build_roster_state(force=False) -> dict:
     
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
-@app.get("/api/fiix/discovery-sites")
-async def discover_fiix_sites_v2():
+@app.get("/api/fiix/discovery-final")
+async def discover_fiix_sites_final():
     """
-    Localiza ÚNICAMENTE los Site_IDs principales (raíces) de BCN y VLC.
+    Consulta la tabla 'Site' de Fiix directamente.
+    Aquí es donde están los IDs que necesitamos (ej: Madrid = 29449435).
     """
     connector = FiixConnector()
     
-    # Filtro Crítico: Solo activos que NO tienen localización padre (intAssetLocationID IS NULL)
-    # Esto nos da los "Sites" o instalaciones principales.
+    # Consultamos la clase 'Site', que es la tabla maestra de sedes
     body = {
         "_maCn": "FindRequest",
-        "className": "Asset",
-        "fields": "id, strName, strCode, intAssetLocationID",
-        "filters": [
-            {
-                "ql": "intAssetLocationID IS NULL", 
-                "parameters": []
-            }
-        ],
-        "maxObjects": 100
+        "className": "Site",
+        "fields": "id, strName",
+        "maxObjects": 50
     }
 
     try:
         results = await connector._fiix_rpc(body)
         
-        # Clasificamos los resultados para que el usuario elija
-        sites_principales = []
+        sedes = []
         for r in results:
-            name = str(r.get("strName", "")).upper()
-            code = str(r.get("strCode", "")).upper()
-            
-            # Buscamos términos clave de tus estaciones
-            if any(x in name or x in code for x in ["BCN", "VLC", "BARCELONA", "VALENCIA", "MAD"]):
-                sites_principales.append({
-                    "CITY": "BCN" if "BCN" in name+code else ("VLC" if "VLC" in name+code else "MAD"),
-                    "ID_PARA_PYTHON": r.get("id"),
-                    "NOMBRE_FIIX": r.get("strName"),
-                    "CODIGO_FIIX": r.get("strCode")
-                })
+            sedes.append({
+                "ID_PARA_PYTHON": r.get("id"),
+                "NOMBRE_SEDE": r.get("strName")
+            })
 
         return {
             "status": "success",
-            "instrucciones": "Copia el ID_PARA_PYTHON de la ciudad correspondiente y ponlo en su MAIN.",
-            "sites_encontrados": sites_principales
+            "mensaje": "Busca el ID de Barcelona y Valencia en esta lista corta",
+            "sedes_oficiales": sedes
         }
     except Exception as e:
         return {"status": "error", "detail": str(e)}
@@ -5030,6 +5016,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
