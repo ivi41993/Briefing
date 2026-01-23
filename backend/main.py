@@ -4692,47 +4692,50 @@ async def _build_roster_state(force=False) -> dict:
     
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
-@app.get("/api/fiix/discovery")
-async def discover_fiix_sites():
+@app.get("/api/fiix/discovery-sites")
+async def discover_fiix_sites_v2():
     """
-    Endpoint para localizar los Site_IDs de BCN y VLC.
-    Llamar a: https://tu-url.onrender.com/api/fiix/discovery
+    Localiza ÚNICAMENTE los Site_IDs principales (raíces) de BCN y VLC.
     """
     connector = FiixConnector()
-    print("🔍 Iniciando escaneo de ubicaciones en Fiix...")
-
-    # Buscamos activos de tipo 'Ubicación' (intKind=1) o 'Instalación'
+    
+    # Filtro Crítico: Solo activos que NO tienen localización padre (intAssetLocationID IS NULL)
+    # Esto nos da los "Sites" o instalaciones principales.
     body = {
         "_maCn": "FindRequest",
         "className": "Asset",
-        "fields": "id, strName, strCode, intKind",
-        "filters": [{"ql": "intKind = 1", "parameters": []}], # Filtro por Ubicaciones
-        "maxObjects": 500
+        "fields": "id, strName, strCode, intAssetLocationID",
+        "filters": [
+            {
+                "ql": "intAssetLocationID IS NULL", 
+                "parameters": []
+            }
+        ],
+        "maxObjects": 100
     }
 
     try:
         results = await connector._fiix_rpc(body)
         
-        # Filtramos los que nos interesan para verlos claro en el JSON
-        candidates = []
+        # Clasificamos los resultados para que el usuario elija
+        sites_principales = []
         for r in results:
             name = str(r.get("strName", "")).upper()
             code = str(r.get("strCode", "")).upper()
             
-            # Si el nombre contiene BCN, VLC, Barcelona o Valencia
-            if any(x in name or x in code for x in ["BCN", "VLC", "BARCELONA", "VALENCIA"]):
-                candidates.append({
-                    "CITY_ID": r.get("id"),
-                    "NAME": r.get("strName"),
-                    "CODE": r.get("strCode")
+            # Buscamos términos clave de tus estaciones
+            if any(x in name or x in code for x in ["BCN", "VLC", "BARCELONA", "VALENCIA", "MAD"]):
+                sites_principales.append({
+                    "CITY": "BCN" if "BCN" in name+code else ("VLC" if "VLC" in name+code else "MAD"),
+                    "ID_PARA_PYTHON": r.get("id"),
+                    "NOMBRE_FIIX": r.get("strName"),
+                    "CODIGO_FIIX": r.get("strCode")
                 })
 
         return {
             "status": "success",
-            "message": "Revisa los CITY_ID encontrados",
-            "found_sites": candidates,
-            "all_locations_count": len(results),
-            "full_dump": results # Por si acaso no filtró bien, los enviamos todos
+            "instrucciones": "Copia el ID_PARA_PYTHON de la ciudad correspondiente y ponlo en su MAIN.",
+            "sites_encontrados": sites_principales
         }
     except Exception as e:
         return {"status": "error", "detail": str(e)}
@@ -5027,6 +5030,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
