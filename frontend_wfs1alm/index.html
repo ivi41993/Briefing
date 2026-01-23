@@ -4233,47 +4233,16 @@ function processTaskUpdate(data) {
     }
 
     // --- 5. KPIs & FIIX (BLOQUE CORREGIDO) ---
-    if (data.type === 'kpi_update' || data.type === 'kpi_state') {
-        
-        // A. FIIX: Detección de claves WFS1
-        // Si el objeto data tiene claves que empiezan por 'fiix_', las mandamos a pintar
-        const keys = Object.keys(data);
-        const hasFiixData = keys.some(k => k.startsWith('fiix_'));
-
-        if (hasFiixData) {
-            keys.forEach(key => {
-                if (key.startsWith('fiix_')) {
-                    // Usamos la función visualizadora que definimos en el paso anterior
-                    // Ella se encarga de formatear € y buscar los IDs correctos
-                    updateFiixDisplay(key, data[key]);
-                }
-            });
-            // Si es un paquete exclusivo de Fiix, terminamos aquí
-            if (!data.metric) return; 
+     // --- BLOQUE FIIX ---
+    // Si es un update de KPI (coste, mttr, etc) o un paquete completo
+    if (data.type === 'kpi_update') {
+        if (data.metric) {
+            // Actualización individual
+            updateFiixDisplay(data.metric, data.value);
+        } else {
+            // Actualización masiva (objeto entero)
+            Object.keys(data).forEach(k => updateFiixDisplay(k, data[k]));
         }
-
-        // B. KPIs Genéricos (PowerBI / Manuales)
-        const metric = String(data.metric || '').trim().toLowerCase();
-        const tab = String(data.tab || '').trim();
-        const tabTarget = 'MAD WFS1 MAD OPS'; // Tu pestaña objetivo
-
-        if (metric === 'total cost' && (!tab || tab === tabTarget)) {
-            let v = data.value;
-            // Lógica de limpieza de número
-            if (typeof v === 'string') { const m = v.match(/-?\d+(?:[.,]\d+)?/); v = m ? parseFloat(m[0].replace(',', '.')) : null; }
-            if (typeof v === 'number' && Number.isFinite(v)) {
-                if (typeof updateKpiTotalCost === 'function') updateKpiTotalCost(v, data.timestamp);
-            }
-        }
-        else if (metric === 'uph' && (!tab || tab === tabTarget)) {
-            const v = Number(data.value);
-            if (Number.isFinite(v) && typeof setKpiValue === 'function') setKpiValue('kpi-uph', 'kpi-uph-meta', v.toFixed(1));
-        }
-        else if (metric === 'otif' && (!tab || tab === tabTarget)) {
-            const v = Number(data.value);
-            if (Number.isFinite(v) && typeof setKpiValue === 'function') setKpiValue('kpi-otif', 'kpi-otif-meta', v.toFixed(1) + ' %');
-        }
-        
         return;
     }
 
