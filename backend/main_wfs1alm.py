@@ -47,13 +47,7 @@ ID_URGENTE = 278571
 TAG_NAVE = "WFS1"  # Filtramos por WFS1 (que incluye Almacén)
 
 # Caché en memoria
-fiix_memory_cache = {
-    "fiix_wfs1_availability": 100,
-    "fiix_wfs1_damage_cost": 0.0,
-    "fiix_wfs1_mttr": 0.0,
-    "fiix_wfs1_broken_count": 0,
-    "last_update": None
-}
+fiix_memory_cache = {}
 
 # ==========================================
 # CONFIGURACIÓN WFS1 (AISLAMIENTO)
@@ -848,30 +842,33 @@ fiix_worker_started = False
 # --- WORKER AUTOMÁTICO ---
 async def fiix_auto_worker():
     connector = FiixConnector()
-    print("🚀 [FIIX] Worker iniciado: Cargando datos INMEDIATAMENTE...")
+    # Esperamos un poco al inicio porque el endpoint @app.get ya se encargará 
+    # de la primera carga si entra un usuario.
+    await asyncio.sleep(60) 
     
-    # 1. Ejecución inmediata al arrancar (Sin esperas)
-    try:
-        await connector.fetch_metrics()
-    except Exception as e:
-        print(f"⚠️ Error en carga inicial Fiix: {e}")
-
-    # 2. Bucle perpetuo (cada 10 min)
     while True:
-        await asyncio.sleep(600) # Esperar 10 minutos
         try:
             await connector.fetch_metrics()
         except Exception as e:
-            print(f"❌ [FIIX Loop Error] {e}")
+            print(f"❌ Error worker ciclo: {e}")
+        await asyncio.sleep(600)
 
 # --- ENDPOINT PARA EL FRONTEND ---
 @app.get("/api/fiix/current")
 async def get_fiix_current():
-    # Si la caché está vacía (primer arranque), intenta buscar ya
-    if fiix_memory_cache["last_update"] is None:
-        conn = FiixConnector()
-        # Lo lanzamos en background para no bloquear la request http
-        asyncio.create_task(conn.fetch_metrics())
+    global fiix_memory_cache
+    
+    # Si no tenemos datos (servidor recién arrancado), FORZAMOS la carga ahora mismo
+    if not fiix_memory_cache or not fiix_memory_cache.get("last_update"):
+        print("⏳ [API FIIX] Primera petición: Descargando datos reales en tiempo real...")
+        connector = FiixConnector()
+        try:
+            # Esperamos a que termine de descargar antes de responder
+            await connector.fetch_metrics() 
+        except Exception as e:
+            print(f"❌ Error en carga bajo demanda: {e}")
+            
+    # Devolvemos los datos recién descargados (nunca ceros, a menos que Fiix diga 0)
     return fiix_memory_cache
 
 # -----------------------------------
