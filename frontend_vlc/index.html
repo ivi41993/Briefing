@@ -1633,15 +1633,35 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
       <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
     </div>
 
-    <div class="kpi-tile" id="kpi-costes">
-      <div class="kpi-label">Costes Daños</div>
-      <div class="kpi-value" style="color:var(--brand-red-600)">
-        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
-      </div>
-      <small class="kpi-text" id="kpi-costes-meta"></small>
-    </div>
+    
   </div>
 
+<hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+
+  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; margin-top: 20px; text-transform:uppercase; letter-spacing:1px;">
+      Mantenimiento (VLC)
+  </h3>
+  
+  <div class="kpi-grid">
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Disponibilidad Flota</div>
+        <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
+        <small class="kpi-text" id="fiix-broken-text">Sincronizando...</small>
+    </div>
+
+    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
+        <div class="kpi-label" style="color:#991b1b">Coste Proyectado</div>
+        <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">--</span>€</div>
+        <small class="kpi-text">Averías 24h</small>
+    </div>
+
+    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">MTTR (24h)</div>
+        <div class="kpi-value"><span id="fiix-mttr">--</span><small style="font-size:1rem"> min</small></div>
+        <small class="kpi-text">Tiempo respuesta</small>
+    </div>
+  </div>
+    
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
 
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
@@ -4153,6 +4173,59 @@ openWidgetFromChecklist(targetId);
 setText();
 })();
 
+function updateFiixDisplay(metric, value) {
+    const mapping = {
+        'fiix_vlc_availability': 'fiix-availability',
+        'fiix_vlc_damage_cost':  'fiix-damage-cost',
+        'fiix_vlc_mttr':         'fiix-mttr'
+    };
+
+    if (metric === 'fiix_vlc_broken_count') {
+        const elText = document.getElementById('fiix-broken-text');
+        const tile = document.getElementById('tile-fiix-availability');
+        if (elText && tile) {
+            if (value === 0) {
+                elText.textContent = "Todo operativo";
+                elText.style.color = "var(--text-muted)";
+                tile.style.borderLeftColor = "#10b981";
+            } else {
+                elText.textContent = `⚠️ ${value} activos parados`;
+                elText.style.color = "#dc2626";
+                elText.style.fontWeight = "800";
+                tile.style.borderLeftColor = "#ef4444";
+            }
+        }
+        return;
+    }
+
+    const targetId = mapping[metric];
+    const el = document.getElementById(targetId);
+    if (el) {
+        if (metric.includes('cost')) {
+            el.textContent = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(value);
+        } else {
+            el.textContent = Math.round(value);
+        }
+        el.style.opacity = "1";
+    }
+}
+
+async function initFiixDashboard() {
+    try {
+        const res = await fetch('api/fiix/current'); 
+        if (!res.ok) return;
+        const data = await res.json();
+        Object.keys(data).forEach(key => updateFiixDisplay(key, data[key]));
+    } catch (e) { console.error("Error Fiix VLC:", e); }
+}
+
+// Dentro de processTaskUpdate añadir detección vlc:
+/*
+    if (keys.some(k => k.includes('vlc'))) {
+        keys.forEach(k => { if(k.startsWith('fiix_')) updateFiixDisplay(k, data[k]); });
+        return;
+    }
+*/
 
 /* ==========================
 Carga inicial
@@ -4428,7 +4501,12 @@ window.closePostBriefingMode = function() {
 // INICIALIZACIÓN PRINCIPAL (DOM READY)
 // =========================================================
 
+function forceLoadFiix() {
+    initFiixDashboard().catch(console.error);
+}
+    
 document.addEventListener('DOMContentLoaded', () => {
+    forceLoadFiix();
     
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
@@ -4684,6 +4762,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try { updateSpotlightRouting(); } catch(e){}
     
     console.log("Dashboard VLC inicializado correctamente.");
+    setInterval(() => forceLoadFiix(), 10000);
+
+// Disparo de emergencia por si el DOM ya estaba cargado
+if (document.readyState === "complete") forceLoadFiix();
 });
 </script>
 </body>
