@@ -745,12 +745,7 @@ from datetime import datetime, timedelta
 import httpx
 
 # --- CACHÉ ESPECÍFICA PARA WFS1 ---
-fiix_memory_cache = {
-    "fiix_wfs1_availability": 100,
-    "fiix_wfs1_damage_cost": 0.0,
-    "fiix_wfs1_mttr": 0.0,
-    "fiix_wfs1_broken_count": 0
-}
+fiix_memory_cache = {}
 
 class FiixConnector:
     def __init__(self):
@@ -865,21 +860,18 @@ class FiixConnector:
                 "fiix_wfs1_availability": avail,
                 "fiix_wfs1_damage_cost": round(cost, 2),
                 "fiix_wfs1_mttr": mttr,
-                "fiix_wfs1_broken_count": broken
+                "fiix_wfs1_broken_count": broken,
+                "last_update": datetime.utcnow().isoformat() + "Z"
             }
 
             # Debug en consola para verificar
             print(f"📊 [WFS1 DEBUG] Activos: {total_assets} | Rotos: {broken} | Órdenes 24h: {len(wos_res)} | Coste: {cost}€")
 
             # 4. BROADCAST INMEDIATO
-            ts = datetime.utcnow().isoformat() + "Z"
-            for m, v in fiix_memory_cache.items():
-                await manager.broadcast({
-                    "type": "kpi_update", 
-                    "metric": m, 
-                    "value": v, 
-                    "timestamp": ts, 
-                    "station": "MAD" # O "WFS1" si tu front filtra por eso
+            await manager.broadcast({
+                "type": "kpi_update",
+                "station": "WFS1",
+                **fiix_memory_cache
                 })
 
         except Exception as e:
@@ -898,21 +890,16 @@ async def get_fiix_current():
 
 async def fiix_auto_worker():
     connector = FiixConnector()
-    print("🚀 [FIIX] Worker iniciado: Cargando datos INMEDIATAMENTE...")
+    # Esperamos un poco al inicio porque el endpoint @app.get ya se encargará 
+    # de la primera carga si entra un usuario.
+    await asyncio.sleep(60) 
     
-    # 1. Ejecución inmediata al arrancar (Sin esperas)
-    try:
-        await connector.fetch_metrics()
-    except Exception as e:
-        print(f"⚠️ Error en carga inicial Fiix: {e}")
-
-    # 2. Bucle perpetuo (cada 10 min)
     while True:
-        await asyncio.sleep(600) # Esperar 10 minutos
         try:
             await connector.fetch_metrics()
         except Exception as e:
-            print(f"❌ [FIIX Loop Error] {e}")
+            print(f"❌ Error worker ciclo: {e}")
+        await asyncio.sleep(600)
 
 async def fetch_roster_api_data(escala: str, fecha: str):
     url = os.getenv("ROSTER_API_URL")
