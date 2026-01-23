@@ -20,6 +20,46 @@ import shlex
 from dataclasses import dataclass, field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+import uvicorn
+import os
+import uuid
+import json
+import re
+import asyncio
+import ssl
+import hmac      # <--- ASEGÚRATE DE QUE ESTÁ
+import hashlib   # <--- ASEGÚRATE DE QUE ESTÁ
+import time      # <--- ESTA ES LA QUE FALTA Y DA EL ERROR
+from datetime import datetime, timedelta, date
+
+# --- CONFIGURACIÓN FIIX BCN ---
+FIIX_SITE_ID = 30480896  # ID Maestro de Barcelona
+TAG_NAVE = "BCN"         # Filtro para activos y órdenes
+ID_PREVENTIVO = 531546
+ID_URGENTE = 278571
+FIIX_CACHE_FILE = "./data/fiix_cache_bcn.json"
+
+def save_fiix_cache_to_disk(data):
+    try:
+        os.makedirs(os.path.dirname(FIIX_CACHE_FILE), exist_ok=True)
+        with open(FIIX_CACHE_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"⚠️ Error guardando caché Fiix BCN: {e}")
+
+def load_fiix_cache_from_disk():
+    try:
+        if os.path.exists(FIIX_CACHE_FILE):
+            with open(FIIX_CACHE_FILE, "r") as f:
+                data = json.load(f)
+                print(f"💾 [FIIX BCN] Memoria recuperada: {data.get('fiix_bcn_damage_cost', 0)}€")
+                return data
+    except Exception: pass
+    return {} # Vacío para forzar carga real
+
+# Inicializar variable global al arrancar el script
+fiix_memory_cache = load_fiix_cache_from_disk()
+
 
 ROSTER_XLSX_PATH = os.getenv("ROSTER_XLSX_PATH", "C:/Users/iexposito/briefing/backend/data/Informe diario.xlsx")
 ROSTER_TZ = os.getenv("ROSTER_TZ", "Europe/Madrid")
@@ -850,6 +890,17 @@ async def send_to_excel_online(data: BriefingSnapshot):
 
 app = FastAPI()
 manager = ConnectionManager()
+
+@app.get("/api/fiix/current")
+async def get_fiix_current():
+    global fiix_memory_cache
+    # Si la memoria está vacía (primer arranque sin disco), forzar carga síncrona
+    if not fiix_memory_cache or not fiix_memory_cache.get("last_update"):
+        print("⏳ [API BCN] Cache vacía, forzando carga inmediata...")
+        conn = FiixConnector()
+        await conn.fetch_metrics()
+            
+    return fiix_memory_cache
 
 # ======================================================================
 # ===== NUEVO: helpers SSL / parsing / polling de la fuente interna =====
@@ -1833,6 +1884,116 @@ def api_external_status():
     ext = getattr(app.state, "_ext", None)
     return ext.status() if ext else {"ok": False, "last_error": "not_started"}
 
+class FiixConnector:
+    def __init__(self):
+        self.host = os.getenv("FIIX_HOST", "wfs.macmms.com").strip()
+        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
+        self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
+        self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        self.client = httpx.AsyncClient(timeout=30.0)
+        self.base_url = f"https://{self.host}/api/"
+
+    def _build_auth(self) -> tuple[dict, dict]:
+        ts_ms = int(time.time() * 1000)
+        auth_params = {
+            "accessKey": self.access_key, "appKey": self.app_key,
+            "signatureMethod": "HmacSHA256", "signatureVersion": "1",
+            "timestamp": str(ts_ms),
+        }
+        sorted_keys = sorted(auth_params.keys())
+        query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
+        signature_base = f"{self.host}/api/?{query_string}"
+        signature = hmac.new(self.secret_key.encode("utf-8"), signature_base.encode("utf-8"), hashlib.sha256).hexdigest().lower()
+        return auth_params, {"Content-Type": "application/json", "Authorization": signature}
+
+    async def _fiix_rpc(self, body: dict) -> list:
+        if not self.app_key: return []
+        auth_params, headers = self._build_auth()
+        body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
+        try:
+            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
+            return resp.json().get("objects") or []
+        except Exception as e:
+            print(f"❌ [FIIX BCN Error]: {e}")
+            return []
+
+    async def fetch_metrics(self):
+        global fiix_memory_cache
+        yesterday_str = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        sql_filter = f"%{TAG_NAVE}%"
+        
+        print(f"🔄 [FIIX BCN] Sincronizando con Fiix...")
+
+        try:
+            # 1. Activos de Barcelona
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode, strName",
+                "filters": [{
+                    "ql": "intSiteID = ? AND intKind = 2 AND (strCode LIKE ? OR strName LIKE ?)", 
+                    "parameters": [FIIX_SITE_ID, sql_filter, sql_filter]
+                }],
+                "maxObjects": 1000
+            }
+            assets = await self._fiix_rpc(body_assets)
+            
+            # 2. Órdenes de Trabajo (Costes)
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated, dtmDateCompleted, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                             "parameters": [FIIX_SITE_ID, yesterday_str, sql_filter]}]
+            }
+            wos = await self._fiix_rpc(body_wo)
+
+            # 3. Cálculos
+            total_a = len(assets)
+            broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
+            avail = round(((total_a - broken) / total_a) * 100) if total_a > 0 else 100
+            
+            cost = 0.0
+            total_dt = 0
+            for wo in wos:
+                if wo.get("intPriorityID") == ID_URGENTE: cost += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: cost += 120.0
+                else: cost += 35.0
+                
+                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
+                    start, end = wo["dtmDateCreated"], wo["dtmDateCompleted"]
+                    if isinstance(start, (int,float)) and isinstance(end, (int,float)):
+                         total_dt += (end - start) / (1000 * 60)
+
+            mttr = round((total_dt / len(wos)) / 60, 1) if wos else 0
+
+            # 4. Actualizar Memoria y Disco
+            new_data = {
+                "fiix_bcn_availability": avail,
+                "fiix_bcn_damage_cost": round(cost, 2),
+                "fiix_bcn_mttr": mttr,
+                "fiix_bcn_broken_count": broken,
+                "last_update": datetime.utcnow().isoformat() + "Z"
+            }
+            fiix_memory_cache = new_data
+            save_fiix_cache_to_disk(new_data)
+
+            # 5. Broadcast en tiempo real
+            await manager.broadcast({
+                "type": "kpi_update", "station": "BCN", **fiix_memory_cache
+            })
+            print(f"✅ [FIIX BCN] Éxito: {avail}% Disp | {cost}€ Coste")
+
+        except Exception as e:
+            print(f"❌ [FIIX BCN Exception]: {e}")
+
+async def fiix_auto_worker():
+    connector = FiixConnector()
+    # Pequeña espera inicial; si el disco tiene datos, el front los verá ya.
+    await asyncio.sleep(10) 
+    while True:
+        try: await connector.fetch_metrics()
+        except: pass
+        await asyncio.sleep(600) # 10 min
+
 @app.on_event("startup")
 async def _startup_ext():
     init_db()
@@ -1841,6 +2002,7 @@ async def _startup_ext():
     app.state._roster = asyncio.create_task(_roster_watcher())
     app.state._ext = ExternalConnector()
     app.state._poller = asyncio.create_task(app.state._ext.run())
+    app.state._fiix = asyncio.create_task(fiix_auto_worker())
 
 @app.on_event("shutdown")
 async def _shutdown_ext():
