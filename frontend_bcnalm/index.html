@@ -280,15 +280,23 @@ box-shadow:0 8px 24px rgba(0,0,0,.15);
 }
 
 /* Asa de arrastre */
-.drag-handle{
-align-self:stretch;
-display:flex; align-items:center; justify-content:center;
-padding:6px;
-border:1px solid var(--border);
-border-radius:10px;
-background:var(--bg-card);
-cursor:grab;
-opacity:.7;
+/* Asa de arrastre MEJORADA PARA ANDROID */
+.drag-handle {
+    align-self: stretch;
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    padding: 12px; 
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-card);
+    cursor: grab;
+    opacity: .7;
+    
+    /* ESTA ES LA CLAVE PARA ANDROID: */
+    touch-action: none;           /* Evita que Android haga scroll al tocar aquí */
+    -webkit-user-select: none;    /* Evita que se seleccione texto al mantener pulsado */
+    user-select: none;
 }
 .card:active .drag-handle{ cursor:grabbing; opacity:1; }
 .drag-handle svg{ width:14px; height:14px; }
@@ -3678,22 +3686,30 @@ if(c&&cards) c.textContent = `(${cards.children.length})`;
 });
 }
 function makeColumnsSortable(){
-const common = {
-animation:150,
-ghostClass:'sortable-ghost',
-dragClass:'sortable-drag',
-handle:'.drag-handle',
-forceFallback:true,
-delayOnTouchOnly:true,
-delay:120,
-fallbackTolerance:6,
-touchStartThreshold:4,
-onEnd:handleDragEnd
-};
-document.querySelectorAll('#kanban-widget .cards-container')
-.forEach(c=>new Sortable(c, {group:'kanban-board', ...common}));
-document.querySelectorAll('#kaizen-widget .cards-container')
-.forEach(c=>new Sortable(c, {group:'kaizen-board', ...common}));
+    const common = {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        handle: '.drag-handle', // Solo se mueve si tocan el icono del grip
+        
+        // --- CONFIGURACIÓN CRÍTICA PARA TABLETS ANDROID ---
+        forceFallback: true,      // Forzar el arrastre por JS (ignora el nativo de Chrome que falla)
+        fallbackTolerance: 3,     // Píxeles que debe moverse el dedo para considerar que es un arrastre
+        delay: 0,                 // Respuesta inmediata al tocar
+        delayOnTouchOnly: false,
+        touchStartThreshold: 3,   // Sensibilidad al tacto
+        // --------------------------------------------------
+        
+        onEnd: handleDragEnd
+    };
+
+    // Aplicar a las columnas de Kanban
+    document.querySelectorAll('#kanban-widget .cards-container')
+        .forEach(c => new Sortable(c, { group:'kanban-board', ...common }));
+
+    // Aplicar a las columnas de Kaizen
+    document.querySelectorAll('#kaizen-widget .cards-container')
+        .forEach(c => new Sortable(c, { group:'kaizen-board', ...common }));
 }
 async function handleDragEnd(evt){
 const {item,to,from,oldIndex} = evt;
