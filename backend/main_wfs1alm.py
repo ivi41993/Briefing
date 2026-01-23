@@ -802,6 +802,36 @@ class FiixConnector:
         except Exception as e:
             print(f"❌ [FIIX Worker Error]: {e}")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🚀 Iniciando WFS1 ALM Dashboard...")
+    init_db()
+    load_tasks_from_disk()
+    load_incidents_from_disk()
+    load_attendance_from_disk()
+    load_roster_from_disk()
+    
+    # Iniciar Workers
+    app.state._roster_task = asyncio.create_task(_roster_watcher())
+    
+    # Heartbeat WS
+    async def _hb():
+        while True:
+            await asyncio.sleep(30)
+            try: await manager.broadcast({"type":"server_heartbeat","ts":datetime.utcnow().isoformat()+"Z"})
+            except: pass
+    app.state._hb = asyncio.create_task(_hb())
+    
+    # ⬇️ ESTO ES LO NUEVO: ARRANCAR FIIX ⬇️
+    app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
+    
+    yield
+    
+    print("🛑 Deteniendo WFS1 ALM...")
+    app.state._hb.cancel()
+    app.state._roster_task.cancel()
+    app.state._fiix_task.cancel() # Cancelar Fiix al salir
+
 # --- WORKER AUTOMÁTICO ---
 fiix_worker_started = False
 
@@ -1202,35 +1232,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("🚀 Iniciando WFS1 ALM Dashboard...")
-    init_db()
-    load_tasks_from_disk()
-    load_incidents_from_disk()
-    load_attendance_from_disk()
-    load_roster_from_disk()
-    
-    # Iniciar Workers
-    app.state._roster_task = asyncio.create_task(_roster_watcher())
-    
-    # Heartbeat WS
-    async def _hb():
-        while True:
-            await asyncio.sleep(30)
-            try: await manager.broadcast({"type":"server_heartbeat","ts":datetime.utcnow().isoformat()+"Z"})
-            except: pass
-    app.state._hb = asyncio.create_task(_hb())
-    
-    # ⬇️ ESTO ES LO NUEVO: ARRANCAR FIIX ⬇️
-    app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
-    
-    yield
-    
-    print("🛑 Deteniendo WFS1 ALM...")
-    app.state._hb.cancel()
-    app.state._roster_task.cancel()
-    app.state._fiix_task.cancel() # Cancelar Fiix al salir
+
 
 async def _roster_watcher():
     try: await _build_roster_state(force=True)
