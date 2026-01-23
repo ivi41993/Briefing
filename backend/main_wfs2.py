@@ -825,44 +825,42 @@ class FiixConnector:
     def _build_auth(self) -> tuple[dict, dict]:
         ts_ms = int(time.time() * 1000)
         auth_params = {
-            "accessKey": self.access_key,
-            "appKey": self.app_key,
-            "signatureMethod": "HmacSHA256",
-            "signatureVersion": "1",
+            "accessKey": self.access_key, "appKey": self.app_key,
+            "signatureMethod": "HmacSHA256", "signatureVersion": "1",
             "timestamp": str(ts_ms),
         }
         sorted_keys = sorted(auth_params.keys())
         query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
         signature_base = f"{self.host}/api/?{query_string}"
-        signature = hmac.new(
-            self.secret_key.encode("utf-8"),
-            signature_base.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest().lower()
+        signature = hmac.new(self.secret_key.encode("utf-8"), signature_base.encode("utf-8"), hashlib.sha256).hexdigest().lower()
         return auth_params, {"Content-Type": "application/json", "Authorization": signature}
 
     async def _fiix_rpc(self, body: dict) -> list:
-        if not self.app_key:
-            print("⚠️ [FIIX WFS2A] Faltan credenciales")
-            return []
+        if not self.app_key: return []
         auth_params, headers = self._build_auth()
         body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
         try:
             resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
+            if resp.status_code != 200:
+                print(f"❌ [FIIX HTTP Error] {resp.status_code}: {resp.text}")
+                return []
             return resp.json().get("objects") or []
         except Exception as e:
-            print(f"❌ [FIIX Error]: {e}")
+            print(f"❌ [FIIX Net Error]: {e}")
             return []
 
     async def fetch_metrics(self):
         global fiix_memory_cache
-        print(f"🔄 [FIIX] Buscando datos WFS2A...")
         
+        # 1. LISTA DE TAGS A PROBAR (Si falla WFS2A, prueba N2A)
+        search_tags = ["WFS2A", "N2A", "NAVE 2A", "NAVE2A"] 
         yesterday_str = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-        tag_filter = f"%{TAG_NAVE}%"
+        
+        print(f"🔄 [FIIX WFS2A] Buscando datos...")
 
         try:
-            # A. Activos
+            # A. Traer TODOS los activos de tipo Máquina (IntKind=2) del sitio
+            # Esto es más rápido que hacer muchas queries pequeñas
             body_assets = {
                 "_maCn": "FindRequest", "className": "Asset",
                 "fields": "id, bolIsOnline, strCode",
@@ -870,19 +868,43 @@ class FiixConnector:
                 "maxObjects": 1000
             }
             all_assets = await self._fiix_rpc(body_assets)
-            # Filtro Python: debe contener "WFS2A" (ej: MAD-WFS2A-CINTA-01)
-            assets = [a for a in all_assets if f"-{TAG_NAVE}-" in str(a.get("strCode", ""))]
             
-            # B. Órdenes
+            # B. Filtrado Inteligente en Memoria
+            assets = []
+            used_tag = ""
+            
+            for tag in search_tags:
+                # Buscamos que el tag esté en el código (sin guiones estrictos)
+                # Ej: "MAD-WFS2A-01" o "WFS2A_CINTA"
+                candidates = [a for a in all_assets if tag in str(a.get("strCode", "")).upper()]
+                if candidates:
+                    assets = candidates
+                    used_tag = tag
+                    print(f"✅ [FIIX] Activos encontrados usando tag: '{tag}' ({len(assets)} máquinas)")
+                    break
+            
+            if not assets:
+                print(f"⚠️ [FIIX] No se encontraron activos con ninguno de los tags: {search_tags}")
+
+            # C. Órdenes de Trabajo (Costes)
+            # Buscamos órdenes recientes y filtramos en memoria por el mismo TAG que funcionó
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated, dtmDateCompleted",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                             "parameters": [FIIX_SITE_ID, yesterday_str, tag_filter]}]
+                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated, dtmDateCompleted, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", 
+                             "parameters": [FIIX_SITE_ID, yesterday_str]}]
             }
-            wos = await self._fiix_rpc(body_wo)
+            all_wos = await self._fiix_rpc(body_wo)
+            
+            # Filtrar órdenes que pertenezcan a la zona encontrada
+            wos = []
+            if used_tag:
+                wos = [w for w in all_wos if used_tag in str(w.get("strAssets", "")).upper()]
+            else:
+                # Si no encontramos activos, al menos intentamos ver si hay órdenes con el tag principal
+                wos = [w for w in all_wos if "WFS2A" in str(w.get("strAssets", "")).upper()]
 
-            # C. Cálculos
+            # D. Cálculos
             total_assets = len(assets)
             broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
             avail = round(((total_assets - broken) / total_assets) * 100) if total_assets > 0 else 100
@@ -895,13 +917,14 @@ class FiixConnector:
                 else: cost += 35.0
                 
                 if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
-                    start, end = wo["dtmDateCreated"], wo["dtmDateCompleted"]
-                    if isinstance(start, (int, float)) and isinstance(end, (int, float)):
+                    start = wo["dtmDateCreated"]
+                    end = wo["dtmDateCompleted"]
+                    if isinstance(start, (int,float)) and isinstance(end, (int,float)):
                          total_dt += (end - start) / (1000 * 60)
 
             mttr = round((total_dt / len(wos)) / 60, 1) if wos else 0
 
-            # D. Guardar en memoria (Claves WFS2A)
+            # E. Actualizar Caché (CLAVES ESPECÍFICAS WFS2A)
             fiix_memory_cache = {
                 "fiix_wfs2a_availability": avail,
                 "fiix_wfs2a_damage_cost": round(cost, 2),
@@ -910,7 +933,7 @@ class FiixConnector:
                 "last_update": datetime.utcnow().isoformat() + "Z"
             }
 
-            print(f"✅ [FIIX WFS2A] Coste: {cost}€ | Disp: {avail}%")
+            print(f"🚀 [FIIX READY] Disp: {avail}% | Coste: {cost}€ | Tag usado: {used_tag}")
             
             # WebSocket
             await manager.broadcast({
@@ -922,10 +945,12 @@ class FiixConnector:
         except Exception as e:
             print(f"❌ [FIIX Worker Error]: {e}")
 
-# Worker de fondo (mantiene datos frescos)
+# Worker de fondo
 async def fiix_auto_worker():
     connector = FiixConnector()
-    await asyncio.sleep(60) # Espera inicial larga (la 1ª carga la hace el endpoint)
+    # Espera inicial para no chocar con el arranque, 
+    # la primera carga la hace el endpoint @app.get
+    await asyncio.sleep(10) 
     while True:
         try:
             await connector.fetch_metrics()
@@ -982,11 +1007,12 @@ app.add_middleware(
 async def get_fiix_current():
     global fiix_memory_cache
     
-    # Si la memoria está vacía, PARALIZAR la respuesta y cargar datos reales YA
+    # CARGA SÍNCRONA BAJO DEMANDA
+    # Si no hay datos, forzamos la carga AHORA MISMO
     if not fiix_memory_cache or not fiix_memory_cache.get("last_update"):
-        print("⏳ [API FIIX WFS2A] Cargando datos bajo demanda...")
-        connector = FiixConnector()
-        await connector.fetch_metrics()
+        print("⏳ [API] Cache vacía WFS2A, forzando carga inmediata...")
+        conn = FiixConnector()
+        await conn.fetch_metrics()
             
     return fiix_memory_cache
 # -----------------------------------
