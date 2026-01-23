@@ -30,6 +30,37 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+import hmac
+import hashlib
+
+# --- CONFIGURACIÓN FIIX WFS 2B ---
+FIIX_SITE_ID = 29449435
+# Buscamos activos que tengan "WFS2B" en el nombre o código
+TAG_NAVE = "WFS2B" 
+ID_PREVENTIVO = 531546
+ID_URGENTE = 278571
+FIIX_CACHE_FILE = "./data/fiix_cache_wfs2b.json"
+
+# --- PERSISTENCIA (Para que no salga 0 al reiniciar) ---
+def save_fiix_cache_to_disk(data):
+    try:
+        os.makedirs(os.path.dirname(FIIX_CACHE_FILE), exist_ok=True)
+        with open(FIIX_CACHE_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"⚠️ Error guardando caché Fiix: {e}")
+
+def load_fiix_cache_from_disk():
+    try:
+        if os.path.exists(FIIX_CACHE_FILE):
+            with open(FIIX_CACHE_FILE, "r") as f:
+                data = json.load(f)
+                return data
+    except Exception: pass
+    return {} # Vacío para forzar carga si no hay fichero
+
+# Inicializar variable global
+fiix_memory_cache = load_fiix_cache_from_disk()
 
 # --- 1. DEFINIR EL ALMACÉN DE ASISTENCIA (Esto es lo que falta) ---
 attendance_store: dict[str, dict[str, bool]] = {}
@@ -822,6 +853,130 @@ def _compute_briefing_metrics(sections, duration):
     std = (cov >= 95 and duration <= 600)
     return ok, cov, std
 
+class FiixConnector:
+    def __init__(self):
+        self.host = os.getenv("FIIX_HOST", "wfs.macmms.com").strip()
+        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
+        self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
+        self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        self.client = httpx.AsyncClient(timeout=30.0)
+        self.base_url = f"https://{self.host}/api/"
+
+    def _build_auth(self) -> tuple[dict, dict]:
+        ts_ms = int(time.time() * 1000)
+        auth_params = {
+            "accessKey": self.access_key, "appKey": self.app_key,
+            "signatureMethod": "HmacSHA256", "signatureVersion": "1",
+            "timestamp": str(ts_ms),
+        }
+        sorted_keys = sorted(auth_params.keys())
+        query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
+        signature_base = f"{self.host}/api/?{query_string}"
+        signature = hmac.new(self.secret_key.encode("utf-8"), signature_base.encode("utf-8"), hashlib.sha256).hexdigest().lower()
+        return auth_params, {"Content-Type": "application/json", "Authorization": signature}
+
+    async def _fiix_rpc(self, body: dict) -> list:
+        if not self.app_key: return []
+        auth_params, headers = self._build_auth()
+        body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
+        try:
+            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
+            return resp.json().get("objects") or []
+        except Exception as e:
+            print(f"❌ [FIIX Error]: {e}")
+            return []
+
+    async def fetch_metrics(self):
+        global fiix_memory_cache
+        yesterday_str = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Filtro: Buscar WFS2B, N2B, o NAVE 2B
+        search_tags = ["WFS2B", "N2B", "NAVE 2B"] 
+        
+        print(f"🔄 [FIIX WFS2B] Buscando datos...")
+
+        try:
+            # 1. Traer activos (Máquinas)
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode, strName",
+                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [FIIX_SITE_ID]}],
+                "maxObjects": 1000
+            }
+            all_assets = await self._fiix_rpc(body_assets)
+            
+            # 2. Filtrar en memoria (Nombre O Código)
+            assets = []
+            used_tag = TAG_NAVE
+            for tag in search_tags:
+                candidates = [a for a in all_assets if tag in str(a.get("strCode", "")).upper() or tag in str(a.get("strName", "")).upper()]
+                if candidates:
+                    assets = candidates
+                    used_tag = tag
+                    break
+
+            # 3. Traer Órdenes
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated, dtmDateCompleted, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", 
+                             "parameters": [FIIX_SITE_ID, yesterday_str]}]
+            }
+            all_wos = await self._fiix_rpc(body_wo)
+            
+            # Filtrar WOs por el tag encontrado
+            wos = [w for w in all_wos if used_tag in str(w.get("strAssets", "")).upper()]
+
+            # 4. Cálculos
+            total_assets = len(assets)
+            broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
+            avail = round(((total_assets - broken) / total_assets) * 100) if total_assets > 0 else 100
+            
+            cost = 0.0
+            total_dt = 0
+            for wo in wos:
+                if wo.get("intPriorityID") == ID_URGENTE: cost += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: cost += 120.0
+                else: cost += 35.0
+                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
+                    start = wo["dtmDateCreated"]
+                    end = wo["dtmDateCompleted"]
+                    if isinstance(start, (int,float)) and isinstance(end, (int,float)):
+                         total_dt += (end - start) / (1000 * 60)
+
+            mttr = round((total_dt / len(wos)) / 60, 1) if wos else 0
+
+            # 5. Guardar (Claves WFS2B)
+            new_data = {
+                "fiix_wfs2b_availability": avail,
+                "fiix_wfs2b_damage_cost": round(cost, 2),
+                "fiix_wfs2b_mttr": mttr,
+                "fiix_wfs2b_broken_count": broken,
+                "last_update": datetime.utcnow().isoformat() + "Z"
+            }
+            
+            fiix_memory_cache = new_data
+            save_fiix_cache_to_disk(new_data)
+
+            print(f"🚀 [FIIX WFS2B] Activos: {total_assets} | Disp: {avail}% | Coste: {cost}€")
+            
+            await manager.broadcast({
+                "type": "kpi_update",
+                "station": "WFS2B",
+                **fiix_memory_cache
+            })
+
+        except Exception as e:
+            print(f"❌ [FIIX Error]: {e}")
+
+async def fiix_auto_worker():
+    connector = FiixConnector()
+    await asyncio.sleep(10) 
+    while True:
+        try: await connector.fetch_metrics()
+        except: pass
+        await asyncio.sleep(600)
+
 # -----------------------------------
 # LIFESPAN & APP
 # -----------------------------------
@@ -843,11 +998,13 @@ async def lifespan(app: FastAPI):
             try: await manager.broadcast({"type":"server_heartbeat","ts":datetime.utcnow().isoformat()+"Z"})
             except: pass
     app.state._hb = asyncio.create_task(_hb())
+    app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
     
     yield
     print("🛑 Deteniendo WFS2...")
     app.state._hb.cancel()
     app.state._roster_task.cancel()
+    app.state._fiix_task.cancel() # <--- Y ESTA PARA CERRAR
 
 async def _roster_watcher():
     try: await _build_roster_state(force=True)
@@ -870,6 +1027,16 @@ app.add_middleware(
 # -----------------------------------
 # Endpoints API
 # -----------------------------------
+
+@app.get("/api/fiix/current")
+async def get_fiix_current():
+    global fiix_memory_cache
+    # Carga bajo demanda si está vacío
+    if not fiix_memory_cache or not fiix_memory_cache.get("last_update"):
+        print("⏳ [API] Cache vacía, forzando carga inmediata WFS2B...")
+        conn = FiixConnector()
+        await conn.fetch_metrics()
+    return fiix_memory_cache
 
 # --- 4. ENDPOINTS DE ROSTER ---
 @app.get("/api/roster/current")
