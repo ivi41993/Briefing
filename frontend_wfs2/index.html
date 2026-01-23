@@ -6923,44 +6923,115 @@ window.markOkAndNext = function(checkName, nextId) {
 /* =========================================================
    2. TARJETA 5: INCIDENTES (SOLUCIÓN DEFINITIVA AL BUG)
    ========================================================= */
-  function updateFiixDisplay(metric, value) {
-    // MAPEO ESPECÍFICO WFS 2A
+/* =========================================================
+   LÓGICA FIIX WFS 2A (Corrección Completa)
+   ========================================================= */
+
+// 1. Visualizador de Datos
+function updateFiixDisplay(metric, value) {
+    // Mapeo de claves del Backend (wfs2a) -> IDs del HTML
     const mapping = {
         'fiix_wfs2a_availability': 'fiix-availability',
         'fiix_wfs2a_damage_cost':  'fiix-damage-cost',
         'fiix_wfs2a_mttr':         'fiix-mttr'
     };
 
+    // A. Estado de activos (Texto y Color)
     if (metric === 'fiix_wfs2a_broken_count') {
         const elText = document.getElementById('fiix-broken-text');
         const tile = document.getElementById('tile-fiix-availability');
+        
         if (elText && tile) {
             if (value === 0) {
                 elText.textContent = "Todo operativo";
                 elText.style.color = "var(--text-muted)";
-                tile.style.borderLeftColor = "#10b981";
+                elText.style.fontWeight = "400";
+                tile.style.borderLeftColor = "#10b981"; // Verde
             } else {
                 elText.textContent = `⚠️ ${value} activos parados`;
                 elText.style.color = "#dc2626";
-                tile.style.borderLeftColor = "#ef4444";
+                elText.style.fontWeight = "800";
+                tile.style.borderLeftColor = "#ef4444"; // Rojo
             }
         }
         return;
     }
 
+    // B. Valores Numéricos
     const targetId = mapping[metric];
     const el = document.getElementById(targetId);
     
     if (el) {
         if (metric.includes('cost')) {
+            // Formato Moneda
             el.textContent = new Intl.NumberFormat('es-ES', { 
                 minimumFractionDigits: 2, maximumFractionDigits: 2 
             }).format(value);
+            
+            // Efecto Flash
+            const tile = el.closest('.kpi-tile');
+            if(tile) {
+                tile.classList.remove('flash');
+                void tile.offsetWidth;
+                tile.classList.add('flash');
+            }
         } else {
+            // Formato Entero (mttr, avail)
             el.textContent = Math.round(value);
         }
+        // Quitar opacidad de carga
+        el.style.opacity = "1";
     }
 }
+
+// 2. Función de Carga (Faltaba esta función)
+async function initFiixDashboard() {
+    try {
+        console.log("🔄 [WFS2A] Solicitando datos Fiix...");
+        // Usamos ruta relativa para que funcione tras el proxy
+        const res = await fetch('api/fiix/current'); 
+        
+        if (!res.ok) {
+            console.warn("⚠️ Error API Fiix:", res.status);
+            return;
+        }
+        
+        const data = await res.json();
+        console.log("📥 [WFS2A] Datos recibidos:", data);
+
+        // Si el objeto está vacío, reintentar en 2s
+        if (Object.keys(data).length === 0) {
+            console.log("⏳ Datos vacíos, reintentando...");
+            setTimeout(initFiixDashboard, 2000);
+            return;
+        }
+
+        // Pintar datos
+        Object.keys(data).forEach(key => {
+            updateFiixDisplay(key, data[key]);
+        });
+        
+    } catch (e) {
+        console.error("❌ Error JS Fiix:", e);
+    }
+}
+
+// 3. Procesador de WebSockets (Tiempo Real)
+// (Asegúrate de que esta lógica está dentro de tu function processTaskUpdate existente o reemplázala)
+/*
+    NOTA: Pega esto DENTRO de tu función processTaskUpdate(data) al principio:
+    
+    if (data.type === 'kpi_update') {
+        const keys = Object.keys(data);
+        // Detectar si es paquete WFS2A
+        if (keys.some(k => k.includes('wfs2a'))) {
+            keys.forEach(k => {
+                if(k.startsWith('fiix_')) updateFiixDisplay(k, data[k]);
+            });
+            return;
+        }
+    }
+*/
   
   (function initManualIncidents() {
     const KEY = 'incidents_manual_entries_v1';
@@ -7185,33 +7256,62 @@ async function generateAndSendToExcel() {
 /* =========================================================
    4. INICIALIZACIÓN FINAL (UNIFICADA)
    ========================================================= */
+/* =========================================================
+   INICIALIZACIÓN FINAL ROBUSTA (WFS 2A)
+   ========================================================= */
+
+// Función auxiliar para forzar carga
+function forceLoadFiix() {
+    initFiixDashboard().catch(err => console.log("Reintento fallido", err));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Vincular el botón una sola vez (esto evita el doble almacenamiento)
+    // 1. CARGA INMEDIATA DE DATOS (Prioridad Máxima)
+    forceLoadFiix();
+
+    // 2. Vincular botón de resumen
     const btnResumen = document.querySelector('header .header-controls .btn-primary');
     if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
 
+    // 3. Resto de inicializaciones
+    try { initDateTimeAndShift(); } catch(e){}
     try { initHeaderTimer(); } catch(e){}
+    try { setupEventListeners(); } catch(e){} 
+    try { makeColumnsSortable(); } catch(e){}
+    try { loadBoardsInitial(); } catch(e){}
+    try { loadIncidentes(); } catch(e){}
+    try { connectWebSocket(); } catch(e){}
+    try { initTeamRoster(); } catch(e){}
     try { initEhsSimple(); } catch(e){}
     try { init5S(); } catch(e){}
-    try { initFullscreenToggles(); } catch(e){}
-    try { initFiixDashboard(); } catch(e){}
+    try { initPrevShiftSystem(); } catch(e){}
+    try { if(window.updateSpotlightRouting) window.updateSpotlightRouting(); } catch(e){}
+    try { initManualIncidents(); } catch(e){} 
+    try { initAutoShiftChange(); } catch(e){} 
     
     // Sistema de Voz
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(SR) {
         const r = new SR(); r.lang = 'es-ES';
         document.body.addEventListener('click', e => {
-            const btnMic = e.target.closest('.btn-mic');
-            if(btnMic) { 
-                const target = document.getElementById(btnMic.dataset.target);
-                r.start();
-                btnMic.classList.add('listening');
+            const btn = e.target.closest('.btn-mic');
+            if(btn) { 
+                const target = document.getElementById(btn.dataset.target);
+                r.start(); btn.classList.add('listening');
                 r.onresult = ev => { target.value += " " + ev.results[0][0].transcript; target.dispatchEvent(new Event('input')); };
-                r.onend = () => btnMic.classList.remove('listening');
+                r.onend = () => btn.classList.remove('listening');
             }
         });
     }
 });
+
+// 4. LATIDO DE SEGURIDAD (Si falla la carga inicial, reintenta cada 10s)
+setInterval(() => forceLoadFiix(), 10000);
+
+// 5. DISPARO DE EMERGENCIA (Por si el DOM ya estaba listo)
+if (document.readyState === "complete" || document.readyState === "interactive") {
+    forceLoadFiix();
+}
 </script>
 </body>
 </html>
