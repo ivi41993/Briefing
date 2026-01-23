@@ -898,13 +898,21 @@ async def get_fiix_current():
 
 async def fiix_auto_worker():
     connector = FiixConnector()
-    print("🚀 [WFS1] Worker Fiix iniciado")
+    print("🚀 [FIIX] Worker iniciado: Cargando datos INMEDIATAMENTE...")
+    
+    # 1. Ejecución inmediata al arrancar (Sin esperas)
+    try:
+        await connector.fetch_metrics()
+    except Exception as e:
+        print(f"⚠️ Error en carga inicial Fiix: {e}")
+
+    # 2. Bucle perpetuo (cada 10 min)
     while True:
+        await asyncio.sleep(600) # Esperar 10 minutos
         try:
             await connector.fetch_metrics()
         except Exception as e:
-            print(f"❌ [WFS1 Worker Error] {e}")
-        await asyncio.sleep(600) # 10 minutos
+            print(f"❌ [FIIX Loop Error] {e}")
 
 async def fetch_roster_api_data(escala: str, fecha: str):
     url = os.getenv("ROSTER_API_URL")
