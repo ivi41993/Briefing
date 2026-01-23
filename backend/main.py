@@ -4692,6 +4692,51 @@ async def _build_roster_state(force=False) -> dict:
     
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
+@app.get("/api/fiix/discovery")
+async def discover_fiix_sites():
+    """
+    Endpoint para localizar los Site_IDs de BCN y VLC.
+    Llamar a: https://tu-url.onrender.com/api/fiix/discovery
+    """
+    connector = FiixConnector()
+    print("🔍 Iniciando escaneo de ubicaciones en Fiix...")
+
+    # Buscamos activos de tipo 'Ubicación' (intKind=1) o 'Instalación'
+    body = {
+        "_maCn": "FindRequest",
+        "className": "Asset",
+        "fields": "id, strName, strCode, intKind",
+        "filters": [{"ql": "intKind = 1", "parameters": []}], # Filtro por Ubicaciones
+        "maxObjects": 500
+    }
+
+    try:
+        results = await connector._fiix_rpc(body)
+        
+        # Filtramos los que nos interesan para verlos claro en el JSON
+        candidates = []
+        for r in results:
+            name = str(r.get("strName", "")).upper()
+            code = str(r.get("strCode", "")).upper()
+            
+            # Si el nombre contiene BCN, VLC, Barcelona o Valencia
+            if any(x in name or x in code for x in ["BCN", "VLC", "BARCELONA", "VALENCIA"]):
+                candidates.append({
+                    "CITY_ID": r.get("id"),
+                    "NAME": r.get("strName"),
+                    "CODE": r.get("strCode")
+                })
+
+        return {
+            "status": "success",
+            "message": "Revisa los CITY_ID encontrados",
+            "found_sites": candidates,
+            "all_locations_count": len(results),
+            "full_dump": results # Por si acaso no filtró bien, los enviamos todos
+        }
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+        
 @app.get("/api/fiix/mapa")
 async def map_fiix_assets():
     """Llamada: https://tu-url.onrender.com/api/fiix/mapa"""
@@ -4982,6 +5027,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
