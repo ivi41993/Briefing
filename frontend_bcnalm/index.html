@@ -1608,12 +1608,38 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
       <small class="kpi-text" id="kpi-backlog-meta">Actualizado: —</small>
     </div>
 
-    <div class="kpi-tile" id="kpi-costes">
-      <div class="kpi-label">Costes Daños</div>
-      <div class="kpi-value" style="color:var(--brand-red-600)">
-        <span id="kpi-total-cost">—</span><span class="kpi-currency">€</span>
-      </div>
-      <small class="kpi-text" id="kpi-costes-meta"></small>
+    
+  </div>
+
+<!-- SEPARADOR -->
+  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+
+  <!-- FILA 2: MANTENIMIENTO BARCELONA (FIIX) -->
+  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; margin-top:20px; text-transform:uppercase; letter-spacing:1px;">
+      Mantenimiento (BCN)
+  </h3>
+  
+  <div class="kpi-grid">
+    <!-- DISPONIBILIDAD -->
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Disponibilidad Flota</div>
+        <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
+        <!-- Texto dinámico: OK o X Activos Parados -->
+        <small class="kpi-text" id="fiix-broken-text">Sincronizando...</small>
+    </div>
+
+    <!-- COSTE PROYECTADO -->
+    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
+        <div class="kpi-label" style="color:#991b1b">Coste Proyectado</div>
+        <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">--</span>€</div>
+        <small class="kpi-text">Impacto Averías (24h)</small>
+    </div>
+
+    <!-- MTTR / TIEMPO RESPUESTA -->
+    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">MTTR (24h)</div>
+        <div class="kpi-value"><span id="fiix-mttr">--</span><small style="font-size:1rem"> min</small></div>
+        <small class="kpi-text">Tiempo medio respuesta</small>
     </div>
   </div>
 
@@ -3684,6 +3710,87 @@ updateAllColumnCounts();
 }
 }
 
+/* =========================================================
+   LÓGICA FIIX BARCELONA (Visualización)
+   ========================================================= */
+
+function updateFiixDisplay(metric, value) {
+    // MAPEO ESPECÍFICO BCN
+    const mapping = {
+        'fiix_bcn_availability': 'fiix-availability',
+        'fiix_bcn_damage_cost':  'fiix-damage-cost',
+        'fiix_bcn_mttr':         'fiix-mttr'
+    };
+
+    // 1. Manejo del contador de máquinas rotas (Visual)
+    if (metric === 'fiix_bcn_broken_count') {
+        const elText = document.getElementById('fiix-broken-text');
+        const tile = document.getElementById('tile-fiix-availability');
+        if (elText && tile) {
+            if (value === 0) {
+                elText.textContent = "Todo operativo";
+                elText.style.color = "var(--text-muted)";
+                tile.style.borderLeftColor = "#10b981"; // Verde
+            } else {
+                elText.textContent = `⚠️ ${value} activos parados`;
+                elText.style.color = "#dc2626";
+                elText.style.fontWeight = "800";
+                tile.style.borderLeftColor = "#ef4444"; // Rojo
+            }
+        }
+        return;
+    }
+
+    // 2. Valores Numéricos
+    const targetId = mapping[metric];
+    const el = document.getElementById(targetId);
+    
+    if (el) {
+        if (metric.includes('cost')) {
+            // Formato Moneda (2.645,00)
+            el.textContent = new Intl.NumberFormat('es-ES', { 
+                minimumFractionDigits: 2, maximumFractionDigits: 2 
+            }).format(value);
+            
+            // Efecto flash visual
+            const tile = el.closest('.kpi-tile');
+            if(tile) {
+                tile.classList.remove('flash');
+                void tile.offsetWidth;
+                tile.classList.add('flash');
+            }
+        } else {
+            // Valores normales
+            el.textContent = Math.round(value);
+        }
+        el.style.opacity = "1";
+    }
+}
+
+// Carga inicial
+async function initFiixDashboard() {
+    try {
+        console.log("🔄 [BCN] Cargando Fiix...");
+        const res = await fetch('api/fiix/current'); 
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        console.log("📥 [BCN] Fiix Data:", data);
+
+        // Si el objeto está vacío, reintenta
+        if (Object.keys(data).length === 0) {
+            setTimeout(initFiixDashboard, 3000);
+            return;
+        }
+
+        Object.keys(data).forEach(key => {
+            updateFiixDisplay(key, data[key]);
+        });
+    } catch (e) {
+        console.error("Error cargando Fiix BCN:", e);
+    }
+}
+
 /* ==========================
 Formularios Kanban/Kaizen
 ========================== */
@@ -3836,55 +3943,16 @@ return;
 }
 
 // KPIs (usa STATION_CODE, no hardcode MAD)
-if (data.type==='kpi_update' || data.type==='kpi_state' || data.metric){
-const metric = String(data.metric||'').trim().toLowerCase();
-const tab    = String(data.tab||'').toUpperCase();
-
-if (metric === 'total cost'){
-// Acepta si tab vacío o contiene estación (BCN / MAD / etc)
-if (!tab || tab.includes(STATION_CODE)){
-let v=data.value;
-if (typeof v==='string'){
-const m=v.match(/-?\d+(?:[.,]\d+)?/);
-v=m?parseFloat(m[0].replace(',','.')):null;
-}else if (Array.isArray(v)){
-const f=v[0]||{};
-v=f['[Total Cost]']??f['Total Cost']??f.value??null;
-}else if (v && typeof v==='object'){
-v=v['[Total Cost]']??v['Total Cost']??v.value??null;
-}
-if (typeof v==='number' && Number.isFinite(v)){
-updateKpiTotalCost(v, data.timestamp);
-try{
-localStorage.setItem('kpi_total_cost_'+STATION_CODE,
-JSON.stringify({value:v,timestamp:data.timestamp||null}));
-}catch(e){}
-}
-}
-return;
-}
-
-if (metric === 'uph' && (!tab || tab.includes(STATION_CODE))){
-const v=Number(data.value);
-if (Number.isFinite(v))
-setKpiValue('kpi-uph','kpi-uph-meta',
-new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
-return;
-}
-if (metric === 'otif' && (!tab || tab.includes(STATION_CODE))){
-const v=Number(data.value);
-if (Number.isFinite(v))
-setKpiValue('kpi-otif','kpi-otif-meta', formatPercent(v)+' %');
-return;
-}
-if (metric === 'backlog' && (!tab || tab.includes(STATION_CODE))){
-const v=Number(data.value);
-if (Number.isFinite(v))
-setKpiValue('kpi-backlog','kpi-backlog-meta',
-new Intl.NumberFormat('es-ES').format(v));
-return;
-}
-}
+if (data.type === 'kpi_update') {
+        const keys = Object.keys(data);
+        // Si el paquete contiene claves de BCN, las procesamos
+        if (keys.some(k => k.includes('bcn'))) {
+            keys.forEach(k => {
+                if (k.startsWith('fiix_')) updateFiixDisplay(k, data[k]);
+            });
+            return; // Detener aquí
+        }
+    }
 
 // Delete
 if (data.action === 'delete' && data.id != null){
@@ -4364,7 +4432,12 @@ window.closePostBriefingMode = function() {
 // INICIALIZACIÓN PRINCIPAL (DOM READY)
 // =========================================================
 
+function forceLoadFiix() {
+    initFiixDashboard().catch(console.error);
+}
+    
 document.addEventListener('DOMContentLoaded', () => {
+    forceLoadFiix();
     
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
@@ -4610,6 +4683,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try { updateSpotlightRouting(); } catch(e){}
     
     console.log("Dashboard BCN inicializado correctamente.");
+    setInterval(() => forceLoadFiix(), 10000);
+
+// Disparo de emergencia por si el DOM ya estaba cargado
+if (document.readyState === "complete") forceLoadFiix();
 });
 </script>
 </body>
