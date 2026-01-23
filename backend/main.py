@@ -3047,7 +3047,7 @@ class FiixConnector:
             "_maCn": "FindRequest",
             "className": "Asset",
             "fields": "id, strName, strCode, intKind, intAssetLocationID",
-            "maxObjects": 500 
+            "maxObjects": 5000 
         }
         
         all_assets = await self._fiix_rpc(body)
@@ -4982,6 +4982,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
