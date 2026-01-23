@@ -4142,48 +4142,7 @@ return;
         }
     }
 
-  // UPH
-  if (metric === 'uph' && (!tab || tab === 'MAD WFS2A')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
-    return;
-  }
-  // OTIF
-  if (metric === 'otif' && (!tab || tab === 'MAD WFS2A')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(v) + ' %');
-    return;
-  }
-  // Backlog
-  if (metric === 'backlog' && (!tab || tab === 'MAD WFS2A')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-backlog', 'kpi-backlog-meta', new Intl.NumberFormat('es-ES').format(v));
-    return;
-  }
-}
-
-const elementId = `task-${data.id}`;
-if (data.action === 'delete') {
-  // Kanban/Kaizen
-  const el1 = document.getElementById(`task-${data.id}`);
-  if (el1) el1.remove();
-
-  // OPS
-  const el2 =
-    document.getElementById(`ops-${data.id}`) ||
-    document.querySelector(`.ops-item[data-id="${CSS.escape(String(data.id))}"]`) ||
-    document.querySelector(`.ops-item [data-id="${CSS.escape(String(data.id))}"]`)?.closest('.ops-item');
-
-  if (el2) el2.remove();
-
-  updateAllColumnCounts && updateAllColumnCounts();
-
-  if (data.task_type === 'gw_task') {
-    GW_MAP.delete(data.id);
-    renderGwTop3();
-  }
-  return;
-}
+ 
 
 
 
