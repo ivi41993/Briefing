@@ -2799,30 +2799,34 @@ body.card-open #timer-reset {
     </div>
   </div>
 
-  <hr style="border:0; border-top:1px solid var(--border); margin: 10px 0;">
+  <!-- SEPARADOR -->
+  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
 
-  <!-- FILA 2: MANTENIMIENTO (FIIX) -->
-  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
+  <!-- FILA 2: MANTENIMIENTO WFS 2B -->
+  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; margin-top:20px; text-transform:uppercase; letter-spacing:1px;">
+      Mantenimiento (Nave 2B)
+  </h3>
   
   <div class="kpi-grid">
-    <!-- Backlog -->
-    <div class="kpi-tile" style="border-left: 4px solid #3b82f6;">
-      <div class="kpi-label">Backlog (Abiertas)</div>
-      <div class="kpi-value" id="fiix-backlog">—</div>
+    <!-- DISPONIBILIDAD -->
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Disponibilidad</div>
+        <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
+        <small class="kpi-text" id="fiix-broken-text">Sincronizando...</small>
     </div>
 
-    <!-- Urgencias (Si > 0 se pondrá rojo por JS) -->
-    <div class="kpi-tile" id="tile-fiix-urgent" style="border-left: 4px solid #f59e0b;">
-      <div class="kpi-label">Correctivos</div>
-      <div class="kpi-value" id="fiix-urgent">—</div>
+    <!-- COSTE PROYECTADO -->
+    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
+        <div class="kpi-label" style="color:#991b1b">Coste Proyectado</div>
+        <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">--</span>€</div>
+        <small class="kpi-text">Averías 24h</small>
     </div>
 
-    <!-- Costes Mto. (Mes) -->
-    <div class="kpi-tile" style="border-left: 4px solid #10b981;">
-      <div class="kpi-label">Gasto Mes (Mto)</div>
-      <div class="kpi-value">
-        <span id="fiix-cost">—</span><span class="kpi-currency">€</span>
-      </div>
+    <!-- MTTR -->
+    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+        <div class="kpi-label">MTTR</div>
+        <div class="kpi-value"><span id="fiix-mttr">--</span><small style="font-size:1rem"> min</small></div>
+        <small class="kpi-text">Tiempo respuesta</small>
     </div>
   </div>
 
@@ -4227,79 +4231,17 @@ loadIncidentes();
 return;
 }
 
-if(data && (data.type==='kpi_update'||data.type==='kpi_state'||(data.metric&&data.tab))){
-const metric=String(data.metric||'').trim().toLowerCase(); const tab=String(data.tab||'').trim();
-if(metric==='total cost' && (!tab || tab==='MAD WFS2B')){
-let v=data.value;
-if(typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
-else if(Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
-else if(v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
-if(typeof v==='number' && Number.isFinite(v)){ updateKpiTotalCost(v, data.timestamp); try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{} }
-}
-return;
-}
-if (data && (data.type==='kpi_update' || data.type==='kpi_state' || data.metric)){
-  const metric = String(data.metric||'').trim().toLowerCase();
-  const tab    = String(data.tab||'').trim();
-
-  
-  
-
-
-  if (data.metric === 'fiix_backlog') {
-      setKpiValue('fiix-backlog', null, data.value); // null porque no puse meta de fecha
-      return;
-  }
-  if (data.metric === 'fiix_urgent') {
-      setKpiValue('fiix-urgent', null, data.value);
-      // Alerta visual si hay urgencias
-      const tile = document.getElementById('tile-fiix-urgent');
-      if(tile) {
-          if(Number(data.value) > 0) tile.style.backgroundColor = '#fef2f2'; // Rojo suave
-          else tile.style.backgroundColor = '#fff';
-      }
-      return;
-  }
-  if (data.metric === 'fiix_cost') {
-      // Formatear dinero
-      const val = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(data.value);
-      setKpiValue('fiix-cost', null, val);
-      return;
-  }
-
-  
-  // Coste total (ya lo tenías)
-  if (metric === 'total cost' && (!tab || tab === 'MAD WFS2B')){
-    let v = data.value;
-    if (typeof v==='string'){ const m=v.match(/-?\d+(?:[.,]\d+)?/); v=m?parseFloat(m[0].replace(',','.')):null; }
-    else if (Array.isArray(v)){ const f=v[0]||{}; v=f['[Total Cost]']??f['Total Cost']??f.value??null; }
-    else if (v && typeof v==='object'){ v=v['[Total Cost]']??v['Total Cost']??v.value??null; }
-    if (typeof v==='number' && Number.isFinite(v)){
-      updateKpiTotalCost(v, data.timestamp);
-      try{ localStorage.setItem('kpi_total_cost', JSON.stringify({value:v, timestamp:data.timestamp||null})); }catch{}
+if (data.type === 'kpi_update') {
+        const keys = Object.keys(data);
+        // Si contiene alguna clave de wfs2b
+        if (keys.some(k => k.includes('wfs2b'))) {
+            keys.forEach(k => {
+                if(k.startsWith('fiix_')) updateFiixDisplay(k, data[k]);
+            });
+            return;
+        }
     }
-    return;
-  }
 
-  // UPH
-  if (metric === 'uph' && (!tab || tab === 'MAD WFS2B')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
-    return;
-  }
-  // OTIF
-  if (metric === 'otif' && (!tab || tab === 'MAD WFS2B')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(v) + ' %');
-    return;
-  }
-  // Backlog
-  if (metric === 'backlog' && (!tab || tab === 'MAD WFS2B')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-backlog', 'kpi-backlog-meta', new Intl.NumberFormat('es-ES').format(v));
-    return;
-  }
-}
 
 const elementId = `task-${data.id}`;
 if (data.action === 'delete') {
@@ -6235,7 +6177,12 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 /* =========================================================
    4. INICIALIZACIÓN FINAL (CORREGIDA)
    ========================================================= */
-document.addEventListener('DOMContentLoaded', () => {
+
+  function forceLoadFiix() {
+    initFiixDashboard().catch(console.error);
+}
+  document.addEventListener('DOMContentLoaded', () => {
+    forceLoadFiix();
     const btnResumen = document.querySelector('header .header-controls .btn-primary');
     if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
 
@@ -6274,6 +6221,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    setInterval(() => forceLoadFiix(), 10000);
 });
 
 /* ===== Protocolo de Incidentes (editable) ===== */
@@ -7104,6 +7052,95 @@ window.markOkAndNext = function(checkName, nextId) {
 /* =========================================================
    2. TARJETA 5: INCIDENTES (SOLUCIÓN DEFINITIVA AL BUG)
    ========================================================= */
+
+/* =========================================================
+   LÓGICA FIIX WFS 2B
+   ========================================================= */
+
+// 1. Visualizador de Datos
+function updateFiixDisplay(metric, value) {
+    // MAPEO: Claves WFS2B -> IDs HTML
+    const mapping = {
+        'fiix_wfs2b_availability': 'fiix-availability',
+        'fiix_wfs2b_damage_cost':  'fiix-damage-cost',
+        'fiix_wfs2b_mttr':         'fiix-mttr'
+    };
+
+    // A. Estado de activos (Broken Count)
+    if (metric === 'fiix_wfs2b_broken_count') {
+        const elText = document.getElementById('fiix-broken-text');
+        const tile = document.getElementById('tile-fiix-availability');
+        
+        if (elText && tile) {
+            if (value === 0) {
+                elText.textContent = "Todo operativo";
+                elText.style.color = "var(--text-muted)";
+                elText.style.fontWeight = "400";
+                tile.style.borderLeftColor = "#10b981"; // Verde
+            } else {
+                elText.textContent = `⚠️ ${value} activos parados`;
+                elText.style.color = "#dc2626"; // Rojo
+                elText.style.fontWeight = "800";
+                tile.style.borderLeftColor = "#ef4444"; // Rojo Alerta
+            }
+        }
+        return;
+    }
+
+    // B. Valores Numéricos
+    const targetId = mapping[metric];
+    const el = document.getElementById(targetId);
+    
+    if (el) {
+        if (metric.includes('cost')) {
+            // Formato Moneda (2.645,00)
+            el.textContent = new Intl.NumberFormat('es-ES', { 
+                minimumFractionDigits: 2, maximumFractionDigits: 2 
+            }).format(value);
+            
+            // Efecto Flash visual
+            const tile = el.closest('.kpi-tile');
+            if(tile) {
+                tile.classList.remove('flash');
+                void tile.offsetWidth; // Trigger reflow
+                tile.classList.add('flash');
+            }
+        } else {
+            // Formato Entero
+            el.textContent = Math.round(value);
+        }
+        el.style.opacity = "1";
+    }
+}
+
+// 2. Función de Carga Inicial
+async function initFiixDashboard() {
+    try {
+        console.log("🔄 [WFS2B] Solicitando datos Fiix...");
+        const res = await fetch('api/fiix/current'); 
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        console.log("📥 [WFS2B] Recibido:", data);
+
+        // Si viene vacío, reintentar en 2s (Latencia de primera carga)
+        if (Object.keys(data).length === 0) {
+            console.log("⏳ Esperando datos...");
+            setTimeout(initFiixDashboard, 2000);
+            return;
+        }
+
+        // Pintar
+        Object.keys(data).forEach(key => {
+            updateFiixDisplay(key, data[key]);
+        });
+        
+    } catch (e) {
+        console.error("❌ Error JS Fiix:", e);
+    }
+}
+  
 (function initManualIncidents() {
     const KEY = 'incidents_manual_entries_v1';
     const listEl = document.getElementById('incidents-list-container');
