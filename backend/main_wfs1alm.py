@@ -832,6 +832,16 @@ async def lifespan(app: FastAPI):
     app.state._roster_task.cancel()
     app.state._fiix_task.cancel() # Cancelar Fiix al salir
 
+app = FastAPI(title="WFS1 MAD Dashboard", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # --- WORKER AUTOMÁTICO ---
 fiix_worker_started = False
 
@@ -1242,15 +1252,7 @@ async def _roster_watcher():
         try: await _build_roster_state(force=False)
         except: pass
 
-app = FastAPI(title="WFS1 MAD Dashboard", version="1.0.0", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 # -----------------------------------
