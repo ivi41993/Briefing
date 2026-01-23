@@ -6165,53 +6165,49 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
   setText();
 })();
 
+// 1. Definir la función de carga fuera del evento para poder llamarla cuando queramos
+async function forceLoadFiixData() {
+    console.log("🚀 Forzando carga de datos Fiix...");
+    await initFiixDashboard();
+}
 
   
 /* Init */
 /* =========================================================
    4. INICIALIZACIÓN FINAL (CORREGIDA)
    ========================================================= */
-document.addEventListener('DOMContentLoaded', () => {
-    const btnResumen = document.querySelector('header .header-controls .btn-primary');
-    if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
+documentdocument.addEventListener('DOMContentLoaded', async () => {
+    console.log("📄 DOM Cargado. Iniciando Dashboard...");
 
-    // LLAMADAS CRÍTICAS
+    // A. Carga PRIORITARIA de Fiix
+    await forceLoadFiixData();
+
+    // B. Iniciar resto de sistemas
     try { initDateTimeAndShift(); } catch(e){}
     try { initHeaderTimer(); } catch(e){}
-    try { setupEventListeners(); } catch(e){} 
-    try { makeColumnsSortable(); } catch(e){}
-    try { hydrateKpiTotalCost(); } catch(e){}
-    try { loadBoardsInitial(); } catch(e){}
-    try { loadIncidentes(); } catch(e){}
     try { connectWebSocket(); } catch(e){}
     try { initTeamRoster(); } catch(e){}
-    try { initFiixDashboard(); } catch(e) { console.log(e); }
     try { initEhsSimple(); } catch(e){}
-    try { initFullscreenToggles(); } catch(e){}
     try { init5S(); } catch(e){}
+    try { initPrevShiftSystem(); } catch(e){}
     
-    // --- ESTAS DOS LÍNEAS SON LAS QUE HACEN QUE FUNCIONE EL + Y EL CHECKLIST ---
-    try { initPrevShiftSystem(); } catch(e){ console.error("Error al iniciar Highlights:", e); }
-    try { if(window.updateSpotlightRouting) window.updateSpotlightRouting(); } catch(e){}
-    
+    // C. Restaurar estado de spotlight y navegación
+    if(window.updateSpotlightRouting) window.updateSpotlightRouting();
     try { initManualIncidents(); } catch(e){} 
     try { initAutoShiftChange(); } catch(e){} 
-
-    // Voz (Simplificado)
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if(SR) {
-        const r = new SR(); r.lang = 'es-ES';
-        document.body.addEventListener('click', e => {
-            const btn = e.target.closest('.btn-mic');
-            if(btn) { 
-                const target = document.getElementById(btn.dataset.target);
-                r.start(); btn.classList.add('listening');
-                r.onresult = ev => { target.value += " " + ev.results[0][0].transcript; target.dispatchEvent(new Event('input')); };
-                r.onend = () => btn.classList.remove('listening');
-            }
-        });
-    }
 });
+
+// 3. RED DE SEGURIDAD (Polling)
+// Si el WebSocket se desconecta o la carga inicial falla, esto lo arregla cada 30s
+setInterval(() => {
+    console.log("💓 Latido de seguridad: Refrescando Fiix...");
+    forceLoadFiixData();
+}, 30000); // 30 segundos
+
+// 4. DISPARO INMEDIATO (Por si el DOM ya estaba listo)
+if (document.readyState === "complete" || document.readyState === "interactive") {
+    forceLoadFiixData();
+}
 
 /* ===== Protocolo de Incidentes (editable) ===== */
 (function initIncidentsProtocol(){
