@@ -22,6 +22,50 @@ from pydantic import BaseModel, Field
 import tempfile
 # --- NUEVO IMPORT PARA SQL ---
 from database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
+import hmac
+import hashlib
+import time
+import asyncio
+import json
+from datetime import datetime, timedelta
+import httpx
+
+# --- CONFIGURACIÓN FIIX WFS3 ---
+FIIX_SITE_ID = 29449435
+# Buscamos por etiqueta "WFS3", "N3", etc.
+TAG_NAVE = "WFS3" 
+ID_PREVENTIVO = 531546
+ID_URGENTE = 278571
+FIIX_CACHE_FILE = "./data/fiix_cache_wfs3.json"
+
+# --- PERSISTENCIA ---
+def save_fiix_cache_to_disk(data):
+    try:
+        os.makedirs(os.path.dirname(FIIX_CACHE_FILE), exist_ok=True)
+        with open(FIIX_CACHE_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"⚠️ Error guardando caché Fiix: {e}")
+
+def load_fiix_cache_from_disk():
+    try:
+        if os.path.exists(FIIX_CACHE_FILE):
+            with open(FIIX_CACHE_FILE, "r") as f:
+                data = json.load(f)
+                print(f"💾 [FIIX WFS3] Memoria recuperada: {data.get('fiix_wfs3_damage_cost')}€")
+                return data
+    except Exception: pass
+    
+    return {
+        "fiix_wfs3_availability": 100,
+        "fiix_wfs3_damage_cost": 0.0,
+        "fiix_wfs3_mttr": 0.0,
+        "fiix_wfs3_broken_count": 0,
+        "last_update": None
+    }
+
+# Inicializar memoria
+fiix_memory_cache = load_fiix_cache_from_disk()
 # -----------------------------------
 # Configuración General WFS3
 # -----------------------------------
@@ -57,7 +101,142 @@ EXT_USER_AGENT = os.getenv("EXT_USER_AGENT", "Mozilla/5.0")
 EXT_REFERER = os.getenv("EXT_REFERER", "").strip()
 EXT_COOKIE = os.getenv("EXT_COOKIE", "").strip()
 
+
+class FiixConnector:
+    def __init__(self):
+        self.host = os.getenv("FIIX_HOST", "wfs.macmms.com").strip()
+        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
+        self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
+        self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        self.client = httpx.AsyncClient(timeout=30.0)
+        self.base_url = f"https://{self.host}/api/"
+
+    def _build_auth(self) -> tuple[dict, dict]:
+        ts_ms = int(time.time() * 1000)
+        auth_params = {
+            "accessKey": self.access_key, "appKey": self.app_key,
+            "signatureMethod": "HmacSHA256", "signatureVersion": "1",
+            "timestamp": str(ts_ms),
+        }
+        sorted_keys = sorted(auth_params.keys())
+        query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
+        signature_base = f"{self.host}/api/?{query_string}"
+        signature = hmac.new(self.secret_key.encode("utf-8"), signature_base.encode("utf-8"), hashlib.sha256).hexdigest().lower()
+        return auth_params, {"Content-Type": "application/json", "Authorization": signature}
+
+    async def _fiix_rpc(self, body: dict) -> list:
+        if not self.app_key: return []
+        auth_params, headers = self._build_auth()
+        body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
+        try:
+            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
+            return resp.json().get("objects") or []
+        except Exception as e:
+            print(f"❌ [FIIX Error]: {e}")
+            return []
+
+    async def fetch_metrics(self):
+        global fiix_memory_cache
+        yesterday_str = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Tags de búsqueda: WFS3, N3, NAVE 3
+        search_tags = ["WFS3", "N3", "NAVE 3", "NAVE3"] 
+        
+        print(f"🔄 [FIIX WFS3] Buscando datos...")
+
+        try:
+            # A. Activos
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode, strName",
+                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [FIIX_SITE_ID]}],
+                "maxObjects": 1000
+            }
+            all_assets = await self._fiix_rpc(body_assets)
+            
+            # Filtrar en memoria
+            assets = []
+            used_tag = ""
+            for tag in search_tags:
+                candidates = [a for a in all_assets if tag in str(a.get("strCode", "")).upper() or tag in str(a.get("strName", "")).upper()]
+                if candidates:
+                    assets = candidates
+                    used_tag = tag
+                    print(f"✅ [FIIX] Tag encontrado: {tag}")
+                    break
+            
+            # B. Órdenes
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated, dtmDateCompleted, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", 
+                             "parameters": [FIIX_SITE_ID, yesterday_str]}]
+            }
+            all_wos = await self._fiix_rpc(body_wo)
+            
+            # Filtrar WOs usando el tag encontrado (o fallback WFS3)
+            filter_tag = used_tag if used_tag else "WFS3"
+            wos = [w for w in all_wos if filter_tag in str(w.get("strAssets", "")).upper()]
+
+            # C. Cálculos
+            total_assets = len(assets)
+            broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
+            avail = round(((total_assets - broken) / total_assets) * 100) if total_assets > 0 else 100
+            
+            cost = 0.0
+            total_dt = 0
+            for wo in wos:
+                if wo.get("intPriorityID") == ID_URGENTE: cost += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: cost += 120.0
+                else: cost += 35.0
+                
+                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
+                    start, end = wo["dtmDateCreated"], wo["dtmDateCompleted"]
+                    if isinstance(start, (int,float)) and isinstance(end, (int,float)):
+                         total_dt += (end - start) / (1000 * 60)
+
+            mttr = round((total_dt / len(wos)) / 60, 1) if wos else 0
+
+            # D. Guardar (Claves WFS3)
+            new_data = {
+                "fiix_wfs3_availability": avail,
+                "fiix_wfs3_damage_cost": round(cost, 2),
+                "fiix_wfs3_mttr": mttr,
+                "fiix_wfs3_broken_count": broken,
+                "last_update": datetime.utcnow().isoformat() + "Z"
+            }
+            
+            fiix_memory_cache = new_data
+            save_fiix_cache_to_disk(new_data)
+
+            print(f"🚀 [FIIX WFS3] Disp: {avail}% | Coste: {cost}€")
+            
+            await manager.broadcast({
+                "type": "kpi_update",
+                "station": "WFS3",
+                **fiix_memory_cache
+            })
+
+        except Exception as e:
+            print(f"❌ [FIIX Error]: {e}")
+
+async def fiix_auto_worker():
+    connector = FiixConnector()
+    await asyncio.sleep(10) 
+    while True:
+        try: await connector.fetch_metrics()
+        except: pass
+        await asyncio.sleep(600)
+
 app = FastAPI(title=f"Dashboard {STATION_NAME}")
+
+@app.get("/api/fiix/current")
+async def get_fiix_current():
+    global fiix_memory_cache
+    if not fiix_memory_cache or not fiix_memory_cache.get("last_update"):
+        conn = FiixConnector()
+        asyncio.create_task(conn.fetch_metrics())
+    return fiix_memory_cache
 
 # -----------------------------------
 # Helpers Lógica de Turnos y Excel (Heredado de BCN)
@@ -1076,6 +1255,7 @@ async def startup():
     app.state._roster = asyncio.create_task(_roster_watcher())
     app.state._ext = ExternalConnector()
     app.state._poller = asyncio.create_task(app.state._ext.run())
+    app.state._fiix = asyncio.create_task(fiix_auto_worker())
     print(f"🚀 WFS3 MAD Backend Iniciado en puerto 8002")
 
 @app.on_event("shutdown")
@@ -1083,6 +1263,7 @@ async def shutdown():
     for key in ("_poller","_roster"):
         task: asyncio.Task = getattr(app.state, key, None)
         if task: task.cancel()
+        if hasattr(app.state, '_fiix'): app.state._fiix.cancel()
 
 # -----------------------------------
 # Montaje Frontend
