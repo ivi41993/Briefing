@@ -1646,33 +1646,33 @@ style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
 
   <!-- FILA 2: MANTENIMIENTO BARCELONA (FIIX) -->
-  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; margin-top:20px; text-transform:uppercase; letter-spacing:1px;">
-      Mantenimiento (BCN)
-  </h3>
-  
-  <div class="kpi-grid">
-    <!-- DISPONIBILIDAD -->
-    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
-        <div class="kpi-label">Disponibilidad Flota</div>
-        <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
-        <!-- Texto dinámico: OK o X Activos Parados -->
-        <small class="kpi-text" id="fiix-broken-text">Sincronizando...</small>
-    </div>
+ <!-- FILA 2: MANTENIMIENTO VLC (FIIX) -->
+<h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; margin-top: 20px; text-transform:uppercase; letter-spacing:1px;">
+    Mantenimiento (Valencia)
+</h3>
 
-    <!-- COSTE PROYECTADO -->
-    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
-        <div class="kpi-label" style="color:#991b1b">Coste Proyectado</div>
-        <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">--</span>€</div>
-        <small class="kpi-text">Impacto Averías (24h)</small>
-    </div>
-
-    <!-- MTTR / TIEMPO RESPUESTA -->
-    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
-        <div class="kpi-label">MTTR (24h)</div>
-        <div class="kpi-value"><span id="fiix-mttr">--</span><small style="font-size:1rem"> min</small></div>
-        <small class="kpi-text">Tiempo medio respuesta</small>
-    </div>
+<div class="kpi-grid">
+  <!-- DISPONIBILIDAD -->
+  <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+      <div class="kpi-label">Disponibilidad Flota</div>
+      <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
+      <small class="kpi-text" id="fiix-broken-text">Sincronizando...</small>
   </div>
+
+  <!-- COSTE PROYECTADO -->
+  <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
+      <div class="kpi-label" style="color:#991b1b">Coste Proyectado</div>
+      <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">--</span>€</div>
+      <small class="kpi-text">Averías Activas (24h)</small>
+  </div>
+
+  <!-- MTTR -->
+  <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
+      <div class="kpi-label">MTTR (24h)</div>
+      <div class="kpi-value"><span id="fiix-mttr">--</span><small style="font-size:1rem"> min</small></div>
+      <small class="kpi-text">Tiempo respuesta</small>
+  </div>
+</div>
     
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
 
@@ -3895,81 +3895,69 @@ deleteTaskOnServer(id, type).catch(()=>alert('No se pudo eliminar.'));
    LÓGICA FIIX BARCELONA (Visualización)
    ========================================================= */
 
+/* =========================================================
+   LÓGICA FIIX VALENCIA (Corrección Completa)
+   ========================================================= */
+
 function updateFiixDisplay(metric, value) {
-    // MAPEO ESPECÍFICO BCN
+    // MAPEO ESPECÍFICO VLC
     const mapping = {
-        'fiix_bcn_availability': 'fiix-availability',
-        'fiix_bcn_damage_cost':  'fiix-damage-cost',
-        'fiix_bcn_mttr':         'fiix-mttr'
+        'fiix_vlc_availability': 'fiix-availability',
+        'fiix_vlc_damage_cost':  'fiix-damage-cost',
+        'fiix_vlc_mttr':         'fiix-mttr'
     };
 
-    // 1. Manejo del contador de máquinas rotas (Visual)
-    if (metric === 'fiix_bcn_broken_count') {
+    // 1. Manejo del texto de máquinas paradas
+    if (metric === 'fiix_vlc_broken_count') {
         const elText = document.getElementById('fiix-broken-text');
         const tile = document.getElementById('tile-fiix-availability');
         if (elText && tile) {
             if (value === 0) {
                 elText.textContent = "Todo operativo";
                 elText.style.color = "var(--text-muted)";
-                tile.style.borderLeftColor = "#10b981"; // Verde
+                tile.style.borderLeftColor = "#10b981";
             } else {
                 elText.textContent = `⚠️ ${value} activos parados`;
                 elText.style.color = "#dc2626";
                 elText.style.fontWeight = "800";
-                tile.style.borderLeftColor = "#ef4444"; // Rojo
+                tile.style.borderLeftColor = "#ef4444";
             }
         }
         return;
     }
 
-    // 2. Valores Numéricos
+    // 2. Valores numéricos
     const targetId = mapping[metric];
     const el = document.getElementById(targetId);
-    
     if (el) {
         if (metric.includes('cost')) {
-            // Formato Moneda (2.645,00)
-            el.textContent = new Intl.NumberFormat('es-ES', { 
-                minimumFractionDigits: 2, maximumFractionDigits: 2 
-            }).format(value);
-            
-            // Efecto flash visual
+            el.textContent = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(value);
+            // Efecto flash al actualizar dinero
             const tile = el.closest('.kpi-tile');
-            if(tile) {
-                tile.classList.remove('flash');
-                void tile.offsetWidth;
-                tile.classList.add('flash');
-            }
+            if(tile) { tile.classList.remove('flash'); void tile.offsetWidth; tile.classList.add('flash'); }
         } else {
-            // Valores normales
             el.textContent = Math.round(value);
         }
         el.style.opacity = "1";
     }
 }
 
-// Carga inicial
 async function initFiixDashboard() {
     try {
-        console.log("🔄 [BCN] Cargando Fiix...");
+        console.log("🔄 [VLC] Solicitando datos Fiix...");
         const res = await fetch('api/fiix/current'); 
         if (!res.ok) return;
-        
         const data = await res.json();
-        console.log("📥 [BCN] Fiix Data:", data);
+        console.log("📥 [VLC] Datos recibidos:", data);
 
-        // Si el objeto está vacío, reintenta
+        // Si el objeto está vacío, reintentar en 3s
         if (Object.keys(data).length === 0) {
             setTimeout(initFiixDashboard, 3000);
             return;
         }
 
-        Object.keys(data).forEach(key => {
-            updateFiixDisplay(key, data[key]);
-        });
-    } catch (e) {
-        console.error("Error cargando Fiix BCN:", e);
-    }
+        Object.keys(data).forEach(key => updateFiixDisplay(key, data[key]));
+    } catch (e) { console.error("Error Fiix VLC:", e); }
 }
     
 /* ==========================
@@ -4025,12 +4013,12 @@ return;
 // KPIs (usa STATION_CODE, no hardcode MAD)
 if (data.type === 'kpi_update') {
         const keys = Object.keys(data);
-        // Si el paquete contiene claves de BCN, las procesamos
-        if (keys.some(k => k.includes('bcn'))) {
+        // Detectar si el paquete es de Valencia
+        if (keys.some(k => k.includes('vlc'))) {
             keys.forEach(k => {
-                if (k.startsWith('fiix_')) updateFiixDisplay(k, data[k]);
+                if(k.startsWith('fiix_')) updateFiixDisplay(k, data[k]);
             });
-            return; // Detener aquí
+            return; // Muy importante: parar aquí para no entrar en lógica de tareas
         }
     }
 
@@ -4512,10 +4500,13 @@ window.closePostBriefingMode = function() {
 // =========================================================
 // INICIALIZACIÓN PRINCIPAL (DOM READY)
 // =========================================================
-
+function forceLoadFiix() {
+    console.log("💓 Latido: Refrescando Fiix VLC...");
+    initFiixDashboard().catch(err => console.log(err));
+}
     
 document.addEventListener('DOMContentLoaded', () => {
-    initFiixDashboard();
+    forceLoadFiix();
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
     const WIDGET_MAP = [
@@ -4769,7 +4760,11 @@ document.addEventListener('DOMContentLoaded', () => {
     try { updateSpotlightRouting(); } catch(e){}
     
     console.log("Dashboard VLC inicializado correctamente.");
-    
+    setInterval(() => forceLoadFiix(), 30000);
+
+// Disparo de emergencia por si el DOM se carga tarde
+if (document.readyState === "complete" || document.readyState === "interactive") {
+    forceLoadFiix();
 });
 </script>
 </body>
