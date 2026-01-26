@@ -4512,12 +4512,10 @@ window.closePostBriefingMode = function() {
 // =========================================================
 // INICIALIZACIÓN PRINCIPAL (DOM READY)
 // =========================================================
-function forceLoadFiix() {
-    initFiixDashboard().catch(console.error);
-}
+
     
 document.addEventListener('DOMContentLoaded', () => {
-    forceLoadFiix();
+    initFiixDashboard();
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
     const WIDGET_MAP = [
@@ -4771,10 +4769,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try { updateSpotlightRouting(); } catch(e){}
     
     console.log("Dashboard VLC inicializado correctamente.");
-    setInterval(() => forceLoadFiix(), 10000);
-
-// Disparo de emergencia por si el DOM ya estaba cargado
-if (document.readyState === "complete") forceLoadFiix();
+    
 });
 </script>
 </body>
