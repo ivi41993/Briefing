@@ -863,6 +863,21 @@ async def send_to_excel_online(data: BriefingSnapshot):
         ops_lines = [f"[{op.get('impact','-')}] {op.get('title','-')}" for op in data.ops_updates]
         ops_text = " | ".join(ops_lines)
 
+    safety_text = "Sin incidentes manuales"
+    if data.safety_incidents:
+        safe_lines = []
+        for inc in data.safety_incidents:
+            # Extraemos datos con seguridad
+            titulo = str(inc.get('title', 'Sin título'))
+            desc = str(inc.get('desc', ''))
+            # Formato: [TÍTULO] Descripción
+            entry = f"[{titulo}] {desc}"
+            # Añadir fecha vigencia si existe
+            if inc.get('valid_until'):
+                entry += f" (Vence: {inc.get('valid_until')})"
+            safe_lines.append(entry)
+        safety_text = " | ".join(safe_lines)
+    
     # Payload que coincide con el esquema JSON de Power Automate
     payload = {
         "fecha": str(data.date),
