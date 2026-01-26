@@ -39,9 +39,13 @@ import json
 from datetime import datetime, timedelta
 import httpx
 # --- CONFIGURACIÓN FIIX VLC (IDENTIDAD ÚNICA) ---
-FIIX_SITE_ID = 30480904  # ID de Valencia
+FIIX_SITE_ID = 30480904
 TAG_NAVE = "VLC"
 FIIX_CACHE_FILE = "./data/fiix_cache_vlc.json"
+
+# ESTAS SON LAS LÍNEAS QUE TE FALTAN:
+ID_PREVENTIVO = 531546
+ID_URGENTE = 278571
 
 # Asegurar nombres de claves coherentes con VLC
 def load_fiix_cache_from_disk():
