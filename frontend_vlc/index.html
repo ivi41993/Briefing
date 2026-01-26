@@ -4776,10 +4776,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try { updateSpotlightRouting(); } catch(e){}
     
     console.log("Dashboard VLC inicializado correctamente.");
-    setInterval(() => forceLoadFiix(), 10000);
-
-// Disparo de emergencia por si el DOM ya estaba cargado
-if (document.readyState === "complete") forceLoadFiix();
+    
 });
 </script>
 </body>
