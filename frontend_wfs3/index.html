@@ -6315,9 +6315,11 @@ document.addEventListener('change', (e) => {
   const FILT_PRIO  = document.getElementById('ops-prio');
   const FILT_SCOPE = document.getElementById('ops-scope');
 
+  // IDENTIDAD DE LA ESTACIÓN (Asegúrate de que coincida con el backend)
+  const CURRENT_STATION = (window.STATION_OVERRIDE || 'WFS1ALM').toUpperCase();
+
   if (!LIST || !DIALOG || !FORM) return;
 
-  // --- 1. API ---
   async function apiAction(url, method, data=null){
     const opts = { method, headers: {} };
     if(data){
@@ -6327,22 +6329,21 @@ document.addEventListener('change', (e) => {
     const r = await fetch(url, opts);
     if(method === 'DELETE' && r.status === 404) return true; 
     if(!r.ok) throw new Error(`Error ${method}`);
-    return method === 'DELETE' ? true : await r.json();
+    return method === 'DELETE' ? True : await r.json();
   }
 
-  // --- 2. RENDERIZADOR GLOBAL (Sustituye al antiguo) ---
-  // Hacemos esta función global para que processTaskUpdate la use
+  // RENDERIZADOR
   window.renderOpsCard = function(it) {
     if(!LIST) return;
+    // Si la tarjeta que llega no es de mi estación, la ignoro (Seguridad para WebSocket)
+    if (it.station && it.station.toUpperCase() !== CURRENT_STATION) return;
 
-    // 1. Evitar duplicados: Si ya existe, la borramos para repintar
     const existing = document.getElementById(`ops-${it.id}`);
     if (existing) existing.remove();
 
-    // 2. Crear tarjeta moderna (Estilo Vivid)
     const el = document.createElement('div');
     el.className = 'ops-item';
-    el.id = `ops-${it.id}`; // ID único en el DOM
+    el.id = `ops-${it.id}`;
     el.dataset.id = it.id;
     
     const impact = it.impact || 'Medio';
@@ -6353,66 +6354,49 @@ document.addEventListener('change', (e) => {
 
     el.innerHTML = `
       <div class="ops-head">
-        <div class="ops-title">${esc(it.title)}</div>
+        <div class="ops-title" style="font-weight:800;">${esc(it.title)}</div>
         <div class="ops-flags">
           <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
           <span class="ops-scope">${esc(scope)}</span>
         </div>
       </div>
-      <div class="ops-meta">
-        <span>Resp: ${esc(owner)}</span>
-        <span style="margin-left:auto;font-size:0.75rem;color:#999;">${dateStr}</span>
+      <div class="ops-meta" style="margin-top:5px; font-size:0.85rem; color:var(--text-muted);">
+        <span>Resp: <strong>${esc(owner)}</strong></span>
+        <span style="margin-left:auto;">${dateStr}</span>
       </div>
-      
-      <!-- Barra de Acuse (Visual) -->
-      <div class="ops-ack" style="margin-top:5px; padding:5px; background:#f9fafb; border-radius:6px;">
-        <div class="ops-ack-bar" style="height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden; width:100%;">
-            <span style="display:block; height:100%; width:${ackPct}%; background:${ackPct===100?'#10b981':'#3b82f6'};"></span>
-        </div>
-        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#6b7280; margin-top:2px;">
-           <span>Progreso</span>
-           <span>Ack: ${ackPct}%</span>
-        </div>
-      </div>
-
-      <div class="ops-actions" style="margin-top:8px;">
-        <button class="ops-btn" data-action="edit">Editar</button>
-        <button class="ops-btn" data-action="delete" style="color:#b91c1c;">Eliminar</button>
+      <div class="ops-actions" style="margin-top:10px; display:flex; gap:8px;">
+        <button class="ops-btn" data-action="edit" style="font-size:0.75rem; padding:4px 8px;">Editar</button>
+        <button class="ops-btn" data-action="delete" style="color:#b91c1c; font-size:0.75rem; padding:4px 8px;">Eliminar 🗑️</button>
       </div>
     `;
     
-    // Insertar al principio
+    // Insertar arriba (más reciente primero)
     LIST.prepend(el);
   };
 
-  // --- 3. CARGA INICIAL ---
+  // CARGA INICIAL (Solo lo que pertenece a esta nave)
   async function loadInitial(){
     try {
-        const items = await (await fetch('/api/tasks?task_type=ops_update', {cache:'no-store'})).json();
-        const station = (window.STATION_OVERRIDE || 'MAD').toUpperCase();
+        // Pedimos al servidor todas las tareas de tipo ops_update
+        const items = await (await fetch('api/tasks?task_type=ops_update')).json();
         
-        LIST.innerHTML = ''; // Limpiar lista inicial
+        LIST.innerHTML = ''; 
         
-        const filtered = items.filter(it => {
-            if (it.station && it.station.toUpperCase() !== station) return false;
-            return true;
-        });
+        // Filtro estricto: solo muestro lo que sea de mi nave
+        const filtered = items.filter(it => (it.station || '').toUpperCase() === CURRENT_STATION);
 
         if (filtered.length === 0) {
-            LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones.</div>';
+            LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones para esta nave.</div>';
             return;
         }
         
-        // Renderizar usando la función global
-        // Invertimos para que al hacer prepend queden en orden correcto (más nuevo arriba)
+        // Ordenar por fecha y renderizar
         filtered.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(window.renderOpsCard);
         
-    } catch(e) { console.warn('Error render ops', e); }
+    } catch(e) { console.warn('Error cargando actualizaciones iniciales', e); }
   }
 
-  // --- 4. EVENTOS CRUD ---
-  
-  // GUARDAR (NUEVO O EDICIÓN)
+  // EVENTO GUARDAR
   BTN_SAVE?.addEventListener('click', async (e) => {
     e.preventDefault();
     const id = document.getElementById('ops-id').value;
@@ -6422,35 +6406,23 @@ document.addEventListener('change', (e) => {
       impact: document.getElementById('ops-impact').value,
       scope: document.getElementById('ops-scope-field').value,
       owner: document.getElementById('ops-owner').value.trim(),
-      valid_from: document.getElementById('ops-from').value || null,
-      valid_to: document.getElementById('ops-to').value || null,
-      station: (window.STATION_OVERRIDE || 'MAD').toUpperCase()
+      station: CURRENT_STATION // <--- CLAVE: Se guarda con la identidad de la nave
     };
 
-    if (!payload.title) return alert('Falta título');
-    BTN_SAVE.textContent = '...'; BTN_SAVE.disabled = true;
-
+    if (!payload.title) return alert('El título es obligatorio');
+    
     try {
-        let resultTask;
         if (id) {
-            // Edición: PATCH
-            resultTask = await apiAction(`/api/tasks/${id}`, 'PATCH', payload);
+            await apiAction(`api/tasks/${id}`, 'PATCH', payload);
         } else {
-            // Creación: POST
-            resultTask = await apiAction('/api/tasks', 'POST', payload);
-            // Quitar mensaje de vacío si existe
-            if(LIST.innerHTML.includes('No hay')) LIST.innerHTML = '';
+            await apiAction('api/tasks', 'POST', payload);
         }
-        
-        // Renderizar inmediatamente la respuesta del servidor
-        window.renderOpsCard(resultTask);
         closeDialog();
-        
-    } catch(err) { alert(err.message); }
-    finally { BTN_SAVE.textContent = 'Guardar'; BTN_SAVE.disabled = false; }
+        loadInitial(); // Recargamos para asegurar orden y limpieza
+    } catch(err) { alert("Error al conectar con el servidor."); }
   });
 
-  // DELEGACIÓN DE EVENTOS (EDITAR / BORRAR)
+  // DELEGACIÓN (EDITAR / BORRAR)
   LIST.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
@@ -6458,34 +6430,19 @@ document.addEventListener('change', (e) => {
     const id = card.dataset.id;
 
     if (btn.dataset.action === 'delete') {
-        if(confirm('¿Borrar actualización?')){
-            card.style.opacity = '0.3';
-            try {
-                await apiAction(`/api/tasks/${id}`, 'DELETE');
-                card.remove(); 
-                if(!LIST.children.length) LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones.</div>';
-            } catch(err) {
-                card.style.opacity = '1';
-                alert('Error al borrar');
-            }
+        if(confirm('¿Borrar actualización operativa?')){
+            await apiAction(`api/tasks/${id}`, 'DELETE');
+            card.remove();
         }
     } else if (btn.dataset.action === 'edit') {
-        // Cargar datos para editar
-        try {
-             // Pequeño fetch para asegurar datos frescos o leer del DOM
-             const title = card.querySelector('.ops-title').textContent;
-             const impact = card.querySelector('.ops-impact').textContent;
-             const scope = card.querySelector('.ops-scope').textContent;
-             const owner = card.querySelector('.ops-meta span').textContent.replace('Resp: ','');
-             
-             openDialog({id, title, impact, scope, owner});
-        } catch(e) {
-             console.error(e);
-        }
+        const title = card.querySelector('.ops-title').textContent;
+        const impact = card.querySelector('.ops-impact').textContent.trim();
+        const scope = card.querySelector('.ops-scope').textContent.trim();
+        const owner = card.querySelector('.ops-meta strong').textContent;
+        openDialog({id, title, impact, scope, owner});
     }
   });
 
-  // --- DIALOGOS ---
   function openDialog(d){
     FORM.reset();
     document.getElementById('ops-id').value = d?.id || '';
@@ -6495,31 +6452,13 @@ document.addEventListener('change', (e) => {
         document.getElementById('ops-scope-field').value = d.scope || 'General';
         document.getElementById('ops-owner').value = d.owner || '';
     }
-    try{ DIALOG.showModal(); }catch{ DIALOG.setAttribute('open',true); }
+    DIALOG.showModal();
   }
-  function closeDialog(){ try{ DIALOG.close(); }catch{ DIALOG.removeAttribute('open'); } }
+  function closeDialog(){ DIALOG.close(); }
 
   BTN_ADD?.addEventListener('click', ()=>openDialog());
   FORM.querySelector('[value="cancel"]')?.addEventListener('click', (e)=>{ e.preventDefault(); closeDialog(); });
 
-  // FILTROS (Visuales)
-  function applyFilters(){
-     const q = (Q?.value || '').toLowerCase();
-     const p = (FILT_PRIO?.value || '');
-     const s = (FILT_SCOPE?.value || '');
-
-     LIST.querySelectorAll('.ops-item').forEach(card => {
-         const txt = card.innerText.toLowerCase();
-         const impact = card.querySelector('.ops-impact').textContent;
-         const scope = card.querySelector('.ops-scope').textContent;
-
-         const matches = txt.includes(q) && (!p || impact === p) && (!s || scope === s);
-         card.style.display = matches ? '' : 'none';
-     });
-  }
-  [Q, FILT_PRIO, FILT_SCOPE].forEach(el=>el?.addEventListener('input', applyFilters));
-
-  // Iniciar carga
   loadInitial();
 })();
 // ... (El código anterior de initOpsUpdates y demás se mantiene igual) ...
