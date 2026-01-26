@@ -875,6 +875,7 @@ async def send_to_excel_online(data: BriefingSnapshot):
         "notas_turno_ant": str(data.prev_shift_note),
         "actualizaciones_ops": str(ops_text),
         "hora_briefing": str(data.briefing_time or datetime.now().strftime("%H:%M"))
+        "incidentes_seguridad": str(safety_text)
     }
     
     print(f"📤 Enviando a Excel BCN: {json.dumps(payload)}")
