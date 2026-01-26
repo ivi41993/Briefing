@@ -1525,74 +1525,59 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 </div>
 
 
-<div class="widget" id="incidentes-widget">
-<h2 class="widget-title">
-<span>5) Incidentes / Seguridad BCN</span>
-</h2>
+<div class="widget vivid" id="incidentes-widget">
+  <h2 class="widget-title hero">
+    <span class="hero-ico">⚠️</span><span>5) Incidentes & Aprendizaje</span>
+    <span class="hero-badge danger">MANUAL</span>
+  </h2>
 
-<div id="incident-remember"
-class="incident-remember"
-role="textbox"
-aria-label="Recordatorio general de seguridad"
-contenteditable="true"
-data-placeholder="Escribe aquí el recordatorio general (EPIs, comunicación, registro, etc.)…">
-RECORDAR: Uso correcto de EPIs, comunicación inmediata y registro en sistema oficial.
+  <!-- BANNER RECORDATORIO (Se mantiene) -->
+  <div class="incident-remember">
+    RECORDAR: Reportar cualquier incidente inmediatamente en ENABLON.
+  </div>
+
+  <!-- PROTOCOLO (Se mantiene editable) -->
+  <details style="margin-bottom:15px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff;">
+    <summary style="font-weight:700; cursor:pointer; color:var(--text-muted);">📂 Ver Protocolo de Actuación</summary>
+    <form id="incidents-protocol-form" class="inline-form" autocomplete="off" style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;">
+      <div class="ops-item">
+        <label style="font-weight:700;">Qué hacer si algo sale mal</label>
+        <textarea id="ip-what-to-do" rows="2" placeholder="Procedimiento..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+      </div>
+      <div class="ops-item">
+        <label style="font-weight:700;">A quién informar</label>
+        <input id="ip-contacts" type="text" placeholder="Teléfonos..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+      </div>
+      <div class="meta-row">
+        <button class="btn-compact" type="submit">Guardar Protocolo</button>
+        <small id="incidents-protocol-status" class="kpi-text">—</small>
+      </div>
+    </form>
+  </details>
+
+  <!-- === NUEVO SISTEMA: ALTA MANUAL DE INCIDENTES / LECCIONES === -->
+  
+  <!-- Formulario de Alta -->
+  <form id="manual-inc-form" style="background:#fff5f5; padding:12px; border-radius:10px; border:1px dashed #fecaca; margin-bottom:15px;">
+    <div style="display:grid; grid-template-columns: 140px 1fr auto; gap:8px; margin-bottom:8px;">
+      <select id="new-inc-type" style="padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-weight:bold;">
+        <option value="incident">🔴 Incidente</option>
+        <option value="lesson">💡 Lección</option>
+      </select>
+      <input type="text" id="new-inc-title" placeholder="Título corto..." required 
+             style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+      <button type="submit" class="btn-primary" style="padding:8px 16px;">Añadir</button>
+    </div>
+    <textarea id="new-inc-desc" rows="2" placeholder="Descripción detallada o aprendizaje..." 
+              style="width:100%; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
+  </form>
+
+  <!-- Lista de Tarjetas -->
+  <div id="incidents-list-container" class="ops-list" style="max-height:400px; overflow-y:auto; padding-right:4px;">
+    <!-- Se llena con JS -->
+  </div>
 </div>
 
-
-
-
-
-<div class="incident-card-grid" aria-label="Procedimientos de incidentes">
-<div class="incident-card">
-<div class="incident-card-title">Qué hacer</div>
-<div id="incident-what"
-class="incident-card-body"
-role="textbox"
-aria-label="Qué hacer en caso de incidente"
-contenteditable="true"
-data-placeholder="Describe el procedimiento paso a paso…"></div>
-</div>
-
-<div class="incident-card">
-<div class="incident-card-title">A quién avisar</div>
-<div id="incident-who"
-class="incident-card-body"
-role="textbox"
-aria-label="A quién avisar en caso de incidente"
-contenteditable="true"
-data-placeholder="Nombres, teléfonos, radio, cadena de avisos…"></div>
-</div>
-
-<div class="incident-card">
-<div class="incident-card-title">Dónde están los equipos</div>
-<div id="incident-where"
-class="incident-card-body"
-role="textbox"
-aria-label="Dónde están los equipos de emergencia"
-contenteditable="true"
-data-placeholder="Extintores, botiquines, DESA, salidas de emergencia…"></div>
-</div>
-</div>
-
-
-<form id="incidents-pdf-form"
-style="display:flex; gap:8px; align-items:center; margin:8px 0;">
-<input type="file" id="incidents-pdf-file" accept="application/pdf" required
-style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
-<button class="btn-primary" type="submit">Subir PDF</button>
-</form>
-<small id="incidents-pdf-status" class="kpi-text">—</small>
-
-<div class="table-scroll" id="incidentes-pdf-wrap" style="display:none; margin-top:6px;">
-<table id="incidentes-pdf-table"></table>
-</div>
-
-<small id="incidentes-meta" class="kpi-text">—</small>
-<div class="table-scroll">
-<table id="incidentes-table"></table>
-</div>
-</div>
 
 <div class="widget kpi-widget" id="kpi-center">
   <h2 class="widget-title">6) KPIs Operativos & Estándares</h2>
