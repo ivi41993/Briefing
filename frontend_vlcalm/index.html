@@ -4758,14 +4758,14 @@ document.addEventListener('DOMContentLoaded', () => {
     try { reorderChecklist(); } catch(e){}
     try { initSafetyDailyWidget(); } catch(e){}
     try { updateSpotlightRouting(); } catch(e){}
-    
+    });
     console.log("Dashboard VLC inicializado correctamente.");
     setInterval(() => forceLoadFiix(), 30000);
 
 // Disparo de emergencia por si el DOM se carga tarde
 if (document.readyState === "complete" || document.readyState === "interactive") {
     forceLoadFiix();
-});
+}
 </script>
 </body>
 </html>
