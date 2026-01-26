@@ -869,7 +869,33 @@ async def _roster_watcher():
         await asyncio.sleep(max(15, ROSTER_POLL_SECONDS))
         try: await _build_roster_state(force=False)
         except: pass
-
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🚀 Iniciando VLC Dashboard...")
+    init_db()
+    load_tasks_from_disk()
+    load_incidents_from_disk()
+    load_attendance_from_disk()
+    load_roster_from_disk()
+    
+    # Workers
+    app.state._roster_task = asyncio.create_task(_roster_watcher())
+    app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
+    
+    # Heartbeat
+    async def _hb():
+        while True:
+            await asyncio.sleep(30)
+            try: await manager.broadcast({"type":"server_heartbeat","ts":datetime.utcnow().isoformat()+"Z"})
+            except: pass
+    app.state._hb = asyncio.create_task(_hb())
+    
+    yield
+    
+    print("🛑 Deteniendo VLC...")
+    app.state._hb.cancel()
+    app.state._roster_task.cancel()
+    app.state._fiix_task.cancel()
 app = FastAPI(title="VLC Dashboard", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -1169,33 +1195,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("🚀 Iniciando VLC Dashboard...")
-    init_db()
-    load_tasks_from_disk()
-    load_incidents_from_disk()
-    load_attendance_from_disk()
-    load_roster_from_disk()
-    
-    # Workers
-    app.state._roster_task = asyncio.create_task(_roster_watcher())
-    app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
-    
-    # Heartbeat
-    async def _hb():
-        while True:
-            await asyncio.sleep(30)
-            try: await manager.broadcast({"type":"server_heartbeat","ts":datetime.utcnow().isoformat()+"Z"})
-            except: pass
-    app.state._hb = asyncio.create_task(_hb())
-    
-    yield
-    
-    print("🛑 Deteniendo VLC...")
-    app.state._hb.cancel()
-    app.state._roster_task.cancel()
-    app.state._fiix_task.cancel()
+
 
 # -----------------------------------
 # Frontend VLC (Configurado para salir a la raíz)
