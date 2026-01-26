@@ -4517,12 +4517,10 @@ window.closePostBriefingMode = function() {
 // INICIALIZACIÓN PRINCIPAL (DOM READY)
 // =========================================================
 
-function forceLoadFiix() {
-    initFiixDashboard().catch(console.error);
-}
+
     
 document.addEventListener('DOMContentLoaded', () => {
-    forceLoadFiix();
+    initFiixDashboard();
     
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
