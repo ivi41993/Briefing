@@ -6397,85 +6397,162 @@ document.addEventListener('change', (e) => {
 
 /* ===================== OPS UPDATES (SOLUCIÓN UNIFICADA Y CORREGIDA) ===================== */
 (function initOpsUpdates(){
-  const LIST = document.getElementById('ops-list');
+  const LIST   = document.getElementById('ops-list');
   const DIALOG = document.getElementById('ops-dialog');
-  const FORM = document.getElementById('ops-form');
-  const BTN_ADD = document.getElementById('ops-add');
+  const FORM   = document.getElementById('ops-form');
+  const BTN_ADD= document.getElementById('ops-add');
   const BTN_SAVE = document.getElementById('ops-save');
   
-  const KEY = 'ops_manual_entries_v1'; // Clave de memoria igual que incidentes
+  // Filtros
+  const Q      = document.getElementById('ops-q');
+  const FILT_PRIO  = document.getElementById('ops-prio');
+  const FILT_SCOPE = document.getElementById('ops-scope');
+
+  // IDENTIDAD DE LA ESTACIÓN (Asegúrate de que coincida con el backend)
+  const CURRENT_STATION = (window.STATION_OVERRIDE || 'WFS1ALM').toUpperCase();
 
   if (!LIST || !DIALOG || !FORM) return;
 
-  // Cargar de memoria
-  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
-  function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
+  async function apiAction(url, method, data=null){
+    const opts = { method, headers: {} };
+    if(data){
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(data);
+    }
+    const r = await fetch(url, opts);
+    if(method === 'DELETE' && r.status === 404) return true; 
+    if(!r.ok) throw new Error(`Error ${method}`);
+    return method === 'DELETE' ? True : await r.json();
+  }
 
-  // Renderizar tarjetas
-  window.renderOpsCard = function() {
-    const items = load();
-    LIST.innerHTML = items.length ? '' : '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones para este turno.</div>';
+  // RENDERIZADOR
+  window.renderOpsCard = function(it) {
+    if(!LIST) return;
+    // Si la tarjeta que llega no es de mi estación, la ignoro (Seguridad para WebSocket)
+    if (it.station && it.station.toUpperCase() !== CURRENT_STATION) return;
+
+    const existing = document.getElementById(`ops-${it.id}`);
+    if (existing) existing.remove();
+
+    const el = document.createElement('div');
+    el.className = 'ops-item';
+    el.id = `ops-${it.id}`;
+    el.dataset.id = it.id;
     
-    items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(it => {
-        const el = document.createElement('div');
-        el.className = 'ops-item';
-        el.id = `ops-${it.id}`;
+    const impact = it.impact || 'Medio';
+    const scope = it.scope || 'General';
+    const owner = it.owner || '—';
+    const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString() : '';
+    const ackPct = Number(it.ack_pct || 0);
+
+    el.innerHTML = `
+      <div class="ops-head">
+        <div class="ops-title" style="font-weight:800;">${esc(it.title)}</div>
+        <div class="ops-flags">
+          <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
+          <span class="ops-scope">${esc(scope)}</span>
+        </div>
+      </div>
+      <div class="ops-meta" style="margin-top:5px; font-size:0.85rem; color:var(--text-muted);">
+        <span>Resp: <strong>${esc(owner)}</strong></span>
+        <span style="margin-left:auto;">${dateStr}</span>
+      </div>
+      <div class="ops-actions" style="margin-top:10px; display:flex; gap:8px;">
+        <button class="ops-btn" data-action="edit" style="font-size:0.75rem; padding:4px 8px;">Editar</button>
+        <button class="ops-btn" data-action="delete" style="color:#b91c1c; font-size:0.75rem; padding:4px 8px;">Eliminar 🗑️</button>
+      </div>
+    `;
+    
+    // Insertar arriba (más reciente primero)
+    LIST.prepend(el);
+  };
+
+  // CARGA INICIAL (Solo lo que pertenece a esta nave)
+  async function loadInitial(){
+    try {
+        // Pedimos al servidor todas las tareas de tipo ops_update
+        const items = await (await fetch('api/tasks?task_type=ops_update')).json();
         
-        el.innerHTML = `
-          <div class="ops-head">
-            <div class="ops-title">${esc(it.title)}</div>
-            <div class="ops-flags">
-              <span class="ops-impact ${esc(it.impact)}">${esc(it.impact)}</span>
-              <span class="ops-scope">${esc(it.scope)}</span>
-            </div>
-          </div>
-          <div class="ops-meta">
-            <span>Resp: ${esc(it.owner)}</span>
-            <button class="ops-btn" onclick="deleteOpsItem('${it.id}')" style="color:#b91c1c; margin-left:10px; border:none; background:none; cursor:pointer;">Eliminar 🗑️</button>
-          </div>
-        `;
-        LIST.appendChild(el);
-    });
-  };
+        LIST.innerHTML = ''; 
+        
+        // Filtro estricto: solo muestro lo que sea de mi nave
+        const filtered = items.filter(it => (it.station || '').toUpperCase() === CURRENT_STATION);
 
-  // Función global para borrar
-  window.deleteOpsItem = function(id) {
-      if(confirm("¿Eliminar esta actualización?")) {
-          const filtered = load().filter(i => i.id !== id);
-          save(filtered);
-          renderOpsCard();
-      }
-  };
+        if (filtered.length === 0) {
+            LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones para esta nave.</div>';
+            return;
+        }
+        
+        // Ordenar por fecha y renderizar
+        filtered.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(window.renderOpsCard);
+        
+    } catch(e) { console.warn('Error cargando actualizaciones iniciales', e); }
+  }
 
-  // Guardar nueva actualización
-  BTN_SAVE?.addEventListener('click', (e) => {
+  // EVENTO GUARDAR
+  BTN_SAVE?.addEventListener('click', async (e) => {
     e.preventDefault();
-    const titleVal = document.getElementById('ops-title').value.trim();
-    if (!titleVal) return alert('El título es obligatorio');
-
-    const newItem = {
-      id: "OPS-" + Date.now(),
-      title: titleVal,
+    const id = document.getElementById('ops-id').value;
+    const payload = {
+      task_type: 'ops_update',
+      title: document.getElementById('ops-title').value.trim(),
       impact: document.getElementById('ops-impact').value,
       scope: document.getElementById('ops-scope-field').value,
-      owner: document.getElementById('ops-owner').value.trim() || 'General',
-      date: new Date().toISOString()
+      owner: document.getElementById('ops-owner').value.trim(),
+      station: CURRENT_STATION // <--- CLAVE: Se guarda con la identidad de la nave
     };
 
-    const items = load();
-    items.push(newItem);
-    save(items);
+    if (!payload.title) return alert('El título es obligatorio');
     
-    DIALOG.close();
-    FORM.reset();
-    renderOpsCard();
+    try {
+        if (id) {
+            await apiAction(`api/tasks/${id}`, 'PATCH', payload);
+        } else {
+            await apiAction('api/tasks', 'POST', payload);
+        }
+        closeDialog();
+        loadInitial(); // Recargamos para asegurar orden y limpieza
+    } catch(err) { alert("Error al conectar con el servidor."); }
   });
 
-  BTN_ADD?.addEventListener('click', () => DIALOG.showModal());
-  FORM.querySelector('[value="cancel"]')?.addEventListener('click', (e) => { e.preventDefault(); DIALOG.close(); });
+  // DELEGACIÓN (EDITAR / BORRAR)
+  LIST.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const card = btn.closest('.ops-item');
+    const id = card.dataset.id;
 
-  // Carga inicial
-  renderOpsCard();
+    if (btn.dataset.action === 'delete') {
+        if(confirm('¿Borrar actualización operativa?')){
+            await apiAction(`api/tasks/${id}`, 'DELETE');
+            card.remove();
+        }
+    } else if (btn.dataset.action === 'edit') {
+        const title = card.querySelector('.ops-title').textContent;
+        const impact = card.querySelector('.ops-impact').textContent.trim();
+        const scope = card.querySelector('.ops-scope').textContent.trim();
+        const owner = card.querySelector('.ops-meta strong').textContent;
+        openDialog({id, title, impact, scope, owner});
+    }
+  });
+
+  function openDialog(d){
+    FORM.reset();
+    document.getElementById('ops-id').value = d?.id || '';
+    if(d){
+        document.getElementById('ops-title').value = d.title || '';
+        document.getElementById('ops-impact').value = d.impact || 'Medio';
+        document.getElementById('ops-scope-field').value = d.scope || 'General';
+        document.getElementById('ops-owner').value = d.owner || '';
+    }
+    DIALOG.showModal();
+  }
+  function closeDialog(){ DIALOG.close(); }
+
+  BTN_ADD?.addEventListener('click', ()=>openDialog());
+  FORM.querySelector('[value="cancel"]')?.addEventListener('click', (e)=>{ e.preventDefault(); closeDialog(); });
+
+  loadInitial();
 })();
 // ... (El código anterior de initOpsUpdates y demás se mantiene igual) ...
 
