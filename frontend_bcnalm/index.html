@@ -4200,6 +4200,75 @@ function openSupportModal() {
     document.getElementById('support-modal').showModal();
 }
 
+(function initManualIncidents() {
+    // Usamos una clave consistente para que el generador de resumen la encuentre
+    const KEY = 'safety_manual_incidents_v1'; 
+    const listEl = document.getElementById('incidents-list-container');
+    const form = document.getElementById('manual-inc-form');
+    
+    if (!listEl || !form) return;
+
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } };
+    const save = (data) => { localStorage.setItem(KEY, JSON.stringify(data)); };
+    
+    const render = () => {
+        const items = load();
+        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay incidentes registrados hoy.</div>';
+        items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+            const card = document.createElement('div');
+            const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
+            const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
+            card.className = `inc-card ${typeClass}`;
+            card.style.marginBottom = "10px";
+            card.innerHTML = `
+                <div class="inc-header">
+                    <div>
+                        <span class="inc-badge" style="font-weight:800; font-size:0.7rem; padding:2px 6px; border-radius:4px;">${badgeText}</span>
+                        <div class="inc-title" style="margin-top:4px; font-weight:700;">${esc(item.title)}</div>
+                    </div>
+                    <button type="button" class="inc-del-btn" data-id="${item.id}" style="background:none; border:none; cursor:pointer;">🗑️</button>
+                </div>
+                <div class="inc-desc" style="font-size:0.9rem; color:#4b5563; margin-top:5px; white-space:pre-wrap;">${esc(item.desc)}</div>`;
+            listEl.appendChild(card);
+        });
+    };
+
+    // FIX: Capturar el submit correctamente
+    form.addEventListener('submit', function(e) {
+        e.preventDefault(); 
+        e.stopPropagation();
+
+        const typeVal = document.getElementById('new-inc-type').value;
+        const titleVal = document.getElementById('new-inc-title').value.trim();
+        const descVal = document.getElementById('new-inc-desc').value.trim();
+
+        if (!titleVal) return;
+
+        const items = load();
+        items.push({ 
+            id: Date.now().toString(), 
+            type: typeVal, 
+            title: titleVal, 
+            desc: descVal, 
+            date: new Date().toISOString() 
+        });
+        
+        save(items);
+        form.reset();
+        render();
+        console.log("✅ Incidente guardado en memoria local");
+    });
+
+    listEl.onclick = function(e) {
+        const btn = e.target.closest('.inc-del-btn');
+        if (btn && confirm("¿Borrar registro?")) {
+            save(load().filter(i => i.id !== btn.dataset.id));
+            render();
+        }
+    };
+    render();
+})();
+    
 async function sendDashboardIssue() {
     const typeEl = document.getElementById('issue-type');
     const detailsEl = document.getElementById('issue-details');
