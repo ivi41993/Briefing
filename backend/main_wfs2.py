@@ -849,6 +849,88 @@ class FiixConnector:
             print(f"❌ [FIIX Net Error]: {e}")
             return []
 
+    async def fetch_monthly_weekly_metrics(self, weeks_back=5):
+        """Consulta historial y agrupa por semanas - Versión Blindada"""
+        # Aseguramos constantes dentro del método por si acaso
+        SITE_ID = 29449435 
+        TAG = "WFS2"
+        ID_PREVENTIVO = 531546
+        ID_URGENTE = 278571
+        
+        # 1. Calcular fecha de inicio
+        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+        tag_filter = f"%{TAG}%"
+
+        print(f"📊 [FIIX HISTORY] Buscando {weeks_back} semanas para {TAG} desde {since_date}...")
+
+        try:
+            body = {
+                "_maCn": "FindRequest", 
+                "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, intMaintenanceTypeID, intPriorityID",
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                        "parameters": [SITE_ID, since_date, tag_filter]
+                    }
+                ],
+                "maxObjects": 2000
+            }
+            
+            wos = await self._fiix_rpc(body)
+            print(f"📦 [FIIX HISTORY] {len(wos)} órdenes encontradas para procesar.")
+            
+            # --- AGRUPACIÓN ---
+            weekly_stats = {}
+
+            # Inicializamos las últimas semanas con 0 para que el gráfico no salga vacío
+            for i in range(weeks_back + 1):
+                target_date = datetime.now() - timedelta(weeks=i)
+                year, week, _ = target_date.isocalendar()
+                week_key = f"{year}-W{week:02d}"
+                weekly_stats[week_key] = {"count": 0, "cost": 0.0, "label": f"Sem. {week}"}
+
+            for wo in wos:
+                try:
+                    # Fiix devuelve milisegundos
+                    ts = wo.get("dtmDateCreated")
+                    if not ts: continue
+                    
+                    dt = datetime.fromtimestamp(ts / 1000)
+                    year, week, _ = dt.isocalendar()
+                    week_key = f"{year}-W{week:02d}"
+                    
+                    if week_key in weekly_stats:
+                        weekly_stats[week_key]["count"] += 1
+                        
+                        # Lógica de costes
+                        pid = wo.get("intPriorityID")
+                        mid = wo.get("intMaintenanceTypeID")
+                        
+                        if pid == ID_URGENTE: cost = 450.0
+                        elif mid != ID_PREVENTIVO: cost = 120.0
+                        else: cost = 35.0
+                        
+                        weekly_stats[week_key]["cost"] += cost
+                except Exception as e:
+                    continue # Si una orden está corrupta, salta a la siguiente
+
+            # Ordenar y limpiar
+            final_list = []
+            for k in sorted(weekly_stats.keys()):
+                final_list.append({
+                    "week": weekly_stats[k]["label"],
+                    "count": weekly_stats[k]["count"],
+                    "cost": round(weekly_stats[k]["cost"], 2)
+                })
+            
+            return final_list
+
+        except Exception as e:
+            print(f"❌ Error CRÍTICO en historial: {str(e)}")
+            # Devolvemos una lista vacía en lugar de explotar (evita el 500)
+            return []
+    
     async def fetch_metrics(self):
         global fiix_memory_cache
         
@@ -1003,6 +1085,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+@app.get("/api/fiix/history")
+async def get_fiix_history():
+    try:
+        connector = FiixConnector()
+        history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
+        return history
+    except Exception as e:
+        # Esto captura el error antes de que Render mande el "Internal Server Error"
+        print(f"💥 Error en Endpoint History: {e}")
+        return [] # Devuelve array vacío para que el JS no pete
+    
 @app.get("/api/fiix/current")
 async def get_fiix_current():
     global fiix_memory_cache
