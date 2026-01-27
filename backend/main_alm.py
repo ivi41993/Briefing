@@ -3454,6 +3454,44 @@ class DashboardIssue(BaseModel):
     tipo_fallo: str
     detalles: str
 
+# 1. Almacén de datos global
+fiix_memory_cache = {}
+fiix_worker_started = False # Bandera para no duplicar procesos
+
+@app.get("/api/fiix/current")
+async def get_fiix_current():
+    global fiix_worker_started
+    # Si el proceso automático no ha arrancado, lo lanzamos ahora mismo
+    if not fiix_worker_started:
+        asyncio.create_task(fiix_auto_worker())
+        fiix_worker_started = True
+    
+    return fiix_memory_cache
+
+# --- EL WORKER QUE REALMENTE FUNCIONA ---
+async def fiix_auto_worker():
+    connector = FiixConnector()
+    print("🚀 [FIIX] Proceso automático despertado por actividad en el Dashboard")
+    while True:
+        try:
+            await connector.fetch_metrics()
+        except Exception as e:
+            print(f"❌ [FIIX worker] Error: {e}")
+        
+        # Actualiza cada 10 minutos
+        await asyncio.sleep(600)
+        
+@app.get("/api/fiix/history")
+async def get_fiix_history():
+    try:
+        connector = FiixConnector()
+        history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
+        return history
+    except Exception as e:
+        # Esto captura el error antes de que Render mande el "Internal Server Error"
+        print(f"💥 Error en Endpoint History: {e}")
+        return [] # Devuelve array vacío para que el JS no pete
+
 @app.post("/api/incidents/protocol")
 def post_protocol_dummy(payload: dict):
     # Endpoint dummy para guardar protocolo
