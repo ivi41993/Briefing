@@ -32,6 +32,8 @@ from pydantic import BaseModel, Field
 # --- PEGA ESTO EN SU LUGAR ---
 import sys
 import os
+from datetime import datetime, timedelta, date
+import time
 
 # Truco: Añadimos la carpeta donde está este archivo (backend) al sistema de búsqueda de Python
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -2939,13 +2941,18 @@ class FiixConnector:
             return []
 
     async def fetch_monthly_weekly_metrics(self, weeks_back=5):
-        """Consulta órdenes del último mes y las agrupa por semanas"""
+        """Consulta historial y agrupa por semanas - Versión Blindada"""
+        # Aseguramos constantes dentro del método por si acaso
+        SITE_ID = FIIX_SITE_ID 
+        TAG = TAG_NAVE
         ID_PREVENTIVO = 531546
         ID_URGENTE = 278571
         
-        # Retrocedemos unas 5 semanas para cubrir el mes completo con margen
+        # 1. Calcular fecha de inicio
         since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
-        tag_filter = f"%{TAG_NAVE}%"
+        tag_filter = f"%{TAG}%"
+
+        print(f"📊 [FIIX HISTORY] Buscando {weeks_back} semanas para {TAG} desde {since_date}...")
 
         try:
             body = {
@@ -2955,54 +2962,64 @@ class FiixConnector:
                 "filters": [
                     {
                         "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                        "parameters": [FIIX_SITE_ID, since_date, tag_filter]
+                        "parameters": [SITE_ID, since_date, tag_filter]
                     }
                 ],
                 "maxObjects": 2000
             }
             
             wos = await self._fiix_rpc(body)
+            print(f"📦 [FIIX HISTORY] {len(wos)} órdenes encontradas para procesar.")
             
-            # --- AGRUPACIÓN POR SEMANAS ---
+            # --- AGRUPACIÓN ---
             weekly_stats = {}
+
+            # Inicializamos las últimas semanas con 0 para que el gráfico no salga vacío
+            for i in range(weeks_back + 1):
+                target_date = datetime.now() - timedelta(weeks=i)
+                year, week, _ = target_date.isocalendar()
+                week_key = f"{year}-W{week:02d}"
+                weekly_stats[week_key] = {"count": 0, "cost": 0.0, "label": f"Sem. {week}"}
 
             for wo in wos:
                 try:
-                    # Convertir timestamp a objeto datetime
-                    dt = datetime.fromtimestamp(wo["dtmDateCreated"] / 1000)
-                    # Creamos una etiqueta: "Semana XX (Año)"
+                    # Fiix devuelve milisegundos
+                    ts = wo.get("dtmDateCreated")
+                    if not ts: continue
+                    
+                    dt = datetime.fromtimestamp(ts / 1000)
                     year, week, _ = dt.isocalendar()
                     week_key = f"{year}-W{week:02d}"
                     
-                    if week_key not in weekly_stats:
-                        weekly_stats[week_key] = {"count": 0, "cost": 0.0, "label": f"Sem. {week}"}
-                    
-                    weekly_stats[week_key]["count"] += 1
-                    
-                    # Lógica de costes WFS
-                    pid = wo.get("intPriorityID")
-                    mid = wo.get("intMaintenanceTypeID")
-                    if pid == ID_URGENTE: cost = 450.0
-                    elif mid != ID_PREVENTIVO: cost = 120.0
-                    else: cost = 35.0
-                    
-                    weekly_stats[week_key]["cost"] += cost
-                except: continue
+                    if week_key in weekly_stats:
+                        weekly_stats[week_key]["count"] += 1
+                        
+                        # Lógica de costes
+                        pid = wo.get("intPriorityID")
+                        mid = wo.get("intMaintenanceTypeID")
+                        
+                        if pid == ID_URGENTE: cost = 450.0
+                        elif mid != ID_PREVENTIVO: cost = 120.0
+                        else: cost = 35.0
+                        
+                        weekly_stats[week_key]["cost"] += cost
+                except Exception as e:
+                    continue # Si una orden está corrupta, salta a la siguiente
 
-            # Ordenar por clave de año-semana y devolver lista
-            sorted_weeks = [
-                {
+            # Ordenar y limpiar
+            final_list = []
+            for k in sorted(weekly_stats.keys()):
+                final_list.append({
                     "week": weekly_stats[k]["label"],
                     "count": weekly_stats[k]["count"],
                     "cost": round(weekly_stats[k]["cost"], 2)
-                }
-                for k in sorted(weekly_stats.keys())
-            ]
+                })
             
-            return sorted_weeks
+            return final_list
 
         except Exception as e:
-            print(f"❌ Error historial mensual {TAG_NAVE}: {e}")
+            print(f"❌ Error CRÍTICO en historial: {str(e)}")
+            # Devolvemos una lista vacía en lugar de explotar (evita el 500)
             return []
     
     async def fetch_metrics(self):
@@ -3434,10 +3451,14 @@ async def fiix_auto_worker():
         
 @app.get("/api/fiix/history")
 async def get_fiix_history():
-    connector = FiixConnector()
-    # Pedimos las últimas 5 semanas para tener el mes completo
-    history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
-    return history
+    try:
+        connector = FiixConnector()
+        history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
+        return history
+    except Exception as e:
+        # Esto captura el error antes de que Render mande el "Internal Server Error"
+        print(f"💥 Error en Endpoint History: {e}")
+        return [] # Devuelve array vacío para que el JS no pete
 
 @app.get("/api/fiix-debug")
 async def fiix_debug():
@@ -5098,6 +5119,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
