@@ -3565,7 +3565,8 @@ shift: TEAM_STATE?.shift || null
 console.error('PUT /api/roster/zone falló', e);
 }
 }
-  
+
+let weeklyFiixChart = null;
 async function renderFiixWeeklyHistory() {
     try {
         const res = await fetch('api/fiix/history');
