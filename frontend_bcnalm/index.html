@@ -1236,6 +1236,8 @@ pointer-events: none;
 /* Bordes laterales para Almacén */
 
 </style>
+    <!-- Importar la librería de gráficos Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <div class="top-bar" role="banner">
@@ -1622,11 +1624,7 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
     </div>
 
     <!-- COSTE PROYECTADO -->
-    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
-        <div class="kpi-label" style="color:#991b1b">Coste Proyectado</div>
-        <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">--</span>€</div>
-        <small class="kpi-text">Impacto Averías (24h)</small>
-    </div>
+    
 
     <!-- MTTR / TIEMPO RESPUESTA -->
     <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
@@ -1635,7 +1633,18 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
         <small class="kpi-text">Tiempo medio respuesta</small>
     </div>
   </div>
-
+<!-- ... debajo de la fila de las 3 tarjetas de Fiix ... -->
+<div class="kpi-grid" style="margin-top: 15px;">
+    <!-- Este contenedor ocupa el espacio de las 3 tarjetas juntas -->
+    <div class="widget vivid" style="grid-column: 1 / -1; border-top: 3px solid var(--vivid-blue); margin: 0; box-shadow: none; background: #fafafa;">
+        <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
+            📈 Histórico de Averías por Semana
+        </h3>
+        <div style="height: 200px;">
+            <canvas id="fiixWeeklyChart"></canvas>
+        </div>
+    </div>
+</div>
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
 
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
