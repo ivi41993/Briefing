@@ -6830,7 +6830,8 @@ async function renderFiixWeeklyHistory() {
         console.error("Error cargando histórico semanal:", e);
     }
 }
-  
+
+document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
 // 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
 // 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
 (function initAutoShiftChange(){
