@@ -981,6 +981,17 @@ app = FastAPI(title="VLC Dashboard", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+@app.get("/api/fiix/history")
+async def get_fiix_history():
+    try:
+        connector = FiixConnector()
+        history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
+        return history
+    except Exception as e:
+        # Esto captura el error antes de que Render mande el "Internal Server Error"
+        print(f"💥 Error en Endpoint History: {e}")
+        return [] # Devuelve array vacío para que el JS no pete
+
 @app.get("/api/fiix/current")
 async def get_fiix_current():
     global fiix_memory_cache
