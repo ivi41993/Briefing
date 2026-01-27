@@ -4169,54 +4169,7 @@ async function initFiixDashboard() {
     }
 }
 
-let weeklyFiixChart = null;
 
-async function renderFiixWeeklyHistory() {
-    try {
-        const res = await fetch('api/fiix/history');
-        const data = await res.json();
-
-        const ctx = document.getElementById('fiixWeeklyChart').getContext('2d');
-        if (weeklyFiixChart) weeklyFiixChart.destroy();
-
-        weeklyFiixChart = new Chart(ctx, {
-            type: 'bar', // Cambiado a barras para que se vea mejor el volumen
-            data: {
-                labels: data.map(d => d.week),
-                datasets: [
-                    {
-                        label: 'Número de Incidencias',
-                        data: data.map(d => d.count),
-                        backgroundColor: 'rgba(59, 130, 246, 0.7)', // Azul Vivid
-                        borderColor: '#3b82f6',
-                        borderWidth: 1,
-                        borderRadius: 6, // Esquinas redondeadas para estilo moderno
-                        barPercentage: 0.6 // Barras un poco más delgadas y elegantes
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false } // Ocultamos leyenda porque solo hay un dato
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: { display: true, text: 'Cant. Averías', font: { weight: 'bold' } },
-                        ticks: { stepSize: 1 } // Solo números enteros (no hay media avería)
-                    },
-                    x: {
-                        grid: { display: false } // Limpiamos el fondo del gráfico
-                    }
-                }
-            }
-        });
-    } catch (e) {
-        console.error("Error cargando histórico semanal:", e);
-    }
-}
     
 (function initManualIncidents() {
     // Usamos una clave consistente para que el generador de resumen la encuentre
