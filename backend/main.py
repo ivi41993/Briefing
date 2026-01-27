@@ -2943,8 +2943,8 @@ class FiixConnector:
     async def fetch_monthly_weekly_metrics(self, weeks_back=5):
         """Consulta historial y agrupa por semanas - Versión Blindada"""
         # Aseguramos constantes dentro del método por si acaso
-        SITE_ID = FIIX_SITE_ID 
-        TAG = TAG_NAVE
+        SITE_ID = 29449435 
+        TAG = "WFS4"
         ID_PREVENTIVO = 531546
         ID_URGENTE = 278571
         
@@ -5119,6 +5119,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
