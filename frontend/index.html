@@ -2773,11 +2773,15 @@ body.card-open #timer-reset {
     </div>
 
     <!-- COSTE DE LAS AVERÍAS ACTUALES -->
-    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
-        <div class="kpi-label" style="color:#991b1b">Coste Daños Activos</div>
-        <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">0.00</span>€</div>
-        <small class="kpi-text">Impacto económico actual</small>
+    <div class="widget vivid" style="margin-top: 20px; border-top: 4px solid var(--vivid-blue);">
+    <h2 class="widget-title">
+        <span>📊 Evolución Mensual de Mantenimiento</span>
+        <span class="hero-badge">VISTA SEMANAL</span>
+    </h2>
+    <div style="height: 250px; padding: 10px;">
+        <canvas id="fiixWeeklyChart"></canvas>
     </div>
+</div>
 
     <!-- VELOCIDAD DE REPARACIÓN -->
     <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
@@ -6328,7 +6332,74 @@ document.addEventListener('change', (e) => {
 });
 
 /* ========= OPS ultra-simple: CRUD local + render inmediato ========= */
+let weeklyFiixChart = null;
 
+async function renderFiixWeeklyHistory() {
+    try {
+        const res = await fetch('api/fiix/history');
+        const data = await res.json();
+
+        const ctx = document.getElementById('fiixWeeklyChart').getContext('2d');
+        if (weeklyFiixChart) weeklyFiixChart.destroy();
+
+        weeklyFiixChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.map(d => d.week),
+                datasets: [
+                    {
+                        label: 'Euros Acumulados (€)',
+                        data: data.map(d => d.cost),
+                        type: 'line',
+                        borderColor: '#dc2626', // Rojo marca
+                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: 'yCost',
+                        borderWidth: 3,
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Número de Incidencias',
+                        data: data.map(d => d.count),
+                        backgroundColor: 'rgba(59, 130, 246, 0.5)', // Azul traslúcido
+                        borderColor: '#3b82f6',
+                        borderWidth: 1,
+                        yAxisID: 'yCount',
+                        borderRadius: 5
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { family: 'Inter', weight: '600' } } }
+                },
+                scales: {
+                    yCost: {
+                        type: 'linear',
+                        position: 'left',
+                        title: { display: true, text: 'Coste (€)', font: { weight: 'bold' } },
+                        ticks: { callback: value => value + '€' }
+                    },
+                    yCount: {
+                        type: 'linear',
+                        position: 'right',
+                        title: { display: true, text: 'Nº Incidencias', font: { weight: 'bold' } },
+                        grid: { drawOnChartArea: false }, // Evita que las líneas se crucen
+                        ticks: { stepSize: 1 }
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        console.error("Error cargando histórico semanal:", e);
+    }
+}
+
+// Ejecutar al cargar
+document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
 
 /* ===================== OPS UPDATES (SOLUCIÓN UNIFICADA Y CORREGIDA) ===================== */
 (function initOpsUpdates(){
@@ -7166,6 +7237,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
