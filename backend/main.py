@@ -2938,6 +2938,73 @@ class FiixConnector:
             print(f"❌ Fiix Exception: {e}")
             return []
 
+    async def fetch_monthly_weekly_metrics(self, weeks_back=5):
+        """Consulta órdenes del último mes y las agrupa por semanas"""
+        ID_PREVENTIVO = 531546
+        ID_URGENTE = 278571
+        
+        # Retrocedemos unas 5 semanas para cubrir el mes completo con margen
+        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+        tag_filter = f"%{TAG_NAVE}%"
+
+        try:
+            body = {
+                "_maCn": "FindRequest", 
+                "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, intMaintenanceTypeID, intPriorityID",
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                        "parameters": [FIIX_SITE_ID, since_date, tag_filter]
+                    }
+                ],
+                "maxObjects": 2000
+            }
+            
+            wos = await self._fiix_rpc(body)
+            
+            # --- AGRUPACIÓN POR SEMANAS ---
+            weekly_stats = {}
+
+            for wo in wos:
+                try:
+                    # Convertir timestamp a objeto datetime
+                    dt = datetime.fromtimestamp(wo["dtmDateCreated"] / 1000)
+                    # Creamos una etiqueta: "Semana XX (Año)"
+                    year, week, _ = dt.isocalendar()
+                    week_key = f"{year}-W{week:02d}"
+                    
+                    if week_key not in weekly_stats:
+                        weekly_stats[week_key] = {"count": 0, "cost": 0.0, "label": f"Sem. {week}"}
+                    
+                    weekly_stats[week_key]["count"] += 1
+                    
+                    # Lógica de costes WFS
+                    pid = wo.get("intPriorityID")
+                    mid = wo.get("intMaintenanceTypeID")
+                    if pid == ID_URGENTE: cost = 450.0
+                    elif mid != ID_PREVENTIVO: cost = 120.0
+                    else: cost = 35.0
+                    
+                    weekly_stats[week_key]["cost"] += cost
+                except: continue
+
+            # Ordenar por clave de año-semana y devolver lista
+            sorted_weeks = [
+                {
+                    "week": weekly_stats[k]["label"],
+                    "count": weekly_stats[k]["count"],
+                    "cost": round(weekly_stats[k]["cost"], 2)
+                }
+                for k in sorted(weekly_stats.keys())
+            ]
+            
+            return sorted_weeks
+
+        except Exception as e:
+            print(f"❌ Error historial mensual {TAG_NAVE}: {e}")
+            return []
+    
     async def fetch_metrics(self):
         global fiix_memory_cache
         # IDs confirmados en tu inspección
@@ -3365,6 +3432,13 @@ async def fiix_auto_worker():
         # Actualiza cada 10 minutos
         await asyncio.sleep(600)
         
+@app.get("/api/fiix/history")
+async def get_fiix_history():
+    connector = FiixConnector()
+    # Pedimos las últimas 5 semanas para tener el mes completo
+    history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
+    return history
+
 @app.get("/api/fiix-debug")
 async def fiix_debug():
     """
@@ -5024,6 +5098,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
