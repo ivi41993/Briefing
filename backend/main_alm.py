@@ -3411,6 +3411,8 @@ async def lifespan(app: FastAPI):
 
     # 👇 NUEVO: heartbeat WS
     app.state._hb = asyncio.create_task(_ws_heartbeat(30))
+    # Lanzamos el proceso de Fiix como una tarea de fondo
+    app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
 
     print("🚀 Sistema iniciado correctamente")
     yield
