@@ -2628,7 +2628,378 @@ def load_roster_from_disk():
 
 
 
+import os
+import time
+import hmac
+import base64
+import hashlib
+import uuid
+import json
+from datetime import datetime
+from typing import Any, List
 
+import httpx
+
+fiix_memory_cache = {
+    "fiix_wfs4_availability": 100,
+    "fiix_wfs4_damage_cost": 0.0,
+    "fiix_wfs4_mttr": 0.0,
+    "fiix_wfs4_broken_count": 0
+}
+
+class FiixConnector:
+    def __init__(self):
+        # .strip() es vital para evitar que un espacio al final del .env rompa la firma
+        self.host = os.getenv("FIIX_HOST", "").strip()
+        self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
+        self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
+        self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        
+        self.client = httpx.AsyncClient(timeout=30.0)
+        self.base_url = f"https://{self.host}/api/"
+
+    def _build_auth(self) -> tuple[dict, dict]:
+        ts_ms = int(time.time() * 1000)
+        # Los nombres de las llaves deben ser EXACTAMENTE estos (camelCase)
+        auth_params = {
+            "accessKey": self.access_key,
+            "appKey": self.app_key,
+            "signatureMethod": "HmacSHA256",
+            "signatureVersion": "1",
+            "timestamp": str(ts_ms),
+        }
+        
+        # 1. Ordenar parámetros alfabéticamente
+        sorted_keys = sorted(auth_params.keys())
+        query_string = "&".join([f"{k}={auth_params[k]}" for k in sorted_keys])
+        
+        # 2. La firma se hace sobre: host + /api/? + query_string
+        # IMPORTANTE: El '/' antes del '?' es crítico en Fiix
+        signature_base = f"{self.host}/api/?{query_string}"
+        
+        signature = hmac.new(
+            self.secret_key.encode("utf-8"),
+            signature_base.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest().lower()
+        
+        return auth_params, {"Content-Type": "application/json", "Authorization": signature}
+
+    async def _fiix_rpc(self, body: dict) -> list:
+        auth_params, headers = self._build_auth()
+        
+        # Añadir versión del cliente al cuerpo (Evita el error 1010 en algunos tenants)
+        body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
+
+        try:
+            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
+            
+            if resp.status_code != 200:
+                print(f"❌ Error HTTP {resp.status_code}: {resp.text}")
+                return []
+
+            res_json = resp.json()
+            
+            # Si Fiix devuelve un error interno en el JSON
+            if "error" in res_json:
+                print(f"❌ Fiix API Error: {res_json['error'].get('message')}")
+                return []
+
+            return res_json.get("objects") or res_json.get("object") or []
+        except Exception as e:
+            print(f"❌ Fiix Exception: {e}")
+            return []
+
+    async def fetch_monthly_weekly_metrics(self, weeks_back=5):
+        """Consulta historial y agrupa por semanas - Versión Blindada"""
+        # Aseguramos constantes dentro del método por si acaso
+        SITE_ID = 29449435 
+        TAG = "WFS4"
+        ID_PREVENTIVO = 531546
+        ID_URGENTE = 278571
+        
+        # 1. Calcular fecha de inicio
+        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+        tag_filter = f"%{TAG}%"
+
+        print(f"📊 [FIIX HISTORY] Buscando {weeks_back} semanas para {TAG} desde {since_date}...")
+
+        try:
+            body = {
+                "_maCn": "FindRequest", 
+                "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, intMaintenanceTypeID, intPriorityID",
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                        "parameters": [SITE_ID, since_date, tag_filter]
+                    }
+                ],
+                "maxObjects": 2000
+            }
+            
+            wos = await self._fiix_rpc(body)
+            print(f"📦 [FIIX HISTORY] {len(wos)} órdenes encontradas para procesar.")
+            
+            # --- AGRUPACIÓN ---
+            weekly_stats = {}
+
+            # Inicializamos las últimas semanas con 0 para que el gráfico no salga vacío
+            for i in range(weeks_back + 1):
+                target_date = datetime.now() - timedelta(weeks=i)
+                year, week, _ = target_date.isocalendar()
+                week_key = f"{year}-W{week:02d}"
+                weekly_stats[week_key] = {"count": 0, "cost": 0.0, "label": f"Sem. {week}"}
+
+            for wo in wos:
+                try:
+                    # Fiix devuelve milisegundos
+                    ts = wo.get("dtmDateCreated")
+                    if not ts: continue
+                    
+                    dt = datetime.fromtimestamp(ts / 1000)
+                    year, week, _ = dt.isocalendar()
+                    week_key = f"{year}-W{week:02d}"
+                    
+                    if week_key in weekly_stats:
+                        weekly_stats[week_key]["count"] += 1
+                        
+                        # Lógica de costes
+                        pid = wo.get("intPriorityID")
+                        mid = wo.get("intMaintenanceTypeID")
+                        
+                        if pid == ID_URGENTE: cost = 450.0
+                        elif mid != ID_PREVENTIVO: cost = 120.0
+                        else: cost = 35.0
+                        
+                        weekly_stats[week_key]["cost"] += cost
+                except Exception as e:
+                    continue # Si una orden está corrupta, salta a la siguiente
+
+            # Ordenar y limpiar
+            final_list = []
+            for k in sorted(weekly_stats.keys()):
+                final_list.append({
+                    "week": weekly_stats[k]["label"],
+                    "count": weekly_stats[k]["count"],
+                    "cost": round(weekly_stats[k]["cost"], 2)
+                })
+            
+            return final_list
+
+        except Exception as e:
+            print(f"❌ Error CRÍTICO en historial: {str(e)}")
+            # Devolvemos una lista vacía en lugar de explotar (evita el 500)
+            return []
+    
+    async def fetch_metrics(self):
+        global fiix_memory_cache
+        # IDs confirmados en tu inspección
+        SITE_ID = 29449435
+        TAG_NAVE = "WFS4"
+        ID_PREVENTIVO = 531546
+        ID_URGENTE = 278571
+        
+        now = datetime.now()
+        yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            # --- A. ACTIVOS (Disponibilidad) ---
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode",
+                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID]}],
+                "maxObjects": 1000
+            }
+            assets_res = await self._fiix_rpc(body_assets)
+            assets_n4 = [a for a in assets_res if f"-{TAG_NAVE}-" in str(a.get("strCode", ""))]
+            
+            broken = sum(1 for a in assets_n4 if a.get("bolIsOnline") == 0)
+            avail = round(((len(assets_n4) - broken) / len(assets_n4)) * 100) if assets_n4 else 100
+
+            # --- B. ÓRDENES (Costes y Tiempos) ---
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, dtmDateCompleted, intMaintenanceTypeID, intPriorityID, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCompleted >= ? AND strAssets LIKE ?", 
+                             "parameters": [SITE_ID, yesterday_str, f"%{TAG_NAVE}%"]}]
+            }
+            wos_res = await self._fiix_rpc(body_wo)
+            
+            cost = 0.0
+            total_dt = 0
+            for wo in wos_res:
+                # Coste (Reseteado a 0 en cada vuelta, evita acumulativo)
+                if wo.get("intPriorityID") == ID_URGENTE: cost += 450.0
+                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: cost += 120.0
+                else: cost += 35.0
+                # Tiempo
+                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
+                    total_dt += (wo["dtmDateCompleted"] - wo["dtmDateCreated"]) / (1000 * 60)
+
+            mttr = round((total_dt / len(wos_res)) / 60, 1) if wos_res else 0
+
+            # 3. ACTUALIZAR CACHÉ GLOBAL
+            fiix_memory_cache = {
+                "fiix_wfs4_availability": avail,
+                "fiix_wfs4_damage_cost": round(cost, 2),
+                "fiix_wfs4_mttr": mttr,
+                "fiix_wfs4_broken_count": broken
+            }
+
+            # 4. BROADCAST INMEDIATO
+            ts = datetime.utcnow().isoformat() + "Z"
+            for m, v in fiix_memory_cache.items():
+                await manager.broadcast({
+                    "type": "kpi_update", "metric": m, "value": v, 
+                    "timestamp": ts, "station": "MAD"
+                })
+            print(f"✅ [FIIX] Auto-sincronización exitosa: {avail}% disp.")
+
+        except Exception as e:
+            print(f"❌ [FIIX] Error en worker: {e}")
+            
+    
+
+
+    # --- 1. AÑADE ESTE MÉTODO DENTRO DE LA CLASE FiixConnector ---
+    async def get_full_schema(self, class_name: str):
+        """Inspecciona todos los campos de una tabla y los imprime en la terminal"""
+        print(f"\n🔍 [FIIX INSPECTOR] Analizando tabla: {class_name}...")
+        
+        body = {
+            "_maCn": "FindRequest",
+            "className": class_name,
+            "fields": "*", # Traer todas las columnas
+            "maxObjects": 1,
+            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
+        }
+        
+        results = await self._fiix_rpc(body)
+        
+        if results:
+            sample = results[0]
+            keys = sorted(list(sample.keys()))
+            print(f"✅ TABLA {class_name} LOCALIZADA")
+            print(f"📋 CAMPOS DISPONIBLES ({len(keys)}):")
+            print(f"   {', '.join(keys)}")
+            print(f"📄 EJEMPLO DE DATOS REALES (Primer registro):")
+            print(json.dumps(sample, indent=4))
+        else:
+            print(f"⚠️ La tabla {class_name} no devolvió datos o no tienes permiso.")
+    
+    async def discover_full_hierarchy(self):
+        """Mapea la estructura completa: Edificios > Áreas > Equipos"""
+        SITE_ID_MADRID = 29449435
+        
+        print("\n" + "═"*60)
+        print("🏗️  GENERANDO MAPA ESTRUCTURAL DE MADRID")
+        print("═"*60)
+
+        # 1. Traemos TODOS los activos de Madrid para procesarlos en memoria (es más rápido)
+        body = {
+            "_maCn": "FindRequest",
+            "className": "Asset",
+            "fields": "id, strName, strCode, intKind, intAssetLocationID",
+            "maxObjects": 5000 
+        }
+        
+        all_assets = await self._fiix_rpc(body)
+        
+        if not all_assets:
+            print("❌ No se pudieron recuperar activos.")
+            return
+
+        # 2. Organizamos por "Padre"
+        # Usamos un diccionario donde la llave es el ID del padre y el valor es una lista de hijos
+        tree = {}
+        for a in all_assets:
+            parent = a.get("intAssetLocationID", 0) or 0
+            if parent not in tree:
+                tree[parent] = []
+            tree[parent].append(a)
+
+        # 3. Función recursiva para imprimir el árbol en la terminal
+        def print_level(parent_id, level=0):
+            if parent_id not in tree:
+                return
+            
+            # Ordenar: primero carpetas/edificios (Kind 1), luego máquinas (Kind 2)
+            sorted_items = sorted(tree[parent_id], key=lambda x: x.get("intKind", 1))
+            
+            for item in sorted_items:
+                indent = "  " * level
+                icon = "🏢" if item.get("intKind") == 1 else "⚙️ "
+                # Si es un edificio (Kind 1), resaltamos el texto
+                prefix = ">> " if item.get("intKind") == 1 else ""
+                
+                print(f"{indent}{icon} {prefix}{item.get('strName')} [ID: {item.get('id')}] (Código: {item.get('strCode')})")
+                
+                # Llamada recursiva para bajar al siguiente nivel
+                print_level(item.get("id"), level + 1)
+
+        # 4. Empezamos a imprimir desde la raíz (padre = 0 o el nodo de España/Madrid)
+        # Buscamos el nodo raíz de Madrid (el que no tiene padre o cuyo nombre es CGO - Madrid)
+        roots = [a for a in all_assets if "MADRID" in str(a.get("strName")).upper() and a.get("intAssetLocationID") is None]
+        
+        if not roots:
+            # Si no detecta raíz, imprimimos todo lo que cuelga de 0
+            print_level(0)
+        else:
+            for r in roots:
+                print_level(r['id'])
+
+        print("═"*60 + "\n")
+
+
+    async def wfs4_cost_deep_dive(self):
+        """Busca órdenes cerradas de WFS4 e inspecciona cada rincón en busca de costes"""
+        SITE_ID = 29449435
+        TAG_NAVE = "WFS4"
+        
+        print("\n" + "🔍" * 20)
+        print("🕵️  INICIANDO AUDITORÍA DE COSTES NAVE 4")
+        print("🔍" * 20)
+
+        # 1. Buscamos las últimas 3 órdenes COMPLETADAS de la Nave 4
+        # Las órdenes completadas son las únicas que tienen costes grabados
+        body = {
+            "_maCn": "FindRequest",
+            "className": "WorkOrder",
+            "fields": "*", # Traemos TODO
+            "filters": [
+                {
+                    "ql": "intSiteID = ? AND dtmDateCompleted IS NOT NULL AND strAssets LIKE ?", 
+                    "parameters": [SITE_ID, f"%{TAG_NAVE}%"]
+                }
+            ],
+            "maxObjects": 3,
+            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
+        }
+
+        results = await self._fiix_rpc(body)
+
+        if not results:
+            print("⚠️ No se encontraron órdenes cerradas en WFS4 para inspeccionar.")
+            return
+
+        for i, wo in enumerate(results):
+            print(f"\n📦 ANÁLISIS DE ORDEN CERRADA #{i+1} (Código: {wo.get('strCode')})")
+            print("-" * 40)
+            
+            # Buscamos campos que contengan números (posibles costes)
+            # Filtramos los campos que empiezan por 'dbl' (Double/Decimal) o 'int' (Integer)
+            for key, value in wo.items():
+                # Si el campo tiene valor y parece ser de dinero o mediciones
+                if value and (key.startswith("dbl") or key.startswith("cf_") or "cost" in key.lower()):
+                    print(f"💰 POSIBLE CAMPO DE COSTE -> {key}: {value}")
+            
+            print("\n📄 DUMP COMPLETO DE ESTA ORDEN (Copia esto para analizar):")
+            print(json.dumps(wo, indent=4))
+            print("-" * 40)
+
+FIIX_POLL_SECONDS = int(os.getenv("FIIX_POLL_SECONDS", "300")) 
+FIIX_CYCLE_SECONDS = 4 * 3600    
 
 
 
