@@ -1121,7 +1121,16 @@ async def _build_roster_state(force=False) -> dict:
     })
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
-
+@app.get("/api/fiix/history")
+async def get_fiix_history():
+    try:
+        connector = FiixConnector()
+        history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
+        return history
+    except Exception as e:
+        # Esto captura el error antes de que Render mande el "Internal Server Error"
+        print(f"💥 Error en Endpoint History: {e}")
+        return [] # Devuelve array vacío para que el JS no pete
 
 @app.get("/api/roster/current")
 async def get_roster_current():
