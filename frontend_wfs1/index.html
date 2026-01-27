@@ -2325,6 +2325,7 @@ body.card-open #timer-reset {
 .btn-tiny:hover { background: #f3f4f6; }
 .btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -2735,11 +2736,7 @@ body.card-open #timer-reset {
     </div>
 
     <!-- COSTE PROYECTADO -->
-    <div class="kpi-tile" id="tile-fiix-damage" style="border-left: 6px solid #dc2626; background: #fef2f2;">
-        <div class="kpi-label" style="color:#991b1b">Coste Proyectado</div>
-        <div class="kpi-value" style="color:#dc2626"><span id="fiix-damage-cost">--</span>€</div>
-        <small class="kpi-text">Averías Activas</small>
-    </div>
+   
 
     <!-- MTTR (Tiempo medio reparación) -->
     <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
@@ -2748,6 +2745,17 @@ body.card-open #timer-reset {
         <small class="kpi-text">Tiempo respuesta</small>
     </div>
   </div>
+  <div class="kpi-grid" style="margin-top: 15px;">
+    <!-- Este contenedor ocupa el espacio de las 3 tarjetas juntas -->
+    <div class="widget vivid" style="grid-column: 1 / -1; border-top: 3px solid var(--vivid-blue); margin: 0; box-shadow: none; background: #fafafa;">
+        <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
+            📈 Histórico de Averías por Semana
+        </h3>
+        <div style="height: 200px;">
+            <canvas id="fiixWeeklyChart"></canvas>
+        </div>
+    </div>
+</div>
 
   <!-- SEPARADOR -->
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
@@ -6774,6 +6782,55 @@ window.closePostBriefingMode = function() {
     });
 })();
 
+let weeklyFiixChart = null;
+
+async function renderFiixWeeklyHistory() {
+    try {
+        const res = await fetch('api/fiix/history');
+        const data = await res.json();
+
+        const ctx = document.getElementById('fiixWeeklyChart').getContext('2d');
+        if (weeklyFiixChart) weeklyFiixChart.destroy();
+
+        weeklyFiixChart = new Chart(ctx, {
+            type: 'bar', // Cambiado a barras para que se vea mejor el volumen
+            data: {
+                labels: data.map(d => d.week),
+                datasets: [
+                    {
+                        label: 'Número de Incidencias',
+                        data: data.map(d => d.count),
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)', // Azul Vivid
+                        borderColor: '#3b82f6',
+                        borderWidth: 1,
+                        borderRadius: 6, // Esquinas redondeadas para estilo moderno
+                        barPercentage: 0.6 // Barras un poco más delgadas y elegantes
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false } // Ocultamos leyenda porque solo hay un dato
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Cant. Averías', font: { weight: 'bold' } },
+                        ticks: { stepSize: 1 } // Solo números enteros (no hay media avería)
+                    },
+                    x: {
+                        grid: { display: false } // Limpiamos el fondo del gráfico
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        console.error("Error cargando histórico semanal:", e);
+    }
+}
+  
 // 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
 // 2. DETECCIÓN AUTOMÁTICA DE CAMBIO DE TURNO
 (function initAutoShiftChange(){
