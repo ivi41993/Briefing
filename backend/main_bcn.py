@@ -2007,143 +2007,86 @@ class FiixConnector:
 
     
     
-    async def fetch_metrics_vlc(self): # Ejemplo para VLC, replicar cambiando nombres de claves
+    
+    
+    
+    async def fetch_metrics(self):
         global fiix_memory_cache
-        # Configuración de filtrado
-        SITE_ID = FIIX_SITE_ID
+        # Configuración BCN
+        SITE_ID = 30480896 
         TAG = "BCN"
-        # Palabras clave para identificar equipo CRÍTICO
-        KEYWORDS_CARRETILLAS = ["CARRETILLA", "TORO", "FLT", "TRANSPALETA", "FENWICK", "MOP"]
-        # IDs de Fiix
         ID_PREVENTIVO = 531546
         ID_URGENTE = 278571
 
         yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            # --- 1. DISPONIBILIDAD (Solo Carretillas) ---
+            # 1. Traer todos los activos tipo Máquina del sitio BCN
             body_assets = {
                 "_maCn": "FindRequest", "className": "Asset",
                 "fields": "id, bolIsOnline, strCode, strName",
-                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID]}],
+                "filters": [{"ql": "intSiteID = ?", "parameters": [SITE_ID]}],
                 "maxObjects": 1000
             }
             res_assets = await self._fiix_rpc(body_assets)
             
-            # Filtramos solo lo que sea Carretilla y sea de esta Nave/Escala
-            carretillas = [
-                a for a in res_assets 
-                if any(k in str(a.get("strName","")).upper() for k in KEYWORDS_CARRETILLAS)
-                and TAG in str(a.get("strCode","")).upper()
-            ]
+            # --- FILTRO DE PRECISIÓN BCN ---
+            # Identificamos carretillas y vehículos por los patrones de código que me diste
+            equipo_critico = []
+            for a in res_assets:
+                code = str(a.get("strCode", "")).upper()
+                
+                # Reglas de selección:
+                # - Que empiece por el prefijo de carretillas (CTS)
+                # - Que sea un vehículo (VEH)
+                # - Que sea el activo específico AL-144
+                if ("-CTS-" in code) or ("-VEH-" in code) or ("-AL-144" in code):
+                    equipo_critico.append(a)
 
-            total_c = len(carretillas)
-            broken_c = [c.get("strName") for c in carretillas if c.get("bolIsOnline") == 0]
+            # --- CÁLCULO DE DISPONIBILIDAD REAL ---
+            total_c = len(equipo_critico)
+            # Lista de nombres de lo que está roto (bolIsOnline = 0)
+            broken_assets = [c.get("strName") for c in equipo_critico if c.get("bolIsOnline") == 0]
             
-            # Disponibilidad real sobre equipo crítico
-            avail = round(((total_c - len(broken_c)) / total_c) * 100) if total_c > 0 else 100
-            broken_text = f"⚠️ {', '.join(broken_c)}" if broken_c else "Flota operativa"
+            # (Total - Rotos) / Total
+            avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
+            
+            # Texto para el Dashboard: "Todo OK" o "⚠️ Carretilla 05, Transpaleta 12"
+            status_text = f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota operativa"
 
-            # --- 2. DAÑOS (Solo Correctivos/Urgentes de las últimas 24h) ---
+            # --- 2. CÁLCULO DAÑOS (Últimas 24h) ---
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID, strDescription",
+                "fields": "id, intMaintenanceTypeID, intPriorityID",
                 "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
                              "parameters": [SITE_ID, yesterday, f"%{TAG}%"]}]
             }
             res_wos = await self._fiix_rpc(body_wo)
             
-            # Solo contamos como DAÑO lo que no sea preventivo
-            danos_24h = [
+            # Solo daños (Correctivos o Urgentes)
+            real_damages = [
                 w for w in res_wos 
                 if w.get("intMaintenanceTypeID") != ID_PREVENTIVO 
                 or w.get("intPriorityID") == ID_URGENTE
             ]
 
-            # --- 3. ACTUALIZAR CACHÉ ---
+            # 3. ACTUALIZAR CACHÉ BCN
             fiix_memory_cache = {
-                "fiix_vlc_availability": avail,
-                "fiix_vlc_broken_count": len(broken_c),
-                "fiix_vlc_broken_text": broken_text,
-                "fiix_vlc_damage_count_24h": len(danos_24h),
+                "fiix_bcn_availability": avail,
+                "fiix_bcn_broken_count": len(broken_assets),
+                "fiix_bcn_broken_text": status_text,
+                "fiix_bcn_damage_count_24h": len(real_damages),
                 "last_update": datetime.utcnow().isoformat() + "Z"
             }
             
-            # Persistencia en disco
+            # Persistencia y Broadcast
             save_fiix_cache_to_disk(fiix_memory_cache)
             await manager.broadcast({"type": "kpi_update", "station": TAG, **fiix_memory_cache})
+            
+            print(f"✅ [BCN] Flota Crítica: {total_c} equipos | Rotos: {len(broken_assets)} | Disp: {avail}%")
 
         except Exception as e:
-            print(f"❌ Error Fiix {TAG}: {e}")
-    
-    
-    async def fetch_metrics(self):
-        global fiix_memory_cache
-        yesterday_str = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-        sql_filter = f"%{TAG_NAVE}%"
-        
-        print(f"🔄 [FIIX BCN] Sincronizando con Fiix...")
-
-        try:
-            # 1. Activos de Barcelona
-            body_assets = {
-                "_maCn": "FindRequest", "className": "Asset",
-                "fields": "id, bolIsOnline, strCode, strName",
-                "filters": [{
-                    "ql": "intSiteID = ? AND intKind = 2 AND (strCode LIKE ? OR strName LIKE ?)", 
-                    "parameters": [FIIX_SITE_ID, sql_filter, sql_filter]
-                }],
-                "maxObjects": 1000
-            }
-            assets = await self._fiix_rpc(body_assets)
-            
-            # 2. Órdenes de Trabajo (Costes)
-            body_wo = {
-                "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID, dtmDateCreated, dtmDateCompleted, strAssets",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                             "parameters": [FIIX_SITE_ID, yesterday_str, sql_filter]}]
-            }
-            wos = await self._fiix_rpc(body_wo)
-
-            # 3. Cálculos
-            total_a = len(assets)
-            broken = sum(1 for a in assets if a.get("bolIsOnline") == 0)
-            avail = round(((total_a - broken) / total_a) * 100) if total_a > 0 else 100
-            
-            cost = 0.0
-            total_dt = 0
-            for wo in wos:
-                if wo.get("intPriorityID") == ID_URGENTE: cost += 450.0
-                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: cost += 120.0
-                else: cost += 35.0
-                
-                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
-                    start, end = wo["dtmDateCreated"], wo["dtmDateCompleted"]
-                    if isinstance(start, (int,float)) and isinstance(end, (int,float)):
-                         total_dt += (end - start) / (1000 * 60)
-
-            mttr = round((total_dt / len(wos)) / 60, 1) if wos else 0
-
-            # 4. Actualizar Memoria y Disco
-            new_data = {
-                "fiix_bcn_availability": avail,
-                "fiix_bcn_damage_cost": round(cost, 2),
-                "fiix_bcn_mttr": mttr,
-                "fiix_bcn_broken_count": broken,
-                "last_update": datetime.utcnow().isoformat() + "Z"
-            }
-            fiix_memory_cache = new_data
-            save_fiix_cache_to_disk(new_data)
-
-            # 5. Broadcast en tiempo real
-            await manager.broadcast({
-                "type": "kpi_update", "station": "BCN", **fiix_memory_cache
-            })
-            print(f"✅ [FIIX BCN] Éxito: {avail}% Disp | {cost}€ Coste")
-
-        except Exception as e:
-            print(f"❌ [FIIX BCN Exception]: {e}")
+            print(f"❌ Error Fiix BCN: {e}")
 
 async def fiix_auto_worker():
     connector = FiixConnector()
@@ -2455,6 +2398,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
