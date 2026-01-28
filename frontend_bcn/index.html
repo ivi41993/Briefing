@@ -1610,35 +1610,27 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
   </h3>
   
   <div class="kpi-grid">
-    <!-- DISPONIBILIDAD -->
+    <!-- Disponibilidad Crítica -->
     <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
-        <div class="kpi-label">Disponibilidad Flota</div>
+        <div class="kpi-label">Disponibilidad Carretillas</div>
         <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
-        <!-- Texto dinámico: OK o X Activos Parados -->
-        <small class="kpi-text" id="fiix-broken-text">Sincronizando...</small>
+        <small class="kpi-text" id="fiix-broken-text">Analizando flota...</small>
     </div>
 
-    <!-- COSTE PROYECTADO -->
-    
+    <!-- Daños del día -->
+    <div class="kpi-tile" style="border-left: 6px solid #f59e0b;">
+        <div class="kpi-label">Daños Reportados (24h)</div>
+        <div class="kpi-value" id="fiix-damage-24h">--</div>
+        <small class="kpi-text">Averías/Golpes</small>
+    </div>
+</div>
 
-    <!-- MTTR / TIEMPO RESPUESTA -->
-    <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
-        <div class="kpi-label">MTTR (24h)</div>
-        <div class="kpi-value"><span id="fiix-mttr">--</span><small style="font-size:1rem"> min</small></div>
-        <small class="kpi-text">Tiempo medio respuesta</small>
-    </div>
-  </div>
-<!-- ... debajo de la fila de las 3 tarjetas de Fiix ... -->
-<div class="kpi-grid" style="margin-top: 15px;">
-    <!-- Este contenedor ocupa el espacio de las 3 tarjetas juntas -->
-    <div class="widget vivid" style="grid-column: 1 / -1; border-top: 3px solid var(--vivid-blue); margin: 0; box-shadow: none; background: #fafafa;">
-        <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
-            📈 Histórico de Averías por Semana
-        </h3>
-        <div style="height: 200px;">
-            <canvas id="fiixWeeklyChart"></canvas>
-        </div>
-    </div>
+<!-- Gráfico de Acumulados -->
+<div class="widget vivid" style="grid-column: 1 / -1; margin-top:15px;">
+    <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
+        📊 Acumulado Semanal de Daños
+    </h3>
+    <div style="height: 200px;"><canvas id="fiixWeeklyChart"></canvas></div>
 </div>
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
 
@@ -4093,57 +4085,27 @@ setTimeout(()=> el.classList.remove('widget--zoomed'), 120000);
    ========================================================= */
 
 function updateFiixDisplay(metric, value) {
-    // MAPEO ESPECÍFICO BCN
     const mapping = {
         'fiix_bcn_availability': 'fiix-availability',
-        'fiix_bcn_damage_cost':  'fiix-damage-cost',
-        'fiix_bcn_mttr':         'fiix-mttr'
+        'fiix_bcn_damage_count_24h': 'fiix-damage-24h'
     };
 
-    // 1. Manejo del contador de máquinas rotas (Visual)
-    if (metric === 'fiix_bcn_broken_count') {
-        const elText = document.getElementById('fiix-broken-text');
-        const tile = document.getElementById('tile-fiix-availability');
-        if (elText && tile) {
-            if (value === 0) {
-                elText.textContent = "Todo operativo";
-                elText.style.color = "var(--text-muted)";
-                tile.style.borderLeftColor = "#10b981"; // Verde
-            } else {
-                elText.textContent = `⚠️ ${value} activos parados`;
-                elText.style.color = "#dc2626";
-                elText.style.fontWeight = "800";
-                tile.style.borderLeftColor = "#ef4444"; // Rojo
-            }
+    if (metric === 'fiix_bcn_broken_text') {
+        const el = document.getElementById('fiix-broken-text');
+        if (el) {
+            el.textContent = value;
+            el.style.color = value.includes('⚠️') ? '#dc2626' : 'var(--text-muted)';
         }
         return;
     }
 
-    // 2. Valores Numéricos
     const targetId = mapping[metric];
-    const el = document.getElementById(targetId);
-    
-    if (el) {
-        if (metric.includes('cost')) {
-            // Formato Moneda (2.645,00)
-            el.textContent = new Intl.NumberFormat('es-ES', { 
-                minimumFractionDigits: 2, maximumFractionDigits: 2 
-            }).format(value);
-            
-            // Efecto flash visual
-            const tile = el.closest('.kpi-tile');
-            if(tile) {
-                tile.classList.remove('flash');
-                void tile.offsetWidth;
-                tile.classList.add('flash');
-            }
-        } else {
-            // Valores normales
-            el.textContent = Math.round(value);
-        }
-        el.style.opacity = "1";
+    if (document.getElementById(targetId)) {
+        document.getElementById(targetId).textContent = value;
     }
 }
+    
+    
 
 // Carga inicial
 async function initFiixDashboard() {
