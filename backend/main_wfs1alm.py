@@ -926,18 +926,18 @@ app.add_middleware(
 # --- WORKER AUTOMÁTICO ---
 fiix_worker_started = False
 
-# --- WORKER AUTOMÁTICO ---
 async def fiix_auto_worker():
     connector = FiixConnector()
-    # Esperamos un poco al inicio porque el endpoint @app.get ya se encargará 
-    # de la primera carga si entra un usuario.
-    await asyncio.sleep(60) 
+    print("👷 Worker Fiix: Iniciando primera carga...")
     
     while True:
         try:
             await connector.fetch_metrics()
+            print("✅ Worker Fiix: Datos actualizados")
         except Exception as e:
             print(f"❌ Error worker ciclo: {e}")
+        
+        # Dormir después de haber cargado, no antes
         await asyncio.sleep(600)
 
 
