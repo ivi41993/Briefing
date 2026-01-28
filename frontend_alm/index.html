@@ -6254,6 +6254,8 @@ async function renderFiixWeeklyHistory() {
         console.error("❌ [BCN] Error renderizando historial:", e);
     }
 }
+
+document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
   
 /* ===== Protocolo de Incidentes (editable) ===== */
 (function initIncidentsProtocol(){
@@ -6412,14 +6414,7 @@ function initNowTicker(){
 
 // ===== Inicio global seguro =====
 document.addEventListener('DOMContentLoaded', () => {
-  renderFiixWeeklyHistory();
-  setInterval(() => {
-        forceLoadFiix();
-    }, 10000); // KPIs vivos cada 10s
-
-    setInterval(() => {
-        renderFiixWeeklyHistory();
-    }, 600000); // Gráfico histórico cada 10 min
+ 
   // UI / accesibilidad
   try { initHeaderTimer?.(); } catch(e){ console.warn('initHeaderTimer', e); }
   try { initFullscreenToggles?.(); } catch(e){ console.warn('initFullscreenToggles', e); }
