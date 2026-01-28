@@ -130,7 +130,7 @@ class FiixConnector:
             print(f"❌ [FIIX Error]: {e}")
             return []
 
-     async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
+    async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
         """
         Genera el acumulado semanal de DAÑOS REALES para Madrid.
         Filtra por Site, Nave (WFS1/2/3/4) y excluye tareas administrativas.
