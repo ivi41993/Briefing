@@ -6055,29 +6055,33 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 })();
 
 function updateFiixDisplay(metric, value) {
-    // Mapeo: Nombre de métrica de Python -> ID del HTML
     const mapping = {
         'fiix_wfs4_availability': 'fiix-availability',
-        'fiix_wfs4_damage_cost': 'fiix-damage-cost',
-        'fiix_wfs4_mttr': 'fiix-mttr'
+        'fiix_wfs4_damage_count_24h': 'fiix-damage-24h'
     };
+
+    if (metric === 'fiix_wfs4_broken_text') {
+        const el = document.getElementById('fiix-broken-text');
+        if (el) {
+            el.textContent = value;
+            if (value.includes('⚠️')) {
+                el.style.color = "#dc2626"; // Rojo alerta
+                el.style.fontWeight = "800";
+            }
+        }
+        return;
+    }
 
     const targetId = mapping[metric];
     const el = document.getElementById(targetId);
-    if (!el) return;
-
-    if (metric === 'fiix_wfs4_damage_cost') {
-        el.textContent = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(value);
-    } else {
+    if (el) {
         el.textContent = value;
-    }
-    
-    // Feedback visual de actualización (destello verde)
-    const tile = el.closest('.kpi-tile');
-    if (tile) {
-        tile.style.transition = "background 0.3s";
-        tile.style.backgroundColor = "#f0fdf4"; 
-        setTimeout(() => tile.style.backgroundColor = "#fff", 600);
+        // WFS4: Si disponibilidad < 95%, parpadeo crítico (Spotlight)
+        if (metric === 'fiix_wfs4_availability') {
+            const tile = el.closest('.kpi-tile');
+            if (value < 95) tile.classList.add('spotlight-blink');
+            else tile.classList.remove('spotlight-blink');
+        }
     }
 }
 
@@ -7218,6 +7222,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
