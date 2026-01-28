@@ -909,7 +909,7 @@ manager = ConnectionManager()
 
 # Ubicación: bcn/main.py (o donde tengas definido el router de BCN)
 
-@router.get("/api/fiix/history")
+@app.get("/api/fiix/history")
 async def get_fiix_history():
     connector = FiixConnector()
     # PASO CRÍTICO: Inyectar los IDs específicos de BCN aquí
