@@ -835,11 +835,8 @@ class FiixConnector:
             # --- 2. CÁLCULO DAÑOS REALES (Últimas 24h) ---
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
-                "filters": [
-                    {
-                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                        "parameters": [SITE_ID, yesterday, f"%{TAG}%"]
+                "fields": "id, intMaintenanceTypeID, intPriorityID, strDescription, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [SITE_ID, yesterday]}] # <-- USAR SITE_ID LOCAL
                     }
                 ],
                 "maxObjects": 1000
@@ -945,12 +942,14 @@ async def fiix_auto_worker():
             print(f"❌ Error worker ciclo: {e}")
         await asyncio.sleep(600)
 
-# --- ENDPOINT PARA EL FRONTEND ---
+
+
+# 2. Corrige el endpoint para que use el nombre correcto y sea defensivo
 @app.get("/api/fiix/current")
 async def get_fiix_current():
-    connector = FiixConnector()
-    data = await connector.fetch_metrics()
-    return data
+    global fiix_memory_cache
+    # Si por alguna razón es None, devolvems un {} para evitar el crash del JS
+    return fiix_memory_cache if fiix_memory_cache is not None else {}
 
 @app.get("/api/fiix/history")
 async def get_wfs1_history():
