@@ -935,55 +935,55 @@ class FiixConnector:
             return []
     
     async def fetch_metrics_wfs2(self):
-    global fiix_memory_cache_wfs2
-    SITE_ID = 29449435
-    TAG = "WFS2"
-    PREFIX = "ES_MAD-WFS2-CTS-AL-"
-    ID_PREVENTIVO = 531546
+        global fiix_memory_cache_wfs2
+        SITE_ID = 29449435
+        TAG = "WFS2"
+        PREFIX = "ES_MAD-WFS2-CTS-AL-"
+        ID_PREVENTIVO = 531546
+        
+        KEYWORDS_FLOTA = ["CTS", "VEH", "GT", "AGV", "LINDE"]
+        KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAJE", "FACTURA", "MENSUAL", "GASOIL"]
+        yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
     
-    KEYWORDS_FLOTA = ["CTS", "VEH", "GT", "AGV", "LINDE"]
-    KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAJE", "FACTURA", "MENSUAL", "GASOIL"]
-    yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-
-    try:
-        # 1. Disponibilidad (Solo Nave 2)
-        body_assets = {
-            "_maCn": "FindRequest", "className": "Asset",
-            "fields": "id, bolIsOnline, strCode, strName",
-            "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [SITE_ID, f"%{PREFIX}%"]}]
-        }
-        res_assets = await self._fiix_rpc(body_assets)
-        
-        total_c = len(res_assets)
-        broken_assets = [a.get("strName") for a in res_assets if a.get("bolIsOnline") == 0]
-        avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
-
-        # 2. Daños Reales 24h (Solo Nave 2)
-        body_wo = {
-            "_maCn": "FindRequest", "className": "WorkOrder",
-            "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
-            "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", "parameters": [SITE_ID, yesterday, f"%{TAG}%"]}]
-        }
-        res_wos = await self._fiix_rpc(body_wo)
-        
-        real_damages = []
-        for w in res_wos:
-            desc = str(w.get("strDescription", "")).upper()
-            if not any(k in desc for k in KEYWORDS_EXCLUIR) and w.get("intMaintenanceTypeID") != ID_PREVENTIVO:
-                real_damages.append(w)
-
-        fiix_memory_cache_wfs2 = {
-            "fiix_wfs2_availability": avail,
-            "fiix_wfs2_broken_text": f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota WFS2 Operativa",
-            "fiix_wfs2_damage_count_24h": len(real_damages),
-            "last_update": datetime.utcnow().isoformat() + "Z"
-        }
-        
-        await manager.broadcast({"type": "kpi_update", "station": TAG, **fiix_memory_cache_wfs2})
-        return fiix_memory_cache_wfs2
-    except Exception as e:
-        print(f"❌ Error WFS2 Fiix: {e}")
-        return {}
+        try:
+            # 1. Disponibilidad (Solo Nave 2)
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode, strName",
+                "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [SITE_ID, f"%{PREFIX}%"]}]
+            }
+            res_assets = await self._fiix_rpc(body_assets)
+            
+            total_c = len(res_assets)
+            broken_assets = [a.get("strName") for a in res_assets if a.get("bolIsOnline") == 0]
+            avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
+    
+            # 2. Daños Reales 24h (Solo Nave 2)
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", "parameters": [SITE_ID, yesterday, f"%{TAG}%"]}]
+            }
+            res_wos = await self._fiix_rpc(body_wo)
+            
+            real_damages = []
+            for w in res_wos:
+                desc = str(w.get("strDescription", "")).upper()
+                if not any(k in desc for k in KEYWORDS_EXCLUIR) and w.get("intMaintenanceTypeID") != ID_PREVENTIVO:
+                    real_damages.append(w)
+    
+            fiix_memory_cache_wfs2 = {
+                "fiix_wfs2_availability": avail,
+                "fiix_wfs2_broken_text": f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota WFS2 Operativa",
+                "fiix_wfs2_damage_count_24h": len(real_damages),
+                "last_update": datetime.utcnow().isoformat() + "Z"
+            }
+            
+            await manager.broadcast({"type": "kpi_update", "station": TAG, **fiix_memory_cache_wfs2})
+            return fiix_memory_cache_wfs2
+        except Exception as e:
+            print(f"❌ Error WFS2 Fiix: {e}")
+            return {}
 
 # Worker de fondo
 async def fiix_auto_worker():
