@@ -4166,7 +4166,7 @@ if (data.metric && data.metric.startsWith('fiix_')) {
     if (Number.isFinite(v)) setKpiValue('kpi-backlog', 'kpi-backlog-meta', new Intl.NumberFormat('es-ES').format(v));
     return;
   }
-}
+
 
 const elementId = `task-${data.id}`;
 if (data.action === 'delete') {
