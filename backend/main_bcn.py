@@ -2008,6 +2008,8 @@ class FiixConnector:
         SITE_ID = FIIX_SITE_ID 
         TAG = "BCN"
         ID_PREVENTIVO = 531546
+        KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV"]
+        KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "MENSUAL"]
         
         since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
         tag_filter = f"%{TAG}%"
@@ -2038,15 +2040,16 @@ class FiixConnector:
                 weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
 
             for wo in wos:
-                # SOLO contamos Daños (filtramos los preventivos)
-                if wo.get("intMaintenanceTypeID") != ID_PREVENTIVO:
-                    ts = wo.get("dtmDateCreated")
-                    if ts:
-                        dt = datetime.fromtimestamp(ts / 1000)
-                        year, week, _ = dt.isocalendar()
-                        week_key = f"{year}-W{week:02d}"
-                        if week_key in weekly_stats:
-                            weekly_stats[week_key]["count"] += 1
+                desc = str(wo.get("strDescription", "")).upper()
+                assets = str(wo.get("strAssets", "")).upper()
+                
+                es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+                es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+                es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+    
+                if es_de_flota and es_correctivo and not es_administrativo:
+                    # ... (Lógica de agrupación por semana igual) ...
+                    weekly_stats[week_key]["count"] += 1
 
             # Devolver lista ordenada por fecha
             return [
@@ -2466,6 +2469,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
