@@ -2002,67 +2002,82 @@ class FiixConnector:
             print(f"❌ [FIIX BCN Error]: {e}")
             return []
 
-    async def fetch_monthly_weekly_metrics(self, weeks_back=5):
-        """Genera el acumulado semanal de DAÑOS REALES (Filtro síncrono)"""
-        # Aseguramos constantes para Valencia/BCN/Madrid
-        SITE_ID = FIIX_SITE_ID 
-        TAG = "BCN"
-        ID_PREVENTIVO = 531546
-        KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV"]
-        KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "MENSUAL"]
-        
-        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
-        tag_filter = f"%{TAG}%"
-
-        try:
-            body = {
-                "_maCn": "FindRequest", 
-                "className": "WorkOrder",
-                "fields": "id, dtmDateCreated, intMaintenanceTypeID",
-                "filters": [
-                    {
-                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                        "parameters": [SITE_ID, since_date, tag_filter]
-                    }
-                ],
-                "maxObjects": 2000
-            }
-            
-            wos = await self._fiix_rpc(body)
-            
-            # --- AGRUPACIÓN POR SEMANAS ---
-            weekly_stats = {}
-            # Inicializar las semanas a 0
-            for i in range(weeks_back + 1):
-                target_date = datetime.now() - timedelta(weeks=i)
-                year, week, _ = target_date.isocalendar()
-                week_key = f"{year}-W{week:02d}"
-                weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
-
-            for wo in wos:
-                desc = str(wo.get("strDescription", "")).upper()
-                assets = str(wo.get("strAssets", "")).upper()
-                
-                es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
-                es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
-                es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+    async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
+    """
+    Genera el acumulado semanal de DAÑOS REALES (Correctivos de flota).
+    Optimizada para evitar colisiones en el Main Jefe.
+    """
+    # Constantes de filtrado (Sincronizadas con fetch_metrics)
+    ID_PREVENTIVO = 531546
+    KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
+    KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "MENSUAL", "FACTURA"]
     
-                if es_de_flota and es_correctivo and not es_administrativo:
-                    dt = datetime.fromtimestamp(ts / 1000)
-                    year, week, _ = dt.isocalendar()
-                    week_key = f"{year}-W{week:02d}"
-                    if week_key in weekly_stats:
-                        weekly_stats[week_key]["count"] += 1
+    # Cálculo de ventana temporal
+    now = datetime.now()
+    since_date = (now - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+    
+    # Nota: Usamos strAssets LIKE para filtrar por el nombre del Site/Estación en el asset
+    tag_filter = f"%{tag}%"
 
-            # Devolver lista ordenada por fecha
-            return [
-                {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
-                for k in sorted(weekly_stats.keys())
-            ]
+    try:
+        body = {
+            "_maCn": "FindRequest", 
+            "className": "WorkOrder",
+            # IMPORTANTE: Añadidos strDescription y strAssets para que el filtro funcione
+            "fields": "id, dtmDateCreated, intMaintenanceTypeID, strDescription, strAssets",
+            "filters": [
+                {
+                    "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                    "parameters": [site_id, since_date, tag_filter]
+                }
+            ],
+            "maxObjects": 2000
+        }
+        
+        wos = await self._fiix_rpc(body)
+        
+        # --- INICIALIZAR ESTRUCTURA DE SEMANAS ---
+        # Usamos un diccionario para asegurar que incluso semanas con 0 daños aparezcan
+        weekly_stats = {}
+        for i in range(weeks_back + 1):
+            target_date = now - timedelta(weeks=i)
+            year, week, _ = target_date.isocalendar()
+            week_key = f"{year}-W{week:02d}"
+            weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
 
-        except Exception as e:
-            print(f"❌ Error en historial semanal {TAG}: {e}")
-            return []
+        for wo in wos:
+            # Extracción segura de datos
+            desc = str(wo.get("strDescription") or "").upper()
+            assets = str(wo.get("strAssets") or "").upper()
+            created_ts = wo.get("dtmDateCreated") # Fiix devuelve ms
+            
+            if not created_ts:
+                continue
+
+            # Lógica de Negocio: Daños Reales
+            es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+            es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+            es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+
+            if es_de_flota and es_correctivo and not es_administrativo:
+                # Conversión de timestamp a objeto datetime
+                dt = datetime.fromtimestamp(created_ts / 1000)
+                year, week, _ = dt.isocalendar()
+                week_key = f"{year}-W{week:02d}"
+                
+                if week_key in weekly_stats:
+                    weekly_stats[week_key]["count"] += 1
+
+        # Devolver lista ordenada cronológicamente para el Chart.js del Frontend
+        sorted_weeks = sorted(weekly_stats.keys())
+        return [
+            {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
+            for k in sorted_weeks
+        ]
+
+    except Exception as e:
+        print(f"❌ [FIIX ARCHITECT ERROR] Historial semanal {tag}: {e}")
+        return []
 
     
     
@@ -2472,6 +2487,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
