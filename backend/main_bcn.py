@@ -1950,7 +1950,7 @@ async def audit_bcn_damages():
 
 # Ubicación: bcn/main.py (o donde tengas definido el router de BCN)
 
-@router.get("/api/fiix/history")
+@app.get("/api/fiix/history")
 async def get_fiix_history():
     connector = FiixConnector()
     # PASO CRÍTICO: Inyectar los IDs específicos de BCN aquí
@@ -2480,6 +2480,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
