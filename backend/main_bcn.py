@@ -2037,22 +2037,26 @@ class FiixConnector:
                 week_key = f"{year}-W{week:02d}"
                 weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
 
+            KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV"]
+            KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "MENSUAL"]
+    
             for wo in wos:
-                # SOLO contamos Daños (filtramos los preventivos)
-                if wo.get("intMaintenanceTypeID") != ID_PREVENTIVO:
-                    ts = wo.get("dtmDateCreated")
-                    if ts:
-                        dt = datetime.fromtimestamp(ts / 1000)
-                        year, week, _ = dt.isocalendar()
-                        week_key = f"{year}-W{week:02d}"
-                        if week_key in weekly_stats:
-                            weekly_stats[week_key]["count"] += 1
-
-            # Devolver lista ordenada por fecha
-            return [
-                {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
-                for k in sorted(weekly_stats.keys())
-            ]
+                desc = str(wo.get("strDescription", "")).upper()
+                assets = str(wo.get("strAssets", "")).upper()
+                
+                es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+                es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+                es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+    
+                if es_de_flota and es_correctivo and not es_administrativo:
+                    # ... (Lógica de agrupación por semana igual) ...
+                    weekly_stats[week_key]["count"] += 1
+    
+                # Devolver lista ordenada por fecha
+                return [
+                    {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
+                    for k in sorted(weekly_stats.keys())
+                ]
 
         except Exception as e:
             print(f"❌ Error en historial semanal {TAG}: {e}")
@@ -2071,6 +2075,11 @@ class FiixConnector:
         ID_PREVENTIVO = 531546
         ID_URGENTE = 278571
 
+        KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
+        
+        # 2. Palabras prohibidas (Cosas que NO son daños ni averías)
+        KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL"]
+
         yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
@@ -2085,7 +2094,10 @@ class FiixConnector:
             
             # --- FILTRO DE PRECISIÓN BCN ---
             # Identificamos carretillas y vehículos por los patrones de código que me diste
-            equipo_critico = []
+            equipo_critico = [
+                a for a in all_assets 
+                if any(k in str(a.get("strCode","")).upper() or k in str(a.get("strName","")).upper() for k in KEYWORDS_FLOTA)
+            ]
             for a in res_assets:
                 code = str(a.get("strCode", "")).upper()
                 
@@ -2110,25 +2122,33 @@ class FiixConnector:
             # --- 2. CÁLCULO DAÑOS (Últimas 24h) ---
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                             "parameters": [SITE_ID, yesterday, f"%{TAG}%"]}]
+                "fields": "id, intMaintenanceTypeID, intPriorityID, strDescription, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [FIIX_SITE_ID, yesterday]}]
             }
             res_wos = await self._fiix_rpc(body_wo)
             
-            # Solo daños (Correctivos o Urgentes)
-            real_damages = [
-                w for w in res_wos 
-                if w.get("intMaintenanceTypeID") != ID_PREVENTIVO 
-                or w.get("intPriorityID") == ID_URGENTE
-            ]
+            real_damages = []
+            for w in res_wos:
+                desc = str(w.get("strDescription", "")).upper()
+                assets = str(w.get("strAssets", "")).upper()
+                
+                # REGLA DE FILTRADO:
+                # 1. Debe ser de la flota crítica
+                es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+                # 2. No debe ser preventivo
+                es_correctivo = (w.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+                # 3. NO debe contener palabras administrativas (ALQUILER, REPOSTAJE...)
+                es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
 
-            # 3. ACTUALIZAR CACHÉ BCN
+                if es_de_flota and es_correctivo and not es_administrativo:
+                    real_damages.append(w)
+
+            # --- ACTUALIZACIÓN CACHÉ ---
             fiix_memory_cache = {
                 "fiix_bcn_availability": avail,
-                "fiix_bcn_broken_count": len(broken_assets),
+                "fiix_bcn_broken_count": len(broken_names),
                 "fiix_bcn_broken_text": status_text,
-                "fiix_bcn_damage_count_24h": len(real_damages),
+                "fiix_bcn_damage_count_24h": len(real_damages), # <--- Ahora será un número real (ej: 4 o 5)
                 "last_update": datetime.utcnow().isoformat() + "Z"
             }
             
@@ -2451,6 +2471,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
