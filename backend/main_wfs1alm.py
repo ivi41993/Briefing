@@ -838,9 +838,7 @@ class FiixConnector:
                 "fields": "id, intMaintenanceTypeID, intPriorityID, strDescription, strAssets",
                 "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [SITE_ID, yesterday]}] # <-- USAR SITE_ID LOCAL
             }
-                ],
-                "maxObjects": 1000
-            }
+                
             res_wos = await self._fiix_rpc(body_wo)
             
             real_damages = []
