@@ -712,180 +712,180 @@ class FiixConnector:
             return []
 
     async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
-    """
-    Genera el acumulado semanal de DAÑOS REALES para Madrid.
-    Filtra por Site, Nave (WFS1/2/3/4) y excluye tareas administrativas.
-    """
-    ID_PREVENTIVO = 531546
-    # Sincronizamos palabras clave con fetch_metrics para consistencia total
-    KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
-    KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL", "REVISION"]
-    
-    now = datetime.now()
-    since_date = (now - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
-    
-    # Filtro por Nave (Ej: %WFS1%)
-    tag_filter = f"%{tag}%"
-
-    try:
-        body = {
-            "_maCn": "FindRequest", 
-            "className": "WorkOrder",
-            # Traemos strDescription y strAssets para el filtrado manual
-            "fields": "id, dtmDateCreated, intMaintenanceTypeID, strDescription, strAssets",
-            "filters": [
-                {
-                    "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                    "parameters": [site_id, since_date, tag_filter]
-                }
-            ],
-            "maxObjects": 2000
-        }
+        """
+        Genera el acumulado semanal de DAÑOS REALES para Madrid.
+        Filtra por Site, Nave (WFS1/2/3/4) y excluye tareas administrativas.
+        """
+        ID_PREVENTIVO = 531546
+        # Sincronizamos palabras clave con fetch_metrics para consistencia total
+        KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
+        KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL", "REVISION"]
         
-        wos = await self._fiix_rpc(body)
+        now = datetime.now()
+        since_date = (now - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
         
-        # --- INICIALIZAR SEMANAS (Garantiza que el gráfico no tenga huecos) ---
-        weekly_stats = {}
-        for i in range(weeks_back + 1):
-            target_date = now - timedelta(weeks=i)
-            year, week, _ = target_date.isocalendar()
-            week_key = f"{year}-W{week:02d}"
-            weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
-
-        for wo in wos:
-            desc = str(wo.get("strDescription") or "").upper()
-            assets = str(wo.get("strAssets") or "").upper()
-            created_ts = wo.get("dtmDateCreated") 
+        # Filtro por Nave (Ej: %WFS1%)
+        tag_filter = f"%{tag}%"
+    
+        try:
+            body = {
+                "_maCn": "FindRequest", 
+                "className": "WorkOrder",
+                # Traemos strDescription y strAssets para el filtrado manual
+                "fields": "id, dtmDateCreated, intMaintenanceTypeID, strDescription, strAssets",
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                        "parameters": [site_id, since_date, tag_filter]
+                    }
+                ],
+                "maxObjects": 2000
+            }
             
-            if not created_ts: continue
-
-            # --- LÓGICA DE FILTRADO ESTRICTO MADRID ---
-            # 1. ¿Es un equipo crítico? (Evita contar puertas, luces, etc.)
-            es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
-            # 2. ¿Es una avería/daño? (No es mantenimiento preventivo)
-            es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
-            # 3. ¿Es una avería real? (No es repostaje ni gestión de alquiler)
-            es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
-
-            if es_de_flota and es_correctivo and not es_administrativo:
-                # Conversión de milisegundos de Fiix a fecha Python
-                dt = datetime.fromtimestamp(int(created_ts) / 1000)
-                year, week, _ = dt.isocalendar()
+            wos = await self._fiix_rpc(body)
+            
+            # --- INICIALIZAR SEMANAS (Garantiza que el gráfico no tenga huecos) ---
+            weekly_stats = {}
+            for i in range(weeks_back + 1):
+                target_date = now - timedelta(weeks=i)
+                year, week, _ = target_date.isocalendar()
                 week_key = f"{year}-W{week:02d}"
+                weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
+    
+            for wo in wos:
+                desc = str(wo.get("strDescription") or "").upper()
+                assets = str(wo.get("strAssets") or "").upper()
+                created_ts = wo.get("dtmDateCreated") 
                 
-                if week_key in weekly_stats:
-                    weekly_stats[week_key]["count"] += 1
-
-        # Devolver lista ordenada para Chart.js
-        return [
-            {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
-            for k in sorted(weekly_stats.keys())
-        ]
-
-    except Exception as e:
-        print(f"❌ Error histórico {tag}: {e}")
-        return []
+                if not created_ts: continue
+    
+                # --- LÓGICA DE FILTRADO ESTRICTO MADRID ---
+                # 1. ¿Es un equipo crítico? (Evita contar puertas, luces, etc.)
+                es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+                # 2. ¿Es una avería/daño? (No es mantenimiento preventivo)
+                es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+                # 3. ¿Es una avería real? (No es repostaje ni gestión de alquiler)
+                es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+    
+                if es_de_flota and es_correctivo and not es_administrativo:
+                    # Conversión de milisegundos de Fiix a fecha Python
+                    dt = datetime.fromtimestamp(int(created_ts) / 1000)
+                    year, week, _ = dt.isocalendar()
+                    week_key = f"{year}-W{week:02d}"
+                    
+                    if week_key in weekly_stats:
+                        weekly_stats[week_key]["count"] += 1
+    
+            # Devolver lista ordenada para Chart.js
+            return [
+                {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
+                for k in sorted(weekly_stats.keys())
+            ]
+    
+        except Exception as e:
+            print(f"❌ Error histórico {tag}: {e}")
+            return []
     async def fetch_metrics(self):
-    global fiix_memory_cache
-    # --- CONFIGURACIÓN ESPECÍFICA MADRID WFS1 ---
-    SITE_ID = 29449435
-    TAG = "WFS1"
-    # Prefijo exacto para las carretillas de la Nave 1
-    PREFIX_WFS1 = "ES_MAD-WFS1-CTS-AL-" 
+        global fiix_memory_cache
+        # --- CONFIGURACIÓN ESPECÍFICA MADRID WFS1 ---
+        SITE_ID = 29449435
+        TAG = "WFS1"
+        # Prefijo exacto para las carretillas de la Nave 1
+        PREFIX_WFS1 = "ES_MAD-WFS1-CTS-AL-" 
+        
+        ID_PREVENTIVO = 531546
+        
+        # 1. Palabras clave de flota (Igual que BCN para consistencia)
+        KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
+        
+        # 2. Palabras prohibidas (Filtro para NO reportar daños falsos/administrativos)
+        KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL"]
     
-    ID_PREVENTIVO = 531546
+        yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
     
-    # 1. Palabras clave de flota (Igual que BCN para consistencia)
-    KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
+        try:
+            # --- 1. CÁLCULO DE DISPONIBILIDAD (Solo Activos WFS1) ---
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode, strName",
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND strCode LIKE ?", 
+                        "parameters": [SITE_ID, f"%{PREFIX_WFS1}%"]
+                    }
+                ],
+                "maxObjects": 1000
+            }
+            res_assets = await self._fiix_rpc(body_assets)
+            
+            # Filtramos carretillas críticas de WFS1
+            equipo_critico = [
+                a for a in res_assets 
+                if any(k in str(a.get("strCode","")).upper() for k in KEYWORDS_FLOTA)
+            ]
     
-    # 2. Palabras prohibidas (Filtro para NO reportar daños falsos/administrativos)
-    KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL"]
-
-    yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-
-    try:
-        # --- 1. CÁLCULO DE DISPONIBILIDAD (Solo Activos WFS1) ---
-        body_assets = {
-            "_maCn": "FindRequest", "className": "Asset",
-            "fields": "id, bolIsOnline, strCode, strName",
-            "filters": [
-                {
-                    "ql": "intSiteID = ? AND strCode LIKE ?", 
-                    "parameters": [SITE_ID, f"%{PREFIX_WFS1}%"]
-                }
-            ],
-            "maxObjects": 1000
-        }
-        res_assets = await self._fiix_rpc(body_assets)
-        
-        # Filtramos carretillas críticas de WFS1
-        equipo_critico = [
-            a for a in res_assets 
-            if any(k in str(a.get("strCode","")).upper() for k in KEYWORDS_FLOTA)
-        ]
-
-        total_c = len(equipo_critico)
-        # Identificar rotos (bolIsOnline = 0)
-        broken_assets = [c.get("strName") for c in equipo_critico if c.get("bolIsOnline") == 0]
-        
-        # Disponibilidad: (Total - Rotos) / Total
-        avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
-        status_text = f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota WFS1 operativa"
-
-        # --- 2. CÁLCULO DAÑOS REALES (Últimas 24h) ---
-        body_wo = {
-            "_maCn": "FindRequest", "className": "WorkOrder",
-            "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
-            "filters": [
-                {
-                    "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                    "parameters": [SITE_ID, yesterday, f"%{TAG}%"]
-                }
-            ],
-            "maxObjects": 1000
-        }
-        res_wos = await self._fiix_rpc(body_wo)
-        
-        real_damages = []
-        for w in res_wos:
-            desc = str(w.get("strDescription", "")).upper()
-            assets = str(w.get("strAssets", "")).upper()
-
-            # REGLAS DE FILTRADO DE PRECISIÓN:
-            # 1. Debe pertenecer a la flota crítica de Madrid
-            es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
-            # 2. No debe ser mantenimiento preventivo (Revisiones programadas)
-            es_correctivo = (w.get("intMaintenanceTypeID") != ID_PREVENTIVO)
-            # 3. No debe ser una tarea administrativa o de repostaje
-            es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
-
-            if es_de_flota and es_correctivo and not es_administrativo:
-                real_damages.append(w)
-
-        # --- 3. ACTUALIZAR CACHÉ WFS1 ---
-        # Usamos las claves fiix_wfs1_... para que el frontend las identifique
-        fiix_memory_cache = {
-            "fiix_wfs1_availability": avail,
-            "fiix_wfs1_broken_count": len(broken_assets),
-            "fiix_wfs1_broken_text": status_text,
-            "fiix_wfs1_damage_count_24h": len(real_damages),
-            "last_update": datetime.utcnow().isoformat() + "Z"
-        }
-        
-        # Persistencia en disco para evitar ceros al reiniciar
-        save_fiix_cache_to_disk(fiix_memory_cache)
-        
-        # Notificar al Dashboard por WebSocket
-        await manager.broadcast({
-            "type": "kpi_update", 
-            "station": TAG, 
-            **fiix_memory_cache
-        })
-        
-        print(f"✅ [WFS1] Flota: {total_c} | Rotos: {len(broken_assets)} | Daños 24h: {len(real_damages)} | Disp: {avail}%")
-
-    except Exception as e:
-        print(f"❌ Error Fiix WFS1: {e}")
+            total_c = len(equipo_critico)
+            # Identificar rotos (bolIsOnline = 0)
+            broken_assets = [c.get("strName") for c in equipo_critico if c.get("bolIsOnline") == 0]
+            
+            # Disponibilidad: (Total - Rotos) / Total
+            avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
+            status_text = f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota WFS1 operativa"
+    
+            # --- 2. CÁLCULO DAÑOS REALES (Últimas 24h) ---
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                        "parameters": [SITE_ID, yesterday, f"%{TAG}%"]
+                    }
+                ],
+                "maxObjects": 1000
+            }
+            res_wos = await self._fiix_rpc(body_wo)
+            
+            real_damages = []
+            for w in res_wos:
+                desc = str(w.get("strDescription", "")).upper()
+                assets = str(w.get("strAssets", "")).upper()
+    
+                # REGLAS DE FILTRADO DE PRECISIÓN:
+                # 1. Debe pertenecer a la flota crítica de Madrid
+                es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+                # 2. No debe ser mantenimiento preventivo (Revisiones programadas)
+                es_correctivo = (w.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+                # 3. No debe ser una tarea administrativa o de repostaje
+                es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+    
+                if es_de_flota and es_correctivo and not es_administrativo:
+                    real_damages.append(w)
+    
+            # --- 3. ACTUALIZAR CACHÉ WFS1 ---
+            # Usamos las claves fiix_wfs1_... para que el frontend las identifique
+            fiix_memory_cache = {
+                "fiix_wfs1_availability": avail,
+                "fiix_wfs1_broken_count": len(broken_assets),
+                "fiix_wfs1_broken_text": status_text,
+                "fiix_wfs1_damage_count_24h": len(real_damages),
+                "last_update": datetime.utcnow().isoformat() + "Z"
+            }
+            
+            # Persistencia en disco para evitar ceros al reiniciar
+            save_fiix_cache_to_disk(fiix_memory_cache)
+            
+            # Notificar al Dashboard por WebSocket
+            await manager.broadcast({
+                "type": "kpi_update", 
+                "station": TAG, 
+                **fiix_memory_cache
+            })
+            
+            print(f"✅ [WFS1] Flota: {total_c} | Rotos: {len(broken_assets)} | Daños 24h: {len(real_damages)} | Disp: {avail}%")
+    
+        except Exception as e:
+            print(f"❌ Error Fiix WFS1: {e}")
 
 
 @asynccontextmanager
