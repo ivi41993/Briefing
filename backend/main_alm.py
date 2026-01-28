@@ -2647,6 +2647,13 @@ fiix_memory_cache = {
     "fiix_wfs4_broken_count": 0
 }
 
+SITE_ID_MAD = 29449435
+TAG_WFS4 = "WFS4"
+PREFIX_WFS4 = "ES_MAD-WFS4-CTS-AL-"
+
+# Memoria aislada para WFS4
+fiix_memory_cache_wfs4 = {}
+
 class FiixConnector:
     def __init__(self):
         # .strip() es vital para evitar que un espacio al final del .env rompa la firma
@@ -2710,154 +2717,132 @@ class FiixConnector:
             print(f"❌ Fiix Exception: {e}")
             return []
 
-    async def fetch_monthly_weekly_metrics(self, weeks_back=5):
-        """Consulta historial y agrupa por semanas - Versión Blindada"""
-        # Aseguramos constantes dentro del método por si acaso
-        SITE_ID = 29449435 
-        TAG = "WFS4"
+    async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
+        """
+        Genera el acumulado semanal de DAÑOS REALES para Madrid.
+        Filtra por Site, Nave (WFS1/2/3/4) y excluye tareas administrativas.
+        """
         ID_PREVENTIVO = 531546
-        ID_URGENTE = 278571
+        # Sincronizamos palabras clave con fetch_metrics para consistencia total
+        KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
+        KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL", "REVISION"]
         
-        # 1. Calcular fecha de inicio
-        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
-        tag_filter = f"%{TAG}%"
-
-        print(f"📊 [FIIX HISTORY] Buscando {weeks_back} semanas para {TAG} desde {since_date}...")
-
+        now = datetime.now()
+        since_date = (now - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+        
+        # Filtro por Nave (Ej: %WFS1%)
+        tag_filter = f"%{tag}%"
+    
         try:
             body = {
                 "_maCn": "FindRequest", 
                 "className": "WorkOrder",
-                "fields": "id, dtmDateCreated, intMaintenanceTypeID, intPriorityID",
+                # Traemos strDescription y strAssets para el filtrado manual
+                "fields": "id, dtmDateCreated, intMaintenanceTypeID, strDescription, strAssets",
                 "filters": [
                     {
                         "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                        "parameters": [SITE_ID, since_date, tag_filter]
+                        "parameters": [site_id, since_date, tag_filter]
                     }
                 ],
                 "maxObjects": 2000
             }
             
             wos = await self._fiix_rpc(body)
-            print(f"📦 [FIIX HISTORY] {len(wos)} órdenes encontradas para procesar.")
             
-            # --- AGRUPACIÓN ---
+            # --- INICIALIZAR SEMANAS (Garantiza que el gráfico no tenga huecos) ---
             weekly_stats = {}
-
-            # Inicializamos las últimas semanas con 0 para que el gráfico no salga vacío
             for i in range(weeks_back + 1):
-                target_date = datetime.now() - timedelta(weeks=i)
+                target_date = now - timedelta(weeks=i)
                 year, week, _ = target_date.isocalendar()
                 week_key = f"{year}-W{week:02d}"
-                weekly_stats[week_key] = {"count": 0, "cost": 0.0, "label": f"Sem. {week}"}
-
+                weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
+    
             for wo in wos:
-                try:
-                    # Fiix devuelve milisegundos
-                    ts = wo.get("dtmDateCreated")
-                    if not ts: continue
-                    
-                    dt = datetime.fromtimestamp(ts / 1000)
+                desc = str(wo.get("strDescription") or "").upper()
+                assets = str(wo.get("strAssets") or "").upper()
+                created_ts = wo.get("dtmDateCreated") 
+                
+                if not created_ts: continue
+    
+                # --- LÓGICA DE FILTRADO ESTRICTO MADRID ---
+                # 1. ¿Es un equipo crítico? (Evita contar puertas, luces, etc.)
+                es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+                # 2. ¿Es una avería/daño? (No es mantenimiento preventivo)
+                es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+                # 3. ¿Es una avería real? (No es repostaje ni gestión de alquiler)
+                es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+    
+                if es_de_flota and es_correctivo and not es_administrativo:
+                    # Conversión de milisegundos de Fiix a fecha Python
+                    dt = datetime.fromtimestamp(int(created_ts) / 1000)
                     year, week, _ = dt.isocalendar()
                     week_key = f"{year}-W{week:02d}"
                     
                     if week_key in weekly_stats:
                         weekly_stats[week_key]["count"] += 1
-                        
-                        # Lógica de costes
-                        pid = wo.get("intPriorityID")
-                        mid = wo.get("intMaintenanceTypeID")
-                        
-                        if pid == ID_URGENTE: cost = 450.0
-                        elif mid != ID_PREVENTIVO: cost = 120.0
-                        else: cost = 35.0
-                        
-                        weekly_stats[week_key]["cost"] += cost
-                except Exception as e:
-                    continue # Si una orden está corrupta, salta a la siguiente
-
-            # Ordenar y limpiar
-            final_list = []
-            for k in sorted(weekly_stats.keys()):
-                final_list.append({
-                    "week": weekly_stats[k]["label"],
-                    "count": weekly_stats[k]["count"],
-                    "cost": round(weekly_stats[k]["cost"], 2)
-                })
-            
-            return final_list
-
+    
+            # Devolver lista ordenada para Chart.js
+            return [
+                {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
+                for k in sorted(weekly_stats.keys())
+            ]
+    
         except Exception as e:
-            print(f"❌ Error CRÍTICO en historial: {str(e)}")
-            # Devolvemos una lista vacía en lugar de explotar (evita el 500)
+            print(f"❌ Error histórico {tag}: {e}")
             return []
     
-    async def fetch_metrics(self):
-        global fiix_memory_cache
-        # IDs confirmados en tu inspección
+    async def fetch_metrics_wfs4(self):
+        """Métricas en tiempo real para Nave 4 (Perecederos)"""
+        global fiix_memory_cache_wfs4
         SITE_ID = 29449435
-        TAG_NAVE = "WFS4"
+        PREFIX = "ES_MAD-WFS4-CTS-AL-"
         ID_PREVENTIVO = 531546
-        ID_URGENTE = 278571
         
-        now = datetime.now()
-        yesterday_str = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        KEYWORDS_FLOTA = ["CTS", "VEH", "GT", "AGV", "LINDE"]
+        KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAJE", "FACTURA", "MENSUAL", "GASOIL", "REVISION", "LIMPIEZA"]
+        
+        yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            # --- A. ACTIVOS (Disponibilidad) ---
+            # 1. Disponibilidad (Solo Nave 4)
             body_assets = {
                 "_maCn": "FindRequest", "className": "Asset",
-                "fields": "id, bolIsOnline, strCode",
-                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID]}],
-                "maxObjects": 1000
+                "fields": "id, bolIsOnline, strCode, strName",
+                "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [SITE_ID, f"%{PREFIX}%"]}]
             }
-            assets_res = await self._fiix_rpc(body_assets)
-            assets_n4 = [a for a in assets_res if f"-{TAG_NAVE}-" in str(a.get("strCode", ""))]
+            res_assets = await self._fiix_rpc(body_assets)
             
-            broken = sum(1 for a in assets_n4 if a.get("bolIsOnline") == 0)
-            avail = round(((len(assets_n4) - broken) / len(assets_n4)) * 100) if assets_n4 else 100
+            total_c = len(res_assets)
+            broken_assets = [a.get("strName") for a in res_assets if a.get("bolIsOnline") == 0]
+            avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
 
-            # --- B. ÓRDENES (Costes y Tiempos) ---
+            # 2. Daños Reales 24h (Solo Nave 4)
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, dtmDateCreated, dtmDateCompleted, intMaintenanceTypeID, intPriorityID, strAssets",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCompleted >= ? AND strAssets LIKE ?", 
-                             "parameters": [SITE_ID, yesterday_str, f"%{TAG_NAVE}%"]}]
+                "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", "parameters": [SITE_ID, yesterday, "%WFS4%"]}]
             }
-            wos_res = await self._fiix_rpc(body_wo)
+            res_wos = await self._fiix_rpc(body_wo)
             
-            cost = 0.0
-            total_dt = 0
-            for wo in wos_res:
-                # Coste (Reseteado a 0 en cada vuelta, evita acumulativo)
-                if wo.get("intPriorityID") == ID_URGENTE: cost += 450.0
-                elif wo.get("intMaintenanceTypeID") != ID_PREVENTIVO: cost += 120.0
-                else: cost += 35.0
-                # Tiempo
-                if wo.get("dtmDateCreated") and wo.get("dtmDateCompleted"):
-                    total_dt += (wo["dtmDateCompleted"] - wo["dtmDateCreated"]) / (1000 * 60)
+            real_damages = []
+            for w in res_wos:
+                desc = str(w.get("strDescription", "")).upper()
+                if not any(k in desc for k in KEYWORDS_EXCLUIR) and w.get("intMaintenanceTypeID") != ID_PREVENTIVO:
+                    real_damages.append(w)
 
-            mttr = round((total_dt / len(wos_res)) / 60, 1) if wos_res else 0
-
-            # 3. ACTUALIZAR CACHÉ GLOBAL
-            fiix_memory_cache = {
+            fiix_memory_cache_wfs4 = {
                 "fiix_wfs4_availability": avail,
-                "fiix_wfs4_damage_cost": round(cost, 2),
-                "fiix_wfs4_mttr": mttr,
-                "fiix_wfs4_broken_count": broken
+                "fiix_wfs4_broken_text": f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota WFS4 Operativa",
+                "fiix_wfs4_damage_count_24h": len(real_damages),
+                "last_update": datetime.utcnow().isoformat() + "Z"
             }
-
-            # 4. BROADCAST INMEDIATO
-            ts = datetime.utcnow().isoformat() + "Z"
-            for m, v in fiix_memory_cache.items():
-                await manager.broadcast({
-                    "type": "kpi_update", "metric": m, "value": v, 
-                    "timestamp": ts, "station": "MAD"
-                })
-            print(f"✅ [FIIX] Auto-sincronización exitosa: {avail}% disp.")
-
+            
+            await manager.broadcast({"type": "kpi_update", "station": "WFS4", **fiix_memory_cache_wfs4})
+            return fiix_memory_cache_wfs4
         except Exception as e:
-            print(f"❌ [FIIX] Error en worker: {e}")
+            print(f"❌ Error WFS4 Fiix: {e}")
+            return {}
             
     
 
@@ -3462,13 +3447,13 @@ fiix_worker_started = False # Bandera para no duplicar procesos
 
 @app.get("/api/fiix/current")
 async def get_fiix_current():
-    global fiix_worker_started
-    # Si el proceso automático no ha arrancado, lo lanzamos ahora mismo
-    if not fiix_worker_started:
-        asyncio.create_task(fiix_auto_worker())
-        fiix_worker_started = True
-    
-    return fiix_memory_cache
+    connector = FiixConnector()
+    return await connector.fetch_metrics_wfs4()
+
+@app.get("/api/fiix/history")
+async def get_fiix_history():
+    connector = FiixConnector()
+    return await connector.fetch_monthly_weekly_metrics(site_id=29449435, tag="WFS4")
 
 # --- EL WORKER QUE REALMENTE FUNCIONA ---
 async def fiix_auto_worker():
@@ -3483,16 +3468,7 @@ async def fiix_auto_worker():
         # Actualiza cada 10 minutos
         await asyncio.sleep(600)
         
-@app.get("/api/fiix/history")
-async def get_fiix_history():
-    try:
-        connector = FiixConnector()
-        history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
-        return history
-    except Exception as e:
-        # Esto captura el error antes de que Render mande el "Internal Server Error"
-        print(f"💥 Error en Endpoint History: {e}")
-        return [] # Devuelve array vacío para que el JS no pete
+# Devuelve array vacío para que el JS no pete
 
 @app.post("/api/incidents/protocol")
 def post_protocol_dummy(payload: dict):
