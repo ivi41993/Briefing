@@ -1949,87 +1949,108 @@ class FiixConnector:
             print(f"❌ [FIIX BCN Error]: {e}")
             return []
 
-    async def fetch_monthly_weekly_metrics(self, weeks_back=5):
-        """Consulta historial y agrupa por semanas - Versión Blindada"""
-        # Aseguramos constantes dentro del método por si acaso
-        SITE_ID = FIIX_SITE_ID 
-        TAG = TAG_NAVE
+    async def fetch_monthly_damage_history(self, weeks_back=5):
+        """Genera el acumulado semanal de DAÑOS REALES"""
+        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+        ID_PREVENTIVO = 531546
+
+        body = {
+            "_maCn": "FindRequest", "className": "WorkOrder",
+            "fields": "id, dtmDateCreated, intMaintenanceTypeID",
+            "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                         "parameters": [FIIX_SITE_ID, since_date, f"%{TAG_NAVE}%"]}]
+        }
+        wos = await self._fiix_rpc(body)
+        
+        # Agrupar por semana
+        weekly_stats = {}
+        for i in range(weeks_back + 1):
+            target_date = datetime.now() - timedelta(weeks=i)
+            year, week, _ = target_date.isocalendar()
+            week_key = f"{year}-W{week:02d}"
+            weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
+
+        for wo in wos:
+            # SOLO contamos si NO es preventivo
+            if wo.get("intMaintenanceTypeID") != ID_PREVENTIVO:
+                dt = datetime.fromtimestamp(wo["dtmDateCreated"] / 1000)
+                year, week, _ = dt.isocalendar()
+                week_key = f"{year}-W{week:02d}"
+                if week_key in weekly_stats:
+                    weekly_stats[week_key]["count"] += 1
+
+        return [{"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]} for k in sorted(weekly_stats.keys())]
+    
+    
+    async def fetch_metrics_vlc(self): # Ejemplo para VLC, replicar cambiando nombres de claves
+        global fiix_memory_cache
+        # Configuración de filtrado
+        SITE_ID = FIIX_SITE_ID
+        TAG = "BCN"
+        # Palabras clave para identificar equipo CRÍTICO
+        KEYWORDS_CARRETILLAS = ["CARRETILLA", "TORO", "FLT", "TRANSPALETA", "FENWICK", "MOP"]
+        # IDs de Fiix
         ID_PREVENTIVO = 531546
         ID_URGENTE = 278571
-        
-        # 1. Calcular fecha de inicio
-        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
-        tag_filter = f"%{TAG}%"
 
-        print(f"📊 [FIIX HISTORY] Buscando {weeks_back} semanas para {TAG} desde {since_date}...")
+        yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            body = {
-                "_maCn": "FindRequest", 
-                "className": "WorkOrder",
-                "fields": "id, dtmDateCreated, intMaintenanceTypeID, intPriorityID",
-                "filters": [
-                    {
-                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                        "parameters": [SITE_ID, since_date, tag_filter]
-                    }
-                ],
-                "maxObjects": 2000
+            # --- 1. DISPONIBILIDAD (Solo Carretillas) ---
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strCode, strName",
+                "filters": [{"ql": "intSiteID = ? AND intKind = 2", "parameters": [SITE_ID]}],
+                "maxObjects": 1000
+            }
+            res_assets = await self._fiix_rpc(body_assets)
+            
+            # Filtramos solo lo que sea Carretilla y sea de esta Nave/Escala
+            carretillas = [
+                a for a in res_assets 
+                if any(k in str(a.get("strName","")).upper() for k in KEYWORDS_CARRETILLAS)
+                and TAG in str(a.get("strCode","")).upper()
+            ]
+
+            total_c = len(carretillas)
+            broken_c = [c.get("strName") for c in carretillas if c.get("bolIsOnline") == 0]
+            
+            # Disponibilidad real sobre equipo crítico
+            avail = round(((total_c - len(broken_c)) / total_c) * 100) if total_c > 0 else 100
+            broken_text = f"⚠️ {', '.join(broken_c)}" if broken_c else "Flota operativa"
+
+            # --- 2. DAÑOS (Solo Correctivos/Urgentes de las últimas 24h) ---
+            body_wo = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, intMaintenanceTypeID, intPriorityID, strDescription",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                             "parameters": [SITE_ID, yesterday, f"%{TAG}%"]}]
+            }
+            res_wos = await self._fiix_rpc(body_wo)
+            
+            # Solo contamos como DAÑO lo que no sea preventivo
+            danos_24h = [
+                w for w in res_wos 
+                if w.get("intMaintenanceTypeID") != ID_PREVENTIVO 
+                or w.get("intPriorityID") == ID_URGENTE
+            ]
+
+            # --- 3. ACTUALIZAR CACHÉ ---
+            fiix_memory_cache = {
+                "fiix_vlc_availability": avail,
+                "fiix_vlc_broken_count": len(broken_c),
+                "fiix_vlc_broken_text": broken_text,
+                "fiix_vlc_damage_count_24h": len(danos_24h),
+                "last_update": datetime.utcnow().isoformat() + "Z"
             }
             
-            wos = await self._fiix_rpc(body)
-            print(f"📦 [FIIX HISTORY] {len(wos)} órdenes encontradas para procesar.")
-            
-            # --- AGRUPACIÓN ---
-            weekly_stats = {}
-
-            # Inicializamos las últimas semanas con 0 para que el gráfico no salga vacío
-            for i in range(weeks_back + 1):
-                target_date = datetime.now() - timedelta(weeks=i)
-                year, week, _ = target_date.isocalendar()
-                week_key = f"{year}-W{week:02d}"
-                weekly_stats[week_key] = {"count": 0, "cost": 0.0, "label": f"Sem. {week}"}
-
-            for wo in wos:
-                try:
-                    # Fiix devuelve milisegundos
-                    ts = wo.get("dtmDateCreated")
-                    if not ts: continue
-                    
-                    dt = datetime.fromtimestamp(ts / 1000)
-                    year, week, _ = dt.isocalendar()
-                    week_key = f"{year}-W{week:02d}"
-                    
-                    if week_key in weekly_stats:
-                        weekly_stats[week_key]["count"] += 1
-                        
-                        # Lógica de costes
-                        pid = wo.get("intPriorityID")
-                        mid = wo.get("intMaintenanceTypeID")
-                        
-                        if pid == ID_URGENTE: cost = 450.0
-                        elif mid != ID_PREVENTIVO: cost = 120.0
-                        else: cost = 35.0
-                        
-                        weekly_stats[week_key]["cost"] += cost
-                except Exception as e:
-                    continue # Si una orden está corrupta, salta a la siguiente
-
-            # Ordenar y limpiar
-            final_list = []
-            for k in sorted(weekly_stats.keys()):
-                final_list.append({
-                    "week": weekly_stats[k]["label"],
-                    "count": weekly_stats[k]["count"],
-                    "cost": round(weekly_stats[k]["cost"], 2)
-                })
-            
-            return final_list
+            # Persistencia en disco
+            save_fiix_cache_to_disk(fiix_memory_cache)
+            await manager.broadcast({"type": "kpi_update", "station": TAG, **fiix_memory_cache})
 
         except Exception as e:
-            print(f"❌ Error CRÍTICO en historial: {str(e)}")
-            # Devolvemos una lista vacía en lugar de explotar (evita el 500)
-            return []
+            print(f"❌ Error Fiix {TAG}: {e}")
+    
     
     async def fetch_metrics(self):
         global fiix_memory_cache
@@ -2409,6 +2430,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
