@@ -906,14 +906,8 @@ class FiixConnector:
             # --- 2. CÁLCULO DAÑOS REALES (Últimas 24h) ---
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
-                "filters": [
-                    {
-                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                        "parameters": [SITE_ID, yesterday, f"%{TAG}%"]
-                    }
-                ],
-                "maxObjects": 1000
+                "fields": "id, intMaintenanceTypeID, intPriorityID, strDescription, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [SITE_ID, yesterday]}] # <-- USAR SITE_ID LOCAL
             }
             res_wos = await self._fiix_rpc(body_wo)
             
@@ -981,15 +975,16 @@ async def get_wfs1_history():
 
 async def fiix_auto_worker():
     connector = FiixConnector()
-    # Esperamos un poco al inicio porque el endpoint @app.get ya se encargará 
-    # de la primera carga si entra un usuario.
-    await asyncio.sleep(60) 
+    print("👷 Worker Fiix: Iniciando primera carga...")
     
     while True:
         try:
             await connector.fetch_metrics()
+            print("✅ Worker Fiix: Datos actualizados")
         except Exception as e:
             print(f"❌ Error worker ciclo: {e}")
+        
+        # Dormir después de haber cargado, no antes
         await asyncio.sleep(600)
 
 async def fetch_roster_api_data(escala: str, fecha: str):
@@ -1154,9 +1149,11 @@ async def fiix_background_loop():
 
 # --- ENDPOINT API ---
 @app.get("/api/fiix/current")
-async def get_fiix_current(station: str = "WFS1"):
-    # Devuelve la caché de WFS1 directamente
-    return fiix_data_cache
+async def get_fiix_current():
+    global fiix_memory_cache
+    # Si por alguna razón es None, devolvems un {} para evitar el crash del JS
+    return fiix_memory_cache if fiix_memory_cache is not None else {}
+
     
 @app.get("/api/roster/current")
 async def get_roster_current():
