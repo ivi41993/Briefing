@@ -1895,6 +1895,59 @@ async def update_task_completion(task_id: str, update_data: TaskCompletionUpdate
     await manager.broadcast(sanitized)
     return Task(**sanitized)
 
+@app.get("/api/fiix/audit-damages")
+async def audit_bcn_damages():
+    """
+    Desglose detallado de los daños reportados en las últimas 48 horas 
+    para verificar qué está contando el sistema.
+    """
+    connector = FiixConnector()
+    # IDs de referencia
+    ID_PREVENTIVO = 531546
+    # Ampliamos a 48h para tener una muestra más grande en la prueba
+    since = (datetime.now() - timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    body = {
+        "_maCn": "FindRequest", 
+        "className": "WorkOrder",
+        "fields": "id, dtmDateCreated, strAssets, strDescription, intMaintenanceTypeID, intPriorityID",
+        "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [FIIX_SITE_ID, since]}],
+        "maxObjects": 100
+    }
+
+    try:
+        wos = await connector._fiix_rpc(body)
+        
+        desglose = []
+        for w in wos:
+            assets = str(w.get("strAssets", "")).upper()
+            tipo_id = w.get("intMaintenanceTypeID")
+            # Determinamos si el código del activo pertenece a la flota crítica
+            es_flota = any(x in assets for x in ["CTS", "VEH", "AL-144"])
+            es_daño = (tipo_id != ID_PREVENTIVO)
+
+            # Guardamos la información para que tú la veas
+            desglose.append({
+                "ID_ORDEN": w.get("id"),
+                "FECHA": datetime.fromtimestamp(w.get("dtmDateCreated")/1000).strftime('%d/%m %H:%M'),
+                "EQUIPO": assets,
+                "DESCRIPCION": w.get("strDescription"),
+                "TIPO": "CORRECTIVO/DAÑO" if es_daño else "PREVENTIVO",
+                "ES_CRITICO_BCN": "SÍ" if es_flota else "NO (Infraestructura/Otros)",
+                "CONTABILIZA_COMO_GOLPE": "SÍ" if (es_flota and es_daño) else "NO"
+            })
+
+        # Ordenar por fecha
+        desglose.sort(key=lambda x: x['FECHA'], reverse=True)
+
+        return {
+            "total_analizadas": len(wos),
+            "total_daños_flota": sum(1 for x in desglose if x["CONTABILIZA_COMO_GOLPE"] == "SÍ"),
+            "listado": desglose
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/api/fiix/history")
 async def get_fiix_history():
     try:
@@ -2398,6 +2451,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
