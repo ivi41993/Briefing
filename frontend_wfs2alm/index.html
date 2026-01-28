@@ -7067,58 +7067,30 @@ window.markOkAndNext = function(checkName, nextId) {
    ========================================================= */
 
 // 1. Visualizador de Datos
+// En el script de index.html para WFS2
 function updateFiixDisplay(metric, value) {
-    // MAPEO: Claves WFS2B -> IDs HTML
     const mapping = {
-        'fiix_wfs2b_availability': 'fiix-availability',
-        'fiix_wfs2b_damage_cost':  'fiix-damage-cost',
-        'fiix_wfs2b_mttr':         'fiix-mttr'
+        'fiix_wfs2_availability': 'fiix-availability',
+        'fiix_wfs2_damage_count_24h': 'fiix-damage-24h'
     };
 
-    // A. Estado de activos (Broken Count)
-    if (metric === 'fiix_wfs2b_broken_count') {
-        const elText = document.getElementById('fiix-broken-text');
-        const tile = document.getElementById('tile-fiix-availability');
-        
-        if (elText && tile) {
-            if (value === 0) {
-                elText.textContent = "Todo operativo";
-                elText.style.color = "var(--text-muted)";
-                elText.style.fontWeight = "400";
-                tile.style.borderLeftColor = "#10b981"; // Verde
-            } else {
-                elText.textContent = `⚠️ ${value} activos parados`;
-                elText.style.color = "#dc2626"; // Rojo
-                elText.style.fontWeight = "800";
-                tile.style.borderLeftColor = "#ef4444"; // Rojo Alerta
-            }
+    if (metric === 'fiix_wfs2_broken_text') {
+        const el = document.getElementById('fiix-broken-text');
+        if (el) {
+            el.textContent = value;
+            el.style.color = value.includes('⚠️') ? "#dc2626" : "";
         }
         return;
     }
 
-    // B. Valores Numéricos
     const targetId = mapping[metric];
     const el = document.getElementById(targetId);
-    
     if (el) {
-        if (metric.includes('cost')) {
-            // Formato Moneda (2.645,00)
-            el.textContent = new Intl.NumberFormat('es-ES', { 
-                minimumFractionDigits: 2, maximumFractionDigits: 2 
-            }).format(value);
-            
-            // Efecto Flash visual
-            const tile = el.closest('.kpi-tile');
-            if(tile) {
-                tile.classList.remove('flash');
-                void tile.offsetWidth; // Trigger reflow
-                tile.classList.add('flash');
-            }
-        } else {
-            // Formato Entero
-            el.textContent = Math.round(value);
+        el.textContent = value;
+        // En WFS2 (Cintas A/B), la disponibilidad es crítica
+        if (metric === 'fiix_wfs2_availability' && value < 98) {
+            el.closest('.kpi-tile').classList.add('spotlight-blink');
         }
-        el.style.opacity = "1";
     }
 }
 
