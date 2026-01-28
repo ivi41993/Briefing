@@ -4233,47 +4233,32 @@ const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg
    ========================================================= */
 
 function updateFiixDisplay(metric, value) {
-    // MAPEO: Clave Backend (Python) -> ID HTML
     const mapping = {
         'fiix_wfs1_availability': 'fiix-availability',
-        'fiix_wfs1_damage_cost':  'fiix-damage-cost',
-        'fiix_wfs1_mttr':         'fiix-mttr'
+        'fiix_wfs1_damage_count_24h': 'fiix-damage-24h'
     };
 
-    // 1. Manejo especial para el contador de máquinas rotas
-    if (metric === 'fiix_wfs1_broken_count') {
-        const elText = document.getElementById('fiix-broken-text');
-        const tile = document.getElementById('tile-fiix-availability');
-        
-        if (elText && tile) {
-            if (value === 0) {
-                elText.textContent = "Todo operativo";
-                elText.style.color = "var(--text-muted)";
-                elText.style.fontWeight = "400";
-                tile.style.borderLeftColor = "#10b981"; // Verde
-            } else {
-                elText.textContent = `⚠️ ${value} activos parados`;
-                elText.style.color = "#dc2626"; 
-                elText.style.fontWeight = "800";
-                tile.style.borderLeftColor = "#ef4444"; // Rojo
-            }
+    if (metric === 'fiix_wfs1_broken_text') {
+        const el = document.getElementById('fiix-broken-text');
+        if (el) {
+            el.textContent = value;
+            el.style.color = value.includes('⚠️') ? "#dc2626" : "var(--text-muted)";
+            el.style.fontWeight = value.includes('⚠️') ? "800" : "400";
         }
         return;
     }
 
-    // 2. Manejo de valores numéricos
     const targetId = mapping[metric];
     const el = document.getElementById(targetId);
-    
     if (el) {
-        if (metric.includes('cost')) {
-            // Formato moneda: 1.234,56
-            el.textContent = new Intl.NumberFormat('es-ES', { 
-                minimumFractionDigits: 2, maximumFractionDigits: 2 
-            }).format(value);
-        } else {
-            // Formato número entero
-            el.textContent = Math.round(value);
+        el.textContent = value;
+        if (metric === 'fiix_wfs1_availability') {
+            const tile = el.closest('.kpi-tile');
+            if (tile) {
+                // Madrid: Si baja de 95% parpadea (Vivid UI)
+                tile.style.borderLeftColor = value < 95 ? '#ef4444' : '#10b981';
+                tile.classList.toggle('spotlight-blink', value < 95);
+            }
         }
     }
 }
@@ -6779,49 +6764,30 @@ let weeklyFiixChart = null;
 
 async function renderFiixWeeklyHistory() {
     try {
-        const res = await fetch('api/fiix/history');
+        const res = await fetch('api/fiix/history'); // Ruta relativa cumplida
         const data = await res.json();
-
         const ctx = document.getElementById('fiixWeeklyChart').getContext('2d');
-        if (weeklyFiixChart) weeklyFiixChart.destroy();
+        
+        if (window.weeklyFiixChart) window.weeklyFiixChart.destroy();
 
-        weeklyFiixChart = new Chart(ctx, {
-            type: 'bar', // Cambiado a barras para que se vea mejor el volumen
+        window.weeklyFiixChart = new Chart(ctx, {
+            type: 'bar',
             data: {
                 labels: data.map(d => d.week),
-                datasets: [
-                    {
-                        label: 'Número de Incidencias',
-                        data: data.map(d => d.count),
-                        backgroundColor: 'rgba(59, 130, 246, 0.7)', // Azul Vivid
-                        borderColor: '#3b82f6',
-                        borderWidth: 1,
-                        borderRadius: 6, // Esquinas redondeadas para estilo moderno
-                        barPercentage: 0.6 // Barras un poco más delgadas y elegantes
-                    }
-                ]
+                datasets: [{
+                    label: 'Daños WFS1',
+                    data: data.map(d => d.count),
+                    backgroundColor: '#dc2626', // Rojo Madrid
+                    borderRadius: 5
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false } // Ocultamos leyenda porque solo hay un dato
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: { display: true, text: 'Cant. Averías', font: { weight: 'bold' } },
-                        ticks: { stepSize: 1 } // Solo números enteros (no hay media avería)
-                    },
-                    x: {
-                        grid: { display: false } // Limpiamos el fondo del gráfico
-                    }
-                }
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
             }
         });
-    } catch (e) {
-        console.error("Error cargando histórico semanal:", e);
-    }
+    } catch (e) { console.error("Error Chart WFS1", e); }
 }
 
 document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
