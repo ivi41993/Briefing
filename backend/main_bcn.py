@@ -2128,7 +2128,7 @@ class FiixConnector:
             for w in res_wos:
                 desc = str(w.get("strDescription", "")).upper()
                 assets = str(w.get("strAssets", "")).upper()
-                 REGLA DE FILTRADO:
+                # REGLA DE FILTRADO:
                 # 1. Debe ser de la flota crítica
                 es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
                 # 2. No debe ser preventivo
@@ -2466,6 +2466,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
