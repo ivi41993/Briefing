@@ -1949,37 +1949,62 @@ class FiixConnector:
             print(f"❌ [FIIX BCN Error]: {e}")
             return []
 
-    async def fetch_monthly_damage_history(self, weeks_back=5):
-        """Genera el acumulado semanal de DAÑOS REALES"""
-        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+    async def fetch_monthly_weekly_metrics(self, weeks_back=5):
+        """Genera el acumulado semanal de DAÑOS REALES (Filtro síncrono)"""
+        # Aseguramos constantes para Valencia/BCN/Madrid
+        SITE_ID = FIIX_SITE_ID 
+        TAG = "BCN"
         ID_PREVENTIVO = 531546
-
-        body = {
-            "_maCn": "FindRequest", "className": "WorkOrder",
-            "fields": "id, dtmDateCreated, intMaintenanceTypeID",
-            "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                         "parameters": [FIIX_SITE_ID, since_date, f"%{TAG_NAVE}%"]}]
-        }
-        wos = await self._fiix_rpc(body)
         
-        # Agrupar por semana
-        weekly_stats = {}
-        for i in range(weeks_back + 1):
-            target_date = datetime.now() - timedelta(weeks=i)
-            year, week, _ = target_date.isocalendar()
-            week_key = f"{year}-W{week:02d}"
-            weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
+        since_date = (datetime.now() - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+        tag_filter = f"%{TAG}%"
 
-        for wo in wos:
-            # SOLO contamos si NO es preventivo
-            if wo.get("intMaintenanceTypeID") != ID_PREVENTIVO:
-                dt = datetime.fromtimestamp(wo["dtmDateCreated"] / 1000)
-                year, week, _ = dt.isocalendar()
+        try:
+            body = {
+                "_maCn": "FindRequest", 
+                "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, intMaintenanceTypeID",
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                        "parameters": [SITE_ID, since_date, tag_filter]
+                    }
+                ],
+                "maxObjects": 2000
+            }
+            
+            wos = await self._fiix_rpc(body)
+            
+            # --- AGRUPACIÓN POR SEMANAS ---
+            weekly_stats = {}
+            # Inicializar las semanas a 0
+            for i in range(weeks_back + 1):
+                target_date = datetime.now() - timedelta(weeks=i)
+                year, week, _ = target_date.isocalendar()
                 week_key = f"{year}-W{week:02d}"
-                if week_key in weekly_stats:
-                    weekly_stats[week_key]["count"] += 1
+                weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
 
-        return [{"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]} for k in sorted(weekly_stats.keys())]
+            for wo in wos:
+                # SOLO contamos Daños (filtramos los preventivos)
+                if wo.get("intMaintenanceTypeID") != ID_PREVENTIVO:
+                    ts = wo.get("dtmDateCreated")
+                    if ts:
+                        dt = datetime.fromtimestamp(ts / 1000)
+                        year, week, _ = dt.isocalendar()
+                        week_key = f"{year}-W{week:02d}"
+                        if week_key in weekly_stats:
+                            weekly_stats[week_key]["count"] += 1
+
+            # Devolver lista ordenada por fecha
+            return [
+                {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
+                for k in sorted(weekly_stats.keys())
+            ]
+
+        except Exception as e:
+            print(f"❌ Error en historial semanal {TAG}: {e}")
+            return []
+
     
     
     async def fetch_metrics_vlc(self): # Ejemplo para VLC, replicar cambiando nombres de claves
@@ -2430,6 +2455,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
