@@ -6940,51 +6940,31 @@ window.markOkAndNext = function(checkName, nextId) {
 
 // 1. Visualizador
 function updateFiixDisplay(metric, value) {
-    // MAPEO ESPECÍFICO WFS 3
     const mapping = {
         'fiix_wfs3_availability': 'fiix-availability',
-        'fiix_wfs3_damage_cost':  'fiix-damage-cost',
-        'fiix_wfs3_mttr':         'fiix-mttr'
+        'fiix_wfs3_damage_count_24h': 'fiix-damage-24h'
     };
 
-    if (metric === 'fiix_wfs3_broken_count') {
-        const elText = document.getElementById('fiix-broken-text');
-        const tile = document.getElementById('tile-fiix-availability');
-        if (elText && tile) {
-            if (value === 0) {
-                elText.textContent = "Todo operativo";
-                elText.style.color = "var(--text-muted)";
-                tile.style.borderLeftColor = "#10b981";
-            } else {
-                elText.textContent = `⚠️ ${value} activos parados`;
-                elText.style.color = "#dc2626";
-                elText.style.fontWeight = "800";
-                tile.style.borderLeftColor = "#ef4444";
-            }
+    if (metric === 'fiix_wfs3_broken_text') {
+        const el = document.getElementById('fiix-broken-text');
+        if (el) {
+            el.textContent = value;
+            el.style.color = value.includes('⚠️') ? "#ef4444" : "";
+            el.style.fontWeight = value.includes('⚠️') ? "800" : "400";
         }
         return;
     }
 
     const targetId = mapping[metric];
     const el = document.getElementById(targetId);
-    
     if (el) {
-        if (metric.includes('cost')) {
-            el.textContent = new Intl.NumberFormat('es-ES', { 
-                minimumFractionDigits: 2, maximumFractionDigits: 2 
-            }).format(value);
-            
-            // Efecto flash
+        el.textContent = value;
+        // Lógica Vivid UI: Si baja de 90%, activar parpadeo
+        if (metric === 'fiix_wfs3_availability') {
             const tile = el.closest('.kpi-tile');
-            if(tile) {
-                tile.classList.remove('flash');
-                void tile.offsetWidth;
-                tile.classList.add('flash');
-            }
-        } else {
-            el.textContent = Math.round(value);
+            if (value < 90) tile.classList.add('spotlight-blink');
+            else tile.classList.remove('spotlight-blink');
         }
-        el.style.opacity = "1";
     }
 }
 
