@@ -711,50 +711,80 @@ class FiixConnector:
             print(f"❌ [FIIX WFS1 Error]: {e}")
             return []
 
-    async def fetch_monthly_weekly_metrics(self, weeks_back=5):
-        """Histórico de daños exclusivo WFS1 (Madrid Site: 29449435)"""
-        SITE_ID = 29449435
-        TAG = "WFS1"
-        ID_PREVENTIVO = 531546
+    async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
+    """
+    Genera el acumulado semanal de DAÑOS REALES para Madrid.
+    Filtra por Site, Nave (WFS1/2/3/4) y excluye tareas administrativas.
+    """
+    ID_PREVENTIVO = 531546
+    # Sincronizamos palabras clave con fetch_metrics para consistencia total
+    KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
+    KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL", "REVISION"]
+    
+    now = datetime.now()
+    since_date = (now - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+    
+    # Filtro por Nave (Ej: %WFS1%)
+    tag_filter = f"%{tag}%"
+
+    try:
+        body = {
+            "_maCn": "FindRequest", 
+            "className": "WorkOrder",
+            # Traemos strDescription y strAssets para el filtrado manual
+            "fields": "id, dtmDateCreated, intMaintenanceTypeID, strDescription, strAssets",
+            "filters": [
+                {
+                    "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                    "parameters": [site_id, since_date, tag_filter]
+                }
+            ],
+            "maxObjects": 2000
+        }
         
-        now = datetime.now()
-        since_date = (now - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+        wos = await self._fiix_rpc(body)
         
-        try:
-            body = {
-                "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, dtmDateCreated, intMaintenanceTypeID, strDescription, strAssets",
-                "filters": [
-                    {
-                        "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
-                        "parameters": [SITE_ID, since_date, f"%{TAG}%"]
-                    }
-                ],
-                "maxObjects": 1000
-            }
-            wos = await self._fiix_rpc(body)
+        # --- INICIALIZAR SEMANAS (Garantiza que el gráfico no tenga huecos) ---
+        weekly_stats = {}
+        for i in range(weeks_back + 1):
+            target_date = now - timedelta(weeks=i)
+            year, week, _ = target_date.isocalendar()
+            week_key = f"{year}-W{week:02d}"
+            weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
+
+        for wo in wos:
+            desc = str(wo.get("strDescription") or "").upper()
+            assets = str(wo.get("strAssets") or "").upper()
+            created_ts = wo.get("dtmDateCreated") 
             
-            weekly_stats = {}
-            for i in range(weeks_back + 1):
-                target_date = now - timedelta(weeks=i)
-                year, week, _ = target_date.isocalendar()
+            if not created_ts: continue
+
+            # --- LÓGICA DE FILTRADO ESTRICTO MADRID ---
+            # 1. ¿Es un equipo crítico? (Evita contar puertas, luces, etc.)
+            es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+            # 2. ¿Es una avería/daño? (No es mantenimiento preventivo)
+            es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+            # 3. ¿Es una avería real? (No es repostaje ni gestión de alquiler)
+            es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+
+            if es_de_flota and es_correctivo and not es_administrativo:
+                # Conversión de milisegundos de Fiix a fecha Python
+                dt = datetime.fromtimestamp(int(created_ts) / 1000)
+                year, week, _ = dt.isocalendar()
                 week_key = f"{year}-W{week:02d}"
-                weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
+                
+                if week_key in weekly_stats:
+                    weekly_stats[week_key]["count"] += 1
 
-            for wo in wos:
-                is_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
-                if is_correctivo:
-                    dt = datetime.fromtimestamp(wo.get("dtmDateCreated") / 1000)
-                    year, week, _ = dt.isocalendar()
-                    week_key = f"{year}-W{week:02d}"
-                    if week_key in weekly_stats:
-                        weekly_stats[week_key]["count"] += 1
+        # Devolver lista ordenada para Chart.js
+        return [
+            {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
+            for k in sorted(weekly_stats.keys())
+        ]
 
-            return [{"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]} for k in sorted(weekly_stats.keys())]
-        except Exception as e:
-            print(f"❌ Error historial WFS1: {e}")
-            return []
-
+    except Exception as e:
+        print(f"❌ Error histórico {tag}: {e}")
+        return []
     async def fetch_metrics(self):
     global fiix_memory_cache
     # --- CONFIGURACIÓN ESPECÍFICA MADRID WFS1 ---
@@ -923,9 +953,14 @@ async def get_fiix_current():
     return data
 
 @app.get("/api/fiix/history")
-async def get_fiix_history():
+async def get_wfs1_history():
     connector = FiixConnector()
-    data = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
+    # Madrid Site ID: 29449435
+    data = await connector.fetch_monthly_weekly_metrics(
+        site_id=29449435, 
+        tag="WFS1", 
+        weeks_back=5
+    )
     return data
 
 # -----------------------------------
