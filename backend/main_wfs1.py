@@ -748,13 +748,6 @@ import httpx
 fiix_memory_cache = {}
 
 
-Para que WFS1 (Madrid) funcione con la precisión quirúrgica que requiere el sistema (segregando carretillas de las otras naves WFS2/3/4), vamos a ajustar el main_wfs1.py que has pasado.
-El problema actual en tu código es que tienes filtros mezclados de BCN y Madrid. Aquí tienes la versión corregida y lista para producción.
-1. El Backend: Ajuste en main_wfs1.py
-Busca la clase FiixConnector y los endpoints correspondientes en tu archivo y sustitúyelos por estos. He optimizado el filtro LIKE para que capture exactamente el prefijo que mencionas: ES_MAD-WFS1-CTS-AL-.
-code
-Python
-# --- CLASE FIIXCONNECTOR OPTIMIZADA PARA WFS1 ---
 
 class FiixConnector:
     def __init__(self):
