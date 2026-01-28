@@ -2724,39 +2724,29 @@ body.card-open #timer-reset {
   <!-- FILA 2: MANTENIMIENTO (FIIX) -->
   <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
   
-  <div class="kpi-grid">
-    <!-- Backlog -->
-    <div class="kpi-tile" style="border-left: 4px solid #3b82f6;">
-      <div class="kpi-label">Backlog (Abiertas)</div>
-      <div class="kpi-value" id="fiix-backlog">—</div>
+ <div class="kpi-grid">
+    <!-- Disponibilidad Crítica -->
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Disponibilidad Carretillas</div>
+        <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
+        <small class="kpi-text" id="fiix-broken-text">Analizando flota...</small>
     </div>
 
-    <!-- Urgencias (Si > 0 se pondrá rojo por JS) -->
-    <div class="kpi-tile" id="tile-fiix-urgent" style="border-left: 4px solid #f59e0b;">
-      <div class="kpi-label">Correctivos</div>
-      <div class="kpi-value" id="fiix-urgent">—</div>
-    </div>
-
-    <!-- Costes Mto. (Mes) -->
-    <div class="kpi-tile" style="border-left: 4px solid #10b981;">
-      <div class="kpi-label">Gasto Mes (Mto)</div>
-      <div class="kpi-value">
-        <span id="fiix-cost">—</span><span class="kpi-currency">€</span>
-      </div>
-    </div>
-    <!-- ... debajo de la fila de las 3 tarjetas de Fiix ... -->
-<div class="kpi-grid" style="margin-top: 15px;">
-    <!-- Este contenedor ocupa el espacio de las 3 tarjetas juntas -->
-    <div class="widget vivid" style="grid-column: 1 / -1; border-top: 3px solid var(--vivid-blue); margin: 0; box-shadow: none; background: #fafafa;">
-        <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
-            📈 Histórico de Averías por Semana
-        </h3>
-        <div style="height: 200px;">
-            <canvas id="fiixWeeklyChart"></canvas>
-        </div>
+    <!-- Daños del día -->
+    <div class="kpi-tile" style="border-left: 6px solid #f59e0b;">
+        <div class="kpi-label">Daños Reportados (24h)</div>
+        <div class="kpi-value" id="fiix-damage-24h">--</div>
+        <small class="kpi-text">Averías/Golpes</small>
     </div>
 </div>
-  </div>
+
+<!-- Gráfico de Acumulados -->
+<div class="widget vivid" style="grid-column: 1 / -1; margin-top:15px;">
+    <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
+        📊 Acumulado Semanal de Daños
+    </h3>
+    <div style="height: 200px;"><canvas id="fiixWeeklyChart"></canvas></div>
+</div>
 
   <!-- SEPARADOR -->
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
@@ -6201,48 +6191,67 @@ let weeklyFiixChart = null;
 
 async function renderFiixWeeklyHistory() {
     try {
-        const res = await fetch('api/fiix/history');
+        const canvas = document.getElementById('fiixWeeklyChart');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // La ruta es 'api/fiix/history' (tu interceptor la convertirá en /bcn/api/fiix/history)
+        const res = await fetch('api/fiix/history'); 
         const data = await res.json();
 
-        const ctx = document.getElementById('fiixWeeklyChart').getContext('2d');
+        if (!data || data.length === 0) {
+            console.warn("⚠️ [BCN] Sin datos históricos de Fiix.");
+            return;
+        }
+
         if (weeklyFiixChart) weeklyFiixChart.destroy();
 
+        // Estilo Vivid UI: Space Grotesk y Colores de Marca
         weeklyFiixChart = new Chart(ctx, {
-            type: 'bar', // Cambiado a barras para que se vea mejor el volumen
+            type: 'bar',
             data: {
                 labels: data.map(d => d.week),
-                datasets: [
-                    {
-                        label: 'Número de Incidencias',
-                        data: data.map(d => d.count),
-                        backgroundColor: 'rgba(59, 130, 246, 0.7)', // Azul Vivid
-                        borderColor: '#3b82f6',
-                        borderWidth: 1,
-                        borderRadius: 6, // Esquinas redondeadas para estilo moderno
-                        barPercentage: 0.6 // Barras un poco más delgadas y elegantes
-                    }
-                ]
+                datasets: [{
+                    label: 'Averías de Flota',
+                    data: data.map(d => d.count),
+                    backgroundColor: '#ef4444', // brand-red-500
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    barPercentage: 0.6
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false } // Ocultamos leyenda porque solo hay un dato
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1f2937',
+                        titleFont: { family: 'Space Grotesk', size: 14 },
+                        bodyFont: { family: 'Inter', size: 12 }
+                    }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        title: { display: true, text: 'Cant. Averías', font: { weight: 'bold' } },
-                        ticks: { stepSize: 1 } // Solo números enteros (no hay media avería)
+                        grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+                        ticks: { 
+                            stepSize: 1,
+                            font: { family: 'Inter', weight: '600' }
+                        }
                     },
                     x: {
-                        grid: { display: false } // Limpiamos el fondo del gráfico
+                        grid: { display: false },
+                        ticks: { 
+                            font: { family: 'Space Grotesk', weight: '700' }
+                        }
                     }
                 }
             }
         });
     } catch (e) {
-        console.error("Error cargando histórico semanal:", e);
+        console.error("❌ [BCN] Error renderizando historial:", e);
     }
 }
   
@@ -6403,6 +6412,14 @@ function initNowTicker(){
 
 // ===== Inicio global seguro =====
 document.addEventListener('DOMContentLoaded', () => {
+  renderFiixWeeklyHistory();
+  setInterval(() => {
+        forceLoadFiix();
+    }, 10000); // KPIs vivos cada 10s
+
+    setInterval(() => {
+        renderFiixWeeklyHistory();
+    }, 600000); // Gráfico histórico cada 10 min
   // UI / accesibilidad
   try { initHeaderTimer?.(); } catch(e){ console.warn('initHeaderTimer', e); }
   try { initFullscreenToggles?.(); } catch(e){ console.warn('initFullscreenToggles', e); }
