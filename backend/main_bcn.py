@@ -2098,7 +2098,7 @@ class FiixConnector:
                 a for a in all_assets 
                 if any(k in str(a.get("strCode","")).upper() or k in str(a.get("strName","")).upper() for k in KEYWORDS_FLOTA)
             ]
-            for a in res_assets:
+            for a in all_assets:
                 code = str(a.get("strCode", "")).upper()
                 
                 # Reglas de selección:
@@ -2471,6 +2471,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
