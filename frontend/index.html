@@ -7114,17 +7114,21 @@ async function generateAndSendToExcel() {
 
     try {
         // 1. Recoger Equipo (Nombres de la API + su asistencia)
-         const team = window.TEAM_STATE;
+        const team = window.TEAM_STATE || {};
+        const peopleList = team.people || team.allPeopleRaw || []; // Intentar ambas fuentes
+        const attendance = team.attendance || {};
         
-        // Recoger lista filtrada y cruzar con asistencia real en memoria
-        const rosterDetails = (team.people || []).map(p => {
+        // 2. Mapear nombres a iconos (✅, ❌, ➖)
+        const rosterDetails = peopleList.map(p => {
             const name = p.nombre_completo;
-            const status = team.attendance[name];
-            let icon = "➖"; 
-            if (status === true) icon = "✅";
-            if (status === false) icon = "❌";
+            const status = attendance[name]; // Buscar en el registro de asistencia
+            
+            let icon = "➖"; // Pendiente por defecto
+            if (status === true || status === "yes") icon = "✅";
+            if (status === false || status === "no") icon = "❌";
+            
             return `${name} (${icon})`;
-        }).join(", ") || "Sin personal marcado";
+        }).join(", ");
 
         // B. Card 3: Highlights Turno Anterior
         const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
@@ -7162,7 +7166,7 @@ async function generateAndSendToExcel() {
                 "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
                 "Backlog": document.getElementById('fiix-backlog')?.innerText || "-"
             },
-            roster_details: rosterDetails, // CAMPO REQUERIDO POR PYTHON
+            roster_details: finalRoster, // CAMPO REQUERIDO POR PYTHON
             prev_shift_note: highlights,  // CAMPO REQUERIDO POR PYTHON
             ops_updates: opsData,
             safety_incidents: [...safetyTips, ...card4Risks, ...card5Manual] // UNIÓN DE TARJETA 4 Y 5
@@ -7222,6 +7226,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
