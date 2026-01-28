@@ -4090,18 +4090,37 @@ function updateFiixDisplay(metric, value) {
         'fiix_bcn_damage_count_24h': 'fiix-damage-24h'
     };
 
+    // Actualizar el texto descriptivo de qué máquinas están rotas
     if (metric === 'fiix_bcn_broken_text') {
         const el = document.getElementById('fiix-broken-text');
         if (el) {
             el.textContent = value;
-            el.style.color = value.includes('⚠️') ? '#dc2626' : 'var(--text-muted)';
+            // Si el texto contiene la señal de peligro, ponerlo en rojo y negrita
+            if (value.includes('⚠️')) {
+                el.style.color = "#dc2626";
+                el.style.fontWeight = "800";
+            } else {
+                el.style.color = "var(--text-muted)";
+                el.style.fontWeight = "400";
+            }
         }
         return;
     }
 
     const targetId = mapping[metric];
-    if (document.getElementById(targetId)) {
-        document.getElementById(targetId).textContent = value;
+    const el = document.getElementById(targetId);
+    if (el) {
+        el.textContent = value;
+        
+        // Cambio de color dinámico del porcentaje
+        if (metric === 'fiix_bcn_availability') {
+            const tile = el.closest('.kpi-tile');
+            if (tile) {
+                // Si la disponibilidad de carretillas baja del 90%, borde rojo
+                tile.style.borderLeftColor = value < 90 ? '#ef4444' : '#10b981';
+                tile.style.backgroundColor = value < 90 ? '#fef2f2' : '#fff';
+            }
+        }
     }
 }
     
