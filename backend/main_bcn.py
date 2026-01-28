@@ -1948,16 +1948,22 @@ async def audit_bcn_damages():
     except Exception as e:
         return {"error": str(e)}
 
-@app.get("/api/fiix/history")
+# Ubicación: bcn/main.py (o donde tengas definido el router de BCN)
+
+@router.get("/api/fiix/history")
 async def get_fiix_history():
+    connector = FiixConnector()
+    # PASO CRÍTICO: Inyectar los IDs específicos de BCN aquí
     try:
-        connector = FiixConnector()
-        history = await connector.fetch_monthly_weekly_metrics(weeks_back=5)
-        return history
+        data = await connector.fetch_monthly_weekly_metrics(
+            site_id=30480896, # ID Site BCN definido en arquitectura
+            tag="BCN",        # Tag para filtrar assets de BCN
+            weeks_back=5      # Cuántas semanas atrás mirar
+        )
+        return data
     except Exception as e:
-        # Esto captura el error antes de que Render mande el "Internal Server Error"
         print(f"💥 Error en Endpoint History: {e}")
-        return [] # Devuelve array vacío para que el JS no pete
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/tasks")
 async def get_all_tasks():
@@ -2003,27 +2009,18 @@ class FiixConnector:
             return []
 
     async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
-        """
-        Genera el acumulado semanal de DAÑOS REALES (Correctivos de flota).
-        Optimizada para evitar colisiones en el Main Jefe.
-        """
-        # Constantes de filtrado (Sincronizadas con fetch_metrics)
         ID_PREVENTIVO = 531546
         KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
         KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "MENSUAL", "FACTURA"]
         
-        # Cálculo de ventana temporal
         now = datetime.now()
         since_date = (now - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
-        
-        # Nota: Usamos strAssets LIKE para filtrar por el nombre del Site/Estación en el asset
         tag_filter = f"%{tag}%"
     
         try:
             body = {
                 "_maCn": "FindRequest", 
                 "className": "WorkOrder",
-                # IMPORTANTE: Añadidos strDescription y strAssets para que el filtro funcione
                 "fields": "id, dtmDateCreated, intMaintenanceTypeID, strDescription, strAssets",
                 "filters": [
                     {
@@ -2031,13 +2028,12 @@ class FiixConnector:
                         "parameters": [site_id, since_date, tag_filter]
                     }
                 ],
-                "maxObjects": 2000
+                "maxObjects": 1000
             }
             
             wos = await self._fiix_rpc(body)
             
-            # --- INICIALIZAR ESTRUCTURA DE SEMANAS ---
-            # Usamos un diccionario para asegurar que incluso semanas con 0 daños aparezcan
+            # Inicializar semanas vacías para que el gráfico no salga roto si no hay datos
             weekly_stats = {}
             for i in range(weeks_back + 1):
                 target_date = now - timedelta(weeks=i)
@@ -2046,37 +2042,34 @@ class FiixConnector:
                 weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
     
             for wo in wos:
-                # Extracción segura de datos
                 desc = str(wo.get("strDescription") or "").upper()
                 assets = str(wo.get("strAssets") or "").upper()
-                created_ts = wo.get("dtmDateCreated") # Fiix devuelve ms
+                created_ts = wo.get("dtmDateCreated") 
                 
-                if not created_ts:
-                    continue
+                if not created_ts: continue
     
-                # Lógica de Negocio: Daños Reales
+                # Lógica de Daños Reales
                 es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
                 es_correctivo = (wo.get("intMaintenanceTypeID") != ID_PREVENTIVO)
                 es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
     
                 if es_de_flota and es_correctivo and not es_administrativo:
-                    # Conversión de timestamp a objeto datetime
-                    dt = datetime.fromtimestamp(created_ts / 1000)
+                    # Fiix devuelve milisegundos, convertimos a fecha
+                    dt = datetime.fromtimestamp(int(created_ts) / 1000)
                     year, week, _ = dt.isocalendar()
                     week_key = f"{year}-W{week:02d}"
                     
                     if week_key in weekly_stats:
                         weekly_stats[week_key]["count"] += 1
     
-            # Devolver lista ordenada cronológicamente para el Chart.js del Frontend
-            sorted_weeks = sorted(weekly_stats.keys())
+            # Devolver lista ordenada por fecha (del pasado al presente)
             return [
                 {"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]}
-                for k in sorted_weeks
+                for k in sorted(weekly_stats.keys())
             ]
     
         except Exception as e:
-            print(f"❌ [FIIX ARCHITECT ERROR] Historial semanal {tag}: {e}")
+            print(f"❌ Error en historial semanal {tag}: {e}")
             return []
 
     
@@ -2487,6 +2480,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
