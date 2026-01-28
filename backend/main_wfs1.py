@@ -858,56 +858,46 @@ class FiixConnector:
 
     async def fetch_metrics(self):
         global fiix_memory_cache
-        # --- CONFIGURACIÓN ESPECÍFICA MADRID WFS1 ---
+        # --- CONFIGURACIÓN MADRID WFS1 ---
         SITE_ID = 29449435
-        TAG = "WFS1"
-        # Prefijo exacto para las carretillas de la Nave 1
-        PREFIX_WFS1 = "ES_MAD-WFS1-CTS-AL-" 
-        
+        TAG_MAD = "WFS1"
+        PREFIX_FLOTA = "ES_MAD-WFS1-CTS-AL-"
         ID_PREVENTIVO = 531546
-        
-        # 1. Palabras clave de flota (Igual que BCN para consistencia)
+
         KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
-        
-        # 2. Palabras prohibidas (Filtro para NO reportar daños falsos/administrativos)
         KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL"]
-    
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-    
+
         try:
-            # --- 1. CÁLCULO DE DISPONIBILIDAD (Solo Activos WFS1) ---
+            # 1. Traer activos filtrando por Site de Madrid
             body_assets = {
                 "_maCn": "FindRequest", "className": "Asset",
                 "fields": "id, bolIsOnline, strCode, strName",
-                "filters": [
-                    {
-                        "ql": "intSiteID = ? AND strCode LIKE ?", 
-                        "parameters": [SITE_ID, f"%{PREFIX_WFS1}%"]
-                    }
-                ],
+                "filters": [{"ql": "intSiteID = ?", "parameters": [SITE_ID]}],
                 "maxObjects": 1000
             }
             res_assets = await self._fiix_rpc(body_assets)
             
-            # Filtramos carretillas críticas de WFS1
+            # FILTRO DE PRECISIÓN WFS1: Solo carretillas de la Nave 1
             equipo_critico = [
                 a for a in res_assets 
-                if any(k in str(a.get("strCode","")).upper() for k in KEYWORDS_FLOTA)
+                if PREFIX_FLOTA in str(a.get("strCode","")).upper() 
+                or any(k in str(a.get("strCode","")).upper() for k in KEYWORDS_FLOTA if TAG_MAD in str(a.get("strCode","")).upper())
             ]
-    
+
             total_c = len(equipo_critico)
-            # Identificar rotos (bolIsOnline = 0)
             broken_assets = [c.get("strName") for c in equipo_critico if c.get("bolIsOnline") == 0]
             
-            # Disponibilidad: (Total - Rotos) / Total
             avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
             status_text = f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota WFS1 operativa"
-    
-            # --- 2. CÁLCULO DAÑOS REALES (Últimas 24h) ---
+
+            # 2. CÁLCULO DAÑOS (Últimas 24h)
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, intPriorityID, strDescription, strAssets",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [SITE_ID, yesterday]}] # <-- USAR SITE_ID LOCAL
+                "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [SITE_ID, yesterday]}]
             }
             res_wos = await self._fiix_rpc(body_wo)
             
@@ -915,20 +905,16 @@ class FiixConnector:
             for w in res_wos:
                 desc = str(w.get("strDescription", "")).upper()
                 assets = str(w.get("strAssets", "")).upper()
-    
-                # REGLAS DE FILTRADO DE PRECISIÓN:
-                # 1. Debe pertenecer a la flota crítica de Madrid
-                es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
-                # 2. No debe ser mantenimiento preventivo (Revisiones programadas)
-                es_correctivo = (w.get("intMaintenanceTypeID") != ID_PREVENTIVO)
-                # 3. No debe ser una tarea administrativa o de repostaje
-                es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
-    
-                if es_de_flota and es_correctivo and not es_administrativo:
-                    real_damages.append(w)
-    
-            # --- 3. ACTUALIZAR CACHÉ WFS1 ---
-            # Usamos las claves fiix_wfs1_... para que el frontend las identifique
+                
+                # Regla: Debe ser de WFS1, no preventivo y no administrativo
+                if TAG_MAD in assets:
+                    es_correctivo = (w.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+                    es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+                    if es_correctivo and not es_administrativo:
+                        real_damages.append(w)
+
+            # 3. ACTUALIZAR CACHÉ GLOBAL
+            # Importante: Estas son las llaves que el frontend de WFS1 busca
             fiix_memory_cache = {
                 "fiix_wfs1_availability": avail,
                 "fiix_wfs1_broken_count": len(broken_assets),
@@ -937,20 +923,15 @@ class FiixConnector:
                 "last_update": datetime.utcnow().isoformat() + "Z"
             }
             
-            # Persistencia en disco para evitar ceros al reiniciar
-            save_fiix_cache_to_disk(fiix_memory_cache)
+            # Broadcast inmediato a los Websockets
+            await manager.broadcast({"type": "kpi_update", "station": TAG_MAD, **fiix_memory_cache})
             
-            # Notificar al Dashboard por WebSocket
-            await manager.broadcast({
-                "type": "kpi_update", 
-                "station": TAG, 
-                **fiix_memory_cache
-            })
-            
-            print(f"✅ [WFS1] Flota: {total_c} | Rotos: {len(broken_assets)} | Daños 24h: {len(real_damages)} | Disp: {avail}%")
-    
+            print(f"✅ [WFS1] Sync OK: Disp {avail}% | Daños: {len(real_damages)}")
+            return fiix_memory_cache
+
         except Exception as e:
-            print(f"❌ Error Fiix WFS1: {e}")
+            print(f"❌ Error crítico en Fiix WFS1: {e}")
+            return {}
 # --- WORKER AUTOMÁTICO ---
 fiix_worker_started = False
 
@@ -958,9 +939,12 @@ fiix_worker_started = False
 
 @app.get("/api/fiix/current")
 async def get_fiix_current():
-    connector = FiixConnector()
-    data = await connector.fetch_metrics()
-    return data
+    global fiix_memory_cache
+    # Si la caché está vacía, forzamos una carga síncrona para el primer usuario
+    if not fiix_memory_cache:
+        connector = FiixConnector()
+        await connector.fetch_metrics()
+    return fiix_memory_cache
 
 @app.get("/api/fiix/history")
 async def get_wfs1_history():
@@ -975,18 +959,14 @@ async def get_wfs1_history():
 
 async def fiix_auto_worker():
     connector = FiixConnector()
-    print("👷 Worker Fiix: Iniciando primera carga...")
-    
+    # En Madrid, cargamos nada más arrancar
     while True:
         try:
             await connector.fetch_metrics()
-            print("✅ Worker Fiix: Datos actualizados")
         except Exception as e:
-            print(f"❌ Error worker ciclo: {e}")
+            print(f"❌ Error worker WFS1: {e}")
+        await asyncio.sleep(600) # 10 minutos
         
-        # Dormir después de haber cargado, no antes
-        await asyncio.sleep(600)
-
 async def fetch_roster_api_data(escala: str, fecha: str):
     url = os.getenv("ROSTER_API_URL")
     key = os.getenv("ROSTER_API_KEY")
