@@ -2104,16 +2104,16 @@ class FiixConnector:
                 if ("-CTS-" in code) or ("-VEH-" in code) or ("-AL-144" in code):
                     equipo_critico.append(a)
 
-            # --- CÁLCULO DE DISPONIBILIDAD REAL ---
-            total_c = len(equipo_critico)
-            # Lista de nombres de lo que está roto (bolIsOnline = 0)
-            broken_assets = [c.get("strName") for c in equipo_critico if c.get("bolIsOnline") == 0]
-            
-            # (Total - Rotos) / Total
-            avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
-            
-            # Texto para el Dashboard: "Todo OK" o "⚠️ Carretilla 05, Transpaleta 12"
-            status_text = f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota operativa"
+                # --- CÁLCULO DE DISPONIBILIDAD REAL ---
+                total_c = len(equipo_critico)
+                # Lista de nombres de lo que está roto (bolIsOnline = 0)
+                broken_assets = [c.get("strName") for c in equipo_critico if c.get("bolIsOnline") == 0]
+                
+                # (Total - Rotos) / Total
+                avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
+                
+                # Texto para el Dashboard: "Todo OK" o "⚠️ Carretilla 05, Transpaleta 12"
+                status_text = f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota operativa"
 
             # --- 2. CÁLCULO DAÑOS (Últimas 24h) ---
             body_wo = {
@@ -2466,6 +2466,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
