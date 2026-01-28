@@ -756,45 +756,106 @@ class FiixConnector:
             return []
 
     async def fetch_metrics(self):
-        """Métricas tiempo real WFS1 (Filtrado por prefijo ES_MAD-WFS1-CTS-AL-)"""
-        SITE_ID = 29449435
-        PREFIX = "ES_MAD-WFS1-CTS-AL-" # <--- Tu filtro específico
-        ID_PREVENTIVO = 531546
-        yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    global fiix_memory_cache
+    # --- CONFIGURACIÓN ESPECÍFICA MADRID WFS1 ---
+    SITE_ID = 29449435
+    TAG = "WFS1"
+    # Prefijo exacto para las carretillas de la Nave 1
+    PREFIX_WFS1 = "ES_MAD-WFS1-CTS-AL-" 
+    
+    ID_PREVENTIVO = 531546
+    
+    # 1. Palabras clave de flota (Igual que BCN para consistencia)
+    KEYWORDS_FLOTA = ["CTS", "VEH", "AL-144", "GT", "AGV", "LINDE"]
+    
+    # 2. Palabras prohibidas (Filtro para NO reportar daños falsos/administrativos)
+    KEYWORDS_EXCLUIR = ["ALQUILER", "REPOSTAGE", "REPOSTAJE", "COMBUSTIBLE", "GASOIL", "FACTURA", "MENSUAL"]
 
-        try:
-            # 1. Traer activos que cumplan con el prefijo de WFS1
-            body_assets = {
-                "_maCn": "FindRequest", "className": "Asset",
-                "fields": "id, bolIsOnline, strCode, strName",
-                "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [SITE_ID, f"%{PREFIX}%"]}],
-                "maxObjects": 500
-            }
-            res_assets = await self._fiix_rpc(body_assets)
-            
-            total_c = len(res_assets)
-            broken_assets = [a.get("strName") for a in res_assets if a.get("bolIsOnline") == 0]
-            avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
-            status_text = f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota WFS1 Operativa"
+    yesterday = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
-            # 2. Daños 24h
-            body_wo = {
-                "_maCn": "FindRequest", "className": "WorkOrder",
-                "fields": "id, intMaintenanceTypeID, strAssets",
-                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", "parameters": [SITE_ID, yesterday, f"%WFS1%"]}]
-            }
-            res_wos = await self._fiix_rpc(body_wo)
-            real_damages = [w for w in res_wos if w.get("intMaintenanceTypeID") != ID_PREVENTIVO]
+    try:
+        # --- 1. CÁLCULO DE DISPONIBILIDAD (Solo Activos WFS1) ---
+        body_assets = {
+            "_maCn": "FindRequest", "className": "Asset",
+            "fields": "id, bolIsOnline, strCode, strName",
+            "filters": [
+                {
+                    "ql": "intSiteID = ? AND strCode LIKE ?", 
+                    "parameters": [SITE_ID, f"%{PREFIX_WFS1}%"]
+                }
+            ],
+            "maxObjects": 1000
+        }
+        res_assets = await self._fiix_rpc(body_assets)
+        
+        # Filtramos carretillas críticas de WFS1
+        equipo_critico = [
+            a for a in res_assets 
+            if any(k in str(a.get("strCode","")).upper() for k in KEYWORDS_FLOTA)
+        ]
 
-            return {
-                "fiix_wfs1_availability": avail,
-                "fiix_wfs1_broken_text": status_text,
-                "fiix_wfs1_damage_count_24h": len(real_damages),
-                "last_update": datetime.utcnow().isoformat() + "Z"
-            }
-        except Exception as e:
-            print(f"❌ Error Metrics WFS1: {e}")
-            return {}
+        total_c = len(equipo_critico)
+        # Identificar rotos (bolIsOnline = 0)
+        broken_assets = [c.get("strName") for c in equipo_critico if c.get("bolIsOnline") == 0]
+        
+        # Disponibilidad: (Total - Rotos) / Total
+        avail = round(((total_c - len(broken_assets)) / total_c) * 100) if total_c > 0 else 100
+        status_text = f"⚠️ {', '.join(broken_assets)}" if broken_assets else "Flota WFS1 operativa"
+
+        # --- 2. CÁLCULO DAÑOS REALES (Últimas 24h) ---
+        body_wo = {
+            "_maCn": "FindRequest", "className": "WorkOrder",
+            "fields": "id, intMaintenanceTypeID, strDescription, strAssets",
+            "filters": [
+                {
+                    "ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", 
+                    "parameters": [SITE_ID, yesterday, f"%{TAG}%"]
+                }
+            ],
+            "maxObjects": 1000
+        }
+        res_wos = await self._fiix_rpc(body_wo)
+        
+        real_damages = []
+        for w in res_wos:
+            desc = str(w.get("strDescription", "")).upper()
+            assets = str(w.get("strAssets", "")).upper()
+
+            # REGLAS DE FILTRADO DE PRECISIÓN:
+            # 1. Debe pertenecer a la flota crítica de Madrid
+            es_de_flota = any(k in assets for k in KEYWORDS_FLOTA)
+            # 2. No debe ser mantenimiento preventivo (Revisiones programadas)
+            es_correctivo = (w.get("intMaintenanceTypeID") != ID_PREVENTIVO)
+            # 3. No debe ser una tarea administrativa o de repostaje
+            es_administrativo = any(k in desc for k in KEYWORDS_EXCLUIR)
+
+            if es_de_flota and es_correctivo and not es_administrativo:
+                real_damages.append(w)
+
+        # --- 3. ACTUALIZAR CACHÉ WFS1 ---
+        # Usamos las claves fiix_wfs1_... para que el frontend las identifique
+        fiix_memory_cache = {
+            "fiix_wfs1_availability": avail,
+            "fiix_wfs1_broken_count": len(broken_assets),
+            "fiix_wfs1_broken_text": status_text,
+            "fiix_wfs1_damage_count_24h": len(real_damages),
+            "last_update": datetime.utcnow().isoformat() + "Z"
+        }
+        
+        # Persistencia en disco para evitar ceros al reiniciar
+        save_fiix_cache_to_disk(fiix_memory_cache)
+        
+        # Notificar al Dashboard por WebSocket
+        await manager.broadcast({
+            "type": "kpi_update", 
+            "station": TAG, 
+            **fiix_memory_cache
+        })
+        
+        print(f"✅ [WFS1] Flota: {total_c} | Rotos: {len(broken_assets)} | Daños 24h: {len(real_damages)} | Disp: {avail}%")
+
+    except Exception as e:
+        print(f"❌ Error Fiix WFS1: {e}")
 
 
 @asynccontextmanager
