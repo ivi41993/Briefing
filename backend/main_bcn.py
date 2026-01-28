@@ -2090,7 +2090,7 @@ class FiixConnector:
                 "filters": [{"ql": "intSiteID = ?", "parameters": [SITE_ID]}],
                 "maxObjects": 1000
             }
-            res_assets = await self._fiix_rpc(body_assets)
+            all_assets = await self._fiix_rpc(body_assets)
             
             # --- FILTRO DE PRECISIÓN BCN ---
             # Identificamos carretillas y vehículos por los patrones de código que me diste
@@ -2471,6 +2471,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
