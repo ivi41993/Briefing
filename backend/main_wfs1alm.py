@@ -928,26 +928,24 @@ fiix_worker_started = False
 
 async def fiix_auto_worker():
     connector = FiixConnector()
-    print("👷 Worker Fiix: Iniciando primera carga...")
-    
+    # En Madrid, cargamos nada más arrancar
     while True:
         try:
             await connector.fetch_metrics()
-            print("✅ Worker Fiix: Datos actualizados")
         except Exception as e:
-            print(f"❌ Error worker ciclo: {e}")
-        
-        # Dormir después de haber cargado, no antes
-        await asyncio.sleep(600)
+            print(f"❌ Error worker WFS1: {e}")
+        await asyncio.sleep(600) # 10 minutos
 
 
 
-# 2. Corrige el endpoint para que use el nombre correcto y sea defensivo
 @app.get("/api/fiix/current")
 async def get_fiix_current():
     global fiix_memory_cache
-    # Si por alguna razón es None, devolvems un {} para evitar el crash del JS
-    return fiix_memory_cache if fiix_memory_cache is not None else {}
+    # Si la caché está vacía, forzamos una carga síncrona para el primer usuario
+    if not fiix_memory_cache:
+        connector = FiixConnector()
+        await connector.fetch_metrics()
+    return fiix_memory_cache
 
 @app.get("/api/fiix/history")
 async def get_wfs1_history():
