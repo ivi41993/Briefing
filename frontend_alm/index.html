@@ -2326,6 +2326,9 @@ body.card-open #timer-reset {
 .btn-tiny:hover { background: #f3f4f6; }
 .btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
 </style>
+  <!-- Cargar Chart.js antes de los scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
 </head>
 <body>
 
@@ -4082,126 +4085,78 @@ async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/$
 async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); if(!r.ok) throw new Error('note failed'); }
 
 /* Render tarjetas */
-function processTaskUpdate(data){
-if (!data) return;
-    
-    // --- CORRECCIÓN: Manejar borrado globalmente ---
-    if (data.action === 'delete') {
-        // Intentar borrar de cualquier lista posible por ID
-        const elOps = document.getElementById(`ops-${data.id}`);
-        if (elOps) elOps.remove();
+function processTaskUpdate(data) {
+    if (!data) return;
 
+    // 1. FILTRADO POR ESTACIÓN (Aislamiento Industrial)
+    if (data.station && data.station.toUpperCase() !== STATION_CODE.toUpperCase()) {
+        return;
+    }
+
+    // 2. LÓGICA DE BORRADO (Acción Global)
+    if (data.action === 'delete') {
+        // Borrar de Kanban/Kaizen
         const elTask = document.getElementById(`task-${data.id}`);
         if (elTask) elTask.remove();
+
+        // Borrar de OPS
+        const elOps = document.getElementById(`ops-${data.id}`) || 
+                      document.querySelector(`.ops-item[data-id="${data.id}"]`);
+        if (elOps) elOps.remove();
+
+        if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
         
-        // Actualizar contadores si es Kanban
-        if (updateAllColumnCounts) updateAllColumnCounts();
-        return; // <--- IMPORTANTE: Parar aquí
+        if (data.task_type === 'gw_task') {
+            if (typeof GW_MAP !== 'undefined') GW_MAP.delete(data.id);
+            if (typeof renderGwTop3 === 'function') renderGwTop3();
+        }
+        return; // Return legal dentro de la función
     }
-    // -----------------------------------------------
 
+    // 3. LÓGICA DE KPIs (UPH, OTIF, FIIX)
+    // Usamos data.metric y data.value de forma segura
+    if (data.type === 'kpi_update' || (data.metric && data.metric.startsWith('fiix_'))) {
+        const m = data.metric;
+        const v = data.value;
 
-if (!isForThisStation(data)) return;      // DESPUÉS
-
-
-if (data && data.type==='presence_update'){
-// sólo si coincide con el turno/fecha que estoy viendo
-if (TEAM_STATE 
-&& TEAM_STATE.sheet_date === data.sheet_date
-&& TEAM_STATE.shift === data.shift){
-const yesSel = `.att-radio[data-person="${CSS.escape(data.person)}"][value="yes"]`;
-const noSel  = `.att-radio[data-person="${CSS.escape(data.person)}"][value="no"]`;
-const yesEl  = document.querySelector(yesSel);
-const noEl   = document.querySelector(noSel);
-if (yesEl && noEl){
-if (data.present) { yesEl.checked = true; } else { noEl.checked = true; }
-TEAM_STATE.attendance = TEAM_STATE.attendance || {};
-TEAM_STATE.attendance[data.person] = !!data.present;
-updateTeamMeta(TEAM_STATE);
-updateSpotlightRouting?.();
-}
-}
-return;
-
-}
-if (data && data.type==='zone_update'){
-if (TEAM_STATE
-&& TEAM_STATE.sheet_date === data.sheet_date
-&& TEAM_STATE.shift === data.shift){
-TEAM_STATE.zones = TEAM_STATE.zones || {};
-TEAM_STATE.zones[data.person] = data.zone || '';
-// Re-render para reflejar cambio en select y chip
-renderRoster(document.getElementById('team-list'), TEAM_STATE.people||[], TEAM_STATE);
-}
-return;
-}
-
-
-// ping de incidentes (Enablon)
-if (data && (data.type==='table_ping'||data.type==='table_state') && data.table==='incidents'){
-loadIncidentes();
-return;
-}
-
-if (data.metric && data.metric.startsWith('fiix_')) {
-            updateFiixDisplay(data.metric, data.value);
+        // Si es métrica de Fiix
+        if (m && m.startsWith('fiix_')) {
+            if (typeof updateFiixDisplay === 'function') updateFiixDisplay(m, v);
             return;
         }
 
-  // UPH
-  if (metric === 'uph' && (!tab || tab === 'MAD WFS4')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES',{maximumFractionDigits:1}).format(v));
-    return;
-  }
-  // OTIF
-  if (metric === 'otif' && (!tab || tab === 'MAD WFS4')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(v) + ' %');
-    return;
-  }
-  // Backlog
-  if (metric === 'backlog' && (!tab || tab === 'MAD WFS4')){
-    const v = Number(data.value);
-    if (Number.isFinite(v)) setKpiValue('kpi-backlog', 'kpi-backlog-meta', new Intl.NumberFormat('es-ES').format(v));
-    return;
-  }
+        // Métricas Operativas (UPH / OTIF / Backlog)
+        if (m === 'uph') {
+            setKpiValue('kpi-uph', 'kpi-uph-meta', new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(v));
+        } else if (m === 'otif') {
+            setKpiValue('kpi-otif', 'kpi-otif-meta', formatPercent(v) + ' %');
+        }
+        return;
+    }
 
-
-const elementId = `task-${data.id}`;
-if (data.action === 'delete') {
-  // Kanban/Kaizen
-  const el1 = document.getElementById(`task-${data.id}`);
-  if (el1) el1.remove();
-
-  // OPS
-  const el2 =
-    document.getElementById(`ops-${data.id}`) ||
-    document.querySelector(`.ops-item[data-id="${CSS.escape(String(data.id))}"]`) ||
-    document.querySelector(`.ops-item [data-id="${CSS.escape(String(data.id))}"]`)?.closest('.ops-item');
-
-  if (el2) el2.remove();
-
-  updateAllColumnCounts && updateAllColumnCounts();
-
-  if (data.task_type === 'gw_task') {
-    GW_MAP.delete(data.id);
-    renderGwTop3();
-  }
-  return;
-}
-
-
-
-switch(data.task_type){
-case 'kanban_rapida': renderBoardCard(data, elementId); updateAllColumnCounts(); break;
-case 'kaizen':        renderKaizenCard(data, elementId); updateAllColumnCounts(); break;
-case 'gw_task':       GW_MAP.set(data.id, data); renderGwTop3(); break;
-case 'ops_update':    renderOpsCard(data);
-  break;
-
-default: console.warn('task_type desconocido:', data.task_type);
-}
+    // 4. ACTUALIZACIÓN POR TIPO DE TAREA (Kanban, Kaizen, GW, OPS)
+    const elementId = `task-${data.id}`;
+    
+    switch (data.task_type) {
+        case 'kanban_rapida':
+            if (typeof renderBoardCard === 'function') renderBoardCard(data, elementId);
+            if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
+            break;
+        case 'kaizen':
+            if (typeof renderKaizenCard === 'function') renderKaizenCard(data, elementId);
+            if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
+            break;
+        case 'gw_task':
+            if (typeof GW_MAP !== 'undefined') GW_MAP.set(data.id, data);
+            if (typeof renderGwTop3 === 'function') renderGwTop3();
+            break;
+        case 'ops_update':
+            if (typeof renderOpsCard === 'function') renderOpsCard(data);
+            break;
+        case 'presence_update':
+            // Manejado en bloque aparte o aquí según backend
+            break;
+    }
 }
 const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>';
 
