@@ -4101,8 +4101,8 @@ function updateFiixDisplay(metric, value) {
         const el = document.getElementById('fiix-broken-text');
         if (el) {
             el.textContent = value;
-            el.style.color = value.includes('⚠️') ? "#dc2626" : "var(--text-muted)";
-            el.style.fontWeight = value.includes('⚠️') ? "800" : "400";
+            el.style.color = value.includes('⚠️') ? "#dc2626" : "";
+            el.style.fontWeight = value.includes('⚠️') ? "800" : "";
         }
         return;
     }
@@ -4111,12 +4111,13 @@ function updateFiixDisplay(metric, value) {
     const el = document.getElementById(targetId);
     if (el) {
         el.textContent = value;
+        // Efecto visual Vivid UI: Si la disponibilidad es baja, parpadea
         if (metric === 'fiix_wfs1_availability') {
             const tile = el.closest('.kpi-tile');
             if (tile) {
-                // Madrid: Si baja de 95% parpadea (Vivid UI)
-                tile.style.borderLeftColor = value < 95 ? '#ef4444' : '#10b981';
-                tile.classList.toggle('spotlight-blink', value < 95);
+                tile.style.borderLeftColor = value < 90 ? '#ef4444' : '#10b981';
+                if (value < 90) tile.classList.add('spotlight-blink');
+                else tile.classList.remove('spotlight-blink');
             }
         }
     }
