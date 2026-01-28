@@ -2727,34 +2727,27 @@ body.card-open #timer-reset {
 </h3>
 
 <div class="kpi-grid">
-  <!-- DISPONIBILIDAD -->
-  <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
-      <div class="kpi-label">Disponibilidad</div>
-      <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
-      <small class="kpi-text" id="fiix-broken-text">Cargando...</small>
-  </div>
-
-  <!-- COSTE -->
-  
-
-  <!-- MTTR -->
-  <div class="kpi-tile" style="border-left: 6px solid #3b82f6;">
-      <div class="kpi-label">MTTR</div>
-      <div class="kpi-value"><span id="fiix-mttr">--</span><small style="font-size:1rem"> min</small></div>
-      <small class="kpi-text">Tiempo respuesta</small>
-  </div>
-</div>
-<!-- ... debajo de la fila de las 3 tarjetas de Fiix ... -->
-<div class="kpi-grid" style="margin-top: 15px;">
-    <!-- Este contenedor ocupa el espacio de las 3 tarjetas juntas -->
-    <div class="widget vivid" style="grid-column: 1 / -1; border-top: 3px solid var(--vivid-blue); margin: 0; box-shadow: none; background: #fafafa;">
-        <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
-            📈 Histórico de Averías por Semana
-        </h3>
-        <div style="height: 200px;">
-            <canvas id="fiixWeeklyChart"></canvas>
-        </div>
+    <!-- Disponibilidad Crítica -->
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Disponibilidad Carretillas</div>
+        <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
+        <small class="kpi-text" id="fiix-broken-text">Analizando flota...</small>
     </div>
+
+    <!-- Daños del día -->
+    <div class="kpi-tile" style="border-left: 6px solid #f59e0b;">
+        <div class="kpi-label">Daños Reportados (24h)</div>
+        <div class="kpi-value" id="fiix-damage-24h">--</div>
+        <small class="kpi-text">Averías/Golpes</small>
+    </div>
+</div>
+
+<!-- Gráfico de Acumulados -->
+<div class="widget vivid" style="grid-column: 1 / -1; margin-top:15px;">
+    <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
+        📊 Acumulado Semanal de Daños
+    </h3>
+    <div style="height: 200px;"><canvas id="fiixWeeklyChart"></canvas></div>
 </div>
   <!-- SEPARADOR -->
   <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
