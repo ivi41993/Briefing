@@ -4125,18 +4125,34 @@ function updateFiixDisplay(metric, value) {
 // Carga inicial al abrir la página
 async function initFiixDashboard() {
     try {
+        console.log("🔄 Solicitando datos Fiix WFS1...");
         const res = await fetch('api/fiix/current'); 
-        if(!res.ok) return;
         
-        const data = await res.json();
-        console.log("📥 Fiix WFS1 Datos:", data);
+        // Si la respuesta no es OK, abortamos antes de procesar el JSON
+        if (!res.ok) {
+            console.warn("⚠️ El servidor no respondió correctamente");
+            return;
+        }
 
-        // Iteramos sobre las claves recibidas (fiix_wfs1_...)
+        const data = await res.json();
+        console.log("📥 Datos Fiix recibidos:", data);
+
+        // --- SOLUCIÓN AL ERROR Object.keys(null) ---
+        // Verificamos si data existe y si no es null
+        if (!data || Object.keys(data).length === 0) {
+            console.log("⏳ Esperando a que el worker de Fiix llene la caché...");
+            return; 
+        }
+
+        // Iterar de forma segura
         Object.keys(data).forEach(key => {
-            updateFiixDisplay(key, data[key]);
+            if (typeof updateFiixDisplay === 'function') {
+                updateFiixDisplay(key, data[key]);
+            }
         });
+
     } catch (e) {
-        console.error("Error cargando Fiix:", e);
+        console.error("❌ Error JS Fiix (Defensivo):", e.message);
     }
 }
 
