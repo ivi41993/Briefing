@@ -7138,15 +7138,41 @@ async function generateAndSendToExcel() {
 
     try {
         // DENTRO DE generateAndSendToExcel
-        const team = window.TEAM_STATE || { people: [], attendance: {} };
-        const rosterDetails = (window.TEAM_STATE.people || []).map(p => {
-            const name = p.nombre_completo;
-            const isP = window.TEAM_STATE.attendance[name];
-            let status = "➖"; 
-            if (isP === true) status = "✅";
-            if (isP === false) status = "❌";
-            return `${name} (${status})`;
-        }).join(", ");
+        const team = window.TEAM_STATE || {};
+        // Intentamos obtener la lista de personas de cualquier fuente disponible
+        const peopleList = team.people && team.people.length > 0 ? team.people : (team.allPeopleRaw || []);
+        const attendance = team.attendance || {};
+
+        let rosterDetails = "";
+
+        if (peopleList.length > 0) {
+            rosterDetails = peopleList.map(p => {
+                const name = p.nombre_completo;
+                const status = attendance[name];
+                let icon = "➖"; // Pendiente
+                if (status === true || status === "yes") icon = "✅";
+                if (status === false || status === "no") icon = "❌";
+                return `${name} (${icon})`;
+            }).join(", ");
+        } else {
+            // FALLBACK: Si la memoria falla, leemos los nombres directamente de las tarjetas visuales
+            const namesInDom = Array.from(document.querySelectorAll('.team-row div[style*="font-weight:800"]'));
+            if (namesInDom.length > 0) {
+                rosterDetails = namesInDom.map(el => {
+                    const name = el.innerText.replace('⚠️ ', '');
+                    // Intentamos buscar el check en el DOM
+                    const row = el.closest('.team-row');
+                    const isOk = row.querySelector('input[value="yes"]:checked');
+                    const isNo = row.querySelector('input[value="no"]:checked');
+                    let icon = "➖";
+                    if (isOk) icon = "✅";
+                    if (isNo) icon = "❌";
+                    return `${name} (${icon})`;
+                }).join(", ");
+            }
+        }
+
+        if (!rosterDetails) rosterDetails = "No se registró personal en el Roster";
 
 
         // B. Card 3: Highlights Turno Anterior
