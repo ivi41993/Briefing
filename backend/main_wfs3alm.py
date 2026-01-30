@@ -302,29 +302,72 @@ def _att_key(d, s):
     return f"{d}|{s}"
 
 # --- 2. FUNCIÓN DE LLAMADA A LA API (LA QUE FALTA) ---
+import httpx
+import traceback
+import sys
+
 async def fetch_roster_api_data(escala: str, fecha: str):
-    """Realiza la llamada POST a la API externa para obtener el personal"""
+    """
+    Versión con Diagnóstico Profundo. 
+    Captura errores de sistema que las funciones normales no ven.
+    """
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ Error: ROSTER_API_URL o ROSTER_API_KEY no detectadas")
+        print(f"⚠️ Error [{escala}]: URL o KEY vacías en .env")
         return None
     
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-    payload = {"escala": escala, "fecha": fecha} # fecha debe ser DD/MM/YYYY
+    headers = {
+        "api-key": ROSTER_API_KEY.strip(),
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0",
+        "Connection": "close"
+    }
+    
+    payload = {"escala": escala, "fecha": fecha} 
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            # Enviamos como POST tal como requiere la documentación
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+        # Usamos un bloque de conexión más "permisivo"
+        async with httpx.AsyncClient(
+            timeout=30.0, 
+            verify=False, 
+            follow_redirects=True,
+            limits=httpx.Limits(max_connections=5)
+        ) as client:
+            
+            print(f"📡 [DEBUG {escala}] Conectando a: {ROSTER_API_URL}...")
+            
+            # Intentamos primero Form-Data
+            try:
+                response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            except Exception as inner_e:
+                print(f"❌ Fallo en el envío físico: {type(inner_e).__name__}")
+                raise inner_e # Re-lanzamos para el catch principal
+
+            print(f"📥 [DEBUG {escala}] Status: {response.status_code}")
+
             if response.status_code == 200:
-                data = response.json()
-                print(f"✅ API MAD: Datos recibidos para Nave 3.")
-                return data
+                try:
+                    data = response.json()
+                    print(f"✅ [API {escala}] Datos parseados correctamente.")
+                    return data if isinstance(data, list) else data.get("workers") or data.get("data")
+                except Exception:
+                    print(f"❌ Error: La respuesta no es JSON válido. Recibido: {response.text[:100]}...")
+                    return None
             else:
-                print(f"❌ Error API MAD: {response.status_code}")
+                print(f"❌ Error de Servidor {response.status_code}: {response.text[:150]}")
                 return None
+
+    except httpx.RequestError as e:
+        print(f"💥 Error de Petición HTTP ({type(e).__name__}): {e}")
     except Exception as e:
-        print(f"💥 Fallo de conexión API: {e}")
-        return None
+        # ESTO ES LO QUE ARREGLA TU ERROR VACÍO:
+        # Forzamos a que imprima el nombre técnico del error (ej: ConnectionResetError)
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        print(f"💥 [API {escala}] FALLO CRÍTICO TÉCNICO: {exc_type.__name__}")
+        print(f"📝 DETALLE: {str(e)}")
+        # Imprime la línea exacta del código donde muere
+        traceback.print_exc()
+        
+    return None
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
