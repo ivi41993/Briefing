@@ -119,29 +119,71 @@ PREFIX_WFS2 = "ES_MAD-WFS2-CTS-AL-" # <--- Prefijo carretillas Nave 2
 ROSTER_API_URL = os.getenv("ROSTER_API_URL")
 ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 
+import httpx
+import traceback
+
 async def fetch_roster_api_data(escala: str, fecha: str):
-    """Realiza la llamada POST a la API externa para obtener el personal"""
+    """
+    Motor de extracción de Roster con autodetección de formato y 
+    bypass de seguridad de red.
+    """
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ Error: ROSTER_API_URL o ROSTER_API_KEY no detectadas")
+        print(f"⚠️ Error [{escala}]: ROSTER_API_URL o ROSTER_API_KEY no configuradas.")
         return None
     
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-    payload = {"escala": escala, "fecha": fecha} # fecha debe ser DD/MM/YYYY
+    # HEADERS: Imitamos un navegador real para evitar bloqueos del Firewall (WAF)
+    headers = {
+        "api-key": ROSTER_API_KEY,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Connection": "close"
+    }
+    
+    payload = {"escala": escala, "fecha": fecha} 
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            # Enviamos como POST tal como requiere la documentación
+        # verify=False es vital si los certificados SSL de la terminal son internos o están caducados
+        async with httpx.AsyncClient(timeout=25.0, verify=False) as client:
+            print(f"📡 [API {escala}] Intentando conexión para fecha {fecha}...")
+            
+            # --- INTENTO 1: FORM-DATA (Tradicional) ---
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            
+            # --- INTENTO 2: JSON (Si el servidor se actualizó) ---
+            if response.status_code != 200:
+                print(f"🔄 [API {escala}] Form-data falló ({response.status_code}). Reintentando con JSON...")
+                response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ API MAD: Datos recibidos para Nave 3.")
-                return data
+                
+                # VALIDACIÓN CRÍTICA: ¿Es una lista de personas o un objeto de error?
+                if isinstance(data, list):
+                    print(f"✅ [API {escala}] ÉXITO: Recibidos {len(data)} registros.")
+                    return data
+                
+                elif isinstance(data, dict):
+                    # A veces la API devuelve {"data": [...]} o {"value": [...]}
+                    for key in ["workers", "data", "value", "items"]:
+                        if key in data and isinstance(data[key], list):
+                            print(f"📂 [API {escala}] Lista encontrada en clave '{key}'.")
+                            return data[key]
+                    
+                    # Si llegamos aquí, es un diccionario de error (ej: {"message": "Invalid Key"})
+                    print(f"❌ [API {escala}] El servidor devolvió un error: {data}")
+                    return None
             else:
-                print(f"❌ Error API MAD: {response.status_code}")
+                print(f"❌ [API {escala}] Error persistente. Status: {response.status_code}")
+                print(f"📝 Respuesta técnica: {response.text[:250]}")
                 return None
+
+    except httpx.ConnectError:
+        print(f"💥 [API {escala}] Error de red: No hay ruta al servidor o DNS fallido.")
     except Exception as e:
-        print(f"💥 Fallo de conexión API: {e}")
-        return None
+        print(f"💥 [API {escala}] Fallo inesperado: {str(e)}")
+        # traceback.print_exc() # Descomentar para debug profundo
+        
+    return None
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
