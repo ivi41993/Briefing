@@ -648,8 +648,7 @@ async def fetch_roster_api_data(escala: str, fecha: str):
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
     target = target_nave.upper() # "N4"
-
-    # 1. Localizar la lista de trabajadores
+    
     workers_list = []
     if isinstance(api_data, list): workers_list = api_data
     elif isinstance(api_data, dict):
@@ -657,95 +656,107 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             if isinstance(api_data.get(key), list):
                 workers_list = api_data[key]
                 break
-    if not workers_list: return []
+    
+    if not workers_list: 
+        print(f"⚠️ [Filtro {target}] No se encontró lista de trabajadores en los datos.")
+        return []
+
+    print(f"🕵️ Procesando {len(workers_list)} registros para {target} en turno {current_shift}...")
+
+    count_nave = 0
+    count_group = 0
 
     for p in workers_list:
-        if not isinstance(p, dict): continue
         try:
+            def clean(t): return str(t or "").upper().strip()
             nomina = p.get("nomina", {}) if isinstance(p.get("nomina"), dict) else {}
             
-            # --- NORMALIZACIÓN ---
-            def clean(t): return str(t or "").upper().strip()
-
+            # Extraer campos
             cod_destino  = clean(p.get("codDestino") or nomina.get("codDestino"))
             desc_destino = clean(p.get("descDestino") or nomina.get("descDestino"))
             grupo_raw    = clean(p.get("nombreGrupoTrabajo") or nomina.get("nombreGrupoTrabajo"))
+            nombre       = p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre"
+
+            # --- FILTRO 1: DESTINO FÍSICO (Más flexible) ---
+            # Aceptamos "N4", "N04", "NAVE 4", "WFS4"
+            es_nave_target = any(x in cod_destino or x in desc_destino for x in [target, "N04", "NAVE 4", "WFS4"])
             
-            # --- FILTRO 1: DESTINO FÍSICO (NAVE 4) ---
-            es_nave_4 = (target in cod_destino or "NAVE 4" in desc_destino)
-            if not es_nave_4:
+            if not es_nave_target:
                 continue
+            count_nave += 1
 
-            # --- FILTRO 2: CATEGORÍAS ESPECÍFICAS DE ALMACÉN ---
-            # Solo permitimos estos 3 grupos exactos
-            categorias_validas = ("01-SUPERVISORES-ALM", "02-CAPATACES", "OPERARIOS-N4")
-            if not any(cat in grupo_raw for cat in categorias_validas):
+            # --- FILTRO 2: CATEGORÍAS (Más inclusivo) ---
+            # Si el grupo contiene estas palabras, lo aceptamos
+            # He añadido "ALM" y "OPS" porque a veces N4 se etiqueta así.
+            PALABRAS_PERMITIDAS = ["SUPERVISORES", "CAPATACES", "OPERARIOS", "LEAD", "MOSTRADOR", "ALM", "N4"]
+            es_categoria_valida = any(palabra in grupo_raw for palabra in PALABRAS_PERMITIDAS)
+            
+            if not es_categoria_valida:
                 continue
+            count_group += 1
 
-            # --- FILTRO 3: TURNO (HORAS) ---
+            # --- FILTRO 3: TURNO ---
             raw_inicio = p.get("horaInicio") or nomina.get("horaInicio") or ""
             if " " not in raw_inicio: continue
             
             h_inicio = int(raw_inicio.split(" ")[1].split(":")[0])
             
-            # Horquillas (Mañana: 4-14, Tarde: 14-22, Noche: 22-4)
-            match = False
-            if current_shift == "Mañana" and (4 <= h_inicio < 14): match = True
-            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match = True
-            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match = True
+            match_turno = False
+            # Ventana de 2h de anticipación (Mañana desde las 04:00)
+            if current_shift == "Mañana" and (4 <= h_inicio < 14): match_turno = True
+            elif current_shift == "Tarde" and (14 <= h_inicio < 22): match_turno = True
+            elif current_shift == "Noche" and (h_inicio >= 22 or h_inicio < 4): match_turno = True
 
-            if match:
+            if match_turno:
                 raw_fin = p.get("horaFin") or nomina.get("horaFin") or ""
                 h_fin = raw_fin.split(" ")[1] if " " in raw_fin else ""
 
                 normalized.append({
-                    "nombre_completo": p.get("nombreApellidos") or nomina.get("nombreApellidos") or "Sin Nombre",
+                    "nombre_completo": nombre,
                     "horario": f"{raw_inicio.split(' ')[1]} - {h_fin}",
                     "grupo": grupo_raw,
                     "cod_destino": cod_destino,
-                    "desc_destino": desc_destino,
                     "is_incidencia": p.get("IsIncidencias", False)
                 })
         except: continue
             
+    print(f"✅ Filtro Finalizado: {len(normalized)} personas aptas (Nave OK: {count_nave}, Grupo OK: {count_group})")
     return normalized
 
 # Modificación del constructor de estado
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
-    
-    # 1. Preparar fecha para la API (DD/MM/YYYY)
     api_date_str = sdate.strftime("%d/%m/%Y")
     
-    # 2. Obtener datos de Madrid
     raw_api_data = await fetch_roster_api_data("MAD", api_date_str)
     
     people = []
     source = "excel"
 
-    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
-        # 3. Filtrar por N4 y Turno actual
+    # Verificamos si la API devolvió algo útil
+    if raw_api_data and len(raw_api_data) > 0:
         people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
-        source = "api"
+        if len(people) > 0:
+            source = "api"
+            print(f"🌟 Roster WFS4 cargado desde API ({len(people)} personas)")
+        else:
+            print("⚠️ API trajo datos, pero nadie pasó los filtros de N4/Turno. Usando Excel...")
+            # Fallback a Excel
+            sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+            people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
     else:
-        # Fallback a Excel si la API no está disponible
+        # Fallback total a Excel
         sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
 
-    # 4. Actualizar el caché global
     roster_cache.update({
-        "sheet_date": sdate,
-        "shift": shift,
-        "people": people,
+        "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end},
-        "source": source
+        "window": {"from": start, "to": end}, "source": source
     })
     
-    # 5. Notificar a todos los navegadores abiertos
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
-    
     return roster_cache
 
 
