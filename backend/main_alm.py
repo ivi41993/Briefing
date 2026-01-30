@@ -580,75 +580,76 @@ def _atomic_write_json(path: str, data: list[dict]):
 
 import httpx
 import traceback
-from datetime import datetime
+import sys
+import os
 
 async def fetch_roster_api_data(escala: str, fecha: str):
     """
-    Motor de extracción de Roster de alto rendimiento. 
-    Soporta bypass de Firewalls aeroportuarios y validación de contenido real.
+    Versión con Diagnóstico de Bajo Nivel. 
+    Limpia variables y fuerza la salida del error técnico.
     """
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print(f"⚠️ Error [{escala}]: API no configurada en variables de entorno")
-        return None
+    # 1. LIMPIEZA EXTREMA DE VARIABLES
+    url = str(os.getenv("ROSTER_API_URL", "")).strip()
+    key = str(os.getenv("ROSTER_API_KEY", "")).strip()
     
-    # HEADERS CRÍTICOS: Imitamos a un navegador para evitar bloqueos del WAF/Firewall
+    if not url or not key:
+        print(f"❌ [CONFIG ERROR] URL o KEY no encontradas en el entorno.")
+        return None
+
     headers = {
-        "api-key": ROSTER_API_KEY,
+        "api-key": key,
         "Accept": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0 Safari/537.36",
-        "Connection": "close" # Evita fugas en el ConnectionPool
+        "Connection": "close"
     }
     
     payload = {"escala": escala, "fecha": fecha} 
 
     try:
-        # verify=False es necesario en muchas terminales debido a proxies SSL internos
-        # timeout extendido a 25s por latencia de servidores remotos
-        async with httpx.AsyncClient(timeout=25.0, verify=False) as client:
-            print(f"📡 [API {escala}] Solicitando datos para {fecha}...")
+        # Usamos un cliente con límites de conexión bajos para evitar saturar el pool
+        limits = httpx.Limits(max_connections=5, max_keepalive_connections=2)
+        
+        async with httpx.AsyncClient(timeout=30.0, verify=False, limits=limits) as client:
+            print(f"📡 [CONNECTING] {escala} -> {url}...")
             
-            # INTENTO 1: Form-data (Uso de 'data=')
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            # Intento de envío
+            response = await client.post(url, headers=headers, data=payload)
             
-            # INTENTO 2: Fallback a JSON puro si el status no es 200
+            # Si falla el primer intento, probamos JSON directamente
             if response.status_code != 200:
-                print(f"🔄 [API {escala}] Reintentando en modo JSON (Status previo: {response.status_code})...")
-                response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+                print(f"🔄 [RETRY JSON] Status actual: {response.status_code}")
+                response = await client.post(url, headers=headers, json=payload)
 
             if response.status_code == 200:
                 data = response.json()
-                
-                # --- VALIDACIÓN DE INTEGRIDAD DE DATOS ---
-                # Caso A: Respuesta estándar (Lista directa)
                 if isinstance(data, list):
-                    print(f"✅ API {escala}: Recibidos {len(data)} trabajadores reales.")
+                    print(f"✅ [SUCCESS] {escala}: {len(data)} registros.")
                     return data
-                
-                # Caso B: Respuesta encapsulada (Objeto con lista dentro)
                 elif isinstance(data, dict):
-                    print(f"⚠️ API {escala} devolvió un objeto, buscando lista interna...")
-                    # Buscamos claves comunes donde las APIs suelen meter los datos
-                    for key in ["workers", "data", "value", "items", "body"]:
-                        if key in data and isinstance(data[key], list):
-                            print(f"📂 Lista encontrada en la clave '{key}'. Total: {len(data[key])}")
-                            return data[key]
-                    
-                    # Si llegamos aquí, es un diccionario de error (ej: {"message": "Invalid Key"})
-                    print(f"❌ Error de contenido de API en {escala}: {data}")
+                    # Buscar lista interna
+                    for k in ["workers", "data", "value"]:
+                        if k in data and isinstance(data[k], list):
+                            return data[k]
+                    print(f"⚠️ [WARN] Respuesta es dict pero no tiene lista: {data}")
                     return None
             else:
-                print(f"❌ Error HTTP {response.status_code} en {escala}")
-                print(f"📝 Respuesta técnica: {response.text[:250]}") # Ver motivo del fallo
+                print(f"❌ [SERVER ERROR] Status: {response.status_code} | Msg: {response.text[:100]}")
                 return None
 
-    except httpx.ConnectError:
-        print(f"💥 Error de Conexión: No hay ruta al servidor de la API de {escala}.")
+    except httpx.RequestError as exc:
+        # Esto captura errores de red (DNS, Timeout, Connection Refused)
+        print(f"💥 [HTTPX ERROR] {type(exc).__name__}: Ocurrió un error al conectar con {exc.request.url}")
     except Exception as e:
-        print(f"💥 Fallo inesperado en motor de Roster: {str(e)}")
-        # traceback.print_exc() # Descomentar para debug profundo en logs
+        # ESTO ES LO QUE ARREGLA EL MENSAJE VACÍO:
+        # Forzamos a ver el nombre de la clase de la excepción
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        print(f"💥 [CRITICAL FAILURE] Tipo: {exc_type.__name__}")
+        print(f"📝 Descripción: {repr(e)}") # Repr nunca es vacío
+        print(f"📍 Línea: {exc_tb.tb_lineno}")
+        # traceback.print_exc() # Esto imprimirá el rastro completo en la consola
         
     return None
-
+    
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
     target = target_nave.upper() # "N4"
