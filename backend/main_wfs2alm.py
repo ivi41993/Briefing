@@ -130,88 +130,69 @@ NAVE_TARGET = "N2"  # Opciones: "N1", "N2", "N3", "N4" o "TODO" (para BCN/VLC/AL
 # --- 1. LLAMADA API MADRID (Form-Data) ---
 import httpx
 import traceback
+import sys
 
 async def fetch_roster_api_data(escala: str, fecha: str):
     """
-    Motor de extracción de Roster con autodetección de formato y 
-    bypass de seguridad de red.
+    Versión con Diagnóstico Profundo. 
+    Captura errores de sistema que las funciones normales no ven.
     """
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print(f"⚠️ Error [{escala}]: ROSTER_API_URL o ROSTER_API_KEY no configuradas.")
+        print(f"⚠️ Error [{escala}]: URL o KEY vacías en .env")
         return None
     
-    # HEADERS: Imitamos un navegador real para evitar bloqueos del Firewall (WAF)
     headers = {
-        "api-key": ROSTER_API_KEY,
+        "api-key": ROSTER_API_KEY.strip(),
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0",
         "Connection": "close"
     }
     
     payload = {"escala": escala, "fecha": fecha} 
 
     try:
-        # verify=False es vital si los certificados SSL de la terminal son internos o están caducados
-        async with httpx.AsyncClient(timeout=25.0, verify=False) as client:
-            print(f"📡 [API {escala}] Intentando conexión para fecha {fecha}...")
+        # Usamos un bloque de conexión más "permisivo"
+        async with httpx.AsyncClient(
+            timeout=30.0, 
+            verify=False, 
+            follow_redirects=True,
+            limits=httpx.Limits(max_connections=5)
+        ) as client:
             
-            # --- INTENTO 1: FORM-DATA (Tradicional) ---
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            print(f"📡 [DEBUG {escala}] Conectando a: {ROSTER_API_URL}...")
             
-            # --- INTENTO 2: JSON (Si el servidor se actualizó) ---
-            if response.status_code != 200:
-                print(f"🔄 [API {escala}] Form-data falló ({response.status_code}). Reintentando con JSON...")
-                response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+            # Intentamos primero Form-Data
+            try:
+                response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            except Exception as inner_e:
+                print(f"❌ Fallo en el envío físico: {type(inner_e).__name__}")
+                raise inner_e # Re-lanzamos para el catch principal
+
+            print(f"📥 [DEBUG {escala}] Status: {response.status_code}")
 
             if response.status_code == 200:
-                data = response.json()
-                
-                # VALIDACIÓN CRÍTICA: ¿Es una lista de personas o un objeto de error?
-                if isinstance(data, list):
-                    print(f"✅ [API {escala}] ÉXITO: Recibidos {len(data)} registros.")
-                    return data
-                
-                elif isinstance(data, dict):
-                    # A veces la API devuelve {"data": [...]} o {"value": [...]}
-                    for key in ["workers", "data", "value", "items"]:
-                        if key in data and isinstance(data[key], list):
-                            print(f"📂 [API {escala}] Lista encontrada en clave '{key}'.")
-                            return data[key]
-                    
-                    # Si llegamos aquí, es un diccionario de error (ej: {"message": "Invalid Key"})
-                    print(f"❌ [API {escala}] El servidor devolvió un error: {data}")
+                try:
+                    data = response.json()
+                    print(f"✅ [API {escala}] Datos parseados correctamente.")
+                    return data if isinstance(data, list) else data.get("workers") or data.get("data")
+                except Exception:
+                    print(f"❌ Error: La respuesta no es JSON válido. Recibido: {response.text[:100]}...")
                     return None
             else:
-                print(f"❌ [API {escala}] Error persistente. Status: {response.status_code}")
-                print(f"📝 Respuesta técnica: {response.text[:250]}")
+                print(f"❌ Error de Servidor {response.status_code}: {response.text[:150]}")
                 return None
 
-    except httpx.ConnectError:
-        print(f"💥 [API {escala}] Error de red: No hay ruta al servidor o DNS fallido.")
+    except httpx.RequestError as e:
+        print(f"💥 Error de Petición HTTP ({type(e).__name__}): {e}")
     except Exception as e:
-        print(f"💥 [API {escala}] Fallo inesperado: {str(e)}")
-        # traceback.print_exc() # Descomentar para debug profundo
+        # ESTO ES LO QUE ARREGLA TU ERROR VACÍO:
+        # Forzamos a que imprima el nombre técnico del error (ej: ConnectionResetError)
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        print(f"💥 [API {escala}] FALLO CRÍTICO TÉCNICO: {exc_type.__name__}")
+        print(f"📝 DETALLE: {str(e)}")
+        # Imprime la línea exacta del código donde muere
+        traceback.print_exc()
         
-    return None
-        
-async def fetch_roster_api_mad(fecha: str):
-    """Llamada única a la API de personal de Madrid"""
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API Roster no configurada en .env")
-        return None
-    
-    payload = {"escala": "MAD", "fecha": fecha}
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # Enviamos como data= para simular un formulario (form-data)
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200:
-                return response.json()
-            print(f"❌ Error API Roster Madrid: {response.status_code}")
-    except Exception as e:
-        print(f"💥 Error conexión API Madrid: {e}")
     return None
 
 # --- 2. TRIPLE FILTRO MADRID (Identificación Nave 2) ---
