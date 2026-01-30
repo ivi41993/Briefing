@@ -1234,7 +1234,43 @@ pointer-events: none;
 .card:active .drag-handle{ cursor:grabbing; opacity:1; background: #f3f4f6; }
 .drag-handle svg{ width:20px; height:20px; } /* Icono un poco más grande */
 /* Bordes laterales para Almacén */
+/* Tarjetas OPS con Ribbon Lateral */
+.ops-card-item {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 16px 16px 20px; /* Espacio para el ribbon */
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
 
+.ops-card-item::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 6px;
+}
+
+/* Colores por prioridad */
+.ops-card-item[data-prio="Alta"]::before  { background: #ef4444; }
+.ops-card-item[data-prio="Media"]::before { background: #f59e0b; }
+.ops-card-item[data-prio="Baja"]::before  { background: #10b981; }
+
+.ops-card-title { font-weight: 800; font-size: 1rem; color: #1e293b; line-height: 1.3; }
+.ops-card-meta { display: flex; gap: 10px; align-items: center; font-size: 0.75rem; color: #64748b; font-weight: 600; }
+.ops-card-badge { padding: 2px 8px; border-radius: 6px; background: #eef2ff; color: #3730a3; text-transform: uppercase; }
+
+.ops-card-actions { 
+    margin-top: auto; 
+    display: flex; 
+    gap: 8px; 
+    padding-top: 10px; 
+    border-top: 1px solid #f1f5f9; 
+}
 </style>
     <!-- Importar la librería de gráficos Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1447,43 +1483,76 @@ data-target="kanban-widget">
 <small class="kpi-text" id="brief-check-meta">—</small>
 </div>
 
-<div class="widget" id="ops-updates-widget">
-<h2 class="widget-title">2) Actualizaciones operativas</h2>
-<div class="ops-toolbar" aria-label="Filtros actualizaciones operativas">
-<input id="ops-search" class="ops-search" type="search" placeholder="Buscar (#etiqueta, @persona, texto)…">
-<select id="ops-filter-prio" class="ops-filter" title="Filtrar prioridad">
-<option value="">Todas las prioridades</option>
-<option value="Alta">Alta (!!)</option>
-<option value="Media">Media (!)</option>
-<option value="Baja">Baja</option>
-</select>
-<button type="button" class="btn" id="ops-export">Copiar resumen</button>
-<div id="ops-lines-list" class="ops-list" role="list" aria-label="Actualizaciones visibles"></div>
+<div class="widget vivid" id="ops-updates-widget">
+  <h2 class="widget-title hero">
+    <span class="hero-ico">🚧</span><span>2) Actualizaciones Operativas</span>
+    <span class="hero-badge">VIVO</span>
+  </h2>
 
-</div>
+  <!-- Toolbar de Filtros y Acción -->
+  <div class="ops-toolbar" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:15px;">
+    <input id="ops-q" type="search" placeholder="Buscar actualización..." 
+           style="flex:1; min-width:200px; padding:10px; border:1px solid var(--border); border-radius:10px;">
+    
+    <select id="ops-filter-prio-select" style="padding:10px; border-radius:10px; border:1px solid var(--border); background:#fff;">
+      <option value="">Todas las prioridades</option>
+      <option value="Alta">Alta (!!)</option>
+      <option value="Media">Media (!)</option>
+      <option value="Baja">Baja</option>
+    </select>
 
+    <button type="button" class="btn-primary" id="ops-btn-new" style="padding:10px 20px;">+ Nueva Ficha</button>
+  </div>
 
-<div class="ops-actions">
-<button type="button" class="btn" id="ops-add-section">+ Nueva sección</button>
-<button type="button" class="btn" id="ops-clear">Vaciar</button>
-</div>
+  <!-- Contenedor de Tarjetas -->
+  <div id="ops-cards-container" class="ops-list" 
+       style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:12px; max-height:500px; overflow-y:auto; padding-right:5px;">
+    <!-- Las tarjetas se cargan aquí -->
+  </div>
 
-<div class="ops-grid">
-<div class="ops-card">
-<strong>Secciones</strong>
-<div id="ops-sections"></div>
-</div>
+  <!-- Modal para Nueva/Editar Actualización -->
+  <dialog id="ops-modal" style="border:none; border-radius:16px; padding:0; width:450px; box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+    <form method="dialog" id="ops-form" style="padding:24px; display:flex; flex-direction:column; gap:16px;">
+      <h3 style="margin:0; font-family:'Space Grotesk';">Actualización Operativa</h3>
+      
+      <input type="hidden" id="ops-edit-id">
 
-<div class="ops-card">
-<strong>Lista rápida (líneas)</strong>
-<div id="ops-quicklines"
-class="ops-quicklines"
-role="textbox" aria-multiline="true"
-contenteditable="true"
-data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
-<small class="kpi-text">Consejo: usa una línea por actualización, p.ej. “Cambio layout export • vigencia hoy”.</small>
-</div>
-</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-weight:700; font-size:0.85rem;">Título / Cambio detectado</label>
+        <input type="text" id="ops-input-title" required placeholder="Ej: Cambio en muelle export..." style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label style="font-weight:700; font-size:0.85rem;">Prioridad</label>
+          <select id="ops-input-prio" style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+            <option value="Baja">Baja</option>
+            <option value="Media">Media</option>
+            <option value="Alta">Alta</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label style="font-weight:700; font-size:0.85rem;">Zona/Ámbito</label>
+          <select id="ops-input-scope" style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+            <option>General</option>
+            <option>Isla</option>
+            <option>Muelle</option>
+            <option>Oficina</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-weight:700; font-size:0.85rem;">Vigente hasta (opcional)</label>
+        <input type="date" id="ops-input-date" style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button type="button" onclick="document.getElementById('ops-modal').close()" style="flex:1; padding:12px; border-radius:10px; border:1px solid #ddd; background:#f8fafc; cursor:pointer;">Cancelar</button>
+        <button type="submit" class="btn-primary" style="flex:1;">Guardar Cambios</button>
+      </div>
+    </form>
+  </dialog>
 </div>
 
 
@@ -3316,95 +3385,100 @@ try{ localStorage.setItem(OPS_LINES_RENDER_KEY, JSON.stringify(list||[])); }catc
 }
 
 
-function initOpsUpdates(){
-const addBtn = document.getElementById('ops-add-section');
-const clearBtn = document.getElementById('ops-clear');
-const state = opsLoad();
-opsRender(state);
+function initOpsUpdates() {
+    const container = document.getElementById('ops-cards-container');
+    const modal = document.getElementById('ops-modal');
+    const form = document.getElementById('ops-form');
+    
+    // Función para renderizar una tarjeta individual
+    window.renderOpsCard = function(task) {
+        if (task.task_type !== 'ops_update') return;
+        
+        // Eliminar si ya existe para actualizar
+        const existing = document.getElementById(`task-${task.id}`);
+        if (existing) existing.remove();
 
-addBtn?.addEventListener('click', ()=>{
-const cur = opsSerializeFromDOM();
-cur.sections.push({title:'Nueva sección', body:''});
-opsRender(cur);
-opsSave(cur);
-});
+        const card = document.createElement('div');
+        card.className = 'ops-card-item';
+        card.id = `task-${task.id}`;
+        card.dataset.prio = task.category || 'Baja'; // Usamos category para la prio
 
-clearBtn?.addEventListener('click', ()=>{
-if (!confirm('¿Vaciar “Actualizaciones operativas”?')) return;
-const empty = {sections:[{title:'Cambios turno', body:''}], lines:''};
-opsRender(empty); opsSave(empty);
-saveRenderedOpsLines([]);           // ← limpia tarjetas derivadas
-renderOpsLines([]);                 // ← repinta vacío
-});
+        const dateStr = task.due_date ? `📅 Hasta: ${new Date(task.due_date).toLocaleDateString()}` : 'Indefinido';
 
-// Accesibilidad: Enter = salto línea en contenteditable
-document.getElementById('ops-updates-widget')?.addEventListener('keydown', e=>{
-const ce = e.target.getAttribute?.('contenteditable');
-if (ce === 'true' && e.key === 'Enter'){
-document.execCommand?.('insertLineBreak');
-e.preventDefault();
+        card.innerHTML = `
+            <div class="ops-card-title">${esc(task.title)}</div>
+            <div class="ops-card-meta">
+                <span class="ops-card-badge">${esc(task.assigned_to || 'General')}</span>
+                <span>${dateStr}</span>
+            </div>
+            <div class="ops-card-actions">
+                <button onclick="editOpsTask('${task.id}')" class="btn-compact">Editar</button>
+                <button onclick="deleteTaskOnServer('${task.id}', 'ops_update')" class="btn-compact" style="color:#dc2626">Borrar</button>
+            </div>
+        `;
+        container.prepend(card); // Más reciente arriba
+    };
+
+    // Abrir modal para nueva tarjeta
+    document.getElementById('ops-btn-new').onclick = () => {
+        form.reset();
+        document.getElementById('ops-edit-id').value = '';
+        modal.showModal();
+    };
+
+    // Guardar cambios (POST/PUT a la API de tareas)
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('ops-edit-id').value;
+        
+        const taskData = {
+            task_type: 'ops_update',
+            title: document.getElementById('ops-input-title').value,
+            category: document.getElementById('ops-input-prio').value, // Prioridad
+            assigned_to: document.getElementById('ops-input-scope').value, // Zona
+            due_date: document.getElementById('ops-input-date').value || null,
+            station: STATION_CODE
+        };
+
+        try {
+            if (id) {
+                await updateTaskOnServer(id, taskData);
+            } else {
+                await createTaskOnServer(taskData);
+            }
+            modal.close();
+        } catch (err) {
+            alert("Error al guardar la actualización operativa");
+        }
+    };
+
+    // Carga inicial desde el servidor
+    loadOpsInitial();
 }
-});
-// Estado de tarjetas derivadas de quicklines
-let OPS_LIST = loadRenderedOpsLines();
-const quick = document.getElementById('ops-quicklines');
-const listHost = document.getElementById('ops-lines-list');
 
-function refreshOpsFromQuicklines(){
-const parsed = parseQuickLinesToList();
-// mantenemos archivados por raw-title match
-const archivedSet = new Set(OPS_LIST.filter(x=>x.archived).map(x=>x.raw));
-OPS_LIST = parsed.map(x => ({...x, archived: archivedSet.has(x.raw)}));
-saveRenderedOpsLines(OPS_LIST);
-renderOpsLines(OPS_LIST);
+async function loadOpsInitial() {
+    try {
+        const res = await fetch(`api/tasks?task_type=ops_update&station=${STATION_CODE}`);
+        const tasks = await res.json();
+        const container = document.getElementById('ops-cards-container');
+        container.innerHTML = tasks.length ? '' : '<div style="color:#94a3b8; text-align:center; padding:20px;">Sin actualizaciones pendientes.</div>';
+        tasks.forEach(renderOpsCard);
+    } catch (e) { console.error("Error cargando OPS:", e); }
 }
 
-// Primera pintura
-renderOpsLines(OPS_LIST.length ? OPS_LIST : (OPS_LIST = parseQuickLinesToList(), saveRenderedOpsLines(OPS_LIST), OPS_LIST));
-
-// Listeners
-let tOps; // debounce
-quick?.addEventListener('input', ()=>{
-clearTimeout(tOps);
-tOps = setTimeout(()=>{
-const state = opsSerializeFromDOM();
-opsSave(state);
-refreshOpsFromQuicklines();
-}, 250);
-});
-
-document.getElementById('ops-search')?.addEventListener('input', ()=>renderOpsLines(OPS_LIST));
-document.getElementById('ops-filter-prio')?.addEventListener('change', ()=>renderOpsLines(OPS_LIST));
-
-document.getElementById('ops-export')?.addEventListener('click', async ()=>{
-const orderPrio={Alta:0,Media:1,Baja:2};
-const visible = (()=>{ // aplica filtros actuales
-const s=document.getElementById('ops-search')?.value.trim().toLowerCase()||'';
-const p=document.getElementById('ops-filter-prio')?.value||'';
-return OPS_LIST.filter(x=>{
-if (p && x.priority!==p) return false;
-if (s){
-const hay=[x.title,x.section,x.assigned,(x.tags||[]).join(' ')].filter(Boolean).join(' ').toLowerCase();
-if (!hay.includes(s)) return false;
-}
-return true;
-}).sort((a,b)=> (orderPrio[a.priority]-orderPrio[b.priority]) || (b.ts-a.ts));
-})();
-const text = visible.map(x=>{
-const bits=[`• ${x.title}`];
-if(x.section)  bits.push(`#${x.section}`);
-if(x.priority) bits.push(`[${x.priority}]`);
-if(x.assigned) bits.push(`@${x.assigned}`);
-if(x.due_date) bits.push(`(${x.due_date})`);
-return bits.join(' ');
-}).join('\n');
-try{
-await navigator.clipboard.writeText(text||'');
-alert('Resumen copiado al portapapeles.');
-}catch{ alert('No se pudo copiar.'); }
-});
-
-}
+// Global para editar
+window.editOpsTask = async (id) => {
+    // Aquí puedes implementar el fetch del objeto y rellenar el modal
+    // Por brevedad, puedes buscarlo en el DOM o re-solicitar a la API
+    const res = await fetch(`api/tasks/${id}`);
+    const t = await res.json();
+    document.getElementById('ops-edit-id').value = t.id;
+    document.getElementById('ops-input-title').value = t.title;
+    document.getElementById('ops-input-prio').value = t.category;
+    document.getElementById('ops-input-scope').value = t.assigned_to;
+    document.getElementById('ops-input-date').value = t.due_date || '';
+    document.getElementById('ops-modal').showModal();
+};
 
 
 function reorderChecklist(){
@@ -3995,6 +4069,15 @@ loadIncidentes();
 }
 return;
 }
+
+if (data.task_type === 'ops_update') {
+        if (data.action === 'delete') {
+            document.getElementById(`task-${data.id}`)?.remove();
+        } else {
+            window.renderOpsCard(data);
+        }
+        return;
+    }
 
 // KPIs (usa STATION_CODE, no hardcode MAD)
 if (data.type === 'kpi_update') {
@@ -4687,17 +4770,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Ops
                 let opsData = [];
-                try {
-                    const opsContainer = document.getElementById('ops-lines-list');
-                    if(opsContainer) {
-                        Array.from(opsContainer.children).forEach(card => {
-                            opsData.push({
-                                title: card.querySelector('.ops-line-title')?.innerText || '',
-                                impact: card.querySelector('.ops-badge')?.innerText || 'General'
-                            });
-                        });
-                    }
-                } catch(e) { console.warn("Error leyendo ops", e); }
+                const opsCards = document.querySelectorAll('.ops-card-item');
+                opsCards.forEach(card => {
+                    opsData.push({
+                        title: card.querySelector('.ops-card-title').innerText,
+                        impact: card.dataset.prio,
+                        scope: card.querySelector('.ops-card-badge').innerText
+                    });
+                });
+
 
                 const safetyTips = Array.from(document.querySelectorAll('#safety-tips .tip')).map(tip => ({
                     title: "RECORDATORIO DIARIO", 
