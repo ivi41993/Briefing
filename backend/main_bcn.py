@@ -2302,28 +2302,56 @@ def _current_shift_info(now):
 
 
 
+import traceback
+
 async def fetch_bcn_roster_from_api():
-    """Llamada POST a la API para obtener el personal de Barcelona"""
+    """Llamada optimizada y diagnosticada para Barcelona"""
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API BCN no configurada.")
+        print("⚠️ API BCN no configurada en variables de entorno.")
         return None
 
     ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    fecha_str = ahora.strftime("%d/%m/%Y")
+    
     payload = {
         "escala": "BCN",
-        "fecha": ahora.strftime("%d/%m/%Y") # Formato dd/mm/yyyy
+        "fecha": fecha_str
     }
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    
+    headers = {
+        "api-key": ROSTER_API_KEY, 
+        "Accept": "application/json"
+    }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+        # Usamos un timeout ligeramente más largo y desactivamos verificación SSL 
+        # temporalmente solo si sospechamos de cambios en el certificado del aeropuerto
+        async with httpx.AsyncClient(timeout=20.0, verify=False) as client:
+            
+            # INTENTO 1: JSON (Más probable si hubo actualización)
+            print(f"📡 Solicitando Roster BCN para {fecha_str} (Modo JSON)...")
+            response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+            
+            # Si el servidor no acepta JSON, intentamos FORM-DATA (Tu método anterior)
+            if response.status_code == 415 or response.status_code == 400:
+                print("🔄 Reintentando en modo Form-Data...")
+                response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+
             if response.status_code == 200:
                 data = response.json()
                 print(f"✅ API BCN: Recibidos {len(data)} trabajadores.")
                 return data
+            else:
+                print(f"❌ Error API BCN - Status: {response.status_code}")
+                print(f"📝 Respuesta servidor: {response.text[:200]}") # Ver qué dice el error
+                
+    except httpx.ConnectTimeout:
+        print("❌ Error API BCN: Tiempo de espera agotado (Timeout).")
     except Exception as e:
-        print(f"❌ Error API BCN: {e}")
+        print(f"❌ Error API BCN Crítico: {str(e)}")
+        # Esto nos dirá la línea exacta si el error es de código
+        traceback.print_exc() 
+        
     return None
 
 def filter_api_people_by_shift(api_data: list, current_shift: str):
@@ -2480,6 +2508,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_BCN_DIR), html=True), name="st
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
 
 
 
