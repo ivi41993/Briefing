@@ -2235,28 +2235,68 @@ def _current_shift_info(now):
 ROSTER_API_URL = os.getenv("ROSTER_API_URL")
 ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 
+import traceback
+
 async def fetch_bcn_roster_from_api():
-    """Llamada POST a la API para obtener el personal de Barcelona"""
     if not ROSTER_API_URL or not ROSTER_API_KEY:
         print("⚠️ API BCN no configurada.")
         return None
 
+    # Intentar varios formatos de fecha por si la API cambió
     ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    fecha_slash = ahora.strftime("%d/%m/%Y") # 30/01/2026
+    
+    # Payload
     payload = {
         "escala": "BCN",
-        "fecha": ahora.strftime("%d/%m/%Y") # Formato dd/mm/yyyy
+        "fecha": fecha_slash
     }
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    
+    # HEADERS CRÍTICOS: Imitamos a un navegador para evitar el bloqueo del Pool
+    headers = {
+        "api-key": ROSTER_API_KEY,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Connection": "close" # Forzamos a cerrar para evitar errores de Pool de conexiones
+    }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        # verify=False por si es un problema de certificados del servidor
+        async with httpx.AsyncClient(timeout=25.0, verify=False) as client:
+            print(f"📡 Conectando a Roster BCN ({fecha_slash})...")
+            
+            # Intentamos enviar como FORM DATA (data=)
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            
+            if response.status_code != 200:
+                print(f"🔄 Reintentando como JSON...")
+                response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ API BCN: Recibidos {len(data)} trabajadores.")
-                return data
+                
+                # VALIDACIÓN DE CONTENIDO: ¿Es una lista real o un mensaje de error?
+                if isinstance(data, list):
+                    print(f"✅ API BCN: Recibidos {len(data)} trabajadores reales.")
+                    return data
+                elif isinstance(data, dict):
+                    # Si es un diccionario con 1 sola llave, probablemente sea un error
+                    print(f"⚠️ API BCN devolvió un objeto, no una lista: {data}")
+                    # Si el dict tiene una clave con la lista, la extraemos
+                    for key in ["workers", "data", "value"]:
+                        if key in data and isinstance(data[key], list):
+                            return data[key]
+                    return None
+            else:
+                print(f"❌ Fallo API BCN. Código: {response.status_code}")
+                print(f"📝 Contenido técnico: {response.text}")
+
+    except httpx.ConnectError as e:
+        print(f"💥 Error de Conexión (Red/DNS): {e}")
     except Exception as e:
-        print(f"❌ Error API BCN: {e}")
+        print(f"💥 Error inesperado: {str(e)}")
+        traceback.print_exc()
+        
     return None
 
 def filter_api_people_by_shift(api_data: list, current_shift: str):
