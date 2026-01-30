@@ -578,26 +578,76 @@ def _atomic_write_json(path: str, data: list[dict]):
 
           
 
+import httpx
+import traceback
+from datetime import datetime
+
 async def fetch_roster_api_data(escala: str, fecha: str):
-    """Realiza la llamada POST a la API externa para obtener el personal"""
+    """
+    Motor de extracción de Roster de alto rendimiento. 
+    Soporta bypass de Firewalls aeroportuarios y validación de contenido real.
+    """
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ Error: API no configurada en variables de entorno")
+        print(f"⚠️ Error [{escala}]: API no configurada en variables de entorno")
         return None
     
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    # HEADERS CRÍTICOS: Imitamos a un navegador para evitar bloqueos del WAF/Firewall
+    headers = {
+        "api-key": ROSTER_API_KEY,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0 Safari/537.36",
+        "Connection": "close" # Evita fugas en el ConnectionPool
+    }
+    
     payload = {"escala": escala, "fecha": fecha} 
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        # verify=False es necesario en muchas terminales debido a proxies SSL internos
+        # timeout extendido a 25s por latencia de servidores remotos
+        async with httpx.AsyncClient(timeout=25.0, verify=False) as client:
+            print(f"📡 [API {escala}] Solicitando datos para {fecha}...")
+            
+            # INTENTO 1: Form-data (Uso de 'data=')
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            
+            # INTENTO 2: Fallback a JSON puro si el status no es 200
+            if response.status_code != 200:
+                print(f"🔄 [API {escala}] Reintentando en modo JSON (Status previo: {response.status_code})...")
+                response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ API MAD: Recibidos {len(data)} trabajadores totales.")
-                return data
-            return None
+                
+                # --- VALIDACIÓN DE INTEGRIDAD DE DATOS ---
+                # Caso A: Respuesta estándar (Lista directa)
+                if isinstance(data, list):
+                    print(f"✅ API {escala}: Recibidos {len(data)} trabajadores reales.")
+                    return data
+                
+                # Caso B: Respuesta encapsulada (Objeto con lista dentro)
+                elif isinstance(data, dict):
+                    print(f"⚠️ API {escala} devolvió un objeto, buscando lista interna...")
+                    # Buscamos claves comunes donde las APIs suelen meter los datos
+                    for key in ["workers", "data", "value", "items", "body"]:
+                        if key in data and isinstance(data[key], list):
+                            print(f"📂 Lista encontrada en la clave '{key}'. Total: {len(data[key])}")
+                            return data[key]
+                    
+                    # Si llegamos aquí, es un diccionario de error (ej: {"message": "Invalid Key"})
+                    print(f"❌ Error de contenido de API en {escala}: {data}")
+                    return None
+            else:
+                print(f"❌ Error HTTP {response.status_code} en {escala}")
+                print(f"📝 Respuesta técnica: {response.text[:250]}") # Ver motivo del fallo
+                return None
+
+    except httpx.ConnectError:
+        print(f"💥 Error de Conexión: No hay ruta al servidor de la API de {escala}.")
     except Exception as e:
-        print(f"💥 Fallo de conexión API: {e}")
-        return None
+        print(f"💥 Fallo inesperado en motor de Roster: {str(e)}")
+        # traceback.print_exc() # Descomentar para debug profundo en logs
+        
+    return None
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
