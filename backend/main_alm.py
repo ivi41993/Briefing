@@ -645,7 +645,6 @@ async def fetch_roster_api_data(escala: str, fecha: str):
         traceback.print_exc()
         
     return None
-
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
     target = target_nave.upper() # "N4"
