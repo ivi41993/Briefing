@@ -4742,22 +4742,6 @@ def _now_local():
 
 
 
-async def fetch_roster_api_data(escala: str, fecha: str):
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        return None
-    
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-    payload = {"escala": escala, "fecha": fecha} 
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if response.status_code == 200:
-                data = response.json()
-                return data
-            return None
-    except:
-        return None
 
 @app.get("/api/roster/current")
 async def get_roster_current():
