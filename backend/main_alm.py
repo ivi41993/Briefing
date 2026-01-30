@@ -577,26 +577,74 @@ def _atomic_write_json(path: str, data: list[dict]):
 
           
 
+import httpx
+import traceback
+from datetime import datetime
+
 async def fetch_roster_api_data(escala: str, fecha: str):
-    """Realiza la llamada POST a la API externa para obtener el personal"""
+    """
+    Motor genérico de extracción de Roster. 
+    Atraviesa bloqueos de red y valida contenido real.
+    """
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ Error: API no configurada en variables de entorno")
+        print(f"⚠️ Error [{escala}]: API no configurada en variables de entorno")
         return None
     
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    # HEADERS DE NAVEGADOR: Indispensables para evitar el error HTTPSConnectionPool
+    headers = {
+        "api-key": ROSTER_API_KEY,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36",
+        "Connection": "close" # Evita que el Pool se corrompa
+    }
+    
     payload = {"escala": escala, "fecha": fecha} 
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        # verify=False es necesario si la red de la terminal tiene firewalls que interceptan SSL
+        async with httpx.AsyncClient(timeout=25.0, verify=False) as client:
+            print(f"📡 Solicitando Roster {escala} para {fecha}...")
+            
+            # INTENTO 1: Form-data (data=)
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            
+            # INTENTO 2: Si el servidor espera JSON (json=)
+            if response.status_code != 200:
+                print(f"🔄 Reintentando {escala} en modo JSON...")
+                response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ API MAD: Recibidos {len(data)} trabajadores totales.")
-                return data
-            return None
+                
+                # --- VALIDACIÓN DE CONTENIDO ---
+                # Si recibimos una lista directa (comportamiento normal)
+                if isinstance(data, list):
+                    print(f"✅ API {escala}: Recibidos {len(data)} trabajadores totales.")
+                    return data
+                
+                # Si recibimos un objeto, buscamos la lista dentro (comportamiento de respaldo)
+                elif isinstance(data, dict):
+                    print(f"⚠️ API {escala} devolvió un objeto, buscando lista interna...")
+                    for key in ["workers", "data", "value", "items"]:
+                        if key in data and isinstance(data[key], list):
+                            print(f"📂 Lista encontrada en clave '{key}'. Total: {len(data[key])}")
+                            return data[key]
+                    
+                    # Si no hay lista, es un mensaje de error del servidor
+                    print(f"❌ Error de contenido en {escala}: {data}")
+                    return None
+            else:
+                print(f"❌ Error HTTP {response.status_code} en {escala}")
+                print(f"📝 Detalle técnico: {response.text[:200]}")
+                return None
+
+    except httpx.ConnectError:
+        print(f"💥 Error de red crítico: No se pudo conectar con la API de {escala}.")
     except Exception as e:
-        print(f"💥 Fallo de conexión API: {e}")
-        return None
+        print(f"💥 Fallo inesperado en motor de Roster: {e}")
+        traceback.print_exc()
+        
+    return None
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
