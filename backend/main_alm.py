@@ -577,26 +577,76 @@ def _atomic_write_json(path: str, data: list[dict]):
 
           
 
-async def fetch_roster_api_data(escala: str, fecha: str):
-    """Realiza la llamada POST a la API externa para obtener el personal"""
+import traceback
+import httpx
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+async def fetch_mad_roster_from_api():
+    """Llamada blindada a la API de Personal - Madrid"""
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ Error: API no configurada en variables de entorno")
+        print("⚠️ API MAD no configurada en variables de entorno.")
         return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    fecha_slash = ahora.strftime("%d/%m/%Y")
     
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-    payload = {"escala": escala, "fecha": fecha} 
+    payload = {
+        "escala": "MAD",
+        "fecha": fecha_slash
+    }
+    
+    # HEADERS PARA EVITAR BLOQUEOS (Simulando Chrome)
+    headers = {
+        "api-key": ROSTER_API_KEY,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Connection": "close"
+    }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        # Usamos verify=False por si el error HTTPSConnectionPool viene de un certificado mal configurado
+        async with httpx.AsyncClient(timeout=25.0, verify=False) as client:
+            print(f"📡 Conectando a Roster MAD ({fecha_slash})...")
+            
+            # INTENTO 1: Form-data (data=payload)
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            
+            # INTENTO 2: Si falla, probar JSON puro (json=payload)
+            if response.status_code != 200:
+                print(f"🔄 Reintentando MAD en modo JSON (Status previo: {response.status_code})...")
+                response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ API MAD: Recibidos {len(data)} trabajadores totales.")
-                return data
-            return None
+                
+                # VALIDACIÓN DE CONTENIDO REAL
+                if isinstance(data, list):
+                    print(f"✅ API MAD: Recibidos {len(data)} trabajadores reales.")
+                    return data
+                elif isinstance(data, dict):
+                    # Si recibimos un objeto, buscamos la lista dentro de llaves comunes
+                    print(f"⚠️ API MAD devolvió un objeto: {data}")
+                    for key in ["workers", "data", "value", "items"]:
+                        if key in data and isinstance(data[key], list):
+                            print(f"📂 Lista encontrada en clave '{key}'.")
+                            return data[key]
+                    
+                    # Si el diccionario es un mensaje de error tipo {"error": "..."}, devolvemos None
+                    return None
+            else:
+                print(f"❌ Fallo API MAD. Status: {response.status_code}")
+                print(f"📝 Respuesta técnica: {response.text[:250]}") # Ver los primeros 250 caracteres del error
+
+    except httpx.ConnectError as e:
+        print(f"💥 MAD: Error de Conexión (Red/DNS/Firewall): {e}")
+    except httpx.ReadTimeout:
+        print(f"💥 MAD: Tiempo de espera agotado (Timeout).")
     except Exception as e:
-        print(f"💥 Fallo de conexión API: {e}")
-        return None
+        print(f"💥 MAD: Error inesperado: {str(e)}")
+        traceback.print_exc()
+        
+    return None
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
@@ -672,7 +722,7 @@ async def _build_roster_state(force=False) -> dict:
     api_date_str = sdate.strftime("%d/%m/%Y")
     
     # 2. Obtener datos de Madrid
-    raw_api_data = await fetch_roster_api_data("MAD", api_date_str)
+    raw_api_data = await fetch_mad_roster_from_api("MAD", api_date_str)
     
     people = []
     source = "excel"
