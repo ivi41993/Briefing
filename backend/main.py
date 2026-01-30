@@ -4651,26 +4651,75 @@ def _now_local():
 
 
 
+import traceback
+import httpx
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 async def fetch_mad_roster_from_api():
-    """Llamada POST a la API para obtener el personal de Madrid (MAD)"""
+    """Llamada blindada a la API de Personal - Madrid"""
     if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print("⚠️ API MAD no configurada.")
+        print("⚠️ API MAD no configurada en variables de entorno.")
         return None
 
     ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    fecha_slash = ahora.strftime("%d/%m/%Y")
+    
     payload = {
-        "escala": "MAD", # <--- Siempre MAD para la API
-        "fecha": ahora.strftime("%d/%m/%Y")
+        "escala": "MAD",
+        "fecha": fecha_slash
     }
-    headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+    
+    # HEADERS PARA EVITAR BLOQUEOS (Simulando Chrome)
+    headers = {
+        "api-key": ROSTER_API_KEY,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Connection": "close"
+    }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        # Usamos verify=False por si el error HTTPSConnectionPool viene de un certificado mal configurado
+        async with httpx.AsyncClient(timeout=25.0, verify=False) as client:
+            print(f"📡 Conectando a Roster MAD ({fecha_slash})...")
+            
+            # INTENTO 1: Form-data (data=payload)
             response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            
+            # INTENTO 2: Si falla, probar JSON puro (json=payload)
+            if response.status_code != 200:
+                print(f"🔄 Reintentando MAD en modo JSON (Status previo: {response.status_code})...")
+                response = await client.post(ROSTER_API_URL, headers=headers, json=payload)
+
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                
+                # VALIDACIÓN DE CONTENIDO REAL
+                if isinstance(data, list):
+                    print(f"✅ API MAD: Recibidos {len(data)} trabajadores reales.")
+                    return data
+                elif isinstance(data, dict):
+                    # Si recibimos un objeto, buscamos la lista dentro de llaves comunes
+                    print(f"⚠️ API MAD devolvió un objeto: {data}")
+                    for key in ["workers", "data", "value", "items"]:
+                        if key in data and isinstance(data[key], list):
+                            print(f"📂 Lista encontrada en clave '{key}'.")
+                            return data[key]
+                    
+                    # Si el diccionario es un mensaje de error tipo {"error": "..."}, devolvemos None
+                    return None
+            else:
+                print(f"❌ Fallo API MAD. Status: {response.status_code}")
+                print(f"📝 Respuesta técnica: {response.text[:250]}") # Ver los primeros 250 caracteres del error
+
+    except httpx.ConnectError as e:
+        print(f"💥 MAD: Error de Conexión (Red/DNS/Firewall): {e}")
+    except httpx.ReadTimeout:
+        print(f"💥 MAD: Tiempo de espera agotado (Timeout).")
     except Exception as e:
-        print(f"❌ Error API MAD: {e}")
+        print(f"💥 MAD: Error inesperado: {str(e)}")
+        traceback.print_exc()
+        
     return None
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
@@ -5099,6 +5148,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
