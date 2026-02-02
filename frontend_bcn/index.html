@@ -2059,6 +2059,109 @@ nodes.forEach((n,i)=>{ if(i>0) n.remove(); });
 }
 })();
 
+const SECURITY_TIPS = [
+  "Temas de seguridad de actualidad (noticias, redes sociales, cambios de nivel de amenaza, etc.).",
+  "Incidentes o no conformidades en tu estación u otras.",
+  "Resultados de auditorías (aerolíneas, autoridades, autoauditorías).",
+  "Próximas auditorías o visitas.",
+  "Mantener puertas cerradas cuando no se usen.",
+  "Reportar comportamientos sospechosos.",
+  "Retar a personas sin acreditación o acompañamiento.",
+  "Acompañar a todos los visitantes en todo momento.",
+  "Llevar chaleco de alta visibilidad en almacén y zona aire.",
+  "Saber dónde están los contactos de emergencia.",
+  "Segregar carga segura e insegura.",
+  "Revisar signos de manipulación en paquetes.",
+  "Llevar la acreditación visible en todo momento.",
+  "No llevar mochilas ni bolsas a zonas seguras.",
+  "Guardar cintas, precintos y elementos de seguridad de forma segura.",
+  "No permitir el acceso de personas no autorizadas.",
+  "Preguntar si no se conoce un procedimiento.",
+  "No dar información de seguridad a externos.",
+  "No permitir personas no autorizadas cerca de carga segura.",
+  "No saltarse procedimientos.",
+  "Si una carga no es segura, no cargarla y revisarla.",
+  "Leer todos los avisos de seguridad y pedir aclaraciones.",
+  "Si ves algo, dilo.",
+  "Informar si las normas no son prácticas o seguras.",
+  "Escalar errores o riesgos de seguridad a la dirección.",
+  "Mantener la información sensible segura.",
+  "Cumplir siempre las normas y procedimientos de seguridad.",
+  "No seguir instrucciones que comprometan la seguridad.",
+  "No cargar mercancía con etiquetas de parada o retención.",
+  "Animar a los compañeros a cumplir las normas.",
+  "Revisar la validez de la acreditación y avisar si va a caducar.",
+  "Si no sabes, pregunta; si sabes, enseña.",
+  "Pensar en las consecuencias de no cumplir las normas.",
+  "Identificar a la persona con la que hablas.",
+  "Comparar la foto de la acreditación con la persona.",
+  "Registrar entrada y salida de visitantes.",
+  "Si ves conductores deambulando, indícale la zona designada.",
+  "Mantener puertas de zona aire cerradas.",
+  "No interferir con los controles de seguridad.",
+  "Al controlar, centrarse en la tarea.",
+  "Rechazar o revisar carga dañada.",
+  "No aceptar carga sin identificación o documentación.",
+  "Revisar que los camiones estén sellados.",
+  "Comprobar la identificación de quien recoge la carga.",
+  "Contar todas las piezas de un envío.",
+  "Comparar el nombre del visitante con el registro.",
+  "Comprobar la validez en bases de datos oficiales.",
+  "Verificar acuerdos de subcontratistas.",
+  "No prestar acreditaciones.",
+  "Avisar si se pierde la acreditación.",
+  "Comprobar identificación y estatus en cada ocasión.",
+  "No permitir acceso no autorizado a zonas restringidas.",
+  "Asistir y prestar atención a la reunión de turno.",
+  "Presentar la acreditación en lectores de proximidad.",
+  "Informar de errores a supervisores.",
+  "Todos pueden pulsar el botón de parada de emergencia por seguridad.",
+  "Mejor prevenir que curar.",
+  "Cooperar en los controles de seguridad.",
+  "Avisar si algo no parece correcto.",
+  "No manipular ni poner en riesgo sistemas de seguridad.",
+  "Sospechar de precintos diferentes en paquetes.",
+  "Las fechas límite no justifican saltarse la seguridad.",
+  "Dejar trabajar a los perros de seguridad.",
+  "Asegurarse de que la carga ha sido revisada.",
+  "La seguridad es responsabilidad de todos.",
+  "Informar de puertas, ventanas o vallas dañadas.",
+  "Retar a desconocidos en el almacén.",
+  "Ayudar a los controladores en el escaneo de envíos.",
+  "Usar cinta de seguridad para cerrar paquetes revisados.",
+  "Usar sellos correctos para indicar el estado de seguridad.",
+  "Llamar a la policía si es necesario.",
+  "Leer los boletines de seguridad y pedir aclaraciones.",
+  "Ayudar a nuevos empleados a cumplir las normas.",
+  "Informar de daños en carga, puertas, ventanas, señalización.",
+  "Transferir la carga segura inmediatamente a la zona segura.",
+  "Guardar carga valiosa en áreas designadas y bajo CCTV.",
+  "Asegurarse de que los visitantes devuelvan su acreditación.",
+  "Dejar pertenencias personales en la taquilla.",
+  "No entregar carga a conductores no autorizados.",
+  "Comprobar que los controles de seguridad estén registrados.",
+  "Asegurarse de que los archivos de vuelo estén completos.",
+  "Comprobar que cada envío tenga el CSD correcto.",
+  "La seguridad es para proteger a todos, incluidos tus seres queridos.",
+  "Todos deben estar formados según su función.",
+  "Adaptar los procedimientos a la seguridad, no al revés.",
+  "No tomar fotos en zonas seguras.",
+  "No publicar información de seguridad en redes sociales.",
+  "No permitir que los clientes decidan el método de control.",
+  "No permitir que clientes/conductores usen baños sin acompañamiento.",
+  "Mantener cerradas las puertas de zonas restringidas.",
+  "Informar siempre de carga dañada.",
+  "Informar de carga manipulada o posible robo.",
+  "Informar de comportamientos extraños de compañeros.",
+  "Conocer el cartel de “whistle blower”.",
+  "Concienciación sobre amenazas internas.",
+  "No asumir riesgos innecesarios con la seguridad.",
+  "No dejar carga segura desatendida fuera de la instalación.",
+  "Mantenerse siempre alerta.",
+  "No dejar puertas abiertas sin vigilancia.",
+  "No compartir procesos de seguridad del sector.",
+  "La seguridad es tu responsabilidad."
+];
 
 // —— tips diarios
 function todayKey(){
@@ -2209,60 +2312,48 @@ function setupSafetyIncidents(){
 
 
 function initSafetyModule() {
+    console.log("🛡️ Inicializando módulo de Seguridad...");
     const tipsContainer = document.getElementById('safety-tips-container');
-    const incidentsContainer = document.getElementById('safety-incidents-container');
-    const manualForm = document.getElementById('safety-manual-form');
+    const refreshBtn = document.getElementById('safety-refresh-tips');
 
-    // --- 1. LÓGICA DE CONSEJOS AUTOMÁTICOS ---
+    if (!tipsContainer) {
+        console.error("❌ Error: No se encontró 'safety-tips-container'");
+        return;
+    }
+
     function renderDailyTips() {
-        const day = new Date().getDate();
-        // Usamos el día del mes como semilla para que todos vean lo mismo
-        const tip1 = SAFETY_TIPS_MASTER[day % SAFETY_TIPS_MASTER.length];
-        const tip2 = SAFETY_TIPS_MASTER[(day + 5) % SAFETY_TIPS_MASTER.length];
+        // Lógica determinista basada en el día actual
+        const today = new Date();
+        const seed = today.getDate() + (today.getMonth() * 31);
+        
+        const tip1 = SAFETY_TIPS_MASTER[seed % SAFETY_TIPS_MASTER.length];
+        const tip2 = SAFETY_TIPS_MASTER[(seed * 7) % SAFETY_TIPS_MASTER.length];
 
         tipsContainer.innerHTML = [tip1, tip2].map(text => `
             <div class="safety-card is-tip">
                 <div class="safety-card-title">💡 ${esc(text)}</div>
             </div>
         `).join('');
+        console.log("✅ Tips de seguridad renderizados");
     }
 
-    // --- 2. LÓGICA DE INCIDENCIAS MANUALES (BACKEND SYNC) ---
-    window.renderSafetyIncidentCard = function(task) {
-        if (task.task_type !== 'safety_incident') return;
-
-        const card = document.createElement('div');
-        card.className = 'safety-card is-incident';
-        card.id = `task-${task.id}`;
-        card.innerHTML = `
-            <div class="safety-card-title">⚠️ ${esc(task.title)}</div>
-            <span class="safety-card-time">${new Date(task.created_at || Date.now()).toLocaleTimeString()}</span>
-            <button onclick="deleteTaskOnServer('${task.id}', 'safety_incident')" 
-                    style="position:absolute; right:10px; top:10px; background:none; border:none; cursor:pointer; opacity:0.5;">🗑️</button>
-        `;
-        incidentsContainer.prepend(card);
-    };
-
-    manualForm.onsubmit = async (e) => {
-        e.preventDefault();
-        const input = document.getElementById('safety-input-title');
-        const taskData = {
-            task_type: 'safety_incident',
-            title: input.value,
-            station: STATION_CODE,
-            category: 'seguridad'
-        };
-        try {
-            await createTaskOnServer(taskData);
-            input.value = '';
-        } catch (err) { console.error("Error reportando seguridad", err); }
-    };
-
-    // --- 3. CARGA INICIAL ---
+    // Ejecutar render inicial
     renderDailyTips();
-    loadSafetyIncidents();
-    
-    document.getElementById('safety-refresh-tips').onclick = renderDailyTips;
+
+    // Vincular botón de refresco
+    if (refreshBtn) {
+        refreshBtn.onclick = () => {
+            // Para refrescar manualmente usamos un seed aleatorio
+            const rand1 = Math.floor(Math.random() * SAFETY_TIPS_MASTER.length);
+            const rand2 = (rand1 + 5) % SAFETY_TIPS_MASTER.length;
+            
+            tipsContainer.innerHTML = [SAFETY_TIPS_MASTER[rand1], SAFETY_TIPS_MASTER[rand2]].map(text => `
+                <div class="safety-card is-tip">
+                    <div class="safety-card-title">💡 ${esc(text)}</div>
+                </div>
+            `).join('');
+        };
+    }
 }
 
 async function loadSafetyIncidents() {
@@ -4967,8 +5058,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try { connectWebSocket(); } catch(e){}
     try { initOpsUpdates(); } catch(e){}
     try { reorderChecklist(); } catch(e){}
-    try { initSafetyDailyWidget(); } catch(e){}
+    // AÑADE ESTO:
+    try { initSafetyModule(); } catch(e){ console.error("Error en Safety Module:", e); }
     try { updateSpotlightRouting(); } catch(e){}
+    
     
     console.log("Dashboard BCN inicializado correctamente.");
     setInterval(() => forceLoadFiix(), 10000);
