@@ -4751,22 +4751,25 @@ window.exitFlow = function() {
 };
 
 window.markOkAndNext = function(checkName, nextId) {
-    // 1. Marcar OK
+    // 1. Marcar el radio correspondiente
     if (checkName) {
         const radio = document.querySelector(`input[name="${checkName}"][value="OK"]`);
         if (radio) {
             radio.checked = true;
             radio.dispatchEvent(new Event('change', { bubbles: true }));
-            radio.dispatchEvent(new Event('input', { bubbles: true }));
         }
     }
-    // 2. Navegar
-    if (nextId) {
+
+    // 2. Navegar al siguiente o salir
+    if (nextId && document.getElementById(nextId)) {
         navTo(nextId);
     } else {
+        // Solo salimos si realmente es el final del flujo (último paso)
         exitFlow();
-        document.querySelector('header').scrollIntoView({behavior:'smooth'});
-        setTimeout(() => alert("🎉 Checklist completado. Puedes generar el resumen."), 300);
+        if (!nextId) {
+            document.querySelector('header').scrollIntoView({behavior:'smooth'});
+            setTimeout(() => alert("🎉 Checklist completado con éxito."), 300);
+        }
     }
 };
 
@@ -4841,7 +4844,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const WIDGET_MAP = [
         { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },
         { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
-        { id: 'prev-shift-widget',  check: 'c1', label: '3. Turno Anterior' },   // Ahora es el paso 2
+        { id: 'safety-widget',  check: 'c1', label: '3. Turno Anterior' },   // Ahora es el paso 2
         
         
         // El resto se queda igual
