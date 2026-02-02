@@ -1430,81 +1430,68 @@ style="display:flex; flex-direction:column; gap:6px;"></div>
 <span id="shift-badge" class="shift-chip">—</span>
 
 <div class="check-grid">
-<div class="check-card" tabindex="0"
-data-help="Revisa incidencias y puntos clave del turno anterior (BCN)."
-data-target="prev-shift-widget">
-<span class="check-title">1) Highlights del turno anterior</span>
-<div class="check-actions" role="group" aria-label="Bloque 1">
-<input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
-<input id="c1no" type="radio" name="c1" value="NO"><label for="c1no">NO</label>
-</div>
-</div>
+  <!-- 1. Dotación -->
+  <div class="check-card" tabindex="0" data-help="Dotación, ausencias y zonas BCN." data-target="team-widget">
+    <span class="check-title">1) Dotación y recursos</span>
+    <div class="check-actions">
+      <input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
+      <input id="c1no" type="radio" name="c1" value="NO"><label for="c1no">NO</label>
+    </div>
+  </div>
 
-<div class="check-card" tabindex="0"
-data-help="Revisar objetivos y carga de trabajo, cambios en los procedimientos y actualizaciones en equipos"
-data-target="ops-updates-widget">
-<span class="check-title">2) Actualizaciones operativas</span>
-<div class="check-actions" role="group" aria-label="Bloque 2">
-<input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
-<input id="c2no" type="radio" name="c2" value="NO"><label for="c2no">NO</label>
+  <!-- 2. Turno Anterior -->
+  <div class="check-card" tabindex="0" data-help="Revisa incidencias y puntos clave del turno anterior (BCN)." data-target="prev-shift-widget">
+    <span class="check-title">2) Highlights turno anterior</span>
+    <div class="check-actions">
+      <input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
+      <input id="c2no" type="radio" name="c2" value="NO"><label for="c2no">NO</label>
+    </div>
+  </div>
 
-</div>
-</div>
+  <!-- 3. Actualizaciones Ops -->
+  <div class="check-card" tabindex="0" data-help="Revisar objetivos, carga de trabajo y cambios en equipos." data-target="ops-updates-widget">
+    <span class="check-title">3) Actualizaciones operativas</span>
+    <div class="check-actions">
+      <input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
+      <input id="c3no" type="radio" name="c3" value="NO"><label for="c3no">NO</label>
+    </div>
+  </div>
 
-<div class="check-card" tabindex="0"
-data-help="Dotación, ausencias y zonas BCN."
-data-target="team-widget">
-<span class="check-title">3) Dotación y recursos</span>
-<div class="check-actions" role="group" aria-label="Bloque 3">
-<input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
-<input id="c3no" type="radio" name="c3" value="NO"><label for="c3no">NO</label>
+  <!-- 4. Seguridad (ID CORREGIDO) -->
+  <div class="check-card" tabindex="0" data-help="Seguridad: EPIs, accesos, consignas BCN." data-target="safety-widget">
+    <span class="check-title">4) Seguridad y protección</span>
+    <div class="check-actions">
+      <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
+      <input id="c4no" type="radio" name="c4" value="NO"><label for="c4no">NO</label>
+    </div>
+  </div>
 
-</div>
-</div>
+  <!-- 5. Incidentes -->
+  <div class="check-card" tabindex="0" data-help="Reportes en ENABLON y lecciones aprendidas." data-target="incidentes-widget">
+    <span class="check-title">5) Preparación incidentes</span>
+    <div class="check-actions">
+      <input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
+      <input id="c5no" type="radio" name="c5" value="NO"><label for="c5no">NO</label>
+    </div>
+  </div>
 
-<div class="check-card" tabindex="0"
-data-help="Seguridad: EPIs, accesos, consignas específicas BCN."
-data-target="safety-daily-widget">
-<span class="check-title">4) Seguridad y protección</span>
-<div class="check-actions" role="group" aria-label="Bloque 4">
-<input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
-<input id="c4no" type="radio" name="c4" value="NO"><label for="c4no">NO</label>
+  <!-- 6. KPIs -->
+  <div class="check-card" tabindex="0" data-help="KPIs BCN: flujos, mantenimiento, servicio." data-target="kpi-center">
+    <span class="check-title">6) Revisión KPIs BCN</span>
+    <div class="check-actions">
+      <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
+      <input id="c6no" type="radio" name="c6" value="NO"><label for="c6no">NO</label>
+    </div>
+  </div>
 
-</div>
-</div>
-
-<div class="check-card" tabindex="0"
-data-help="Procedimiento de incidentes / PULSE / Enablon."
-data-target="incidentes-widget">
-<span class="check-title">5) Preparación/reportes incidentes</span>
-<div class="check-actions" role="group" aria-label="Bloque 5">
-<input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
-<input id="c5no" type="radio" name="c5" value="NO"><label for="c5no">NO</label>
-
-</div>
-</div>
-
-<div class="check-card" tabindex="0"
-data-help="KPIs BCN: flujos, mantenimiento, servicio."
-data-target="kpi-center">
-<span class="check-title">6) Revisión KPIs BCN</span>
-<div class="check-actions" role="group" aria-label="Bloque 6">
-<input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
-<input id="c6no" type="radio" name="c6" value="NO"><label for="c6no">NO</label>
-
-</div>
-</div>
-
-<div class="check-card" tabindex="0"
-data-help="Feedback del equipo BCN → acciones Kanban rápida."
-data-target="kanban-widget">
-<span class="check-title">7) Feedback → Acciones</span>
-<div class="check-actions" role="group" aria-label="Bloque 7">
-<input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
-<input id="c7no" type="radio" name="c7" value="NO"><label for="c7no">NO</label>
-
-</div>
-</div>
+  <!-- 7. Feedback -->
+  <div class="check-card" tabindex="0" data-help="Acciones Kanban basadas en feedback del equipo." data-target="kanban-widget">
+    <span class="check-title">7) Feedback → Acciones</span>
+    <div class="check-actions">
+      <input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
+      <input id="c7no" type="radio" name="c7" value="NO"><label for="c7no">NO</label>
+    </div>
+  </div>
 </div>
 
 <small class="kpi-text" id="brief-check-meta">—</small>
@@ -3676,26 +3663,22 @@ function reorderChecklist(){
     const grid = document.querySelector('#brief-check .check-grid');
     if(!grid) return;
 
-    // Identificamos las tarjetas clave por su data-target
-    const cardTeam = grid.querySelector('[data-target="team-widget"]');       // Dotación
-    const cardOps  = grid.querySelector('[data-target="ops-updates-widget"]');// Ops
-    const cardPrev = grid.querySelector('[data-target="prev-shift-widget"]'); // Turno Anterior
+    // Obtener las tarjetas por su data-target
+    const cardTeam = grid.querySelector('[data-target="team-widget"]');       
+    const cardPrev = grid.querySelector('[data-target="prev-shift-widget"]'); 
+    const cardOps  = grid.querySelector('[data-target="ops-updates-widget"]');
+    const cardSafe = grid.querySelector('[data-target="safety-widget"]');
 
-    // ORDEN DESEADO: 1) Team, 2) Prev, 3) Ops
-    // Insertamos en orden INVERSO al inicio para que queden apiladas correctamente:
-    
-    // Tu código actual hace esto:
-    if(cardPrev) grid.insertBefore(cardPrev, grid.firstElementChild); // 1. Pone Prev primero
-    if(cardOps)  grid.insertBefore(cardOps,  grid.firstElementChild); // 2. Pone Ops primero (empuja Prev a 2º)
-    if(cardTeam) grid.insertBefore(cardTeam, grid.firstElementChild); // 3. Pone Team primero (empuja Ops a 2º y Prev a 3º)
+    // Insertar en orden INVERSO al principio para que queden: Team(1) -> Prev(2) -> Ops(3) -> Safe(4)
+    if(cardSafe) grid.insertBefore(cardSafe, grid.firstElementChild);
+    if(cardOps)  grid.insertBefore(cardOps,  grid.firstElementChild);
+    if(cardPrev) grid.insertBefore(cardPrev, grid.firstElementChild);
+    if(cardTeam) grid.insertBefore(cardTeam, grid.firstElementChild);
 
-    // Resultado final en pantalla: Team -> Prev -> Ops -> [El resto]
-
-    // Renumerar títulos para que coincidan (1), 2), 3)...)
+    // Renumerar títulos dinámicamente
     [...grid.children].forEach((c, idx)=>{
         const t = c.querySelector('.check-title');
         if(!t) return;
-        // Limpiamos número anterior y ponemos el nuevo índice
         const raw = t.textContent.replace(/^\s*\d+\)\s*/,''); 
         t.textContent = `${idx+1}) ${raw}`;
     });
@@ -4842,17 +4825,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Inyectar Navegación Guiada (Orden: Team -> Ops -> Prev -> Resto)
     // 1. Inyectar Navegación Guiada (Orden: Team -> Prev -> Ops -> Resto)
     const WIDGET_MAP = [
-        { id: 'team-widget',        check: 'c3', label: '1. Equipo / Dotación' },
-        { id: 'ops-updates-widget', check: 'c2', label: '2. Actualizaciones' },
-        { id: 'safety-widget',  check: 'c1', label: '3. Turno Anterior' },   // Ahora es el paso 2
-        
-        
-        // El resto se queda igual
-        { id: 'safety-daily-widget',check: 'c4', label: '4. Seguridad' },
+        { id: 'team-widget',        check: 'c1', label: '1. Dotación y Recursos' },
+        { id: 'prev-shift-widget',  check: 'c2', label: '2. Turno Anterior' },
+        { id: 'ops-updates-widget', check: 'c3', label: '3. Actualizaciones Ops' },
+        { id: 'safety-widget',      check: 'c4', label: '4. Seguridad' },
         { id: 'incidentes-widget',  check: 'c5', label: '5. Incidentes' },
         { id: 'kpi-center',         check: 'c6', label: '6. KPIs' },
         { id: 'kanban-widget',      check: 'c7', label: '7. Feedback' }
-    ];;
+    ];
 
     WIDGET_MAP.forEach((step, index) => {
         const widget = document.getElementById(step.id);
