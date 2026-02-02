@@ -1271,6 +1271,34 @@ pointer-events: none;
     padding-top: 10px; 
     border-top: 1px solid #f1f5f9; 
 }
+/* Tarjetas de Seguridad */
+.safety-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 12px 12px 18px;
+    position: relative;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+}
+
+.safety-card::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 6px;
+    border-radius: 12px 0 0 12px;
+}
+
+/* Tip Automático: Ámbar */
+.safety-card.is-tip::before { background: #f59e0b; }
+.safety-card.is-tip { background: #fffbeb; border-color: #fef3c7; }
+
+/* Incidencia Manual: Rojo Alerta */
+.safety-card.is-incident::before { background: #dc2626; }
+.safety-card.is-incident { border-left-width: 0; }
+
+.safety-card-title { font-weight: 700; font-size: 0.9rem; color: #1e293b; line-height: 1.4; }
+.safety-card-time { font-size: 0.7rem; color: #94a3b8; margin-top: 5px; display: block; }
 </style>
     <!-- Importar la librería de gráficos Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1559,40 +1587,34 @@ data-target="kanban-widget">
 
 
 
-<div class="widget" id="safety-daily-widget">
-<h2 class="widget-title">4) Seguridad y protección — Diario</h2>
+<div class="widget vivid" id="safety-widget">
+    <h2 class="widget-title hero">
+        <span class="hero-ico">🛡️</span><span>4) Seguridad y Protección</span>
+        <span class="hero-badge warn">PRIORIDAD</span>
+    </h2>
 
-<div class="safety-grid">
-<div class="safety-card">
-<strong>Recordatorios de hoy</strong>
-<div id="safety-tips" class="tips"></div>
-<div class="controls">
-<button type="button" class="btn" id="safety-refresh">Regenerar hoy</button>
-<button type="button" class="btn" id="safety-history">Historial</button>
-</div>
-<small class="kpi-text" id="safety-meta">—</small>
-</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <!-- LADO IZQUIERDO: Recordatorios Diarios (Automáticos) -->
+        <div class="safety-column">
+            <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px;">RECORDATORIOS DEL DÍA</h3>
+            <div id="safety-tips-container" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Se generan automáticamente -->
+            </div>
+            <button type="button" class="btn-compact" id="safety-refresh-tips" style="margin-top:10px; width:100%;">🔄 Rotar consejos</button>
+        </div>
 
-<div class="safety-card">
-<strong>Alta manual de incidentes</strong>
-<form id="safety-form" class="incident-form" autocomplete="off">
-    <input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
-    <textarea id="safety-desc" rows="3" placeholder="Descripción breve..." required></textarea>
-    
-    <label style="font-size:0.85rem; color:var(--text-muted); display:flex; align-items:center; gap:8px; margin:5px 0;">
-        Vigente hasta:
-        <input type="date" id="safety-valid-until" style="padding:6px; border:1px solid var(--border); border-radius:8px;">
-    </label>
-
-    <div class="controls">
-        <button type="submit" class="btn">Guardar incidente</button>
-        <button type="button" class="btn" id="safety-clear">Vaciar lista</button>
+        <!-- LADO DERECHO: Incidencias Manuales (Sincronizadas) -->
+        <div class="safety-column">
+            <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px;">INCIDENCIAS DETECTADAS</h3>
+            <form id="safety-manual-form" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+                <input type="text" id="safety-input-title" placeholder="¿Qué ha ocurrido?" required style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <button type="submit" class="btn-primary" style="padding:10px;">Reportar Incidencia</button>
+            </form>
+            <div id="safety-incidents-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto;">
+                <!-- Tarjetas manuales sincronizadas aquí -->
+            </div>
+        </div>
     </div>
-</form>
-<div id="safety-list" class="incident-list" aria-live="polite"></div>
-<small class="kpi-text" id="safety-inc-meta">—</small>
-</div>
-</div>
 </div>
 
 
@@ -2196,7 +2218,60 @@ setupSafetyIncidents();
 // Accesibilidad: Enter en textarea -> salto de línea normal; ya OK por defecto.
 }
 
+function initSafetyModule() {
+    console.log("🛡️ Inicializando módulo de Seguridad...");
+    const tipsContainer = document.getElementById('safety-tips-container');
+    const refreshBtn = document.getElementById('safety-refresh-tips');
 
+    if (!tipsContainer) {
+        console.error("❌ Error: No se encontró 'safety-tips-container'");
+        return;
+    }
+
+    function renderDailyTips() {
+        // Lógica determinista basada en el día actual
+        const today = new Date();
+        const seed = today.getDate() + (today.getMonth() * 31);
+        
+        const tip1 = SAFETY_TIPS_MASTER[seed % SAFETY_TIPS_MASTER.length];
+        const tip2 = SAFETY_TIPS_MASTER[(seed * 7) % SAFETY_TIPS_MASTER.length];
+
+        tipsContainer.innerHTML = [tip1, tip2].map(text => `
+            <div class="safety-card is-tip">
+                <div class="safety-card-title">💡 ${esc(text)}</div>
+            </div>
+        `).join('');
+        console.log("✅ Tips de seguridad renderizados");
+    }
+
+    // Ejecutar render inicial
+    renderDailyTips();
+
+    // Vincular botón de refresco
+    if (refreshBtn) {
+        refreshBtn.onclick = () => {
+            // Para refrescar manualmente usamos un seed aleatorio
+            const rand1 = Math.floor(Math.random() * SAFETY_TIPS_MASTER.length);
+            const rand2 = (rand1 + 5) % SAFETY_TIPS_MASTER.length;
+            
+            tipsContainer.innerHTML = [SAFETY_TIPS_MASTER[rand1], SAFETY_TIPS_MASTER[rand2]].map(text => `
+                <div class="safety-card is-tip">
+                    <div class="safety-card-title">💡 ${esc(text)}</div>
+                </div>
+            `).join('');
+        };
+    }
+}
+
+async function loadSafetyIncidents() {
+    try {
+        const res = await fetch(`api/tasks?task_type=safety_incident&station=${STATION_CODE}`);
+        const tasks = await res.json();
+        const container = document.getElementById('safety-incidents-container');
+        container.innerHTML = tasks.length ? '' : '<div style="color:#94a3b8; font-size:0.8rem; text-align:center;">No hay incidencias reportadas hoy.</div>';
+        tasks.forEach(window.renderSafetyIncidentCard);
+    } catch (e) { console.warn("Error cargando incidencias de seguridad", e); }
+}
 
 /* Acepta tareas sin estación o con station = STATION_CODE */
 function isForThisStation(obj){
@@ -4070,6 +4145,16 @@ loadIncidentes();
 return;
 }
 
+// Dentro de processTaskUpdate(data)
+if (data.task_type === 'safety_incident') {
+    if (data.action === 'delete') {
+        document.getElementById(`task-${data.id}`)?.remove();
+    } else {
+        window.renderSafetyIncidentCard(data);
+    }
+    return;
+}
+    
 if (data.task_type === 'ops_update') {
         if (data.action === 'delete') {
             document.getElementById(`task-${data.id}`)?.remove();
@@ -4806,6 +4891,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     console.warn("Error leyendo datos manuales de seguridad", e);
                 }
+                // --- DENTRO DEL EVENTO GENERAR RESUMEN ---
+                let safetySummary = [];
+                
+                // Recoger consejos automáticos
+                document.querySelectorAll('#safety-tips-container .safety-card-title').forEach(el => {
+                    safetySummary.push({ title: "CONSIGNA DIARIA", desc: el.innerText.replace('💡 ', '') });
+                });
+                
+                // Recoger incidencias manuales
+                document.querySelectorAll('#safety-incidents-container .safety-card-title').forEach(el => {
+                    safetySummary.push({ title: "INCIDENCIA DETECTADA", desc: el.innerText.replace('⚠️ ', '') });
+                });
+                
+                // En el payload final:
+                const payload = {
+                    // ... otros campos ...
+                    safety_incidents: safetySummary // Se envía como lista de objetos
+                };
 
                 // C. UNIR TODO EL CONTENIDO DE SEGURIDAD
                 const totalSafetyPayload = [...safetyTips, ...manualEntries];
@@ -4834,7 +4937,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
                     kanban_details: kanbanItems.join(" | "),
                     ops_updates: opsData,
-                    safety_incidents: totalSafetyPayload
+                    safety_incidents: safetySummary
                 };
 
                 const res = await fetch('api/briefing/summary', {
@@ -4883,7 +4986,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try { connectWebSocket(); } catch(e){}
     try { initOpsUpdates(); } catch(e){}
     try { reorderChecklist(); } catch(e){}
-    try { initSafetyDailyWidget(); } catch(e){}
+    // AÑADE ESTO:
+    try { initSafetyModule(); } catch(e){ console.error("Error en Safety Module:", e); }
     try { updateSpotlightRouting(); } catch(e){}
     
     console.log("Dashboard BCN inicializado correctamente.");
