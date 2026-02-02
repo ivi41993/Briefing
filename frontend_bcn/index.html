@@ -4159,86 +4159,86 @@ socket.close();
 };
 }
 
-/* processTaskUpdate central BCN+MAD */
-function processTaskUpdate(data){
-if (!data) return;
+function processTaskUpdate(data) {
+    if (!data) return;
 
-// Filtrado por estación
-if (!isForThisStation(data)) return;
+    // 1. Filtrado de seguridad por estación
+    if (!isForThisStation(data)) return;
 
-if (data.task_type === 'ops_update') {
-        if (data.action === 'delete') {
-            document.getElementById(`task-${data.id}`)?.remove();
-        } else {
+    // 2. Definición global de IDs para esta ejecución
+    // Esto soluciona el error "elementId is not defined"
+    const elementId = data.id ? `task-${data.id}` : null;
+
+    // 3. Lógica de borrado (Acción Global)
+    if (data.action === 'delete' && data.id != null) {
+        const el = document.getElementById(elementId);
+        if (el) el.remove();
+        
+        // Si es una actualización operativa o de seguridad, también probamos con sus prefijos
+        document.getElementById(`ops-${data.id}`)?.remove();
+        
+        if (data.task_type === 'gw_task') {
+            GW_MAP.delete(data.id);
+            renderGwTop3();
+        }
+        updateAllColumnCounts();
+        return;
+    }
+
+    // 4. Lógica de Actualizaciones Operativas (NUEVO SISTEMA DE TARJETAS)
+    if (data.task_type === 'ops_update') {
+        if (typeof window.renderOpsCard === 'function') {
             window.renderOpsCard(data);
         }
         return;
     }
 
-// Actualizaciones roster
-if (data.type === 'roster_update'){
-renderRoster(document.getElementById('team-list'), data.people||[], data);
-return;
-}
-
-// Dentro de processTaskUpdate(data)
-if (data.task_type === 'safety_incident') {
-    if (data.action === 'delete') {
-        document.getElementById(`task-${data.id}`)?.remove();
-    } else {
-        window.renderSafetyIncidentCard(data);
-    }
-    return;
-}
-    
-// GW / tablas / etc
-if (data.type === 'table_ping' || data.type === 'table_state'){
-if (data.table === 'incidents'){
-loadIncidentes();
-}
-return;
-}
-
-if (data.type === 'kpi_update') {
-        const keys = Object.keys(data);
-        // Si el paquete contiene claves de BCN, las procesamos
-        if (keys.some(k => k.includes('bcn'))) {
-            keys.forEach(k => {
-                if (k.startsWith('fiix_')) updateFiixDisplay(k, data[k]);
-            });
-            return; // Detener aquí
+    // 5. Lógica de Seguridad y Protección (NUEVO SISTEMA DE TARJETAS)
+    if (data.task_type === 'safety_incident') {
+        if (typeof window.renderSafetyIncidentCard === 'function') {
+            window.renderSafetyIncidentCard(data);
         }
+        return;
     }
-    // -
 
-// Delete
-if (data.action === 'delete' && data.id != null){
-const el=document.getElementById(`task-${data.id}`);
-if (el) el.remove();
-if (data.task_type === 'gw_task'){
-GW_MAP.delete(data.id);
-renderGwTop3();
-}
-updateAllColumnCounts();
-return;
-}
+    // 6. Actualizaciones de Roster
+    if (data.type === 'roster_update') {
+        renderRoster(document.getElementById('team-list'), data.people || [], data);
+        return;
+    }
 
-// Render según tipo
-if (data.task_type === 'gw_task'){
-GW_MAP.set(data.id, data);
-renderGwTop3();
-return;
-}
-if (data.task_type === 'kanban_rapida'){
-renderBoardCard(data, `task-${data.id}`);
-updateAllColumnCounts();
-return;
-}
-if (data.task_type === 'kaizen'){
-renderKaizenCard(data, `task-${data.id}`);
-updateAllColumnCounts();
-return;
-}
+    // 7. Actualizaciones de KPIs (Fiix / Telemetría)
+    if (data.type === 'kpi_update') {
+        const keys = Object.keys(data);
+        // Filtramos para que solo procese las llaves de ESTA estación (ej: 'bcn' o 'wfs2')
+        const stationKey = STATION_CODE.toLowerCase();
+        keys.forEach(k => {
+            if (k.includes(stationKey) && k.startsWith('fiix_')) {
+                if (typeof updateFiixDisplay === 'function') {
+                    updateFiixDisplay(k, data[k]);
+                }
+            }
+        });
+        return;
+    }
+
+    // 8. Gemba Walk / Tablas
+    if (data.type === 'table_ping' || data.type === 'table_state') {
+        if (data.table === 'incidents') loadIncidentes();
+        return;
+    }
+
+    // 9. Render de tarjetas estándar (Kanban / Kaizen)
+    if (data.task_type === 'gw_task') {
+        GW_MAP.set(data.id, data);
+        renderGwTop3();
+    } else if (data.task_type === 'kanban_rapida') {
+        renderBoardCard(data, elementId);
+        updateAllColumnCounts();
+    } else if (data.task_type === 'kaizen') {
+        renderKaizenCard(data, elementId);
+        updateAllColumnCounts();
+    }
 }
 
 /* ==========================
