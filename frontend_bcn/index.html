@@ -4915,133 +4915,126 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Botón Generar Resumen
    // 3. Botón Generar Resumen
      const btnGen = document.querySelector('header .header-controls .btn-primary');
-    if (btnGen) {
-        const newBtnGen = btnGen.cloneNode(true);
-        btnGen.parentNode.replaceChild(newBtnGen, btnGen);
-        
-        newBtnGen.addEventListener('click', async () => {
-            // --- VALIDACIÓN DE SUPERVISOR ---
-            const supInput = document.getElementById('briefing-supervisor');
-            const supVal = supInput?.value.trim();
-
-            if (!supVal) {
-                alert("⚠️ El campo 'Supervisor' es obligatorio.\nPor favor, escribe tu nombre o usa el micrófono.");
-                supInput?.focus(); 
-                supInput.style.borderColor = "red";
-                setTimeout(() => supInput.style.borderColor = "", 2000);
-                return; 
-            }
-
-            newBtnGen.textContent = 'Guardando...';
-            newBtnGen.disabled = true;
-
-            try {
-                const team = window.TEAM_STATE || { people: [], attendance: {} };
-                const rosterList = (team.people || []).map(p => {
-                    const name = p.nombre_completo;
-                    const isPresent = team.attendance[name];
-                    let statusIcon = "➖"; 
-                    if (isPresent === true) statusIcon = "✅";
-                    if (isPresent === false) statusIcon = "❌";
-                    return `${name} (${statusIcon})`;
-                }).join(", ") || "Sin personal registrado.";
-
-                // Kanban
-                const kanbanItems = [];
-                ['Abiertas','En-Curso','Cerradas','Vencidas'].forEach(st => {
-                    const col = document.getElementById(`kanban_rapida-${st}`);
-                    if(col) col.querySelectorAll('.card').forEach(c => 
-                        kanbanItems.push(`[${st}] ${c.querySelector('.card-title')?.innerText}`));
-                });
-
-                // Ops
-                let opsData = [];
-                const opsCards = document.querySelectorAll('.ops-card-item');
-                opsCards.forEach(card => {
-                    opsData.push({
-                        title: card.querySelector('.ops-card-title').innerText,
-                        impact: card.dataset.prio,
-                        scope: card.querySelector('.ops-card-badge').innerText
-                    });
-                });
-
-                // Incidentes Seguridad
-                const safetyTips = Array.from(document.querySelectorAll('#safety-tips .tip')).map(tip => ({
-                    title: "RECORDATORIO DIARIO", 
-                    desc: tip.innerText
-                }));
-                
-                let safetySummary = [];
-
-                // Recoger consejos automáticos
-                document.querySelectorAll('#safety-tips-container .safety-card-title').forEach(el => {
-                    safetySummary.push({ title: "CONSIGNA DIARIA", desc: el.innerText.replace('💡 ', '') });
-                });
-                
-                // Recoger incidencias manuales
-                document.querySelectorAll('#safety-incidents-container .safety-card-title').forEach(el => {
-                    safetySummary.push({ title: "INCIDENCIA DETECTADA", desc: el.innerText.replace('⚠️ ', '') });
-                });
-
-                // C. UNIR TODO EL CONTENIDO DE SEGURIDAD
-                const totalSafetyPayload = [...safetyTips, ...manualEntries];
-                const payload = {
-                    station: "BCN",
-                    date: (() => {
-                        const d = new Date();
-                        const day = String(d.getDate()).padStart(2, '0');
-                        const month = String(d.getMonth() + 1).padStart(2, '0');
-                        const year = d.getFullYear(); 
-                        return `${day}/${month}/${year}`;
-                    })(),
-                    
-                    briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
-
-                    shift: document.getElementById('shift-badge-header')?.innerText || 'General',
-                    timer: document.getElementById('timer-display')?.innerText || '00:00:00',
-                    supervisor: supVal,
-                    checklist: {}, 
-                    kpis: {
-                        "UPH": document.getElementById('kpi-uph')?.innerText,
-                        "Costes": document.getElementById('kpi-total-cost')?.innerText
-                    },
-                    roster_details: rosterList,
-                    prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
-                    kanban_details: kanbanItems.join(" | "),
-                    ops_updates: opsData,
-                    safety_incidents: safetySummary
-                };
-
-                const res = await fetch('api/briefing/summary', {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify(payload)
-                });
-
-                if(!res.ok) throw new Error('Error del servidor');
-                
-                alert("✅ Resumen BCN guardado.\nEntrando en modo información...");
-                window.openPostBriefingMode();
-
-                // --- ACCIONES TRAS GUARDAR ---
-                
-                // 1. Limpiar Supervisor
-                if(supInput) supInput.value = ""; 
-
-                // 2. Resetear Cronómetro a 00:00:00 (NUEVO)
-                if(window.resetFactoryTimer) {
-                    window.resetFactoryTimer();
+        if (btnGen) {
+            const newBtnGen = btnGen.cloneNode(true);
+            btnGen.parentNode.replaceChild(newBtnGen, btnGen);
+            
+            newBtnGen.addEventListener('click', async () => {
+                // --- VALIDACIÓN DE SUPERVISOR ---
+                const supInput = document.getElementById('briefing-supervisor');
+                const supVal = supInput?.value.trim();
+    
+                if (!supVal) {
+                    alert("⚠️ El campo 'Supervisor' es obligatorio.\nPor favor, escribe tu nombre o usa el micrófono.");
+                    supInput?.focus(); 
+                    supInput.style.borderColor = "red";
+                    setTimeout(() => supInput.style.borderColor = "", 2000);
+                    return; 
                 }
-                // -----------------------------
-
-            } catch (e) {
-                console.error(e);
-                alert("Error: " + e.message);
-            } finally {
-                newBtnGen.textContent = "Generar Resumen";
-                newBtnGen.disabled = false;
-            }
-        });
-    }
+    
+                newBtnGen.textContent = 'Guardando...';
+                newBtnGen.disabled = true;
+    
+                try {
+                    const team = window.TEAM_STATE || { people: [], attendance: {} };
+                    const rosterList = (team.people || []).map(p => {
+                        const name = p.nombre_completo;
+                        const isPresent = team.attendance[name];
+                        let statusIcon = "➖"; 
+                        if (isPresent === true) statusIcon = "✅";
+                        if (isPresent === false) statusIcon = "❌";
+                        return `${name} (${statusIcon})`;
+                    }).join(", ") || "Sin personal registrado.";
+    
+                    // 1. Recoger Kanban
+                    const kanbanItems = [];
+                    ['Abiertas','En-Curso','Cerradas','Vencidas'].forEach(st => {
+                        const col = document.getElementById(`kanban_rapida-${st}`);
+                        if(col) col.querySelectorAll('.card').forEach(c => 
+                            kanbanItems.push(`[${st}] ${c.querySelector('.card-title')?.innerText}`));
+                    });
+    
+                    // 2. Recoger Ops (Nuevo sistema de tarjetas)
+                    let opsData = [];
+                    const opsCards = document.querySelectorAll('.ops-card-item');
+                    opsCards.forEach(card => {
+                        opsData.push({
+                            title: card.querySelector('.ops-card-title').innerText,
+                            impact: card.dataset.prio,
+                            scope: card.querySelector('.ops-card-badge').innerText
+                        });
+                    });
+    
+                    // 3. Recoger Seguridad (Nuevo sistema unificado)
+                    let safetySummary = [];
+    
+                    // Recoger consignas automáticas del día
+                    document.querySelectorAll('#safety-tips-container .safety-card-title').forEach(el => {
+                        safetySummary.push({ 
+                            title: "CONSIGNA DIARIA", 
+                            desc: el.innerText.replace('💡 ', '') 
+                        });
+                    });
+                    
+                    // Recoger incidencias manuales detectadas
+                    document.querySelectorAll('#safety-incidents-container .safety-card-title').forEach(el => {
+                        safetySummary.push({ 
+                            title: "INCIDENCIA DETECTADA", 
+                            desc: el.innerText.replace('⚠️ ', '') 
+                        });
+                    });
+    
+                    // 4. Construir Payload
+                    const payload = {
+                        station: "BCN",
+                        date: (() => {
+                            const d = new Date();
+                            const day = String(d.getDate()).padStart(2, '0');
+                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                            const year = d.getFullYear(); 
+                            return `${day}/${month}/${year}`;
+                        })(),
+                        
+                        briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
+    
+                        shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+                        timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+                        supervisor: supVal,
+                        checklist: {}, 
+                        kpis: {
+                            "UPH": document.getElementById('kpi-uph')?.innerText,
+                            "Costes": document.getElementById('kpi-total-cost')?.innerText
+                        },
+                        roster_details: rosterList,
+                        prev_shift_note: document.getElementById('prev-shift-note')?.innerText || '',
+                        kanban_details: kanbanItems.join(" | "),
+                        ops_updates: opsData,
+                        safety_incidents: safetySummary // Ya contiene tips + incidencias manuales
+                    };
+    
+                    const res = await fetch('api/briefing/summary', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify(payload)
+                    });
+    
+                    if(!res.ok) throw new Error('Error del servidor al guardar el resumen');
+                    
+                    alert("✅ Resumen BCN guardado con éxito.");
+                    window.openPostBriefingMode();
+    
+                    // Limpieza tras éxito
+                    if(supInput) supInput.value = ""; 
+                    if(window.resetFactoryTimer) window.resetFactoryTimer();
+    
+                } catch (e) {
+                    console.error("❌ Error en Generar Resumen:", e);
+                    alert("Error: " + e.message);
+                } finally {
+                    newBtnGen.textContent = "Generar Resumen";
+                    newBtnGen.disabled = false;
+                }
+            });
+        }
 
     // 4. Inicializadores heredados (try/catch para robustez)
     try { initHeaderTimer(); } catch(e){}
