@@ -2853,22 +2853,18 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // --- 3. FILTRADO MEJORADO (Exclusión por Nombre + Categoría + Horquilla) ---
-    const CATEGORIAS_OPS = [ "OPS", "DGR", "01-SUPERVISORES-OPS", "AF/KL", "US Carriers"];
+    // --- 3. FILTRADO MEJORADO (Añadido LEADS) ---
+    const CATEGORIAS_OPS = ["OPS", "DGR", "01-SUPERVISORES-OPS", "AF/KL", "US Carriers", "LEADS"];
 
     const filteredPeople = masterList.filter(p => {
-        // --- A. REGLA DE EXCLUSIÓN POR NOMBRE (NUEVO) ---
         const nombreUpper = (p.nombre_completo || "").toUpperCase();
-        if (nombreUpper.includes("CUSTOMER/TRACING OPS")) {
-            return false;
-        }
+        if (nombreUpper.includes("CUSTOMER/TRACING OPS")) return false;
 
-        // B. Filtro Categoría
         const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
+        // Verifica si alguna de las palabras clave permitidas está en el string de categoría
         const cumpleCategoria = CATEGORIAS_OPS.some(cat => infoCategoria.includes(cat));
         if (!cumpleCategoria) return false;
 
-        // C. Filtro Horquilla Horaria
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true; 
         
@@ -2883,27 +2879,27 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
 
     window.TEAM_STATE.people = filteredPeople;
 
-    // --- 4. SECCIONAMIENTO VISUAL (Categorización Vivid) ---
+    // --- 4. SECCIONAMIENTO VISUAL (Categorización Vivid con LEADS y Cuentas) ---
     const groups = {
         "SUPERVISIÓN OPS": [],
-        "DGR": [],
+        "LEADS / COORDINACIÓN": [], // Nueva categoría para visibilidad
+        "DGR / ESPECIALISTAS": [],
+        "EQUIPOS DE CUENTA (AF/KL - US)": [], // Nueva categoría para cuentas
         "OPERARIOS": []
     };
 
     filteredPeople.forEach(p => {
         const cat = (p.observaciones || p.grupo || "").toUpperCase();
+        
         if (cat.includes("01-SUPERVISORES-OPS")) {
             groups["SUPERVISIÓN OPS"].push(p);
+        } else if (cat.includes("LEADS")) {
+            groups["LEADS / COORDINACIÓN"].push(p);
         } else if (cat.includes("DGR")) {
-            groups["DGR"].push(p);
-        } else if (cat.includes("OPS")) {
-            groups["OPERARIOS"].push(p);
-        }
-         else if (cat.includes("US Carriers")) {
-            groups["OPERARIOS"].push(p);
-        } else if (cat.includes("AF/KL")) {
-            groups["OPERARIOS"].push(p);
-        }else if (cat.includes("LEADS")) {
+            groups["DGR / ESPECIALISTAS"].push(p);
+        } else if (cat.includes("AF/KL") || cat.includes("US CARRIERS")) {
+            groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
+        } else {
             groups["OPERARIOS"].push(p);
         }
     });
@@ -2925,16 +2921,18 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
             const name = p.nombre_completo;
             const isIncidencia = p.is_incidencia === true;
             const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
-            const safeId = name.replace(/[^a-z0-9]/gi, '_');
+            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/=/g, ""); // ID seguro basado en nombre
 
             let currentAtt = window.TEAM_STATE.attendance[name]; 
             if (currentAtt === undefined) currentAtt = "undefined";
 
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            let colorVivid = "#3b82f6"; 
-            if (groupName === "SUPERVISIÓN ALMACÉN") colorVivid = "#fbbf24"; 
-            if (groupName === "CAPATACES / EPAs") colorVivid = "#8b5cf6"; 
+            // Lógica de colores Vivid UI por grupo
+            let colorVivid = "#3b82f6"; // Azul por defecto (Operarios)
+            if (groupName === "SUPERVISIÓN OPS") colorVivid = "#fbbf24"; // Oro/Amarillo
+            if (groupName === "LEADS / COORDINACIÓN") colorVivid = "#8b5cf6"; // Púrpura (Coordinación)
+            if (groupName === "EQUIPOS DE CUENTA (AF/KL - US)") colorVivid = "#10b981"; // Verde (Cuentas Premium)
 
             const row = document.createElement('div');
             row.className = 'team-row';
@@ -2944,8 +2942,8 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
                 <div>
                     <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
-                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones || "ALMACÉN")}</span>
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual || 'Horario API')}</span>
+                        <span style="font-size:0.65rem; background:${colorVivid}20; color:${colorVivid}; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones || p.grupo || "OPERACIONES")}</span>
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
@@ -2964,6 +2962,7 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
                 </div>
             `;
 
+            // Listeners para actualizar estado
             row.querySelectorAll('input[type="radio"]').forEach(r => {
                 r.addEventListener('click', () => {
                     let val = (r.value === 'yes') ? true : (r.value === 'no' ? false : undefined);
@@ -2971,6 +2970,12 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
                     if (typeof updatePresenceOnServer === 'function') updatePresenceOnServer(name, val);
                     updateTeamMeta(window.TEAM_STATE);
                 });
+            });
+
+            const sel = row.querySelector('.zone-select');
+            sel.addEventListener('change', () => {
+                window.TEAM_STATE.zones[name] = sel.value;
+                if (typeof updateZoneOnServer === 'function') updateZoneOnServer(name, sel.value);
             });
 
             listEl.appendChild(row);
