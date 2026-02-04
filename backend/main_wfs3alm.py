@@ -303,72 +303,80 @@ def _att_key(d, s):
 
 # --- 2. FUNCIÓN DE LLAMADA A LA API (LA QUE FALTA) ---
 import httpx
-import traceback
+import os
 import sys
+from datetime import datetime
 
 async def fetch_roster_api_data(escala: str, fecha: str):
     """
-    Versión con Diagnóstico Profundo. 
-    Captura errores de sistema que las funciones normales no ven.
+    Versión 'Deep Patience' diseñada para MAD.
+    Aumenta los tiempos de lectura y optimiza el pool de conexiones.
     """
-    if not ROSTER_API_URL or not ROSTER_API_KEY:
-        print(f"⚠️ Error [{escala}]: URL o KEY vacías en .env")
-        return None
+    url = str(os.getenv("ROSTER_API_URL", "")).strip()
+    key = str(os.getenv("ROSTER_API_KEY", "")).strip()
     
+    if not url or not key:
+        print(f"⚠️ [API {escala}] ERROR: Configuración incompleta.")
+        return None
+
+    # Configuración de TIMEOUT INDUSTRIAL (Granular)
+    # Aumentamos a 90 segundos de lectura porque MAD suele colgarse.
+    timeout_config = httpx.Timeout(
+        connect=10.0, # Tiempo para abrir el socket
+        read=90.0,    # Tiempo para esperar los datos (Crucial para MAD)
+        write=10.0,   # Tiempo para enviar la petición
+        pool=10.0     # Tiempo para esperar una conexión libre en el pool
+    )
+
     headers = {
-        "api-key": ROSTER_API_KEY.strip(),
+        "api-key": key,
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0",
-        "Connection": "close"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0 Safari/537.36",
+        "Connection": "keep-alive", # Cambiamos a keep-alive para mantener el canal abierto
+        "Keep-Alive": "timeout=60, max=100"
     }
     
-    payload = {"escala": escala, "fecha": fecha} 
+    payload = {"escala": escala, "fecha": fecha}
 
     try:
-        # Usamos un bloque de conexión más "permisivo"
+        # Usamos límites de pool más amplios para evitar cierres prematuros
+        limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+        
         async with httpx.AsyncClient(
-            timeout=30.0, 
+            timeout=timeout_config, 
             verify=False, 
-            follow_redirects=True,
-            limits=httpx.Limits(max_connections=5)
+            limits=limits,
+            trust_env=False
         ) as client:
             
-            print(f"📡 [DEBUG {escala}] Conectando a: {ROSTER_API_URL}...")
+            print(f"📡 [API {escala}] Petición lanzada. Esperando respuesta pesada de Madrid...")
             
             # Intentamos primero Form-Data
-            try:
-                response = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            except Exception as inner_e:
-                print(f"❌ Fallo en el envío físico: {type(inner_e).__name__}")
-                raise inner_e # Re-lanzamos para el catch principal
-
-            print(f"📥 [DEBUG {escala}] Status: {response.status_code}")
-
+            response = await client.post(url, headers=headers, data=payload)
+            
             if response.status_code == 200:
-                try:
-                    data = response.json()
-                    print(f"✅ [API {escala}] Datos parseados correctamente.")
-                    return data if isinstance(data, list) else data.get("workers") or data.get("data")
-                except Exception:
-                    print(f"❌ Error: La respuesta no es JSON válido. Recibido: {response.text[:100]}...")
-                    return None
+                data = response.json()
+                print(f"✅ [API {escala}] ¡LOGRADO! Recibidos {len(data) if isinstance(data, list) else 'varios'} registros.")
+                
+                # Validación de lista/dict como en el motor anterior
+                if isinstance(data, list): return data
+                if isinstance(data, dict):
+                    for k in ["workers", "data", "value"]:
+                        if k in data and isinstance(data[k], list): return data[k]
+                return None
+            
             else:
-                print(f"❌ Error de Servidor {response.status_code}: {response.text[:150]}")
+                print(f"❌ [API {escala}] Servidor respondió con error {response.status_code}")
                 return None
 
-    except httpx.RequestError as e:
-        print(f"💥 Error de Petición HTTP ({type(e).__name__}): {e}")
+    except httpx.ReadTimeout:
+        print(f"💥 [API {escala}] CRÍTICO: El servidor MAD tardó más de 90 segundos en responder. Posible caída de su base de datos.")
     except Exception as e:
-        # ESTO ES LO QUE ARREGLA TU ERROR VACÍO:
-        # Forzamos a que imprima el nombre técnico del error (ej: ConnectionResetError)
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        print(f"💥 [API {escala}] FALLO CRÍTICO TÉCNICO: {exc_type.__name__}")
-        print(f"📝 DETALLE: {str(e)}")
-        # Imprime la línea exacta del código donde muere
-        traceback.print_exc()
+        exc_type, _, _ = sys.exc_info()
+        print(f"💥 [API {escala}] OTRO FALLO [{exc_type.__name__}]: {repr(e)}")
         
     return None
-
+    
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
     target = target_nave.upper() # "N4"
