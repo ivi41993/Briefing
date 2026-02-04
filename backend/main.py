@@ -4653,82 +4653,73 @@ def _now_local():
 
 import traceback
 import httpx
+import os
+import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 async def fetch_mad_roster_from_api():
-    """
-    Motor de Roster para Madrid con Diagnóstico de Bajo Nivel.
-    Diseñado para capturar errores de red que no devuelven mensaje.
-    """
-    url = os.getenv("ROSTER_API_URL")
-    key = os.getenv("ROSTER_API_KEY")
+    """Llamada con diagnóstico de bajo nivel para Madrid"""
+    # 1. Limpieza estricta de la URL (Evita espacios invisibles en el .env)
+    url = str(os.getenv("ROSTER_API_URL", "")).strip()
+    key = str(os.getenv("ROSTER_API_KEY", "")).strip()
     
     if not url or not key:
-        print(f"⚠️ Error [{escala}]: URL o KEY no detectadas en el entorno.")
+        print("⚠️ API MAD: URL o KEY no configuradas.")
         return None
+
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    fecha_slash = ahora.strftime("%d/%m/%Y")
     
-    # Headers de alta fidelidad (Simulando un Chrome real en Windows 11)
+    payload = {"escala": "MAD", "fecha": fecha_slash}
+    
     headers = {
-        "api-key": key.strip(),
-        "Accept": "application/json, text/plain, */*",
+        "api-key": key,
+        "Accept": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Accept-Language": "es-ES,es;q=0.9",
         "Connection": "close"
     }
-    
-    payload = {"escala": escala, "fecha": fecha} 
 
     try:
-        # Configuración de cliente "Industrial": 
-        # Desactivamos SSL (verify=False) por si hay proxies que interceptan tráfico
+        # 2. Forzamos HTTP/1.1 (A veces HTTP/2 falla en balanceadores antiguos)
+        # 3. Ignoramos proxies del sistema (Evita que el tráfico salga por donde no debe)
         async with httpx.AsyncClient(
             timeout=30.0, 
             verify=False, 
-            follow_redirects=True
+            http1=True, 
+            http2=False,
+            trust_env=False 
         ) as client:
             
             print(f"📡 [DEBUG MAD] Intentando conexión física a: {url}")
             
-            # Intentamos primero como Form-Data (data=)
-            response = await client.post(url, headers=headers, data=payload)
-            
-            # Si el status no es 200, probamos como JSON (json=)
-            if response.status_code != 200:
-                print(f"🔄 Status {response.status_code}. Reintentando MAD en modo JSON...")
-                response = await client.post(url, headers=headers, json=payload)
+            # Intento 1: Form-data
+            try:
+                response = await client.post(url, headers=headers, data=payload)
+            except Exception as inner_e:
+                # Si falla aquí, el error es ANTES de recibir respuesta (Red/DNS)
+                print(f"💥 MAD: Fallo Físico de Conexión: {type(inner_e).__name__} -> {repr(inner_e)}")
+                return None
 
+            # Si llegamos aquí, el servidor respondió algo (200, 403, 500...)
             if response.status_code == 200:
                 data = response.json()
-                # Validación de lista real
                 if isinstance(data, list):
-                    print(f"✅ [API {escala}] ÉXITO: {len(data)} trabajadores.")
+                    print(f"✅ API MAD: Recibidos {len(data)} trabajadores.")
                     return data
-                elif isinstance(data, dict):
-                    # Extraer lista si viene envuelta
-                    for k in ["workers", "data", "value", "items"]:
-                        if k in data and isinstance(data[k], list):
-                            return data[k]
+                print(f"⚠️ API MAD: Respuesta no es lista: {data}")
                 return None
             else:
-                print(f"❌ Fallo de Servidor MAD: {response.status_code}")
-                print(f"📝 Respuesta técnica: {response.text[:200]}")
+                print(f"❌ Error Servidor MAD: {response.status_code}")
+                print(f"📝 Texto respuesta: {response.text[:100]}")
                 return None
 
-    except httpx.ConnectError:
-        print(f"💥 [API MAD] ERROR DE CONEXIÓN: El servidor no es alcanzable (DNS o IP bloqueada).")
-    except httpx.ConnectTimeout:
-        print(f"💥 [API MAD] TIMEOUT: El servidor no respondió a tiempo.")
     except Exception as e:
         # ESTO ES LO QUE ARREGLA EL ERROR VACÍO:
-        # Forzamos a Python a decirnos el NOMBRE técnico de la excepción
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        print(f"💥 [API MAD] FALLO TÉCNICO CRÍTICO: {exc_type.__name__}")
-        print(f"📝 DETALLE: {repr(e)}") # Repr siempre muestra información
-        # Imprime la línea exacta donde falló
-        traceback.print_exc()
-        
-    return None
+        # Usamos repr(e) y sys.exc_info para ver la clase exacta del error
+        exc_type, _, _ = sys.exc_info()
+        print(f"💥 MAD: ERROR CRÍTICO [{exc_type.__name__}]: {repr(e)}")
+        return None
 
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
@@ -5156,114 +5147,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
