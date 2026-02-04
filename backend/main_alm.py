@@ -581,87 +581,77 @@ def _atomic_write_json(path: str, data: list[dict]):
 import httpx
 import os
 import sys
-import traceback
 from datetime import datetime
 
 async def fetch_roster_api_data(escala: str, fecha: str):
     """
-    Motor universal de extracción de Roster.
-    Diseñado para atravesar Firewalls industriales y diagnosticar fallos mudos.
+    Versión 'Deep Patience' diseñada para MAD.
+    Aumenta los tiempos de lectura y optimiza el pool de conexiones.
     """
-    # 1. Limpieza de variables (evita espacios o saltos de línea invisibles)
     url = str(os.getenv("ROSTER_API_URL", "")).strip()
     key = str(os.getenv("ROSTER_API_KEY", "")).strip()
     
     if not url or not key:
-        print(f"⚠️ [API {escala}] ERROR: URL o KEY no configuradas en el .env")
+        print(f"⚠️ [API {escala}] ERROR: Configuración incompleta.")
         return None
-    
-    # 2. Configuración de Headers de "Navegador Humano"
+
+    # Configuración de TIMEOUT INDUSTRIAL (Granular)
+    # Aumentamos a 90 segundos de lectura porque MAD suele colgarse.
+    timeout_config = httpx.Timeout(
+        connect=10.0, # Tiempo para abrir el socket
+        read=90.0,    # Tiempo para esperar los datos (Crucial para MAD)
+        write=10.0,   # Tiempo para enviar la petición
+        pool=10.0     # Tiempo para esperar una conexión libre en el pool
+    )
+
     headers = {
         "api-key": key,
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Connection": "close",  # Forzamos cierre para no saturar el pool de la terminal
-        "Cache-Control": "no-cache"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0 Safari/537.36",
+        "Connection": "keep-alive", # Cambiamos a keep-alive para mantener el canal abierto
+        "Keep-Alive": "timeout=60, max=100"
     }
     
     payload = {"escala": escala, "fecha": fecha}
 
     try:
-        # 3. Configuración de Cliente Ultra-Resistente:
-        # - verify=False: Ignora problemas de certificados SSL internos del aeropuerto.
-        # - http1=True: Fuerza protocolo 1.1 (más estable en redes antiguas que HTTP/2).
-        # - trust_env=False: Ignora proxies mal configurados en el sistema operativo.
+        # Usamos límites de pool más amplios para evitar cierres prematuros
+        limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+        
         async with httpx.AsyncClient(
-            timeout=30.0, 
+            timeout=timeout_config, 
             verify=False, 
-            http1=True, 
-            http2=False, 
+            limits=limits,
             trust_env=False
         ) as client:
             
-            print(f"📡 [API {escala}] Intentando conexión a: {url}")
+            print(f"📡 [API {escala}] Petición lanzada. Esperando respuesta pesada de Madrid...")
             
-            # INTENTO 1: Form-Data (application/x-www-form-urlencoded)
+            # Intentamos primero Form-Data
             response = await client.post(url, headers=headers, data=payload)
             
-            # INTENTO 2: Si el servidor espera JSON puro
-            if response.status_code == 415 or response.status_code == 400:
-                print(f"🔄 [API {escala}] Reintentando en modo JSON puro...")
-                response = await client.post(url, headers=headers, json=payload)
-
             if response.status_code == 200:
                 data = response.json()
+                print(f"✅ [API {escala}] ¡LOGRADO! Recibidos {len(data) if isinstance(data, list) else 'varios'} registros.")
                 
-                # VALIDACIÓN DE CONTENIDO: Evita el error de "1 trabajador" (diccionario de error)
-                if isinstance(data, list):
-                    print(f"✅ [API {escala}] ÉXITO: {len(data)} registros totales.")
-                    return data
-                elif isinstance(data, dict):
-                    # Buscar lista dentro de un posible objeto envoltorio
-                    for key_name in ["workers", "data", "value", "items"]:
-                        if key_name in data and isinstance(data[key_name], list):
-                            print(f"📂 [API {escala}] Lista encontrada en clave '{key_name}'.")
-                            return data[key_name]
-                    print(f"❌ [API {escala}] Respuesta inválida (No es lista): {data}")
-                    return None
+                # Validación de lista/dict como en el motor anterior
+                if isinstance(data, list): return data
+                if isinstance(data, dict):
+                    for k in ["workers", "data", "value"]:
+                        if k in data and isinstance(data[k], list): return data[k]
+                return None
+            
             else:
-                print(f"❌ [API {escala}] Error HTTP {response.status_code}")
-                print(f"📝 Respuesta técnica: {response.text[:150]}")
+                print(f"❌ [API {escala}] Servidor respondió con error {response.status_code}")
                 return None
 
+    except httpx.ReadTimeout:
+        print(f"💥 [API {escala}] CRÍTICO: El servidor MAD tardó más de 90 segundos en responder. Posible caída de su base de datos.")
     except Exception as e:
-        # 4. DIAGNÓSTICO PROFUNDO PARA ERRORES VACÍOS
         exc_type, _, _ = sys.exc_info()
-        # Usamos repr(e) porque NUNCA es vacío, a diferencia de str(e)
-        error_name = exc_type.__name__ if exc_type else "UnknownError"
-        print(f"💥 [API {escala}] FALLO DE CONEXIÓN [{error_name}]: {repr(e)}")
+        print(f"💥 [API {escala}] OTRO FALLO [{exc_type.__name__}]: {repr(e)}")
         
-        # Si quieres ver exactamente en qué línea falló:
-        # traceback.print_exc() 
-        
-        return None
+    return None
     
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
