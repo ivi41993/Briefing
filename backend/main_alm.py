@@ -578,77 +578,75 @@ def _atomic_write_json(path: str, data: list[dict]):
 
           
 
-import httpx
 import traceback
-import sys
+import httpx
 import os
+import sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-async def fetch_roster_api_data(escala: str, fecha: str):
-    """
-    Versión con Diagnóstico de Bajo Nivel. 
-    Limpia variables y fuerza la salida del error técnico.
-    """
-    # 1. LIMPIEZA EXTREMA DE VARIABLES
+async def fetch_roster_api_data():
+    """Llamada con diagnóstico de bajo nivel para Madrid"""
+    # 1. Limpieza estricta de la URL (Evita espacios invisibles en el .env)
     url = str(os.getenv("ROSTER_API_URL", "")).strip()
     key = str(os.getenv("ROSTER_API_KEY", "")).strip()
     
     if not url or not key:
-        print(f"❌ [CONFIG ERROR] URL o KEY no encontradas en el entorno.")
+        print("⚠️ API MAD: URL o KEY no configuradas.")
         return None
 
+    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
+    fecha_slash = ahora.strftime("%d/%m/%Y")
+    
+    payload = {"escala": "MAD", "fecha": fecha_slash}
+    
     headers = {
         "api-key": key,
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
         "Connection": "close"
     }
-    
-    payload = {"escala": escala, "fecha": fecha} 
 
     try:
-        # Usamos un cliente con límites de conexión bajos para evitar saturar el pool
-        limits = httpx.Limits(max_connections=5, max_keepalive_connections=2)
-        
-        async with httpx.AsyncClient(timeout=30.0, verify=False, limits=limits) as client:
-            print(f"📡 [CONNECTING] {escala} -> {url}...")
+        # 2. Forzamos HTTP/1.1 (A veces HTTP/2 falla en balanceadores antiguos)
+        # 3. Ignoramos proxies del sistema (Evita que el tráfico salga por donde no debe)
+        async with httpx.AsyncClient(
+            timeout=30.0, 
+            verify=False, 
+            http1=True, 
+            http2=False,
+            trust_env=False 
+        ) as client:
             
-            # Intento de envío
-            response = await client.post(url, headers=headers, data=payload)
+            print(f"📡 [DEBUG MAD] Intentando conexión física a: {url}")
             
-            # Si falla el primer intento, probamos JSON directamente
-            if response.status_code != 200:
-                print(f"🔄 [RETRY JSON] Status actual: {response.status_code}")
-                response = await client.post(url, headers=headers, json=payload)
+            # Intento 1: Form-data
+            try:
+                response = await client.post(url, headers=headers, data=payload)
+            except Exception as inner_e:
+                # Si falla aquí, el error es ANTES de recibir respuesta (Red/DNS)
+                print(f"💥 MAD: Fallo Físico de Conexión: {type(inner_e).__name__} -> {repr(inner_e)}")
+                return None
 
+            # Si llegamos aquí, el servidor respondió algo (200, 403, 500...)
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, list):
-                    print(f"✅ [SUCCESS] {escala}: {len(data)} registros.")
+                    print(f"✅ API MAD: Recibidos {len(data)} trabajadores.")
                     return data
-                elif isinstance(data, dict):
-                    # Buscar lista interna
-                    for k in ["workers", "data", "value"]:
-                        if k in data and isinstance(data[k], list):
-                            return data[k]
-                    print(f"⚠️ [WARN] Respuesta es dict pero no tiene lista: {data}")
-                    return None
+                print(f"⚠️ API MAD: Respuesta no es lista: {data}")
+                return None
             else:
-                print(f"❌ [SERVER ERROR] Status: {response.status_code} | Msg: {response.text[:100]}")
+                print(f"❌ Error Servidor MAD: {response.status_code}")
+                print(f"📝 Texto respuesta: {response.text[:100]}")
                 return None
 
-    except httpx.RequestError as exc:
-        # Esto captura errores de red (DNS, Timeout, Connection Refused)
-        print(f"💥 [HTTPX ERROR] {type(exc).__name__}: Ocurrió un error al conectar con {exc.request.url}")
     except Exception as e:
-        # ESTO ES LO QUE ARREGLA EL MENSAJE VACÍO:
-        # Forzamos a ver el nombre de la clase de la excepción
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        print(f"💥 [CRITICAL FAILURE] Tipo: {exc_type.__name__}")
-        print(f"📝 Descripción: {repr(e)}") # Repr nunca es vacío
-        print(f"📍 Línea: {exc_tb.tb_lineno}")
-        # traceback.print_exc() # Esto imprimirá el rastro completo en la consola
-        
-    return None
+        # ESTO ES LO QUE ARREGLA EL ERROR VACÍO:
+        # Usamos repr(e) y sys.exc_info para ver la clase exacta del error
+        exc_type, _, _ = sys.exc_info()
+        print(f"💥 MAD: ERROR CRÍTICO [{exc_type.__name__}]: {repr(e)}")
+        return None
     
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
     normalized = []
