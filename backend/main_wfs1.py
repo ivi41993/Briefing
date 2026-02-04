@@ -967,32 +967,90 @@ async def fiix_auto_worker():
             print(f"❌ Error worker WFS1: {e}")
         await asyncio.sleep(600) # 10 minutos
         
+import httpx
+import os
+import sys
+import traceback
+from datetime import datetime
+
 async def fetch_roster_api_data(escala: str, fecha: str):
-    url = os.getenv("ROSTER_API_URL")
-    key = os.getenv("ROSTER_API_KEY")
+    """
+    Motor universal de extracción de Roster.
+    Diseñado para atravesar Firewalls industriales y diagnosticar fallos mudos.
+    """
+    # 1. Limpieza de variables (evita espacios o saltos de línea invisibles)
+    url = str(os.getenv("ROSTER_API_URL", "")).strip()
+    key = str(os.getenv("ROSTER_API_KEY", "")).strip()
     
     if not url or not key:
-        print(f"⚠️ [API {escala}] URL o KEY no configuradas en el .env")
+        print(f"⚠️ [API {escala}] ERROR: URL o KEY no configuradas en el .env")
         return None
     
-    headers = {"api-key": key, "Accept": "application/json"}
+    # 2. Configuración de Headers de "Navegador Humano"
+    headers = {
+        "api-key": key,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Connection": "close",  # Forzamos cierre para no saturar el pool de la terminal
+        "Cache-Control": "no-cache"
+    }
+    
     payload = {"escala": escala, "fecha": fecha}
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            # Enviamos como POST con data=payload (form-data)
+        # 3. Configuración de Cliente Ultra-Resistente:
+        # - verify=False: Ignora problemas de certificados SSL internos del aeropuerto.
+        # - http1=True: Fuerza protocolo 1.1 (más estable en redes antiguas que HTTP/2).
+        # - trust_env=False: Ignora proxies mal configurados en el sistema operativo.
+        async with httpx.AsyncClient(
+            timeout=30.0, 
+            verify=False, 
+            http1=True, 
+            http2=False, 
+            trust_env=False
+        ) as client:
+            
+            print(f"📡 [API {escala}] Intentando conexión a: {url}")
+            
+            # INTENTO 1: Form-Data (application/x-www-form-urlencoded)
             response = await client.post(url, headers=headers, data=payload)
+            
+            # INTENTO 2: Si el servidor espera JSON puro
+            if response.status_code == 415 or response.status_code == 400:
+                print(f"🔄 [API {escala}] Reintentando en modo JSON puro...")
+                response = await client.post(url, headers=headers, json=payload)
+
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ [API {escala}] Recibidos {len(data)} registros totales.")
-                return data
+                
+                # VALIDACIÓN DE CONTENIDO: Evita el error de "1 trabajador" (diccionario de error)
+                if isinstance(data, list):
+                    print(f"✅ [API {escala}] ÉXITO: {len(data)} registros totales.")
+                    return data
+                elif isinstance(data, dict):
+                    # Buscar lista dentro de un posible objeto envoltorio
+                    for key_name in ["workers", "data", "value", "items"]:
+                        if key_name in data and isinstance(data[key_name], list):
+                            print(f"📂 [API {escala}] Lista encontrada en clave '{key_name}'.")
+                            return data[key_name]
+                    print(f"❌ [API {escala}] Respuesta inválida (No es lista): {data}")
+                    return None
             else:
-                print(f"❌ [API {escala}] Error HTTP {response.status_code}: {response.text[:100]}")
+                print(f"❌ [API {escala}] Error HTTP {response.status_code}")
+                print(f"📝 Respuesta técnica: {response.text[:150]}")
                 return None
-    except Exception as e:
-        print(f"💥 [API {escala}] Fallo de conexión: {str(e)}")
-        return None
 
+    except Exception as e:
+        # 4. DIAGNÓSTICO PROFUNDO PARA ERRORES VACÍOS
+        exc_type, _, _ = sys.exc_info()
+        # Usamos repr(e) porque NUNCA es vacío, a diferencia de str(e)
+        error_name = exc_type.__name__ if exc_type else "UnknownError"
+        print(f"💥 [API {escala}] FALLO DE CONEXIÓN [{error_name}]: {repr(e)}")
+        
+        # Si quieres ver exactamente en qué línea falló:
+        # traceback.print_exc() 
+        
+        return None
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str = "N1"):
     """
     Filtro mejorado para Madrid Nave 1 (Operaciones).
