@@ -578,74 +578,89 @@ def _atomic_write_json(path: str, data: list[dict]):
 
           
 
-import traceback
 import httpx
 import os
 import sys
+import traceback
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
-async def fetch_roster_api_data():
-    """Llamada con diagnóstico de bajo nivel para Madrid"""
-    # 1. Limpieza estricta de la URL (Evita espacios invisibles en el .env)
+async def fetch_roster_api_data(escala: str, fecha: str):
+    """
+    Motor universal de extracción de Roster.
+    Diseñado para atravesar Firewalls industriales y diagnosticar fallos mudos.
+    """
+    # 1. Limpieza de variables (evita espacios o saltos de línea invisibles)
     url = str(os.getenv("ROSTER_API_URL", "")).strip()
     key = str(os.getenv("ROSTER_API_KEY", "")).strip()
     
     if not url or not key:
-        print("⚠️ API MAD: URL o KEY no configuradas.")
+        print(f"⚠️ [API {escala}] ERROR: URL o KEY no configuradas en el .env")
         return None
-
-    ahora = datetime.now(ZoneInfo("Europe/Madrid"))
-    fecha_slash = ahora.strftime("%d/%m/%Y")
     
-    payload = {"escala": "MAD", "fecha": fecha_slash}
-    
+    # 2. Configuración de Headers de "Navegador Humano"
     headers = {
         "api-key": key,
         "Accept": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Connection": "close"
+        "Connection": "close",  # Forzamos cierre para no saturar el pool de la terminal
+        "Cache-Control": "no-cache"
     }
+    
+    payload = {"escala": escala, "fecha": fecha}
 
     try:
-        # 2. Forzamos HTTP/1.1 (A veces HTTP/2 falla en balanceadores antiguos)
-        # 3. Ignoramos proxies del sistema (Evita que el tráfico salga por donde no debe)
+        # 3. Configuración de Cliente Ultra-Resistente:
+        # - verify=False: Ignora problemas de certificados SSL internos del aeropuerto.
+        # - http1=True: Fuerza protocolo 1.1 (más estable en redes antiguas que HTTP/2).
+        # - trust_env=False: Ignora proxies mal configurados en el sistema operativo.
         async with httpx.AsyncClient(
             timeout=30.0, 
             verify=False, 
             http1=True, 
-            http2=False,
-            trust_env=False 
+            http2=False, 
+            trust_env=False
         ) as client:
             
-            print(f"📡 [DEBUG MAD] Intentando conexión física a: {url}")
+            print(f"📡 [API {escala}] Intentando conexión a: {url}")
             
-            # Intento 1: Form-data
-            try:
-                response = await client.post(url, headers=headers, data=payload)
-            except Exception as inner_e:
-                # Si falla aquí, el error es ANTES de recibir respuesta (Red/DNS)
-                print(f"💥 MAD: Fallo Físico de Conexión: {type(inner_e).__name__} -> {repr(inner_e)}")
-                return None
+            # INTENTO 1: Form-Data (application/x-www-form-urlencoded)
+            response = await client.post(url, headers=headers, data=payload)
+            
+            # INTENTO 2: Si el servidor espera JSON puro
+            if response.status_code == 415 or response.status_code == 400:
+                print(f"🔄 [API {escala}] Reintentando en modo JSON puro...")
+                response = await client.post(url, headers=headers, json=payload)
 
-            # Si llegamos aquí, el servidor respondió algo (200, 403, 500...)
             if response.status_code == 200:
                 data = response.json()
+                
+                # VALIDACIÓN DE CONTENIDO: Evita el error de "1 trabajador" (diccionario de error)
                 if isinstance(data, list):
-                    print(f"✅ API MAD: Recibidos {len(data)} trabajadores.")
+                    print(f"✅ [API {escala}] ÉXITO: {len(data)} registros totales.")
                     return data
-                print(f"⚠️ API MAD: Respuesta no es lista: {data}")
-                return None
+                elif isinstance(data, dict):
+                    # Buscar lista dentro de un posible objeto envoltorio
+                    for key_name in ["workers", "data", "value", "items"]:
+                        if key_name in data and isinstance(data[key_name], list):
+                            print(f"📂 [API {escala}] Lista encontrada en clave '{key_name}'.")
+                            return data[key_name]
+                    print(f"❌ [API {escala}] Respuesta inválida (No es lista): {data}")
+                    return None
             else:
-                print(f"❌ Error Servidor MAD: {response.status_code}")
-                print(f"📝 Texto respuesta: {response.text[:100]}")
+                print(f"❌ [API {escala}] Error HTTP {response.status_code}")
+                print(f"📝 Respuesta técnica: {response.text[:150]}")
                 return None
 
     except Exception as e:
-        # ESTO ES LO QUE ARREGLA EL ERROR VACÍO:
-        # Usamos repr(e) y sys.exc_info para ver la clase exacta del error
+        # 4. DIAGNÓSTICO PROFUNDO PARA ERRORES VACÍOS
         exc_type, _, _ = sys.exc_info()
-        print(f"💥 MAD: ERROR CRÍTICO [{exc_type.__name__}]: {repr(e)}")
+        # Usamos repr(e) porque NUNCA es vacío, a diferencia de str(e)
+        error_name = exc_type.__name__ if exc_type else "UnknownError"
+        print(f"💥 [API {escala}] FALLO DE CONEXIÓN [{error_name}]: {repr(e)}")
+        
+        # Si quieres ver exactamente en qué línea falló:
+        # traceback.print_exc() 
+        
         return None
     
 def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, target_nave: str):
