@@ -7051,10 +7051,10 @@ function openSupportModal() {
     document.getElementById('issue-details').value = '';
     document.getElementById('support-modal').showModal();
 }
-# Ejemplo de modelo en main.py
+
 class DashboardIssue(BaseModel):
     estacion: str
-    supervisor: str  # <--- Asegurar que este campo existe
+    supervisor: str  
     tipo_fallo: str
     detalles: str
   
@@ -7309,6 +7309,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
