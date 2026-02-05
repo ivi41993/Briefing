@@ -7192,32 +7192,72 @@ async function initFiixDashboard() {
     render();
 })();
 function openSupportModal() {
-    document.getElementById('support-form').style.display = 'block';
-    document.getElementById('support-thanks').style.display = 'none';
+    const modal = document.getElementById('support-modal');
+    const form = document.getElementById('support-form');
+    const thanks = document.getElementById('support-thanks');
+    const inputName = document.getElementById('support-worker-name');
+    const inputHeader = document.getElementById('briefing-supervisor');
+
+    // Resetear estados
+    form.style.display = 'block';
+    thanks.style.display = 'none';
     document.getElementById('issue-details').value = '';
-    document.getElementById('support-modal').showModal();
+    
+    // Auto-rellenar nombre si ya está en el header del dashboard
+    if (inputHeader && inputHeader.value.trim() !== "") {
+        inputName.value = inputHeader.value.trim();
+    } else {
+        inputName.value = "";
+    }
+
+    // Limpiar bordes de error previos
+    inputName.style.borderColor = "#e2e8f0";
+    document.getElementById('issue-details').style.borderColor = "#e2e8f0";
+
+    modal.showModal();
 }
 
 async function sendDashboardIssue() {
+    const nameEl = document.getElementById('support-worker-name');
+    const detailsEl = document.getElementById('issue-details');
     const type = document.getElementById('issue-type').value;
-    const details = document.getElementById('issue-details').value.trim();
     const btn = document.getElementById('btn-submit-support');
 
-    if (!details) return alert("Por favor, describe el error para poder ayudarte.");
+    const supervisor = nameEl.value.trim();
+    const details = detailsEl.value.trim();
 
-    // IDENTIFICACIÓN AUTOMÁTICA DE LA ESTACIÓN
-    // Combina el Título (Dashboard - WFSx) y la Ruta (/wfsxwh)
-    const stationIdentity = `${document.title} (URL: ${window.location.pathname})`;
+    // --- VALIDACIÓN AFINADA ---
+    let hasError = false;
+    if (!supervisor) {
+        nameEl.style.borderColor = "#dc2626";
+        hasError = true;
+    } else {
+        nameEl.style.borderColor = "#e2e8f0";
+    }
 
+    if (!details) {
+        detailsEl.style.borderColor = "#dc2626";
+        hasError = true;
+    } else {
+        detailsEl.style.borderColor = "#e2e8f0";
+    }
+
+    if (hasError) return; // Detener si falta algo
+
+    // Identificación automática de estación
+    const stationIdentity = `${document.title} (Ruta: ${window.location.pathname})`;
+
+    // UI Feedback
     btn.disabled = true;
     btn.textContent = "Enviando...";
 
     try {
         const payload = {
             estacion: stationIdentity,
-            supervisor: document.getElementById('briefing-supervisor')?.value || "No identificado",
+            supervisor: supervisor,
             tipo_fallo: type,
-            detalles: details
+            detalles: details,
+            timestamp: new Date().toLocaleString('es-ES') // Añadimos la hora exacta
         };
 
         const res = await fetch('api/report-dashboard-issue', {
@@ -7231,10 +7271,10 @@ async function sendDashboardIssue() {
             document.getElementById('support-form').style.display = 'none';
             document.getElementById('support-thanks').style.display = 'block';
         } else {
-            throw new Error("Error en servidor");
+            throw new Error("Fallo en servidor");
         }
     } catch (e) {
-        alert("Fallo al contactar con el sistema de soporte técnico.");
+        alert("Fallo al contactar con el sistema de soporte técnico. Verifique su conexión.");
     } finally {
         btn.disabled = false;
         btn.textContent = "AVISAR A SOPORTE";
