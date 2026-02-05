@@ -3074,6 +3074,49 @@ class FiixConnector:
             print(f"❌ Error WFS4 Fiix: {e}")
             return {}
 
+    async def discover_work_order_data(self, site_id: int):
+        """
+        Llamada de auditoría para descubrir campos de coste e incidentes.
+        Solicita campos extendidos que no usamos normalmente.
+        """
+        # Lista de campos sospechosos de contener la info que pides:
+        fields = [
+            "id", "strCode", "strDescription", "dtmDateCreated", "dtmDateCompleted",
+            "intMaintenanceTypeID", "intPriorityID", "intWorkOrderStatusID",
+            # CAMPOS DE COSTE (Los que te han pedido)
+            "dblTotalPartsCost", "dblTotalLaborCost", "dblTotalMiscCost",
+            # CAMPOS DE REFERENCIA
+            "strAssets", "strAdminNotes", "strCompletionNotes",
+            # INFORMACIÓN EXTRA
+            "intAssetID", "intProjectID", "strWorkInstruction"
+        ]
+    
+        body = {
+            "_maCn": "FindRequest",
+            "className": "WorkOrder",
+            "fields": ",".join(fields),
+            "filters": [
+                {
+                    "ql": "intSiteID = ?", 
+                    "parameters": [site_id]
+                }
+            ],
+            "maxObjects": 10 # Solo 10 para auditar la estructura
+        }
+    
+        print(f"🔍 [AUDITORÍA FIIX] Solicitando campos de coste para Site {site_id}...")
+        results = await self._fiix_rpc(body)
+        
+        # Imprimimos el primer objeto de forma bonita para analizarlo
+        if results:
+            import json
+            print("📊 ESTRUCTURA DE DATOS ENCONTRADA:")
+            print(json.dumps(results[0], indent=4))
+        else:
+            print("⚠️ No se recibieron datos. Revisa permisos de la API Key.")
+        
+        return results
+    
     async def introspect_work_order(self):
         """
         Pide a Fiix el esquema real de la clase WorkOrder.
@@ -5186,6 +5229,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
