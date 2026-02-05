@@ -2375,6 +2375,12 @@ body.card-open #timer-reset {
 <dialog id="support-modal" style="border:none; border-radius:12px; padding:20px; width:400px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
     <div id="support-form">
         <h3 style="margin-top:0; font-family: 'Space Grotesk', sans-serif;">Soporte Técnico Dashboard</h3>
+        
+        <!-- CAMPO OBLIGATORIO: SUPERVISOR -->
+        <label style="font-size:0.8rem; font-weight:700;">Supervisor / Responsable:*</label>
+        <input type="text" id="support-supervisor" placeholder="Su nombre y apellidos" 
+               style="width:100%; padding:8px; margin:8px 0 15px; border-radius:6px; border:2px solid #e2e8f0; font-family: inherit;">
+
         <label style="font-size:0.8rem; font-weight:700;">¿Qué falla?</label>
         <select id="issue-type" style="width:100%; padding:8px; margin:8px 0 15px; border-radius:6px; border:1px solid #ddd; font-family: inherit;">
             <option>No carga el personal (Roster)</option>
@@ -2411,25 +2417,26 @@ body.card-open #timer-reset {
 </div>
 
 <dialog id="incident-modal" style="border:none; border-radius:16px; padding:0; width:450px; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
-    <!-- Cabecera Roja -->
     <div style="background:#dc2626; color:white; padding:15px 20px; font-weight:800; font-size:1.1rem; display:flex; justify-content:space-between;">
         <span>AVISO DE INCIDENCIA CRÍTICA</span>
         <button onclick="closeIncidentModal()" style="background:none; border:none; color:white; cursor:pointer; font-size:1.2rem;">✕</button>
     </div>
 
-    <!-- Contenido del Formulario -->
     <div id="incident-form-container" style="padding:20px;">
-        <p style="margin-top:0; font-size:0.95rem; line-height:1.4;">Describa brevemente el problema. Se enviará un aviso <strong>automático e inmediato</strong> por Microsoft Teams a los responsables.</p>
-        
-        <textarea id="incident-desc" placeholder="Ej: Avería motor cinta 4... / Muelle 2 bloqueado por camión..." 
-                  style="width:100%; height:120px; padding:12px; border-radius:10px; border:2px solid #e2e8f0; font-family:inherit; font-size:1rem; outline:none; resize:none;"></textarea>
+        <!-- CAMPO OBLIGATORIO: RESPONSABLE -->
+        <label style="font-size:0.85rem; font-weight:700; display:block; margin-bottom:5px;">Responsable de este aviso:*</label>
+        <input type="text" id="incident-reporter" placeholder="Nombre de quien reporta" 
+               style="width:100%; padding:10px; margin-bottom:15px; border-radius:8px; border:2px solid #dc2626; font-family:inherit;">
+
+        <label style="font-size:0.85rem; font-weight:700; display:block; margin-bottom:5px;">Descripción de la incidencia:*</label>
+        <textarea id="incident-desc" placeholder="Describa el problema aquí..." 
+                  style="width:100%; height:100px; padding:12px; border-radius:10px; border:2px solid #e2e8f0; font-family:inherit; outline:none; resize:none;"></textarea>
         
         <div style="margin-top:20px; display:flex; gap:10px;">
             <button onclick="closeIncidentModal()" style="flex:1; padding:12px; border:none; border-radius:10px; cursor:pointer; font-weight:700; background:#f1f5f9;">Cancelar</button>
             <button onclick="sendIncidentToTeams()" id="btn-confirm-incident" style="flex:1; padding:12px; border:none; border-radius:10px; cursor:pointer; font-weight:700; background:#dc2626; color:white;">ENVIAR AVISO</button>
         </div>
     </div>
-
     <!-- Pantalla de Éxito (Feedback para el usuario) -->
     <div id="incident-success-container" style="display:none; padding:40px 20px; text-align:center;">
         <div style="font-size:4rem; margin-bottom:15px;">📡</div>
@@ -7044,25 +7051,39 @@ function openSupportModal() {
     document.getElementById('issue-details').value = '';
     document.getElementById('support-modal').showModal();
 }
-
+# Ejemplo de modelo en main.py
+class DashboardIssue(BaseModel):
+    estacion: str
+    supervisor: str  # <--- Asegurar que este campo existe
+    tipo_fallo: str
+    detalles: str
+  
+// --- FUNCIÓN PARA SOPORTE TÉCNICO ---
 async function sendDashboardIssue() {
-    const type = document.getElementById('issue-type').value;
+    const supervisor = document.getElementById('support-supervisor').value.trim();
     const details = document.getElementById('issue-details').value.trim();
+    const type = document.getElementById('issue-type').value;
+
+    // VALIDACIÓN OBLIGATORIA
+    if (!supervisor) {
+        alert("⚠️ Por favor, introduzca su nombre como Responsable.");
+        document.getElementById('support-supervisor').focus();
+        document.getElementById('support-supervisor').style.borderColor = "#dc2626";
+        return;
+    }
+    if (!details) {
+        alert("⚠️ Debe describir el fallo técnico.");
+        return;
+    }
+
     const btn = document.getElementById('btn-submit-support');
-
-    if (!details) return alert("Por favor, describe el error para poder ayudarte.");
-
-    // IDENTIFICACIÓN AUTOMÁTICA DE LA ESTACIÓN
-    // Combina el Título (Dashboard - WFSx) y la Ruta (/wfsxwh)
-    const stationIdentity = `${document.title} (URL: ${window.location.pathname})`;
-
     btn.disabled = true;
     btn.textContent = "Enviando...";
 
     try {
         const payload = {
-            estacion: stationIdentity,
-            supervisor: document.getElementById('briefing-supervisor')?.value || "No identificado",
+            estacion: `${STATION_CODE} Dashboard`,
+            supervisor: supervisor,
             tipo_fallo: type,
             detalles: details
         };
@@ -7074,17 +7095,60 @@ async function sendDashboardIssue() {
         });
 
         if (res.ok) {
-            document.getElementById('display-station-name').textContent = stationIdentity;
             document.getElementById('support-form').style.display = 'none';
             document.getElementById('support-thanks').style.display = 'block';
-        } else {
-            throw new Error("Error en servidor");
         }
     } catch (e) {
-        alert("Fallo al contactar con el sistema de soporte técnico.");
+        alert("Error de conexión al enviar el aviso.");
     } finally {
         btn.disabled = false;
         btn.textContent = "AVISAR A SOPORTE";
+    }
+}
+
+// --- FUNCIÓN PARA INCIDENCIA CRÍTICA ---
+async function sendIncidentToTeams() {
+    const reporter = document.getElementById('incident-reporter').value.trim();
+    const desc = document.getElementById('incident-desc').value.trim();
+
+    // VALIDACIÓN OBLIGATORIA
+    if (!reporter) {
+        alert("⚠️ Es obligatorio identificarse para enviar un aviso crítico.");
+        document.getElementById('incident-reporter').focus();
+        return;
+    }
+    if (!desc) {
+        alert("⚠️ Por favor, describa la incidencia.");
+        return;
+    }
+
+    const btn = document.getElementById('btn-confirm-incident');
+    btn.disabled = true;
+    btn.textContent = "Enviando...";
+
+    try {
+        const payload = {
+            station: STATION_CODE,
+            supervisor: reporter, // Reutilizamos el campo supervisor en el JSON
+            incident_desc: desc,
+            timestamp: new Date().toLocaleTimeString()
+        };
+
+        const res = await fetch('api/report-critical-incident', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            document.getElementById('incident-form-container').style.display = 'none';
+            document.getElementById('incident-success-container').style.display = 'block';
+        }
+    } catch (e) {
+        alert("Fallo al enviar el aviso a Teams.");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "ENVIAR AVISO";
     }
 }
 
@@ -7245,6 +7309,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
