@@ -2372,74 +2372,53 @@ body.card-open #timer-reset {
 <button onclick="openSupportModal()" style="border:none; background:none; color:#64748b; cursor:pointer; font-size:0.8rem; text-decoration:underline; margin-top:10px;">
     🔧 Reportar fallo en el Dashboard
 </button>
-<dialog id="support-modal" style="border:none; border-radius:12px; padding:20px; width:400px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
-    <div id="support-form">
-        <h3 style="margin-top:0; font-family: 'Space Grotesk', sans-serif;">Soporte Técnico Dashboard</h3>
-        <label style="font-size:0.8rem; font-weight:700;">¿Qué falla?</label>
-        <select id="issue-type" style="width:100%; padding:8px; margin:8px 0 15px; border-radius:6px; border:1px solid #ddd; font-family: inherit;">
-            <option>No carga el personal (Roster)</option>
-            <option>Los KPIs no se actualizan</option>
-            <option>Error al guardar resumen</option>
-            <option>Error en los datos de Fiix</option>
-            <option>Otro problema técnico</option>
-        </select>
-        
-        <label style="font-size:0.8rem; font-weight:700;">Describe el error:</label>
-        <textarea id="issue-details" placeholder="Ej: Los costes de Fiix salen en 0..." style="width:100%; height:80px; margin-top:8px; padding:8px; border-radius:6px; border:1px solid #ddd; font-family: inherit; resize: none;"></textarea>
-        
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button onclick="document.getElementById('support-modal').close()" style="flex:1; border:none; padding:10px; border-radius:6px; cursor:pointer; background: #f1f5f9; font-weight: 700;">Cancelar</button>
-            <button onclick="sendDashboardIssue()" id="btn-submit-support" style="flex:1; border:none; padding:10px; border-radius:6px; cursor:pointer; background:#334155; color:white; font-weight:700;">AVISAR A SOPORTE</button>
+<dialog id="support-modal" style="border:none; border-radius:16px; padding:0; width:420px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); overflow:hidden;">
+    <!-- Cabecera Estilo WFS -->
+    <div style="background:#334155; color:white; padding:15px 20px; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+        <span>🔧 SOPORTE TÉCNICO</span>
+        <button onclick="document.getElementById('support-modal').close()" style="background:none; border:none; color:white; cursor:pointer; font-size:1.2rem;">✕</button>
+    </div>
+
+    <!-- Contenedor del Formulario -->
+    <div id="support-form" style="padding:20px;">
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:800; color:#475569; display:block; margin-bottom:5px;">RESPONSABLE DEL AVISO:*</label>
+            <input type="text" id="support-worker-name" placeholder="Escriba su nombre" 
+                   style="width:100%; padding:10px; border-radius:8px; border:2px solid #e2e8f0; font-family:inherit; box-sizing:border-box;">
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:800; color:#475569; display:block; margin-bottom:5px;">TIPO DE FALLO:</label>
+            <select id="issue-type" style="width:100%; padding:10px; border-radius:8px; border:2px solid #e2e8f0; background:white; font-family:inherit;">
+                <option>No carga el personal (Roster)</option>
+                <option>Los KPIs no se actualizan</option>
+                <option>Error al guardar resumen</option>
+                <option>Error en los datos de Fiix</option>
+                <option>Otro problema técnico</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:800; color:#475569; display:block; margin-bottom:5px;">DESCRIPCIÓN DEL ERROR:*</label>
+            <textarea id="issue-details" placeholder="¿Qué está pasando exactamente?" 
+                      style="width:100%; height:100px; padding:10px; border-radius:8px; border:2px solid #e2e8f0; font-family:inherit; resize:none; box-sizing:border-box; outline:none;"></textarea>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button onclick="document.getElementById('support-modal').close()" style="flex:1; padding:12px; border:none; border-radius:10px; font-weight:700; background:#f1f5f9; cursor:pointer;">CANCELAR</button>
+            <button onclick="sendDashboardIssue()" id="btn-submit-support" style="flex:1; padding:12px; border:none; border-radius:10px; font-weight:700; background:#334155; color:white; cursor:pointer;">ENVIAR AVISO</button>
         </div>
     </div>
 
-    <!-- Pantalla de confirmación (Se activa tras el envío) -->
-    <div id="support-thanks" style="display:none; text-align:center; padding: 10px 0;">
-        <div style="font-size:3rem; margin-bottom: 10px;">🛠️</div>
-        <h3 style="color:#334155; margin-bottom: 5px;">Aviso Recibido</h3>
-        <p style="font-size:0.9rem; line-height:1.4; color: #475569;">
+    <!-- Pantalla de Éxito (Gracias) -->
+    <div id="support-thanks" style="display:none; padding:40px 20px; text-align:center;">
+        <div style="font-size:4rem; margin-bottom:15px;">🛠️</div>
+        <h3 style="margin:0 0 10px 0; color:#1e293b;">Aviso Recibido</h3>
+        <p style="font-size:0.9rem; color:#64748b; line-height:1.5;">
             Se ha notificado al equipo técnico sobre el fallo en:<br>
-            <strong id="display-station-name" style="color: #1e293b;">—</strong>
+            <strong id="display-station-name" style="color:#0f172a;">—</strong>
         </p>
-        <p style="color:#64748b; font-size:0.8rem; background: #f8fafc; padding: 10px; border-radius: 8px;">
-            <strong>No es necesario enviar correos ni tickets adicionales.</strong>
-        </p>
-        <button onclick="document.getElementById('support-modal').close()" class="btn-primary" style="width:100%; margin-top:15px;">Entendido</button>
-    </div>
-</dialog>
-
-</div>
-
-<dialog id="incident-modal" style="border:none; border-radius:16px; padding:0; width:450px; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
-    <!-- Cabecera Roja -->
-    <div style="background:#dc2626; color:white; padding:15px 20px; font-weight:800; font-size:1.1rem; display:flex; justify-content:space-between;">
-        <span>AVISO DE INCIDENCIA CRÍTICA</span>
-        <button onclick="closeIncidentModal()" style="background:none; border:none; color:white; cursor:pointer; font-size:1.2rem;">✕</button>
-    </div>
-
-    <!-- Contenido del Formulario -->
-    <div id="incident-form-container" style="padding:20px;">
-        <p style="margin-top:0; font-size:0.95rem; line-height:1.4;">Describa brevemente el problema. Se enviará un aviso <strong>automático e inmediato</strong> por Microsoft Teams a los responsables.</p>
-        
-        <textarea id="incident-desc" placeholder="Ej: Avería motor cinta 4... / Muelle 2 bloqueado por camión..." 
-                  style="width:100%; height:120px; padding:12px; border-radius:10px; border:2px solid #e2e8f0; font-family:inherit; font-size:1rem; outline:none; resize:none;"></textarea>
-        
-        <div style="margin-top:20px; display:flex; gap:10px;">
-            <button onclick="closeIncidentModal()" style="flex:1; padding:12px; border:none; border-radius:10px; cursor:pointer; font-weight:700; background:#f1f5f9;">Cancelar</button>
-            <button onclick="sendIncidentToTeams()" id="btn-confirm-incident" style="flex:1; padding:12px; border:none; border-radius:10px; cursor:pointer; font-weight:700; background:#dc2626; color:white;">ENVIAR AVISO</button>
-        </div>
-    </div>
-
-    <!-- Pantalla de Éxito (Feedback para el usuario) -->
-    <div id="incident-success-container" style="display:none; padding:40px 20px; text-align:center;">
-        <div style="font-size:4rem; margin-bottom:15px;">📡</div>
-        <h2 style="color:#166534; margin-bottom:10px;">¡Aviso enviado!</h2>
-        <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:15px; border-radius:12px; color:#166534; text-align:left; font-size:0.95rem; line-height:1.5;">
-            ✅ Se ha notificado a los responsables por Teams.<br>
-            ⏳ El equipo de guardia revisará la incidencia lo antes posible.<br><br>
-            <strong>🚫 IMPORTANTE: No es necesario que envíes ningún correo manual ni realices llamadas adicionales.</strong>
-        </div>
-        <button onclick="closeIncidentModal()" class="btn-primary" style="margin-top:25px; width:100%;">Entendido</button>
+        <button onclick="document.getElementById('support-modal').close()" class="btn-primary" style="width:100%; margin-top:20px;">ENTENDIDO</button>
     </div>
 </dialog>
   
@@ -2787,7 +2766,6 @@ body.card-open #timer-reset {
         📊 Acumulado Semanal de Daños
     </h3>
     <div style="height: 200px;"><canvas id="fiixWeeklyChart"></canvas></div>
-    <div style="height: 200px; margin-top: 10px;"><canvas id="fiixCostChart"></canvas></div>
 </div>
 
   <!-- SEPARADOR -->
@@ -3582,51 +3560,21 @@ console.error('PUT /api/roster/presence falló', e);
 }
 }
 
-// Persistencia local de zonas (con fallback si el servidor no acepta el endpoint)
-function zoneStorageKey(){
-  const station = (typeof STATION_CODE !== 'undefined'
-    ? STATION_CODE
-    : (window.STATION_OVERRIDE || 'MAD')
-  ).toUpperCase();
-  const date = TEAM_STATE?.sheet_date || new Date().toISOString().slice(0,10);
-  const shift = TEAM_STATE?.shift || computeShift().name;
-  return `roster_zones_${station}_${date}_${shift}`;
-}
-function loadZoneState(){
-  try{ return JSON.parse(localStorage.getItem(zoneStorageKey()) || '{}'); }
-  catch{ return {}; }
-}
-function saveZoneState(zones){
-  try{ localStorage.setItem(zoneStorageKey(), JSON.stringify(zones || {})); }catch{}
-}
-
 async function updateZoneOnServer(person, zone){
-  const payload = {
-    person, zone,
-    date: TEAM_STATE?.sheet_date || null,
-    shift: TEAM_STATE?.shift || null
-  };
-  try{
-    const res = await fetch('/api/roster/zone', {
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error(res.statusText || 'zone update failed');
-  }catch(e){
-    // fallback local si el endpoint no existe o falla
-    console.warn('PUT /api/roster/zone fallback local', e);
-  }
-  try{
-    const zones = loadZoneState();
-    zones[person] = zone;
-    saveZoneState(zones);
-  }catch(e){
-    console.warn('No se pudo persistir zona local', e);
-  }
+try{
+await fetch('/api/roster/zone', {
+method:'PUT',
+headers:{'Content-Type':'application/json'},
+body: JSON.stringify({
+person, zone,
+date: TEAM_STATE?.sheet_date || null,
+shift: TEAM_STATE?.shift || null
+})
+});
+}catch(e){
+console.error('PUT /api/roster/zone falló', e);
 }
-
-
+}
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
@@ -3646,12 +3594,6 @@ function renderRoster(listEl, people, state) {
     }
 
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
-
-    // Mergea zonas del servidor si vienen incluidas
-    if (state && state.zones && typeof state.zones === 'object' && typeof saveZoneState === 'function'){
-        window.TEAM_STATE.zones = { ...window.TEAM_STATE.zones, ...state.zones };
-        try { saveZoneState(window.TEAM_STATE.zones); } catch {}
-    }
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
@@ -3981,7 +3923,7 @@ function setupEventListeners() {
     // Usamos delegación de eventos en el documento.
     
     // 1. Checkbox de completado
-    document.addEventListener('change', (e) => {
+   ('change', (e) => {
         // La función handleGwTick ya verifica si es un checkbox válido
         if (typeof handleGwTick === 'function') {
             handleGwTick(e);
@@ -5454,11 +5396,10 @@ setTimeout(()=>{ paintDateTimeAndShift(); setInterval(paintDateTimeAndShift, 600
     id: $('ops-id'),
     title: $('ops-title'),
     impact: $('ops-impact'),
-    // Compatibilidad con IDs antiguos y actuales del formulario OPS
-    scope: $('ops-scope-field') || $('ops-scope'),
-    assignee: $('ops-owner') || $('ops-assignee'),
-    vFrom: $('ops-from') || $('ops-valid-from'),
-    vTo: $('ops-to') || $('ops-valid-to'),
+    scope: $('ops-scope'),
+    assignee: $('ops-assignee'),
+    vFrom: $('ops-valid-from'),
+    vTo: $('ops-valid-to'),
     reqAck: $('ops-require-ack'),
     save: $('ops-save'),
   };
@@ -5585,38 +5526,38 @@ setTimeout(()=>{ paintDateTimeAndShift(); setInterval(paintDateTimeAndShift, 600
   // —— CRUD helpers —— //
   function openDialog(edit=null){
     if (edit){
-      if (els.id) els.id.value = edit.id;
-      if (els.title) els.title.value = edit.title || '';
-      if (els.impact) els.impact.value = edit.impact || 'Medio';
-      if (els.scope) els.scope.value = defaultScopes.includes(edit.scope) ? edit.scope : 'General';
-      if (els.assignee) els.assignee.value = edit.assignee || edit.owner || '';
-      if (els.vFrom) els.vFrom.value = edit.valid_from || edit.from || '';
-      if (els.vTo) els.vTo.value = edit.valid_to || edit.to || '';
-      if (els.reqAck) els.reqAck.checked = !!edit.require_ack;
+      els.id.value = edit.id;
+      els.title.value = edit.title || '';
+      els.impact.value = edit.impact || 'Medio';
+      els.scope.value = defaultScopes.includes(edit.scope) ? edit.scope : 'General';
+      els.assignee.value = edit.assignee || '';
+      els.vFrom.value = edit.valid_from || '';
+      els.vTo.value = edit.valid_to || '';
+      els.reqAck.checked = !!edit.require_ack;
     } else {
-      if (els.id) els.id.value = '';
-      if (els.title) els.title.value = '';
-      if (els.impact) els.impact.value = 'Medio';
-      if (els.scope) els.scope.value = 'General';
-      if (els.assignee) els.assignee.value = '';
-      if (els.vFrom) els.vFrom.value = '';
-      if (els.vTo) els.vTo.value = '';
-      if (els.reqAck) els.reqAck.checked = false;
+      els.id.value = '';
+      els.title.value = '';
+      els.impact.value = 'Medio';
+      els.scope.value = 'General';
+      els.assignee.value = '';
+      els.vFrom.value = '';
+      els.vTo.value = '';
+      els.reqAck.checked = false;
     }
     els.dlg.showModal();
   }
 
   function upsertFromDialog(){
-    const id = (els.id?.value || '').trim() || uid();
+    const id = els.id.value || uid();
     const it = {
       id,
-      title: (els.title?.value||'').trim(),
-      impact: els.impact?.value || 'Medio',
-      scope: els.scope?.value || 'General',
-      assignee: (els.assignee?.value||'').trim() || null,
-      valid_from: els.vFrom?.value || null,
-      valid_to: els.vTo?.value || null,
-      require_ack: !!els.reqAck?.checked,
+      title: (els.title.value||'').trim(),
+      impact: els.impact.value,
+      scope: els.scope.value || 'General',
+      assignee: (els.assignee.value||'').trim() || null,
+      valid_from: els.vFrom.value || null,
+      valid_to: els.vTo.value || null,
+      require_ack: !!els.reqAck.checked,
       acks: {},                     // se respeta al editar si existe
       station: STATION,
       ts: nowISO(),
@@ -6098,28 +6039,6 @@ function updateFiixDisplay(metric, value) {
         'fiix_wfs4_damage_count_24h': 'fiix-damage-24h'
     };
 
-    if (metric === 'fiix_mad_total_cost') {
-        const el = document.getElementById('fiix-cost');
-        const toNumber = (v) => {
-            if (typeof v === 'number' && Number.isFinite(v)) return v;
-            if (typeof v === 'string') {
-                const m = v.match(/-?\d+(?:[.,]\d+)?/);
-                return m ? parseFloat(m[0].replace(',', '.')) : null;
-            }
-            return null;
-        };
-        const num = toNumber(value);
-        if (el) {
-            el.textContent = (num != null) ? formatEuro(num) : (value ?? '—');
-        }
-        // Si el KPI central está vacío, también lo rellenamos
-        const kpi = document.getElementById('kpi-total-cost');
-        if (kpi && (kpi.textContent.trim() === '—' || kpi.textContent.trim() === '-')) {
-            kpi.textContent = (num != null) ? formatEuro(num) : (value ?? '—');
-        }
-        return;
-    }
-
     if (metric === 'fiix_wfs4_broken_text') {
         const el = document.getElementById('fiix-broken-text');
         if (el) {
@@ -6269,16 +6188,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  let protocolApiEnabled = true;
-
   async function pullServer(){
-    if (!protocolApiEnabled) return null;
     try{
       const r = await fetch('/api/incidents/protocol', {cache:'no-store'});
-      if (r.status === 404) {
-        protocolApiEnabled = false;
-        return null;
-      }
       if (!r.ok) return null;
       const data = await r.json();
       if (data && typeof data === 'object') return data;
@@ -6287,14 +6199,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function pushServer(state){
-    if (!protocolApiEnabled) return;
     try{
-      const r = await fetch('/api/incidents/protocol', {
+      await fetch('/api/incidents/protocol', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify(state)
       });
-      if (r.status === 404) protocolApiEnabled = false;
     }catch{/* opcional */}
   }
 
@@ -6404,7 +6314,6 @@ document.addEventListener('change', (e) => {
 
 /* ========= OPS ultra-simple: CRUD local + render inmediato ========= */
 let weeklyFiixChart = null;
-let costFiixChart = null;
 
 async function renderFiixWeeklyHistory() {
     try {
@@ -6456,185 +6365,6 @@ async function renderFiixWeeklyHistory() {
 // Ejecutar al cargar
 document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
 
-async function renderFiixCostHistory() {
-    const canvas = document.getElementById('fiixCostChart');
-    if (!canvas) return;
-
-    let data = [];
-    let fallbackYtd = null;
-    try {
-        const res = await fetch('/api/fiix/cost-history?weeks=52', { cache: 'no-store' });
-        if (!res.ok) {
-            console.warn('Cost history HTTP', res.status, res.statusText);
-        } else {
-            const json = await res.json();
-            data = Array.isArray(json) ? json : [];
-        }
-    } catch (e) {
-        console.warn('Cost history fetch error:', e);
-    }
-
-    // Fallback: si no hay series, usa el total YTD actual (desde 1 de enero)
-    if (!data.length) {
-        try {
-            const res = await fetch('/api/fiix/current', { cache: 'no-store' });
-            if (res.ok) {
-                const cur = await res.json();
-                const v = Number(cur?.fiix_mad_total_cost ?? cur?.fiix_mad_total ?? cur?.fiix_total_cost);
-                if (Number.isFinite(v) && v > 0) fallbackYtd = v;
-            }
-        } catch (e) {
-            console.warn('Fiix current fetch error:', e);
-        }
-    }
-
-    try {
-        const ctx = canvas.getContext('2d');
-        if (costFiixChart) costFiixChart.destroy();
-
-        // --- Agrupar por MES (YTD) ---
-        const nowYear = new Date().getFullYear();
-        const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-
-        function isoWeekToThursday(isoYear, isoWeek){
-            const simple = new Date(Date.UTC(isoYear, 0, 1 + (isoWeek - 1) * 7));
-            const dow = simple.getUTCDay(); // 0=Dom..6=Sab
-            const diff = (dow <= 4 ? 1 - dow : 8 - dow); // lunes ISO
-            simple.setUTCDate(simple.getUTCDate() + diff);
-            // Usamos el jueves de esa semana ISO para asegurar el año correcto
-            simple.setUTCDate(simple.getUTCDate() + 3);
-            return simple;
-        }
-
-        const monthMap = new Map(); // key: YYYY-MM -> { key, label, total }
-        (Array.isArray(data) ? data : []).forEach(d => {
-            const key = String(d.key || '');
-            const m = key.match(/(\d{4})-W(\d{1,2})/);
-            if (!m) return;
-            const year = Number(m[1]);
-            const week = Number(m[2]);
-            const dt = isoWeekToThursday(year, week);
-            if (!dt || Number.isNaN(dt.getTime())) return;
-
-            // Solo año ISO en curso (evita perder la semana 1 que cae en diciembre)
-            if (year !== nowYear) return;
-
-            const monthIdx = dt.getUTCMonth();
-            const monthKey = `${dt.getUTCFullYear()}-${String(monthIdx + 1).padStart(2,'0')}`;
-            const label = `${monthNames[monthIdx]} ${dt.getUTCFullYear()}`;
-            const total = Number(d.total || 0);
-
-            if (!monthMap.has(monthKey)) monthMap.set(monthKey, { key: monthKey, label, total: 0 });
-            monthMap.get(monthKey).total += total;
-        });
-
-        // Rellenar meses sin datos (de enero al mes actual)
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        for (let m = 0; m <= currentMonth; m++) {
-            const mk = `${nowYear}-${String(m + 1).padStart(2,'0')}`;
-            const label = `${monthNames[m]} ${nowYear}`;
-            if (!monthMap.has(mk)) monthMap.set(mk, { key: mk, label, total: 0 });
-        }
-
-        // Si no hay datos de semanas pero sí total YTD, lo ponemos en el mes actual
-        if (fallbackYtd != null) {
-            const allZero = Array.from(monthMap.values()).every(m => !m.total);
-            if (allZero) {
-                const mk = `${nowYear}-${String(currentMonth + 1).padStart(2,'0')}`;
-                const mobj = monthMap.get(mk);
-                if (mobj) mobj.total = fallbackYtd;
-            }
-        }
-
-        const months = Array.from(monthMap.values()).sort((a,b)=> a.key.localeCompare(b.key));
-        const monthlyTotals = months.map(m => m.total);
-        let running = 0;
-        const cumulativeTotals = monthlyTotals.map(v => (running += v));
-
-        costFiixChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: months.map(m => m.label),
-                datasets: [
-                    {
-                        label: 'Coste acumulado WFS4 (EUR)',
-                        data: cumulativeTotals,
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.18)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 2,
-                        yAxisID: 'y'
-                    },
-                    {
-                        type: 'bar',
-                        label: 'Coste mensual (EUR)',
-                        data: monthlyTotals,
-                        backgroundColor: 'rgba(59, 130, 246, 0.35)',
-                        borderColor: '#3b82f6',
-                        borderWidth: 1,
-                        borderRadius: 6,
-                        barPercentage: 0.7,
-                        yAxisID: 'y1'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: true, position: 'top' },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => {
-                                const i = ctx.dataIndex;
-                                const acum = cumulativeTotals[i] ?? 0;
-                                const month = monthlyTotals[i] ?? 0;
-                                const prev = monthlyTotals[i - 1] ?? 0;
-                                const delta = month - prev;
-                                const sign = delta > 0 ? '+' : '';
-                                const fmt = (v) => new Intl.NumberFormat('es-ES').format(v);
-                                return [
-                                    `Acumulado: ${fmt(acum)} EUR`,
-                                    `Mes: ${fmt(month)} EUR`,
-                                    `Variacion vs mes anterior: ${sign}${fmt(delta)} EUR`
-                                ];
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: { display: true, text: 'Coste (EUR)', font: { weight: 'bold' } },
-                        ticks: {
-                            callback: (v) => new Intl.NumberFormat('es-ES').format(v)
-                        }
-                    },
-                    y1: {
-                        beginAtZero: true,
-                        position: 'right',
-                        grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'Mensual (EUR)', font: { weight: 'bold' } },
-                        ticks: {
-                            callback: (v) => new Intl.NumberFormat('es-ES').format(v)
-                        }
-                    },
-                    x: {
-                        grid: { display: false }
-                    }
-                }
-            }
-        });
-    } catch (e) {
-        console.error("Error cargando historico de costes:", e);
-    }
-}
-
-document.addEventListener('DOMContentLoaded', renderFiixCostHistory);
-
 /* ===================== OPS UPDATES (SOLUCIÓN UNIFICADA Y CORREGIDA) ===================== */
 (function initOpsUpdates(){
   const LIST   = document.getElementById('ops-list');
@@ -6649,7 +6379,7 @@ document.addEventListener('DOMContentLoaded', renderFiixCostHistory);
   const FILT_SCOPE = document.getElementById('ops-scope');
 
   // IDENTIDAD DE LA ESTACIÓN (Asegúrate de que coincida con el backend)
-  const CURRENT_STATION = (window.STATION_CODE || window.STATION_OVERRIDE || 'MAD').toUpperCase();
+  const CURRENT_STATION = (window.STATION_OVERRIDE || 'WFS1ALM').toUpperCase();
 
   if (!LIST || !DIALOG || !FORM) return;
 
@@ -6662,7 +6392,7 @@ document.addEventListener('DOMContentLoaded', renderFiixCostHistory);
     const r = await fetch(url, opts);
     if(method === 'DELETE' && r.status === 404) return true; 
     if(!r.ok) throw new Error(`Error ${method}`);
-    return method === 'DELETE' ? true : await r.json();
+    return method === 'DELETE' ? True : await r.json();
   }
 
   // RENDERIZADOR
@@ -6716,7 +6446,7 @@ document.addEventListener('DOMContentLoaded', renderFiixCostHistory);
         LIST.innerHTML = ''; 
         
         // Filtro estricto: solo muestro lo que sea de mi nave
-        const filtered = items.filter(it => !it.station || String(it.station).toUpperCase() === CURRENT_STATION);
+        const filtered = items.filter(it => (it.station || '').toUpperCase() === CURRENT_STATION);
 
         if (filtered.length === 0) {
             LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones para esta nave.</div>';
@@ -6745,11 +6475,13 @@ document.addEventListener('DOMContentLoaded', renderFiixCostHistory);
     if (!payload.title) return alert('El título es obligatorio');
     
     try {
-        const saved = id
-          ? await apiAction(`api/tasks/${id}`, 'PATCH', payload)
-          : await apiAction('api/tasks', 'POST', payload);
-        if (saved) window.renderOpsCard(saved);
+        if (id) {
+            await apiAction(`api/tasks/${id}`, 'PATCH', payload);
+        } else {
+            await apiAction('api/tasks', 'POST', payload);
+        }
         closeDialog();
+        loadInitial(); // Recargamos para asegurar orden y limpieza
     } catch(err) { alert("Error al conectar con el servidor."); }
   });
 
@@ -7286,32 +7018,72 @@ window.markOkAndNext = function(checkName, nextId) {
 
   
 function openSupportModal() {
-    document.getElementById('support-form').style.display = 'block';
-    document.getElementById('support-thanks').style.display = 'none';
+    const modal = document.getElementById('support-modal');
+    const form = document.getElementById('support-form');
+    const thanks = document.getElementById('support-thanks');
+    const inputName = document.getElementById('support-worker-name');
+    const inputHeader = document.getElementById('briefing-supervisor');
+
+    // Resetear estados
+    form.style.display = 'block';
+    thanks.style.display = 'none';
     document.getElementById('issue-details').value = '';
-    document.getElementById('support-modal').showModal();
+    
+    // Auto-rellenar nombre si ya está en el header del dashboard
+    if (inputHeader && inputHeader.value.trim() !== "") {
+        inputName.value = inputHeader.value.trim();
+    } else {
+        inputName.value = "";
+    }
+
+    // Limpiar bordes de error previos
+    inputName.style.borderColor = "#e2e8f0";
+    document.getElementById('issue-details').style.borderColor = "#e2e8f0";
+
+    modal.showModal();
 }
 
 async function sendDashboardIssue() {
+    const nameEl = document.getElementById('support-worker-name');
+    const detailsEl = document.getElementById('issue-details');
     const type = document.getElementById('issue-type').value;
-    const details = document.getElementById('issue-details').value.trim();
     const btn = document.getElementById('btn-submit-support');
 
-    if (!details) return alert("Por favor, describe el error para poder ayudarte.");
+    const supervisor = nameEl.value.trim();
+    const details = detailsEl.value.trim();
 
-    // IDENTIFICACIÓN AUTOMÁTICA DE LA ESTACIÓN
-    // Combina el Título (Dashboard - WFSx) y la Ruta (/wfsxwh)
-    const stationIdentity = `${document.title} (URL: ${window.location.pathname})`;
+    // --- VALIDACIÓN AFINADA ---
+    let hasError = false;
+    if (!supervisor) {
+        nameEl.style.borderColor = "#dc2626";
+        hasError = true;
+    } else {
+        nameEl.style.borderColor = "#e2e8f0";
+    }
 
+    if (!details) {
+        detailsEl.style.borderColor = "#dc2626";
+        hasError = true;
+    } else {
+        detailsEl.style.borderColor = "#e2e8f0";
+    }
+
+    if (hasError) return; // Detener si falta algo
+
+    // Identificación automática de estación
+    const stationIdentity = `${document.title} (Ruta: ${window.location.pathname})`;
+
+    // UI Feedback
     btn.disabled = true;
     btn.textContent = "Enviando...";
 
     try {
         const payload = {
             estacion: stationIdentity,
-            supervisor: document.getElementById('briefing-supervisor')?.value || "No identificado",
+            supervisor: supervisor,
             tipo_fallo: type,
-            detalles: details
+            detalles: details,
+            timestamp: new Date().toLocaleString('es-ES') // Añadimos la hora exacta
         };
 
         const res = await fetch('api/report-dashboard-issue', {
@@ -7325,10 +7097,10 @@ async function sendDashboardIssue() {
             document.getElementById('support-form').style.display = 'none';
             document.getElementById('support-thanks').style.display = 'block';
         } else {
-            throw new Error("Error en servidor");
+            throw new Error("Fallo en servidor");
         }
     } catch (e) {
-        alert("Fallo al contactar con el sistema de soporte técnico.");
+        alert("Fallo al contactar con el sistema de soporte técnico. Verifique su conexión.");
     } finally {
         btn.disabled = false;
         btn.textContent = "AVISAR A SOPORTE";
@@ -7492,6 +7264,10 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
+
+
+
 
 
 
