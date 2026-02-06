@@ -2979,8 +2979,7 @@ class FiixConnector:
         fiix_totals_cache["last_full_scan"] = datetime.now().isoformat()
         print(f"✅ [FIIX] Sincronización completada. WFS4: {temp_stats['WFS4']}€")
 
-    class FiixConnector:
-    # ... (init y _build_auth se mantienen igual) ...
+   
 
     async def fetch_metrics_wfs4(self):
         """
@@ -5043,6 +5042,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
