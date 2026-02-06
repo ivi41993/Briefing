@@ -2779,7 +2779,7 @@ body.card-open #timer-reset {
     <div class="kpi-tile" id="tile-fiix-cost" style="border-left: 6px solid #0ea5e9; background: #f0f9ff;">
     <div class="kpi-label" style="color: #0369a1;">Impacto Económico (2026)</div>
     <div class="kpi-value" style="color: #0284c7;">
-        <span id="kpi-total-cost">0,00</span><span class="kpi-currency">€</span>
+        <span id="kpi-total-cost">0,00</span>
     </div>
     <small class="kpi-text">Datos Reales Fiix</small>
     </div>
@@ -6071,29 +6071,18 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
 function updateFiixDisplay(metric, value) {
     if (!metric) return;
-    
-    // --- FIJAR m PARA EVITAR REFERENCE ERROR ---
     const m = metric.toLowerCase(); 
     const stationTag = STATION_CODE.toLowerCase(); // 'wfs4'
 
-    // 1. DINERO REAL (Acumulado Anual)
     if (m.includes('total_cost') && m.includes(stationTag)) {
         const el = document.getElementById('kpi-total-cost');
         if (el) {
-            const formatted = new Intl.NumberFormat('de-DE', {
+            el.textContent = new Intl.NumberFormat('de-DE', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             }).format(value || 0);
-            
-            el.textContent = formatted;
-            
-            // Si el valor es > 0, iluminamos la tarjeta (Vivid UI)
-            const tile = el.closest('.kpi-tile');
-            if (value > 0) {
-                tile.style.background = "#e0f2fe";
-                tile.style.boxShadow = "0 0 15px rgba(14, 165, 233, 0.2)";
-            }
         }
+    }
         return;
     }
 
@@ -7333,6 +7322,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
