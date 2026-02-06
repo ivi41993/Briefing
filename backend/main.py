@@ -2885,7 +2885,6 @@ PREFIX_WFS4 = "ES_MAD-WFS4-CTS-AL-"
 fiix_memory_cache_wfs4 = {}
 # Ejemplo de llamada para el Dashboard de la Nave 4
 # El motor buscará MiscCosts del Site 29449435 donde el Asset diga "WFS4"
-money, count = await connector.fetch_site_financials(29449435, "WFS4")
 class FiixConnector:
     def __init__(self):
         # .strip() es vital para evitar que un espacio al final del .env rompa la firma
@@ -3585,7 +3584,8 @@ async def fiix_auto_worker(station_tag: str, site_id: int):
             
         except Exception as e:
             print(f"❌ Error en worker {station_tag}: {e}")
-            
+        # Ejemplo de llamada para el Dashboard de la Nave 4
+        # El motor buscará MiscCosts del Site 29449435 donde el Asset diga "WFS4"  
         await asyncio.sleep(600) # Refresco cada 10 min
 
 
@@ -5303,6 +5303,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
