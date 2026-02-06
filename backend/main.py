@@ -2923,30 +2923,54 @@ class FiixConnector:
         return auth_params, {"Content-Type": "application/json", "Authorization": signature}
 
     async def _fiix_rpc(self, body: dict) -> list:
+        # Versión blindada con clientVersion
         auth_params, headers = self._build_auth()
-        
-        # Añadir versión del cliente al cuerpo (Evita el error 1010 en algunos tenants)
         body["clientVersion"] = {"major": 2, "minor": 8, "patch": 1}
-
         try:
-            resp = await self.client.post(self.base_url, params=auth_params, json=body, headers=headers)
-            
-            if resp.status_code != 200:
-                print(f"❌ Error HTTP {resp.status_code}: {resp.text}")
-                return []
-
-            res_json = resp.json()
-            
-            # Si Fiix devuelve un error interno en el JSON
-            if "error" in res_json:
-                print(f"❌ Fiix API Error: {res_json['error'].get('message')}")
-                return []
-
-            return res_json.get("objects") or res_json.get("object") or []
+            async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
+                resp = await client.post(self.base_url, params=auth_params, json=body, headers=headers)
+                return resp.json().get("objects") or []
         except Exception as e:
-            print(f"❌ Fiix Exception: {e}")
+            print(f"❌ Error RPC: {e}")
             return []
 
+    async def fetch_site_financials(self, site_id: int, days_back: int = 1):
+        """
+        Calcula el acumulado de dinero REAL de las últimas 24h
+        basado en la tabla MiscCost.
+        """
+        # 1. Definir ventana de tiempo
+        since_ts = int((datetime.now() - timedelta(days=days_back)).timestamp() * 1000)
+        
+        # 2. Primero traemos las WorkOrders del sitio para tener sus IDs
+        # Esto es necesario para filtrar MiscCost por intWorkOrderID
+        body_wo = {
+            "_maCn": "FindRequest",
+            "className": "WorkOrder",
+            "fields": "id, strDescription",
+            "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [site_id, since_ts]}]
+        }
+        work_orders = await self._fiix_rpc(body_wo)
+        if not work_orders:
+            return 0.0, 0 # Sin dinero, sin averías
+
+        wo_ids = [wo["id"] for wo in work_orders]
+
+        # 3. Traemos los costes de la tabla MiscCost vinculados a esas órdenes
+        # Usamos los campos que confirmaste en tu prueba de VSC
+        body_costs = {
+            "_maCn": "FindRequest",
+            "className": "MiscCost",
+            "fields": "id, dblActualTotalCost, intWorkOrderID",
+            "filters": [{"ql": "intWorkOrderID IN ?", "parameters": [wo_ids]}]
+        }
+        
+        costs_data = await self._fiix_rpc(body_costs)
+        
+        # 4. Acumulador de dinero
+        total_money = sum(float(c.get("dblActualTotalCost") or 0.0) for c in costs_data)
+        
+        return round(total_money, 2), len(work_orders)
     async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
         """
         Genera el acumulado semanal de DAÑOS REALES para Madrid.
@@ -3501,18 +3525,39 @@ async def get_fiix_history():
     return fiix_memory_cache
 
 # --- EL WORKER QUE REALMENTE FUNCIONA ---
-async def fiix_auto_worker():
+async def fiix_auto_worker(station_tag: str, site_id: int):
     connector = FiixConnector()
-    print("🚀 [FIIX] Proceso automático despertado por actividad en el Dashboard")
+    global fiix_memory_cache
+    
     while True:
         try:
-            await connector.fetch_metrics()
+            print(f"🔄 [FIIX {station_tag}] Sincronizando KPIs financieros...")
+            
+            # Traer el dinero real y el conteo de averías
+            money_accumulated, damage_count = await connector.fetch_site_financials(site_id)
+            
+            # Actualizamos la caché global (ej: para BCN o WFS1)
+            cache_key_money = f"fiix_{station_tag.lower()}_total_cost_24h"
+            cache_key_count = f"fiix_{station_tag.lower()}_damage_count_24h"
+            
+            fiix_memory_cache[cache_key_money] = money_accumulated
+            fiix_memory_cache[cache_key_count] = damage_count
+            fiix_memory_cache["last_update"] = datetime.utcnow().isoformat() + "Z"
+            
+            # Broadcast vía WebSocket a todas las tablets
+            await manager.broadcast({
+                "type": "kpi_update",
+                "station": station_tag,
+                cache_key_money: money_accumulated,
+                cache_key_count: damage_count
+            })
+            
+            print(f"✅ [FIIX {station_tag}] Acumulado: {money_accumulated}€ | Averías: {damage_count}")
+            
         except Exception as e:
-            print(f"❌ [FIIX worker] Error: {e}")
-        
-        # Actualiza cada 10 minutos
-        await asyncio.sleep(600)
-        
+            print(f"❌ Error en worker {station_tag}: {e}")
+            
+        await asyncio.sleep(600) # Refresco cada 10 min
 
 
 @app.get("/api/fiix-debug")
@@ -5229,6 +5274,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
