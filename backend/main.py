@@ -2885,6 +2885,11 @@ PREFIX_WFS4 = "ES_MAD-WFS4-CTS-AL-"
 fiix_memory_cache_wfs4 = {}
 # Ejemplo de llamada para el Dashboard de la Nave 4
 # El motor buscará MiscCosts del Site 29449435 donde el Asset diga "WFS4"
+fiix_totals_cache = {
+    "WFS1": 0.0, "WFS2": 0.0, "WFS3": 0.0, "WFS4": 0.0, "MAD": 0.0,
+    "last_full_scan": None
+}
+
 class FiixConnector:
     def __init__(self):
         self.host = os.getenv("FIIX_HOST", "wfs.macmms.com").strip()
@@ -2916,6 +2921,75 @@ class FiixConnector:
         except Exception as e:
             print(f"❌ Error RPC Fiix: {e}")
             return []
+
+    async def sync_all_madrid_costs(self):
+        """
+        Lógica 'Sniper de Producción'. 
+        Recorre el dinero y lo segmenta por Nave de forma eficiente.
+        """
+        global fiix_totals_cache
+        SITE_ID_MADRID = 29449435
+        
+        print("📡 [FIIX] Iniciando sincronización financiera masiva...")
+        
+        # 1. Traer los últimos 400 registros de gasto (MiscCost)
+        # Esto cubre aproximadamente los últimos 3-6 meses de facturación
+        body_costs = {
+            "_maCn": "FindRequest",
+            "className": "MiscCost",
+            "fields": "id, intWorkOrderID, dblActualTotalCost",
+            "maxObjects": 400,
+            "filters": [{"ql": "dblActualTotalCost > ?", "parameters": [0]}]
+        }
+        costs = await self._fiix_rpc(body_costs)
+        if not costs: return
+
+        # Temporales para el cálculo actual
+        temp_stats = {"WFS1": 0.0, "WFS2": 0.0, "WFS3": 0.0, "WFS4": 0.0, "MAD": 0.0}
+        wo_cache = {}
+
+        # 2. Procesamiento Sniper (Individual para saltar el bloqueo bulk)
+        for c in costs:
+            wo_id = c["intWorkOrderID"]
+            val = float(c.get("dblActualTotalCost") or 0.0)
+
+            if wo_id not in wo_cache:
+                body_wo = {
+                    "_maCn": "FindRequest",
+                    "className": "WorkOrder",
+                    "fields": "id, intSiteID, strAssets",
+                    "filters": [{"ql": "id = ?", "parameters": [wo_id]}]
+                }
+                res_wo = await self._fiix_rpc(body_wo)
+                wo_cache[wo_id] = res_wo[0] if res_wo else None
+                # Pequeño delay para no estresar la API en el loop
+                await asyncio.sleep(0.05)
+
+            wo = wo_cache[wo_id]
+            if wo and wo.get("intSiteID") == SITE_ID_MADRID:
+                asset = str(wo.get("strAssets", "")).upper()
+                if "WFS1" in asset: temp_stats["WFS1"] += val
+                elif "WFS2" in asset: temp_stats["WFS2"] += val
+                elif "WFS3" in asset: temp_stats["WFS3"] += val
+                elif "WFS4" in asset: temp_stats["WFS4"] += val
+                else: temp_stats["MAD"] += val
+
+        # 3. Actualizar caché global
+        fiix_totals_cache.update(temp_stats)
+        fiix_totals_cache["last_full_scan"] = datetime.now().isoformat()
+        print(f"✅ [FIIX] Sincronización completada. WFS4: {temp_stats['WFS4']}€")
+
+    async def fetch_metrics_wfs(self, nave_tag: str):
+        """Devuelve las métricas para una nave específica usando la caché sincronizada."""
+        global fiix_memory_cache
+        # Simulamos disponibilidad al 100% si no hay rotos (puedes añadir tu lógica de Assets aquí)
+        
+        tag_upper = nave_tag.upper()
+        money = fiix_totals_cache.get(tag_upper, 0.0)
+        
+        # Llave para el frontend
+        fiix_memory_cache[f"fiix_{nave_tag.lower()}_total_cost_24h"] = money
+        return fiix_memory_cache
 
     async def fetch_site_financials(self, site_id: int, station_tag: str):
         """Calcula el acumulado de dinero REAL del mes actual para una nave específica."""
@@ -2975,36 +3049,7 @@ class FiixConnector:
             print(f"❌ Error histórico {tag}: {e}")
             return []
 
-    async def fetch_metrics_wfs4(self):
-        """Actualiza la caché global de WFS4."""
-        global fiix_memory_cache
-        SITE_ID = 29449435
-        TAG = "WFS4"
-        PREFIX = "ES_MAD-WFS4-CTS-AL-"
-        try:
-            body_assets = {
-                "_maCn": "FindRequest", "className": "Asset",
-                "fields": "id, bolIsOnline, strName",
-                "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [SITE_ID, f"%{PREFIX}%"]}]
-            }
-            res_assets = await self._fiix_rpc(body_assets)
-            total_c = len(res_assets)
-            broken = [a.get("strName") for a in res_assets if a.get("bolIsOnline") == 0]
-            avail = round(((total_c - len(broken)) / total_c) * 100) if total_c > 0 else 100
-            money_month, damage_count = await self.fetch_site_financials(SITE_ID, TAG)
-            fiix_memory_cache.update({
-                "fiix_wfs4_availability": avail,
-                "fiix_wfs4_broken_text": f"⚠️ {', '.join(broken)}" if broken else "Flota WFS4 Operativa",
-                "fiix_wfs4_damage_count_24h": damage_count,
-                "fiix_wfs4_total_cost_24h": money_month,
-                "last_update": datetime.utcnow().isoformat() + "Z"
-            })
-            await manager.broadcast({"type": "kpi_update", "station": TAG, **fiix_memory_cache})
-            return fiix_memory_cache
-        except Exception as e:
-            print(f"❌ Error metrics WFS4: {e}")
-            return {}
-
+    
 FIIX_POLL_SECONDS = int(os.getenv("FIIX_POLL_SECONDS", "300")) 
 FIIX_CYCLE_SECONDS = 4 * 3600    
 
@@ -3216,15 +3261,25 @@ async def get_fiix_history():
 # --- EL WORKER QUE REALMENTE FUNCIONA ---
 async def fiix_auto_worker():
     connector = FiixConnector()
-    print("👷 Worker Fiix WFS4 iniciado")
+    print("👷 Worker Fiix: Iniciando motor de costes de Madrid...")
+    
     while True:
         try:
-            await connector.fetch_metrics_wfs4()
+            # 1. Realizar el barrido Sniper para actualizar los 500k €
+            await connector.sync_all_madrid_costs()
+            
+            # 2. Notificar a las naves (puedes iterar por todas)
+            for nave in ["WFS1", "WFS2", "WFS3", "WFS4"]:
+                metrics = await connector.fetch_metrics_wfs(nave)
+                await manager.broadcast({
+                    "type": "kpi_update",
+                    "station": nave,
+                    **metrics
+                })
         except Exception as e:
-            print(f"⚠️ Error en worker Fiix: {e}")
-        await asyncio.sleep(600) # 10 min
-
-
+            print(f"⚠️ Error en worker de costes: {e}")
+        
+        await asyncio.sleep(900) # Sincronizar cada 15 min
 @app.get("/api/fiix-debug")
 async def fiix_debug():
     """
@@ -4939,6 +4994,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
