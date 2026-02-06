@@ -2979,23 +2979,61 @@ class FiixConnector:
         fiix_totals_cache["last_full_scan"] = datetime.now().isoformat()
         print(f"✅ [FIIX] Sincronización completada. WFS4: {temp_stats['WFS4']}€")
 
-    async def fetch_metrics_wfs(self, nave_tag: str):
-        """Devuelve las métricas para una nave específica usando la caché sincronizada."""
+    class FiixConnector:
+    # ... (init y _build_auth se mantienen igual) ...
+
+    async def fetch_metrics_wfs4(self):
+        """
+        Métricas para Nave 4: Disponibilidad + Costes Reales (Sniper).
+        Este es el método que Render dice que 'no existe'.
+        """
         global fiix_memory_cache
-        # Simulamos disponibilidad al 100% si no hay rotos (puedes añadir tu lógica de Assets aquí)
-        
-        tag_upper = nave_tag.upper()
-        money = fiix_totals_cache.get(tag_upper, 0.0)
-        
-        # Llave para el frontend
-        fiix_memory_cache[f"fiix_{nave_tag.lower()}_total_cost_24h"] = money
-        return fiix_memory_cache
+        SITE_ID_MADRID = 29449435
+        TAG = "WFS4"
+        PREFIX = "ES_MAD-WFS4-CTS-AL-" # Prefijo para disponibilidad
+
+        try:
+            # --- A. CÁLCULO DE DISPONIBILIDAD ---
+            body_assets = {
+                "_maCn": "FindRequest", "className": "Asset",
+                "fields": "id, bolIsOnline, strName",
+                "filters": [{"ql": "intSiteID = ? AND strCode LIKE ?", "parameters": [SITE_ID_MADRID, f"%{PREFIX}%"]}]
+            }
+            res_assets = await self._fiix_rpc(body_assets)
+            total_c = len(res_assets)
+            broken = [a.get("strName") for a in res_assets if a.get("bolIsOnline") == 0]
+            avail = round(((total_c - len(broken)) / total_c) * 100) if total_c > 0 else 100
+
+            # --- B. CÁLCULO DE COSTES REALES (LOGICA SNIPER) ---
+            # Buscamos el dinero del mes para WFS4
+            money_val, damage_count = await self.fetch_site_financials(SITE_ID_MADRID, TAG)
+
+            # --- C. ACTUALIZACIÓN DE CACHÉ ---
+            # Estas llaves DEBEN coincidir con el index.html
+            fiix_memory_cache.update({
+                "fiix_wfs4_availability": avail,
+                "fiix_wfs4_broken_text": f"⚠️ {', '.join(broken)}" if broken else "Flota WFS4 Operativa",
+                "fiix_wfs4_damage_count_24h": damage_count,
+                "fiix_wfs4_total_cost_24h": money_val,
+                "last_update": datetime.utcnow().isoformat() + "Z"
+            })
+
+            # Notificar a las tablets
+            await manager.broadcast({"type": "kpi_update", "station": TAG, **fiix_memory_cache})
+            
+            print(f"✅ [FIIX WFS4] Sincronización exitosa: {money_val} €")
+            return fiix_memory_cache
+
+        except Exception as e:
+            print(f"❌ Error en fetch_metrics_wfs4: {e}")
+            return {}
 
     async def fetch_site_financials(self, site_id: int, station_tag: str):
-        """Calcula el acumulado de dinero REAL del mes actual para una nave específica."""
+        """Calcula el acumulado mensual usando la técnica Sniper de VSC."""
         now = datetime.now()
         month_start_ts = int(now.replace(day=1, hour=0, minute=0, second=0).timestamp() * 1000)
         try:
+            # 1. Traer dinero del mes
             body_costs = {
                 "_maCn": "FindRequest", "className": "MiscCost",
                 "fields": "id, intWorkOrderID, dblActualTotalCost",
@@ -3004,6 +3042,8 @@ class FiixConnector:
             }
             costs_data = await self._fiix_rpc(body_costs)
             if not costs_data: return 0.0, 0
+
+            # 2. Identificar órdenes de Madrid y de la Nave
             wo_ids = list(set([c["intWorkOrderID"] for c in costs_data]))
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
@@ -3011,11 +3051,14 @@ class FiixConnector:
                 "filters": [{"ql": "id IN ? AND intSiteID = ?", "parameters": [wo_ids, site_id]}]
             }
             wos_res = await self._fiix_rpc(body_wo)
+            
+            # Mapeo de IDs que son de WFS4
             valid_wo_ids = {wo["id"] for wo in wos_res if station_tag.upper() in str(wo.get("strAssets", "")).upper()}
+
+            # 3. Sumar el dinero
             total_money = sum(float(c.get("dblActualTotalCost") or 0.0) for c in costs_data if c["intWorkOrderID"] in valid_wo_ids)
             return round(total_money, 2), len(valid_wo_ids)
-        except Exception as e:
-            print(f"❌ Error financiero {station_tag}: {e}")
+        except Exception:
             return 0.0, 0
 
     async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
@@ -3240,13 +3283,19 @@ async def upload_roster(file: UploadFile = File(...)):
 # 1. Almacén de datos global
 fiix_memory_cache = {}
 fiix_worker_started = False # Bandera para no duplicar procesos
-
 @app.get("/api/fiix/current")
 async def get_fiix_current():
-    # Si la caché está vacía, forzamos una carga rápida
-    if not fiix_memory_cache or "fiix_wfs4_total_cost_24h" not in fiix_memory_cache:
-        connector = FiixConnector()
-        await connector.fetch_metrics_wfs4()
+    global fiix_memory_cache
+    connector = FiixConnector()
+    try:
+        # Intentamos actualizar, si falla,AttributeError no matará la petición
+        if hasattr(connector, 'fetch_metrics_wfs4'):
+            await connector.fetch_metrics_wfs4()
+        else:
+            print("⚠️ Advertencia: El método fetch_metrics_wfs4 no está definido en la clase.")
+    except Exception as e:
+        print(f"⚠️ Error al actualizar métricas: {e}")
+    
     return fiix_memory_cache
 
 @app.get("/api/fiix/history")
@@ -4994,6 +5043,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
