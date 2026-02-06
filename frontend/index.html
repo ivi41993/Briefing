@@ -6072,23 +6072,20 @@ function updateFiixDisplay(metric, value) {
 
     // 1. LÓGICA DE COSTES (Dinero Real del Mes)
     // Detecta 'total_cost' y que pertenezca a la nave actual
-    if (m.includes('total_cost') && m.includes(stationTag)) {
+    // En updateFiixDisplay:
+    if (m.includes('total_cost')) {
         const el = document.getElementById('kpi-total-cost');
         if (el) {
-            const formatted = new Intl.NumberFormat('de-DE', {
+            // Formateador profesional: 29.139,51 €
+            el.textContent = new Intl.NumberFormat('de-DE', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-            }).format(value || 0);
+            }).format(value);
             
-            el.textContent = formatted;
-            
-            // Efecto visual si hay gasto
-            const tile = el.closest('.kpi-tile');
-            if (tile && value > 0) {
-                tile.style.backgroundColor = "#f0f9ff";
-            }
+            // Estilo Vivid UI: Si hay dinero, el widget brilla en azul WFS
+            el.closest('.kpi-tile').style.borderLeftColor = "#0ea5e9";
+            el.closest('.kpi-tile').style.background = "#f0f9ff";
         }
-        return;
     }
 
     // 2. DISPONIBILIDAD
@@ -7347,6 +7344,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
