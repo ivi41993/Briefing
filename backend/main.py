@@ -2922,7 +2922,7 @@ class FiixConnector:
             print(f"❌ Error RPC Fiix: {e}")
             return []
 
-   async def fetch_site_financials(self, site_id: int, station_tag: str):
+     async def fetch_site_financials(self, site_id: int, station_tag: str):
         """Calcula el acumulado REAL desde el 1 de enero de 2026."""
         # --- CAMBIO CRÍTICO: BUSCAMOS DESDE EL INICIO DEL AÑO PARA NO VER CEROS ---
         start_2026_ms = int(datetime(2026, 1, 1).timestamp() * 1000)
@@ -2963,7 +2963,7 @@ class FiixConnector:
             print(f"❌ Error financiero {station_tag}: {e}")
             return 0.0, 0
 
-    async def fetch_metrics_wfs4(self):
+     async def fetch_metrics_wfs4(self):
         """Actualiza la caché global de la Nave 4."""
         global fiix_memory_cache
         SITE_ID = 29449435
@@ -4963,6 +4963,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
