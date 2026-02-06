@@ -2776,13 +2776,16 @@ body.card-open #timer-reset {
     </div>
 
     <!-- Gasto Acumulado (Económico) -->
-    <div class="kpi-tile" id="tile-fiix-cost" style="border-left: 6px solid #0ea5e9; background: #f0f9ff;">
-        <div class="kpi-label" style="color: #0369a1;">Gasto Mto. (Mes)</div>
-        <div class="kpi-value" style="color: #0284c7;">
-            <span id="kpi-total-cost">0,00</span><span class="kpi-currency">€</span>
-        </div>
-        <small class="kpi-text" id="cost-update-date">Cargando acumulado...</small>
+    <!-- Gráfico de Acumulados -->
+<div class="widget vivid" style="grid-column: 1 / -1; margin-top:15px;">
+    <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
+        📊 Impacto Económico Semanal (€)
+    </h3>
+    <div style="height: 200px;">
+        <!-- EL ID DEBE SER EXACTAMENTE ESTE -->
+        <canvas id="fiixWeeklyChart"></canvas> 
     </div>
+</div>
 </div>
 
   <!-- SEPARADOR -->
@@ -6375,29 +6378,41 @@ let weeklyFiixChart = null;
 
 async function renderFiixWeeklyHistory() {
     try {
-        const res = await fetch('api/fiix/history'); 
-        const data = await res.json(); // Se espera: [{week: "Sem. 5", count: 1200.50}, ...]
+        const canvas = document.getElementById('fiixWeeklyChart');
+        
+        // --- DEFENSA CRÍTICA ---
+        if (!canvas) {
+            console.warn("⚠️ [FIIX] El canvas 'fiixWeeklyChart' no existe todavía. Abortando render.");
+            return;
+        }
 
-        const ctx = document.getElementById('fiixWeeklyChart').getContext('2d');
+        const res = await fetch('api/fiix/history'); 
+        const data = await res.json();
+
+        if (!data || data.length === 0) {
+            console.log("ℹ️ No hay datos históricos para graficar.");
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
         if (window.weeklyFiixChart) window.weeklyFiixChart.destroy();
 
-        // Crear gradiente azul cielo (Vivid UI)
+        // Estilo Vivid UI (Cian/Azul para dinero)
         const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-        gradient.addColorStop(0, '#0ea5e9');
-        gradient.addColorStop(1, 'rgba(14, 165, 233, 0.1)');
+        gradient.addColorStop(0, 'rgba(14, 165, 233, 0.8)');
+        gradient.addColorStop(1, 'rgba(14, 165, 233, 0.05)');
 
         window.weeklyFiixChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: data.map(d => d.week),
                 datasets: [{
-                    label: 'Gasto en Reparaciones (€)',
-                    data: data.map(d => d.count), // El backend ahora enviará la suma de MiscCost aquí
+                    label: 'Gasto Semanal (€)',
+                    data: data.map(d => d.count),
                     backgroundColor: gradient,
                     borderColor: '#0284c7',
                     borderWidth: 2,
-                    borderRadius: 8,
-                    barPercentage: 0.5
+                    borderRadius: 5
                 }]
             },
             options: {
@@ -6407,13 +6422,19 @@ async function renderFiixWeeklyHistory() {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        ticks: { callback: (value) => value + ' €' }
-                    }
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { 
+                            callback: (val) => val + '€',
+                            font: { size: 10 }
+                        }
+                    },
+                    x: { grid: { display: false } }
                 }
             }
         });
+        console.log("📊 Gráfico de costes renderizado con éxito.");
     } catch (e) {
-        console.error("Error cargando historial financiero:", e);
+        console.error("❌ Error cargando historial financiero:", e);
     }
 }
 
@@ -7319,6 +7340,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
