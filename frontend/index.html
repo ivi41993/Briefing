@@ -6071,9 +6071,11 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 
 function updateFiixDisplay(metric, value) {
     if (!metric) return;
+    
     const m = metric.toLowerCase(); 
-    const stationTag = STATION_CODE.toLowerCase(); // 'wfs4'
+    const stationTag = STATION_CODE.toLowerCase(); // ej: 'wfs4'
 
+    // 1. LÓGICA DE COSTES (Dinero Real)
     if (m.includes('total_cost') && m.includes(stationTag)) {
         const el = document.getElementById('kpi-total-cost');
         if (el) {
@@ -6081,21 +6083,46 @@ function updateFiixDisplay(metric, value) {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             }).format(value || 0);
+            
+            // Efecto visual si hay dinero
+            const tile = el.closest('.kpi-tile');
+            if (tile && value > 0) {
+                tile.style.backgroundColor = "#f0f9ff";
+            }
         }
-    }
-        return;
+        return; // Salimos de la función después de procesar el coste
     }
 
     // 2. DISPONIBILIDAD
     if (m.includes('availability') && m.includes(stationTag)) {
         const el = document.getElementById('fiix-availability');
-        if (el) el.textContent = value;
+        if (el) {
+            el.textContent = value;
+            const tile = el.closest('.kpi-tile');
+            if (tile) {
+                // Si la disponibilidad baja de 95%, ponemos borde rojo
+                tile.style.borderLeftColor = value < 95 ? "#dc2626" : "#10b981";
+            }
+        }
+        return;
     }
 
-    // 3. DAÑOS (CONTEO)
+    // 3. DAÑOS (CONTEO DE ÓRDENES)
     if (m.includes('damage_count') && m.includes(stationTag)) {
         const el = document.getElementById('fiix-damage-24h');
-        if (el) el.textContent = value;
+        if (el) {
+            el.textContent = value;
+        }
+        return;
+    }
+
+    // 4. TEXTO DE ACTIVOS ROTOS
+    if (m.includes('broken_text') && m.includes(stationTag)) {
+        const el = document.getElementById('fiix-broken-text');
+        if (el) {
+            el.textContent = value;
+            el.style.color = value.includes('⚠️') ? "#dc2626" : "#64748b";
+        }
         return;
     }
 }
@@ -7321,6 +7348,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
