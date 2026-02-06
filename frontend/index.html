@@ -2761,31 +2761,28 @@ body.card-open #timer-reset {
   <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Mantenimiento (Fiix)</h3>
   
 <div class="kpi-grid">
-    <!-- Disponibilidad (Salud) -->
+    <!-- 1. SALUD: Disponibilidad de Flota -->
     <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
         <div class="kpi-label">Disponibilidad Flota</div>
         <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
-        <small class="kpi-text" id="fiix-broken-text">Analizando...</small>
+        <small class="kpi-text" id="fiix-broken-text">Analizando activos...</small>
     </div>
 
-    <!-- Daños del Mes (Volumen) -->
+    <!-- 2. VOLUMEN: Conteo de Averías (Mes) -->
     <div class="kpi-tile" style="border-left: 6px solid #f59e0b;">
         <div class="kpi-label">Incidentes (Mes)</div>
         <div class="kpi-value" id="fiix-damage-24h">--</div>
-        <small class="kpi-text">Total acumulado</small>
+        <small class="kpi-text">Órdenes con coste</small>
     </div>
 
-    <!-- Gasto Acumulado (Económico) -->
-    <!-- Gráfico de Acumulados -->
-<div class="widget vivid" style="grid-column: 1 / -1; margin-top:15px;">
-    <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
-        📊 Impacto Económico Semanal (€)
-    </h3>
-    <div style="height: 200px;">
-        <!-- EL ID DEBE SER EXACTAMENTE ESTE -->
-        <canvas id="fiixWeeklyChart"></canvas> 
+    <!-- 3. DINERO: Gasto Real Acumulado (Mes) -->
+    <div class="kpi-tile financial-glow" id="tile-fiix-cost" style="border-left: 6px solid #0ea5e9; background: #f0f9ff;">
+        <div class="kpi-label" style="color: #0369a1;">Impacto Económico (Mes)</div>
+        <div class="kpi-value" style="color: #0284c7; font-family: 'Space Grotesk', sans-serif;">
+            <span id="kpi-total-cost">0,00</span><span class="kpi-currency" style="font-size: 1.2rem; margin-left: 4px;">€</span>
+        </div>
+        <small class="kpi-text" style="color: #0ea5e9; font-weight: 700;">Datos Reales MiscCost</small>
     </div>
-</div>
 </div>
 
   <!-- SEPARADOR -->
@@ -6066,59 +6063,58 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 function updateFiixDisplay(metric, value) {
     if (!metric) return;
     
-    // --- SOLUCIÓN AL ERROR: Declaración de m ---
     const m = metric.toLowerCase(); 
     const stationTag = STATION_CODE.toLowerCase(); // ej: 'wfs4'
 
-    // 1. LÓGICA DE COSTES (Dinero Real del Mes)
-    // Detecta 'total_cost' y que pertenezca a la nave actual
-    // En updateFiixDisplay:
-    if (m.includes('total_cost')) {
+    // 💰 LÓGICA DE COSTES (Los 29.139 € de WFS4)
+    if (m.includes('total_cost') && m.includes(stationTag)) {
         const el = document.getElementById('kpi-total-cost');
         if (el) {
-            // Formateador profesional: 29.139,51 €
-            el.textContent = new Intl.NumberFormat('de-DE', {
+            // Formatear moneda europea (29.139,51)
+            const formattedValue = new Intl.NumberFormat('de-DE', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-            }).format(value);
+            }).format(value || 0);
             
-            // Estilo Vivid UI: Si hay dinero, el widget brilla en azul WFS
-            el.closest('.kpi-tile').style.borderLeftColor = "#0ea5e9";
-            el.closest('.kpi-tile').style.background = "#f0f9ff";
+            el.textContent = formattedValue;
+            
+            // Efecto visual de actualización
+            const tile = el.closest('.kpi-tile');
+            tile.classList.add('pulse-money');
+            setTimeout(() => tile.classList.remove('pulse-money'), 600);
         }
+        return;
     }
 
-    // 2. DISPONIBILIDAD
+    // 🛠️ LÓGICA DE CONTEO DE AVERÍAS (MES)
+    if (m.includes('damage_count') && m.includes(stationTag)) {
+        const el = document.getElementById('fiix-damage-24h');
+        if (el) el.textContent = value;
+        return;
+    }
+
+    // 📈 LÓGICA DE DISPONIBILIDAD
     if (m.includes('availability') && m.includes(stationTag)) {
         const el = document.getElementById('fiix-availability');
         if (el) {
             el.textContent = value;
             const tile = el.closest('.kpi-tile');
             if (tile) {
-                const threshold = (stationTag === 'bcn') ? 90 : 95;
-                const isAlert = value < threshold;
-                tile.style.borderLeftColor = isAlert ? "#dc2626" : "#10b981";
-                tile.classList.toggle('spotlight-blink', isAlert);
+                const threshold = 95; // Madrid es más estricto
+                tile.style.borderLeftColor = value < threshold ? "#dc2626" : "#10b981";
+                tile.classList.toggle('spotlight-blink', value < threshold);
             }
         }
         return;
     }
 
-    // 3. TEXTO DE ACTIVOS ROTOS
+    // ⚠️ TEXTO DE EQUIPOS ROTOS
     if (m.includes('broken_text') && m.includes(stationTag)) {
         const el = document.getElementById('fiix-broken-text');
         if (el) {
             el.textContent = value;
             el.style.color = value.includes('⚠️') ? "#dc2626" : "#64748b";
-            el.style.fontWeight = value.includes('⚠️') ? "800" : "400";
         }
-        return;
-    }
-
-    // 4. CONTEO DE DAÑOS/AVERÍAS
-    if (m.includes('damage_count') && m.includes(stationTag)) {
-        const el = document.getElementById('fiix-damage-24h');
-        if (el) el.textContent = value;
         return;
     }
 }
@@ -7344,6 +7340,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
