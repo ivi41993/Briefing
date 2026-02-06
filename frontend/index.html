@@ -6064,34 +6064,51 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 })();
 
 function updateFiixDisplay(metric, value) {
-    // 1. Lógica para el COSTE REAL (Dinero de MiscCost)
-    if (m.includes('total_cost_24h')) {
+    if (!metric) return;
+    
+    // --- SOLUCIÓN AL ERROR: Declaración de m ---
+    const m = metric.toLowerCase(); 
+    const stationTag = STATION_CODE.toLowerCase(); // ej: 'wfs4'
+
+    // 1. LÓGICA DE COSTES (Dinero Real del Mes)
+    // Detecta 'total_cost' y que pertenezca a la nave actual
+    if (m.includes('total_cost') && m.includes(stationTag)) {
         const el = document.getElementById('kpi-total-cost');
         if (el) {
-            // Formateador: 27.340,32 €
-            const formatter = new Intl.NumberFormat('de-DE', {
+            const formatted = new Intl.NumberFormat('de-DE', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-            });
-            el.textContent = formatter.format(value);
+            }).format(value || 0);
             
-            // Si hay dinero, aplicamos un estilo "Gold/Electric" al widget
+            el.textContent = formatted;
+            
+            // Efecto visual si hay gasto
             const tile = el.closest('.kpi-tile');
-            if (value > 0) {
-                tile.style.background = "linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%)";
-                tile.style.borderColor = "#0ea5e9";
+            if (tile && value > 0) {
+                tile.style.backgroundColor = "#f0f9ff";
             }
         }
         return;
     }
 
-    // 2. Lógica para DISPONIBILIDAD y DAÑOS
-    const mapping = {
-        'fiix_mad_availability': 'fiix-availability',
-        'fiix_mad_damage_count_24h': 'fiix-damage-24h'
-    };
+    // 2. DISPONIBILIDAD
+    if (m.includes('availability') && m.includes(stationTag)) {
+        const el = document.getElementById('fiix-availability');
+        if (el) {
+            el.textContent = value;
+            const tile = el.closest('.kpi-tile');
+            if (tile) {
+                const threshold = (stationTag === 'bcn') ? 90 : 95;
+                const isAlert = value < threshold;
+                tile.style.borderLeftColor = isAlert ? "#dc2626" : "#10b981";
+                tile.classList.toggle('spotlight-blink', isAlert);
+            }
+        }
+        return;
+    }
 
-    if (metric === 'fiix_mad_broken_text') {
+    // 3. TEXTO DE ACTIVOS ROTOS
+    if (m.includes('broken_text') && m.includes(stationTag)) {
         const el = document.getElementById('fiix-broken-text');
         if (el) {
             el.textContent = value;
@@ -6101,22 +6118,11 @@ function updateFiixDisplay(metric, value) {
         return;
     }
 
-    const targetId = mapping[metric];
-    const el = document.getElementById(targetId);
-    if (el) {
-        el.textContent = value;
-        
-        // Alerta visual de flota (Spotlight)
-        if (metric.includes('availability')) {
-            const tile = el.closest('.kpi-tile');
-            if (value < 95) {
-                tile.style.borderLeftColor = "#dc2626";
-                tile.classList.add('spotlight-blink');
-            } else {
-                tile.style.borderLeftColor = "#10b981";
-                tile.classList.remove('spotlight-blink');
-            }
-        }
+    // 4. CONTEO DE DAÑOS/AVERÍAS
+    if (m.includes('damage_count') && m.includes(stationTag)) {
+        const el = document.getElementById('fiix-damage-24h');
+        if (el) el.textContent = value;
+        return;
     }
 }
 
@@ -7341,6 +7347,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
