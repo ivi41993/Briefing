@@ -2937,69 +2937,69 @@ class FiixConnector:
             return []
 
     async def fetch_site_financials(self, site_id: int, station_tag: str):
-    """
-    Motor de alta precisión para capturar el dinero real.
-    Filtra por Site y por Nave (WFS1, WFS2, etc.) basándose en Assets.
-    """
-    now = datetime.now()
-    # Primer día del mes actual
-    month_start_ts = int(now.replace(day=1, hour=0, minute=0, second=0).timestamp() * 1000)
+        """
+        Motor de alta precisión para capturar el dinero real.
+        Filtra por Site y por Nave (WFS1, WFS2, etc.) basándose en Assets.
+        """
+        now = datetime.now()
+        # Primer día del mes actual
+        month_start_ts = int(now.replace(day=1, hour=0, minute=0, second=0).timestamp() * 1000)
+        
+        try:
+            # PASO 1: Traer todos los costes (MiscCost) cargados este mes
+            body_costs = {
+                "_maCn": "FindRequest",
+                "className": "MiscCost",
+                "fields": "id, intWorkOrderID, dblActualTotalCost, strDescription",
+                "filters": [{"ql": "intUpdated >= ?", "parameters": [month_start_ts]}],
+                "maxObjects": 1000,
+                "clientVersion": {"major": 2, "minor": 8, "patch": 1}
+            }
+            
+            auth_params, headers = self._build_auth()
+            resp_costs = await self.client.post(self.base_url, params=auth_params, json=body_costs, headers=headers)
+            costs_data = resp_costs.json().get("objects", [])
     
-    try:
-        # PASO 1: Traer todos los costes (MiscCost) cargados este mes
-        body_costs = {
-            "_maCn": "FindRequest",
-            "className": "MiscCost",
-            "fields": "id, intWorkOrderID, dblActualTotalCost, strDescription",
-            "filters": [{"ql": "intUpdated >= ?", "parameters": [month_start_ts]}],
-            "maxObjects": 1000,
-            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
-        }
-        
-        auth_params, headers = self._build_auth()
-        resp_costs = await self.client.post(self.base_url, params=auth_params, json=body_costs, headers=headers)
-        costs_data = resp_costs.json().get("objects", [])
-
-        if not costs_data:
+            if not costs_data:
+                return 0.0, 0
+    
+            # PASO 2: Identificar las órdenes dueñas de ese dinero
+            wo_ids = list(set([c["intWorkOrderID"] for c in costs_data]))
+            
+            # Consultamos las órdenes para filtrar por Site y por Sub-Sede (N1, N2, etc.)
+            body_wo = {
+                "_maCn": "FindRequest",
+                "className": "WorkOrder",
+                "fields": "id, intSiteID, strAssets",
+                "filters": [{"ql": "id IN ?", "parameters": [wo_ids]}],
+                "clientVersion": {"major": 2, "minor": 8, "patch": 1}
+            }
+            
+            resp_wo = await self.client.post(self.base_url, params=auth_params, json=body_wo, headers=headers)
+            wos = {wo["id"]: wo for wo in resp_wo.json().get("objects", [])}
+    
+            # PASO 3: Sumar el dinero que pertenezca a ESTA sede específica
+            total_money = 0.0
+            relevant_wo_count = set()
+    
+            for c in costs_data:
+                wo = wos.get(c["intWorkOrderID"])
+                if not wo: continue
+    
+                # Filtro A: ¿Es del Site correcto (MAD/BCN)?
+                if wo.get("intSiteID") == site_id:
+                    # Filtro B: Si es Madrid, ¿es de la Nave correcta (WFS1, WFS2...)?
+                    # Comparamos el TAG (WFS1) con el campo strAssets de la orden
+                    asset_info = str(wo.get("strAssets", "")).upper()
+                    if station_tag == "BCN" or station_tag in asset_info:
+                        total_money += float(c.get("dblActualTotalCost") or 0.0)
+                        relevant_wo_count.add(c["intWorkOrderID"])
+    
+            return round(total_money, 2), len(relevant_wo_count)
+    
+        except Exception as e:
+            print(f"❌ Error financiero en {station_tag}: {e}")
             return 0.0, 0
-
-        # PASO 2: Identificar las órdenes dueñas de ese dinero
-        wo_ids = list(set([c["intWorkOrderID"] for c in costs_data]))
-        
-        # Consultamos las órdenes para filtrar por Site y por Sub-Sede (N1, N2, etc.)
-        body_wo = {
-            "_maCn": "FindRequest",
-            "className": "WorkOrder",
-            "fields": "id, intSiteID, strAssets",
-            "filters": [{"ql": "id IN ?", "parameters": [wo_ids]}],
-            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
-        }
-        
-        resp_wo = await self.client.post(self.base_url, params=auth_params, json=body_wo, headers=headers)
-        wos = {wo["id"]: wo for wo in resp_wo.json().get("objects", [])}
-
-        # PASO 3: Sumar el dinero que pertenezca a ESTA sede específica
-        total_money = 0.0
-        relevant_wo_count = set()
-
-        for c in costs_data:
-            wo = wos.get(c["intWorkOrderID"])
-            if not wo: continue
-
-            # Filtro A: ¿Es del Site correcto (MAD/BCN)?
-            if wo.get("intSiteID") == site_id:
-                # Filtro B: Si es Madrid, ¿es de la Nave correcta (WFS1, WFS2...)?
-                # Comparamos el TAG (WFS1) con el campo strAssets de la orden
-                asset_info = str(wo.get("strAssets", "")).upper()
-                if station_tag == "BCN" or station_tag in asset_info:
-                    total_money += float(c.get("dblActualTotalCost") or 0.0)
-                    relevant_wo_count.add(c["intWorkOrderID"])
-
-        return round(total_money, 2), len(relevant_wo_count)
-
-    except Exception as e:
-        print(f"❌ Error financiero en {station_tag}: {e}")
-        return 0.0, 0
     async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
         """
         Genera el acumulado semanal de DAÑOS REALES para Madrid.
@@ -5303,6 +5303,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
