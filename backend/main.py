@@ -2883,7 +2883,9 @@ PREFIX_WFS4 = "ES_MAD-WFS4-CTS-AL-"
 
 # Memoria aislada para WFS4
 fiix_memory_cache_wfs4 = {}
-
+# Ejemplo de llamada para el Dashboard de la Nave 4
+# El motor buscará MiscCosts del Site 29449435 donde el Asset diga "WFS4"
+money, count = await connector.fetch_site_financials(29449435, "WFS4")
 class FiixConnector:
     def __init__(self):
         # .strip() es vital para evitar que un espacio al final del .env rompa la firma
@@ -2934,102 +2936,70 @@ class FiixConnector:
             print(f"❌ Error RPC: {e}")
             return []
 
-    async def fetch_site_financials(self, site_id: int):
-        """
-        Calcula el acumulado de dinero REAL del MES ACTUAL.
-        Busca todas las órdenes del mes y suma sus costes misceláneos.
-        """
-        now = datetime.now()
-        # 1. Calculamos el primer día del mes actual a las 00:00:00
-        first_day_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        start_ts_ms = int(first_day_month.timestamp() * 1000)
-        
-        try:
-            # PASO A: Traer IDs de todas las WorkOrders creadas en el MES ACTUAL
-            body_wo = {
-                "_maCn": "FindRequest",
-                "className": "WorkOrder",
-                "fields": "id, dtmDateCreated",
-                "filters": [
-                    {
-                        "ql": "intSiteID = ? AND dtmDateCreated >= ?", 
-                        "parameters": [site_id, start_ts_ms]
-                    }
-                ],
-                "maxObjects": 2000 
-            }
-            
-            work_orders = await self._fiix_rpc(body_wo)
-            if not work_orders:
-                return 0.0, 0
-            
-            valid_wo_ids = [wo["id"] for wo in work_orders]
+    async def fetch_site_financials(self, site_id: int, station_tag: str):
+    """
+    Motor de alta precisión para capturar el dinero real.
+    Filtra por Site y por Nave (WFS1, WFS2, etc.) basándose en Assets.
+    """
+    now = datetime.now()
+    # Primer día del mes actual
+    month_start_ts = int(now.replace(day=1, hour=0, minute=0, second=0).timestamp() * 1000)
     
-            # PASO B: Sumar todos los MiscCost asociados a esas órdenes sin importar cuándo se crearon
-            # (Si la orden es de este mes, sumamos todo su coste)
-            body_costs = {
-                "_maCn": "FindRequest",
-                "className": "MiscCost",
-                "fields": "id, dblActualTotalCost, intWorkOrderID",
-                "filters": [
-                    {
-                        "ql": "intWorkOrderID IN ?", 
-                        "parameters": [valid_wo_ids]
-                    }
-                ]
-            }
-            
-            costs_data = await self._fiix_rpc(body_costs)
-            
-            # Acumulador total del mes
-            total_accumulated = sum(float(c.get("dblActualTotalCost") or 0.0) for c in costs_data)
-            
-            # Conteo de averías del mes
-            total_damages_month = len(work_orders)
-            
-            return round(total_accumulated, 2), total_damages_month
-    
-        except Exception as e:
-            print(f"❌ [FIIX] Error en acumulado mensual Site {site_id}: {e}")
-            return 0.0, 0
-        
-    async def fetch_site_financials(self, site_id: int, days_back: int = 1):
-        """
-        Calcula el acumulado de dinero REAL de las últimas 24h
-        basado en la tabla MiscCost.
-        """
-        # 1. Definir ventana de tiempo
-        since_ts = int((datetime.now() - timedelta(days=days_back)).timestamp() * 1000)
-        
-        # 2. Primero traemos las WorkOrders del sitio para tener sus IDs
-        # Esto es necesario para filtrar MiscCost por intWorkOrderID
-        body_wo = {
-            "_maCn": "FindRequest",
-            "className": "WorkOrder",
-            "fields": "id, strDescription",
-            "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ?", "parameters": [site_id, since_ts]}]
-        }
-        work_orders = await self._fiix_rpc(body_wo)
-        if not work_orders:
-            return 0.0, 0 # Sin dinero, sin averías
-
-        wo_ids = [wo["id"] for wo in work_orders]
-
-        # 3. Traemos los costes de la tabla MiscCost vinculados a esas órdenes
-        # Usamos los campos que confirmaste en tu prueba de VSC
+    try:
+        # PASO 1: Traer todos los costes (MiscCost) cargados este mes
         body_costs = {
             "_maCn": "FindRequest",
             "className": "MiscCost",
-            "fields": "id, dblActualTotalCost, intWorkOrderID",
-            "filters": [{"ql": "intWorkOrderID IN ?", "parameters": [wo_ids]}]
+            "fields": "id, intWorkOrderID, dblActualTotalCost, strDescription",
+            "filters": [{"ql": "intUpdated >= ?", "parameters": [month_start_ts]}],
+            "maxObjects": 1000,
+            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
         }
         
-        costs_data = await self._fiix_rpc(body_costs)
+        auth_params, headers = self._build_auth()
+        resp_costs = await self.client.post(self.base_url, params=auth_params, json=body_costs, headers=headers)
+        costs_data = resp_costs.json().get("objects", [])
+
+        if not costs_data:
+            return 0.0, 0
+
+        # PASO 2: Identificar las órdenes dueñas de ese dinero
+        wo_ids = list(set([c["intWorkOrderID"] for c in costs_data]))
         
-        # 4. Acumulador de dinero
-        total_money = sum(float(c.get("dblActualTotalCost") or 0.0) for c in costs_data)
+        # Consultamos las órdenes para filtrar por Site y por Sub-Sede (N1, N2, etc.)
+        body_wo = {
+            "_maCn": "FindRequest",
+            "className": "WorkOrder",
+            "fields": "id, intSiteID, strAssets",
+            "filters": [{"ql": "id IN ?", "parameters": [wo_ids]}],
+            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
+        }
         
-        return round(total_money, 2), len(work_orders)
+        resp_wo = await self.client.post(self.base_url, params=auth_params, json=body_wo, headers=headers)
+        wos = {wo["id"]: wo for wo in resp_wo.json().get("objects", [])}
+
+        # PASO 3: Sumar el dinero que pertenezca a ESTA sede específica
+        total_money = 0.0
+        relevant_wo_count = set()
+
+        for c in costs_data:
+            wo = wos.get(c["intWorkOrderID"])
+            if not wo: continue
+
+            # Filtro A: ¿Es del Site correcto (MAD/BCN)?
+            if wo.get("intSiteID") == site_id:
+                # Filtro B: Si es Madrid, ¿es de la Nave correcta (WFS1, WFS2...)?
+                # Comparamos el TAG (WFS1) con el campo strAssets de la orden
+                asset_info = str(wo.get("strAssets", "")).upper()
+                if station_tag == "BCN" or station_tag in asset_info:
+                    total_money += float(c.get("dblActualTotalCost") or 0.0)
+                    relevant_wo_count.add(c["intWorkOrderID"])
+
+        return round(total_money, 2), len(relevant_wo_count)
+
+    except Exception as e:
+        print(f"❌ Error financiero en {station_tag}: {e}")
+        return 0.0, 0
     async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
         """
         Genera el acumulado semanal de DAÑOS REALES para Madrid.
@@ -5333,6 +5303,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
