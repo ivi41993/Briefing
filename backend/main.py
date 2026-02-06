@@ -2920,11 +2920,8 @@ class FiixConnector:
     async def fetch_site_financials(self, site_id: int, station_tag: str):
         """Calcula el acumulado de dinero REAL del mes actual para una nave específica."""
         now = datetime.now()
-        # Primer día del mes actual a las 00:00:00
         month_start_ts = int(now.replace(day=1, hour=0, minute=0, second=0).timestamp() * 1000)
-        
         try:
-            # 1. Traer todos los costes (MiscCost) actualizados este mes en todo el sistema
             body_costs = {
                 "_maCn": "FindRequest", "className": "MiscCost",
                 "fields": "id, intWorkOrderID, dblActualTotalCost",
@@ -2933,8 +2930,6 @@ class FiixConnector:
             }
             costs_data = await self._fiix_rpc(body_costs)
             if not costs_data: return 0.0, 0
-
-            # 2. Identificar las órdenes dueñas de ese dinero y filtrarlas por Site y Nave
             wo_ids = list(set([c["intWorkOrderID"] for c in costs_data]))
             body_wo = {
                 "_maCn": "FindRequest", "className": "WorkOrder",
@@ -2942,25 +2937,51 @@ class FiixConnector:
                 "filters": [{"ql": "id IN ? AND intSiteID = ?", "parameters": [wo_ids, site_id]}]
             }
             wos_res = await self._fiix_rpc(body_wo)
-            # Mapeo de IDs de órdenes que SÍ pertenecen a la nave (ej: WFS4)
             valid_wo_ids = {wo["id"] for wo in wos_res if station_tag.upper() in str(wo.get("strAssets", "")).upper()}
-
-            # 3. Sumar el dinero de las órdenes validadas
             total_money = sum(float(c.get("dblActualTotalCost") or 0.0) for c in costs_data if c["intWorkOrderID"] in valid_wo_ids)
             return round(total_money, 2), len(valid_wo_ids)
         except Exception as e:
             print(f"❌ Error financiero {station_tag}: {e}")
             return 0.0, 0
 
+    async def fetch_monthly_weekly_metrics(self, site_id: int, tag: str, weeks_back=5):
+        """Genera el histórico semanal de daños filtrado por nave."""
+        ID_PREVENTIVO = 531546
+        now = datetime.now()
+        since_date = (now - timedelta(weeks=weeks_back)).strftime("%Y-%m-%d 00:00:00")
+        try:
+            body = {
+                "_maCn": "FindRequest", "className": "WorkOrder",
+                "fields": "id, dtmDateCreated, intMaintenanceTypeID, strAssets",
+                "filters": [{"ql": "intSiteID = ? AND dtmDateCreated >= ? AND strAssets LIKE ?", "parameters": [site_id, since_date, f"%{tag}%"]}],
+                "maxObjects": 1000
+            }
+            wos = await self._fiix_rpc(body)
+            weekly_stats = {}
+            for i in range(weeks_back + 1):
+                target_date = now - timedelta(weeks=i)
+                year, week, _ = target_date.isocalendar()
+                week_key = f"{year}-W{week:02d}"
+                weekly_stats[week_key] = {"count": 0, "label": f"Sem. {week}"}
+            for wo in wos:
+                if wo.get("intMaintenanceTypeID") != ID_PREVENTIVO:
+                    dt = datetime.fromtimestamp(wo.get("dtmDateCreated") / 1000)
+                    year, week, _ = dt.isocalendar()
+                    week_key = f"{year}-W{week:02d}"
+                    if week_key in weekly_stats:
+                        weekly_stats[week_key]["count"] += 1
+            return [{"week": weekly_stats[k]["label"], "count": weekly_stats[k]["count"]} for k in sorted(weekly_stats.keys())]
+        except Exception as e:
+            print(f"❌ Error histórico {tag}: {e}")
+            return []
+
     async def fetch_metrics_wfs4(self):
-        """Métricas completas para WFS4: Disponibilidad + Costes Reales"""
+        """Actualiza la caché global de WFS4."""
         global fiix_memory_cache
         SITE_ID = 29449435
         TAG = "WFS4"
         PREFIX = "ES_MAD-WFS4-CTS-AL-"
-
         try:
-            # A. DISPONIBILIDAD
             body_assets = {
                 "_maCn": "FindRequest", "className": "Asset",
                 "fields": "id, bolIsOnline, strName",
@@ -2970,162 +2991,19 @@ class FiixConnector:
             total_c = len(res_assets)
             broken = [a.get("strName") for a in res_assets if a.get("bolIsOnline") == 0]
             avail = round(((total_c - len(broken)) / total_c) * 100) if total_c > 0 else 100
-
-            # B. COSTES REALES (Usando el nuevo motor)
             money_month, damage_count = await self.fetch_site_financials(SITE_ID, TAG)
-
-            # C. ACTUALIZAR CACHÉ (Llaves exactas para el Frontend)
             fiix_memory_cache.update({
                 "fiix_wfs4_availability": avail,
                 "fiix_wfs4_broken_text": f"⚠️ {', '.join(broken)}" if broken else "Flota WFS4 Operativa",
                 "fiix_wfs4_damage_count_24h": damage_count,
-                "fiix_wfs4_total_cost_24h": money_month, # <--- Dinero Real
+                "fiix_wfs4_total_cost_24h": money_month,
                 "last_update": datetime.utcnow().isoformat() + "Z"
             })
-
             await manager.broadcast({"type": "kpi_update", "station": TAG, **fiix_memory_cache})
-            print(f"✅ [FIIX WFS4] Sync OK: {money_month}€ | Disp: {avail}%")
             return fiix_memory_cache
         except Exception as e:
-            print(f"❌ Error en métricas WFS4: {e}")
+            print(f"❌ Error metrics WFS4: {e}")
             return {}
-
-
-    # --- 1. AÑADE ESTE MÉTODO DENTRO DE LA CLASE FiixConnector ---
-    async def get_full_schema(self, class_name: str):
-        """Inspecciona todos los campos de una tabla y los imprime en la terminal"""
-        print(f"\n🔍 [FIIX INSPECTOR] Analizando tabla: {class_name}...")
-        
-        body = {
-            "_maCn": "FindRequest",
-            "className": class_name,
-            "fields": "*", # Traer todas las columnas
-            "maxObjects": 1,
-            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
-        }
-        
-        results = await self._fiix_rpc(body)
-        
-        if results:
-            sample = results[0]
-            keys = sorted(list(sample.keys()))
-            print(f"✅ TABLA {class_name} LOCALIZADA")
-            print(f"📋 CAMPOS DISPONIBLES ({len(keys)}):")
-            print(f"   {', '.join(keys)}")
-            print(f"📄 EJEMPLO DE DATOS REALES (Primer registro):")
-            print(json.dumps(sample, indent=4))
-        else:
-            print(f"⚠️ La tabla {class_name} no devolvió datos o no tienes permiso.")
-    
-    async def discover_full_hierarchy(self):
-        """Mapea la estructura completa: Edificios > Áreas > Equipos"""
-        SITE_ID_MADRID = 29449435
-        
-        print("\n" + "═"*60)
-        print("🏗️  GENERANDO MAPA ESTRUCTURAL DE MADRID")
-        print("═"*60)
-
-        # 1. Traemos TODOS los activos de Madrid para procesarlos en memoria (es más rápido)
-        body = {
-            "_maCn": "FindRequest",
-            "className": "Asset",
-            "fields": "id, strName, strCode, intKind, intAssetLocationID",
-            "maxObjects": 5000 
-        }
-        
-        all_assets = await self._fiix_rpc(body)
-        
-        if not all_assets:
-            print("❌ No se pudieron recuperar activos.")
-            return
-
-        # 2. Organizamos por "Padre"
-        # Usamos un diccionario donde la llave es el ID del padre y el valor es una lista de hijos
-        tree = {}
-        for a in all_assets:
-            parent = a.get("intAssetLocationID", 0) or 0
-            if parent not in tree:
-                tree[parent] = []
-            tree[parent].append(a)
-
-        # 3. Función recursiva para imprimir el árbol en la terminal
-        def print_level(parent_id, level=0):
-            if parent_id not in tree:
-                return
-            
-            # Ordenar: primero carpetas/edificios (Kind 1), luego máquinas (Kind 2)
-            sorted_items = sorted(tree[parent_id], key=lambda x: x.get("intKind", 1))
-            
-            for item in sorted_items:
-                indent = "  " * level
-                icon = "🏢" if item.get("intKind") == 1 else "⚙️ "
-                # Si es un edificio (Kind 1), resaltamos el texto
-                prefix = ">> " if item.get("intKind") == 1 else ""
-                
-                print(f"{indent}{icon} {prefix}{item.get('strName')} [ID: {item.get('id')}] (Código: {item.get('strCode')})")
-                
-                # Llamada recursiva para bajar al siguiente nivel
-                print_level(item.get("id"), level + 1)
-
-        # 4. Empezamos a imprimir desde la raíz (padre = 0 o el nodo de España/Madrid)
-        # Buscamos el nodo raíz de Madrid (el que no tiene padre o cuyo nombre es CGO - Madrid)
-        roots = [a for a in all_assets if "MADRID" in str(a.get("strName")).upper() and a.get("intAssetLocationID") is None]
-        
-        if not roots:
-            # Si no detecta raíz, imprimimos todo lo que cuelga de 0
-            print_level(0)
-        else:
-            for r in roots:
-                print_level(r['id'])
-
-        print("═"*60 + "\n")
-
-
-    async def wfs4_cost_deep_dive(self):
-        """Busca órdenes cerradas de WFS4 e inspecciona cada rincón en busca de costes"""
-        SITE_ID = 29449435
-        TAG_NAVE = "WFS4"
-        
-        print("\n" + "🔍" * 20)
-        print("🕵️  INICIANDO AUDITORÍA DE COSTES NAVE 4")
-        print("🔍" * 20)
-
-        # 1. Buscamos las últimas 3 órdenes COMPLETADAS de la Nave 4
-        # Las órdenes completadas son las únicas que tienen costes grabados
-        body = {
-            "_maCn": "FindRequest",
-            "className": "WorkOrder",
-            "fields": "*", # Traemos TODO
-            "filters": [
-                {
-                    "ql": "intSiteID = ? AND dtmDateCompleted IS NOT NULL AND strAssets LIKE ?", 
-                    "parameters": [SITE_ID, f"%{TAG_NAVE}%"]
-                }
-            ],
-            "maxObjects": 3,
-            "clientVersion": {"major": 2, "minor": 8, "patch": 1}
-        }
-
-        results = await self._fiix_rpc(body)
-
-        if not results:
-            print("⚠️ No se encontraron órdenes cerradas en WFS4 para inspeccionar.")
-            return
-
-        for i, wo in enumerate(results):
-            print(f"\n📦 ANÁLISIS DE ORDEN CERRADA #{i+1} (Código: {wo.get('strCode')})")
-            print("-" * 40)
-            
-            # Buscamos campos que contengan números (posibles costes)
-            # Filtramos los campos que empiezan por 'dbl' (Double/Decimal) o 'int' (Integer)
-            for key, value in wo.items():
-                # Si el campo tiene valor y parece ser de dinero o mediciones
-                if value and (key.startswith("dbl") or key.startswith("cf_") or "cost" in key.lower()):
-                    print(f"💰 POSIBLE CAMPO DE COSTE -> {key}: {value}")
-            
-            print("\n📄 DUMP COMPLETO DE ESTA ORDEN (Copia esto para analizar):")
-            print(json.dumps(wo, indent=4))
-            print("-" * 40)
 
 FIIX_POLL_SECONDS = int(os.getenv("FIIX_POLL_SECONDS", "300")) 
 FIIX_CYCLE_SECONDS = 4 * 3600    
@@ -3134,39 +3012,25 @@ FIIX_CYCLE_SECONDS = 4 * 3600
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 [SISTEMA] Iniciando WFS4 MAD Dashboard...")
-    # 1. Inicialización de bases de datos y memoria
+    print("🚀 Iniciando sistema...")
     init_db()
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
     load_roster_from_disk()
     
-    # 2. Conectores y Workers
+    # Workers
     app.state._ena = EnablonConnector()
     app.state._ena_task = asyncio.create_task(app.state._ena.run())
     app.state._hb = asyncio.create_task(_ws_heartbeat(30))
+    app.state._fiix_task = asyncio.create_task(fiix_auto_worker()) # Llamada correcta
     
-    # Worker de Fiix optimizado
-    async def fiix_loop():
-        conn = FiixConnector()
-        while True:
-            try:
-                await conn.fetch_metrics_wfs4()
-            except Exception as e:
-                print(f"⚠️ Error en loop Fiix: {e}")
-            await asyncio.sleep(600) # Cada 10 minutos
-            
-    app.state._fiix_task = asyncio.create_task(fiix_loop())
+    yield
     
-    yield  # Aquí es donde la app corre
-    
-    # 3. Limpieza al apagar
-    print("🛑 [SISTEMA] Deteniendo servidor...")
+    print("🛑 Deteniendo...")
     app.state._fiix_task.cancel()
     app.state._ena_task.cancel()
     app.state._hb.cancel()
-    # --------------------------------
 
     # Heartbeat
     async def _hb():
@@ -3350,40 +3214,15 @@ async def get_fiix_history():
 
 
 # --- EL WORKER QUE REALMENTE FUNCIONA ---
-async def fiix_auto_worker(station_tag: str, site_id: int):
+async def fiix_auto_worker():
     connector = FiixConnector()
-    global fiix_memory_cache
-    
+    print("👷 Worker Fiix WFS4 iniciado")
     while True:
         try:
-            print(f"🔄 [FIIX {station_tag}] Sincronizando KPIs financieros...")
-            
-            # Traer el dinero real y el conteo de averías
-            money_accumulated, damage_count = await connector.fetch_site_financials(site_id)
-            
-            # Actualizamos la caché global (ej: para BCN o WFS1)
-            cache_key_money = f"fiix_{station_tag.lower()}_total_cost_24h"
-            cache_key_count = f"fiix_{station_tag.lower()}_damage_count_24h"
-            
-            fiix_memory_cache[cache_key_money] = money_accumulated
-            fiix_memory_cache[cache_key_count] = damage_count
-            fiix_memory_cache["last_update"] = datetime.utcnow().isoformat() + "Z"
-            
-            # Broadcast vía WebSocket a todas las tablets
-            await manager.broadcast({
-                "type": "kpi_update",
-                "station": station_tag,
-                cache_key_money: money_accumulated,
-                cache_key_count: damage_count
-            })
-            
-            print(f"✅ [FIIX {station_tag}] Acumulado: {money_accumulated}€ | Averías: {damage_count}")
-            
+            await connector.fetch_metrics_wfs4()
         except Exception as e:
-            print(f"❌ Error en worker {station_tag}: {e}")
-        # Ejemplo de llamada para el Dashboard de la Nave 4
-        # El motor buscará MiscCosts del Site 29449435 donde el Asset diga "WFS4"  
-        await asyncio.sleep(600) # Refresco cada 10 min
+            print(f"⚠️ Error en worker Fiix: {e}")
+        await asyncio.sleep(600) # 10 min
 
 
 @app.get("/api/fiix-debug")
@@ -5100,6 +4939,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
