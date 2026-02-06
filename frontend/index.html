@@ -2324,6 +2324,22 @@ body.card-open #timer-reset {
 }
 .btn-tiny:hover { background: #f3f4f6; }
 .btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
+/* Estilo para el KPI de Dinero Real */
+.kpi-tile.money-tile {
+    border-left: 6px solid #10b981 !important; /* Verde Esmeralda */
+    background: #f0fdf4;
+}
+
+.kpi-tile.money-tile .kpi-value {
+    color: #047857 !important;
+}
+
+/* Animación Flash para actualización de dinero */
+@keyframes money-flash {
+    from { background-color: #bbf7d0; }
+    to { background-color: #f0fdf4; }
+}
+.flash-money { animation: money-flash 1.5s ease-out; }
 <div class="kpi-tile" style="border-left: 6px solid #10b981; background: #f0fdf4;"> <!-- Verde Esmeralda -->
   <div class="kpi-label" style="color: #065f46;">Gasto Mto. (Mes)</div>
   <div class="kpi-value" style="color: #047857;">
@@ -4105,6 +4121,16 @@ function processTaskUpdate(data) {
         const el = document.getElementById(`task-${data.id}`) || document.getElementById(`ops-${data.id}`);
         if (el) el.remove();
         if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
+        return;
+    }
+    if (data.type === 'kpi_update') {
+        console.log("📈 KPI Update recibido:", data);
+        Object.keys(data).forEach(key => {
+            // Solo procesamos llaves que empiecen por fiix_
+            if (key.startsWith('fiix_')) {
+                updateFiixDisplay(key, data[key]);
+            }
+        });
         return;
     }
 
@@ -6034,33 +6060,35 @@ window.updateSpotlightRouting = updateSpotlightRouting;  // acceso global
 })();
 
 function updateFiixDisplay(metric, value) {
-    if (metric.includes('total_cost_24h')) {
-        const el = document.getElementById('kpi-total-cost'); // ID del widget de euros
+    // 1. MAPPING DE COSTES (Dinero Real de Madrid)
+    if (metric === 'fiix_mad_total_cost_24h' || metric.includes('total_cost_24h')) {
+        const el = document.getElementById('kpi-total-cost');
         if (el) {
-            // Animación Vivid UI: Flash si el coste sube
-            el.classList.add('flash');
-            setTimeout(() => el.classList.remove('flash'), 1000);
-            
-            // Formatear como moneda Europea
+            const tile = el.closest('.kpi-tile');
+            tile.classList.add('money-tile', 'flash-money');
+            setTimeout(() => tile.classList.remove('flash-money'), 1500);
+
+            // Formatear como moneda: 1.250,50
             el.textContent = new Intl.NumberFormat('de-DE', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             }).format(value);
         }
-      }
+        return;
+    }
+
+    // 2. MAPPING DE DISPONIBILIDAD Y DAÑOS
     const mapping = {
-        'fiix_wfs4_availability': 'fiix-availability',
-        'fiix_wfs4_damage_count_24h': 'fiix-damage-24h'
+        'fiix_mad_availability': 'fiix-availability',
+        'fiix_mad_damage_count_24h': 'fiix-damage-24h'
     };
 
-    if (metric === 'fiix_wfs4_broken_text') {
+    if (metric === 'fiix_mad_broken_text') {
         const el = document.getElementById('fiix-broken-text');
         if (el) {
             el.textContent = value;
-            if (value.includes('⚠️')) {
-                el.style.color = "#dc2626"; // Rojo alerta
-                el.style.fontWeight = "800";
-            }
+            el.style.color = value.includes('⚠️') ? "#dc2626" : "#64748b";
+            el.style.fontWeight = value.includes('⚠️') ? "800" : "400";
         }
         return;
     }
@@ -6069,8 +6097,8 @@ function updateFiixDisplay(metric, value) {
     const el = document.getElementById(targetId);
     if (el) {
         el.textContent = value;
-        // WFS4: Si disponibilidad < 95%, parpadeo crítico (Spotlight)
-        if (metric === 'fiix_wfs4_availability') {
+        // Si la disponibilidad baja de 95%, activar Spotlight
+        if (metric.includes('availability')) {
             const tile = el.closest('.kpi-tile');
             if (value < 95) tile.classList.add('spotlight-blink');
             else tile.classList.remove('spotlight-blink');
@@ -6081,18 +6109,24 @@ function updateFiixDisplay(metric, value) {
 // 2. CARGA AUTOMÁTICA (Igual que el Roster)
 async function initFiixDashboard() {
     try {
-        // Obtenemos la ruta base para no fallar en sub-apps (/mad/n4/ops/...)
+        console.log("🔄 Solicitando Snapshot de Fiix Madrid...");
         const res = await fetch('api/fiix/current'); 
+        if (!res.ok) throw new Error("Error en red");
+
         const data = await res.json();
         
-        console.log("📥 Fiix Snapshot cargado:", data);
+        if (!data || Object.keys(data).length === 0) {
+            console.log("⏳ Fiix vacío, reintentando en 5s...");
+            setTimeout(initFiixDashboard, 5000);
+            return;
+        }
 
-        // Pintamos todo lo que ha llegado
+        console.log("📥 Datos Fiix cargados:", data);
         Object.keys(data).forEach(metricName => {
             updateFiixDisplay(metricName, data[metricName]);
         });
     } catch (e) {
-        console.error("❌ Error cargando Fiix al inicio:", e);
+        console.error("❌ Error cargando Fiix:", e);
     }
 }
 
@@ -7126,7 +7160,7 @@ async function sendDashboardIssue() {
    ========================================================= */
 async function generateAndSendToExcel() {
     const timerText = document.getElementById('timer-display').textContent;
-    
+    const kpiCostes = document.getElementById('kpi-total-cost')?.innerText || "0,00";
     // Si el cronómetro está en cero, no dejar avanzar (aunque se hackee el botón)
     if (timerText === "00:00:00") {
         alert("⚠️ Es obligatorio iniciar el cronómetro (Botón Comenzar) antes de generar el resumen.");
@@ -7215,7 +7249,7 @@ async function generateAndSendToExcel() {
             checklist: {}, 
             kpis: {
                 "UPH": document.getElementById('kpi-uph')?.innerText || "-",
-                "Costes": document.getElementById('kpi-total-cost')?.innerText || "-",
+                "Costes_Reales_Fiix": kpiCostes + " €", // <--- Ahora enviamos el dato real
                 "Backlog": document.getElementById('fiix-backlog')?.innerText || "-"
             },
             roster_details: rosterDetails, // CAMPO REQUERIDO POR PYTHON
@@ -7278,6 +7312,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
