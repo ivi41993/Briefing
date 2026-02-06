@@ -2896,6 +2896,7 @@ class FiixConnector:
         self.app_key = os.getenv("FIIX_APP_KEY", "").strip()
         self.access_key = os.getenv("FIIX_ACCESS_KEY", "").strip()
         self.secret_key = os.getenv("FIIX_SECRET_KEY", "").strip()
+        self.client = httpx.AsyncClient(timeout=30.0)
         self.base_url = f"https://{self.host}/api/"
 
     def _build_auth(self) -> tuple[dict, dict]:
@@ -2922,13 +2923,12 @@ class FiixConnector:
             print(f"❌ Error RPC Fiix: {e}")
             return []
 
-     async def fetch_site_financials(self, site_id: int, station_tag: str):
+    async def fetch_site_financials(self, site_id: int, station_tag: str):
         """Calcula el acumulado REAL desde el 1 de enero de 2026."""
-        # --- CAMBIO CRÍTICO: BUSCAMOS DESDE EL INICIO DEL AÑO PARA NO VER CEROS ---
         start_2026_ms = int(datetime(2026, 1, 1).timestamp() * 1000)
         
         try:
-            # 1. Traer los últimos 1000 registros de MiscCost (Bolsa de dinero)
+            # 1. Traer los últimos 1000 registros de MiscCost
             body_costs = {
                 "_maCn": "FindRequest", "className": "MiscCost",
                 "fields": "id, intWorkOrderID, dblActualTotalCost",
@@ -2952,7 +2952,6 @@ class FiixConnector:
             for wo in wos_res:
                 if wo.get("intSiteID") == site_id:
                     dna = (str(wo.get("strAssets", "")) + " " + str(wo.get("strDescription", ""))).upper()
-                    # Si el tag (WFS4) está en el activo, esa orden nos interesa
                     if station_tag.upper() in dna:
                         valid_wo_ids.add(wo["id"])
 
@@ -2963,14 +2962,13 @@ class FiixConnector:
             print(f"❌ Error financiero {station_tag}: {e}")
             return 0.0, 0
 
-     async def fetch_metrics_wfs4(self):
+    async def fetch_metrics_wfs4(self):
         """Actualiza la caché global de la Nave 4."""
         global fiix_memory_cache
         SITE_ID = 29449435
         TAG = "WFS4"
         PREFIX = "ES_MAD-WFS4-CTS-AL-"
         try:
-            # Disponibilidad
             body_assets = {
                 "_maCn": "FindRequest", "className": "Asset",
                 "fields": "id, bolIsOnline",
@@ -2979,31 +2977,26 @@ class FiixConnector:
             res_assets = await self._fiix_rpc(body_assets)
             total_c = len(res_assets)
             broken_count = len([a for a in res_assets if a.get("bolIsOnline") == 0])
-            avail = round(((total_c - broken_count) / total_c) * 100) if total_c > 0 else 100
+            avail = round(((total_c - len(broken_count)) / total_c) * 100) if total_c > 0 else 100
 
-            # DINERO REAL (Sniper 2026)
             money_val, damage_count = await self.fetch_site_financials(SITE_ID, TAG)
 
             fiix_memory_cache.update({
                 "fiix_wfs4_availability": avail,
-                "fiix_wfs4_total_cost_24h": money_val, # <--- LOS 29k € APARECEN AQUÍ
+                "fiix_wfs4_total_cost_24h": money_val,
                 "fiix_wfs4_damage_count_24h": damage_count,
                 "fiix_wfs4_broken_text": f"⚠️ {broken_count} equipos offline" if broken_count > 0 else "Flota WFS4 Operativa",
                 "last_update": datetime.utcnow().isoformat() + "Z"
             })
             
             await manager.broadcast({"type": "kpi_update", "station": TAG, **fiix_memory_cache})
-            print(f"✅ [FIIX WFS4] DINERO LOCALIZADO: {money_val} €")
             return fiix_memory_cache
         except Exception as e:
             print(f"❌ Error Metrics WFS4: {e}")
             return {}
 
-    # Método para el gráfico (evita el Error 500)
     async def fetch_monthly_weekly_metrics(self, site_id, tag):
         return [{"week": "Actual", "count": 0}]
-
-    
     
     
 FIIX_POLL_SECONDS = int(os.getenv("FIIX_POLL_SECONDS", "300")) 
@@ -4963,6 +4956,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
