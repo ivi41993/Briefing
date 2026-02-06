@@ -6090,7 +6090,6 @@ function updateFiixDisplay(metric, value) {
     if (m.includes('availability') && m.includes(stationTag)) {
         const el = document.getElementById('fiix-availability');
         if (el) el.textContent = value;
-        return;
     }
 
     // 3. DAÑOS (CONTEO)
@@ -7322,6 +7321,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
