@@ -2934,6 +2934,65 @@ class FiixConnector:
             print(f"❌ Error RPC: {e}")
             return []
 
+    async def fetch_site_financials(self, site_id: int):
+        """
+        Calcula el acumulado de dinero REAL del MES ACTUAL.
+        Busca todas las órdenes del mes y suma sus costes misceláneos.
+        """
+        now = datetime.now()
+        # 1. Calculamos el primer día del mes actual a las 00:00:00
+        first_day_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_ts_ms = int(first_day_month.timestamp() * 1000)
+        
+        try:
+            # PASO A: Traer IDs de todas las WorkOrders creadas en el MES ACTUAL
+            body_wo = {
+                "_maCn": "FindRequest",
+                "className": "WorkOrder",
+                "fields": "id, dtmDateCreated",
+                "filters": [
+                    {
+                        "ql": "intSiteID = ? AND dtmDateCreated >= ?", 
+                        "parameters": [site_id, start_ts_ms]
+                    }
+                ],
+                "maxObjects": 2000 
+            }
+            
+            work_orders = await self._fiix_rpc(body_wo)
+            if not work_orders:
+                return 0.0, 0
+            
+            valid_wo_ids = [wo["id"] for wo in work_orders]
+    
+            # PASO B: Sumar todos los MiscCost asociados a esas órdenes sin importar cuándo se crearon
+            # (Si la orden es de este mes, sumamos todo su coste)
+            body_costs = {
+                "_maCn": "FindRequest",
+                "className": "MiscCost",
+                "fields": "id, dblActualTotalCost, intWorkOrderID",
+                "filters": [
+                    {
+                        "ql": "intWorkOrderID IN ?", 
+                        "parameters": [valid_wo_ids]
+                    }
+                ]
+            }
+            
+            costs_data = await self._fiix_rpc(body_costs)
+            
+            # Acumulador total del mes
+            total_accumulated = sum(float(c.get("dblActualTotalCost") or 0.0) for c in costs_data)
+            
+            # Conteo de averías del mes
+            total_damages_month = len(work_orders)
+            
+            return round(total_accumulated, 2), total_damages_month
+    
+        except Exception as e:
+            print(f"❌ [FIIX] Error en acumulado mensual Site {site_id}: {e}")
+            return 0.0, 0
+        
     async def fetch_site_financials(self, site_id: int, days_back: int = 1):
         """
         Calcula el acumulado de dinero REAL de las últimas 24h
@@ -5274,6 +5333,7 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
