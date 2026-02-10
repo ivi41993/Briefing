@@ -2324,6 +2324,51 @@ body.card-open #timer-reset {
 }
 .btn-tiny:hover { background: #f3f4f6; }
 .btn-tiny.del-person:hover { background: #fee2e2; border-color: #fca5a5; }
+/* Aviso de carga del Roster */
+.loading-card-notice {
+    position: relative;
+    background: #fffbeb; /* Amarillo crema muy suave */
+    border: 1px solid #fef3c7;
+    border-radius: 10px;
+    padding: 12px 15px;
+    margin: 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    overflow: hidden;
+    animation: notice-pulse 2s infinite ease-in-out; /* Parpadeo suave */
+}
+
+.notice-ribbon {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 6px;
+    background: #f59e0b; /* Ambar WFS */
+}
+
+.notice-content strong {
+    display: block;
+    color: #92400e;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.9rem;
+    margin-bottom: 2px;
+}
+
+.notice-content p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #b45309;
+}
+
+@keyframes notice-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(0.99); }
+}
+
+/* Clase para ocultar suavemente */
+.notice-hidden {
+    display: none !important;
+}
 </style>
   <!-- Importar la librería de gráficos Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -2431,9 +2476,27 @@ body.card-open #timer-reset {
 
 <!-- IZQUIERDA: EQUIPO -->
 <section class="col-left">
+<!-- WIDGET EQUIPO / TURNOS -->
 <div class="widget" id="team-widget">
-<h2 class="widget-title">1) Equipo / Turno</h2>
-<small class="kpi-text" id="team-meta">—</small>
+    <h2 class="widget-title">1) Equipo / Turno</h2>
+    <small class="kpi-text" id="team-meta">Iniciando conexión...</small>
+
+    <!-- ⚠️ TARJETA DE AVISO DE CARGA (NUEVA) -->
+    <div id="roster-status-notice" class="loading-card-notice">
+        <div class="notice-ribbon"></div>
+        <div class="notice-content">
+            <strong>⏳ Sincronizando con Servidor Central</strong>
+            <p>Si la lista no aparece en 10 segundos, por favor <u>recarga la página</u> y espera un momento.</p>
+        </div>
+    </div>
+
+    <!-- Formulario de añadir manual (ya lo tienes) -->
+    <form id="team-form" ...> ... </form>
+
+    <div id="team-list" class="team-list">
+        <!-- El personal se cargará aquí -->
+    </div>
+</div>
 
 <form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
 <input type="text" id="team-name" placeholder="Añadir persona…" required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
@@ -3627,6 +3690,16 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
 
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
+    
+    const notice = document.getElementById('roster-status-notice');
+
+    // Si hay personas en la lista, ocultamos el aviso de "espera"
+    if (people && people.length > 0) {
+        if (notice) notice.classList.add('notice-hidden');
+    } else {
+        // Si la lista está vacía, nos aseguramos de que el aviso sea visible
+        if (notice) notice.classList.remove('notice-hidden');
+    }
 
     // --- BLOQUE DE DEFENSA DE MEMORIA (Evita el error de Cristina Pimentel) ---
     if (!window.TEAM_STATE) window.TEAM_STATE = {};
