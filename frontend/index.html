@@ -2370,6 +2370,77 @@ body.card-open #timer-reset {
 .notice-hidden {
     display: none !important;
 }
+/* Tarjeta de Aviso de Conexión */
+.vivid-notice-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: #ffffff;
+    border: 2px solid #fee2e2;
+    border-radius: 16px;
+    padding: 18px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 10px 25px rgba(220, 38, 38, 0.08);
+    z-index: 100;
+}
+
+.notice-ribbon-red {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 10px;
+    background: linear-gradient(to bottom, #dc2626, #991b1b);
+    border-radius: 16px 0 0 16px;
+}
+
+.notice-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.notice-text h3 {
+    margin: 0;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #991b1b;
+    letter-spacing: 0.5px;
+}
+
+.notice-text p {
+    margin: 4px 0 0 0;
+    font-size: 0.95rem;
+    color: #4b5563;
+    line-height: 1.4;
+}
+
+.notice-close-btn {
+    margin-left: auto;
+    background: #f3f4f6;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-weight: bold;
+    color: #6b7280;
+    transition: all 0.2s;
+}
+
+.notice-close-btn:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* Animación Blink-Glow (Estándar del proyecto) */
+@keyframes blink-glow {
+    0%, 100% { box-shadow: 0 0 5px rgba(220, 38, 38, 0.2); border-color: #fee2e2; }
+    50% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.4); border-color: #fca5a5; }
+}
+
+.blink-glow {
+    animation: blink-glow 2s infinite ease-in-out;
+}
 <div class="kpi-tile" style="border-left: 6px solid #10b981; background: #f0fdf4;"> <!-- Verde Esmeralda -->
   <div class="kpi-label" style="color: #065f46;">Gasto Mto. (Mes)</div>
   <div class="kpi-value" style="color: #047857;">
@@ -2521,6 +2592,16 @@ body.card-open #timer-reset {
 
 <!-- CENTRO: ACCIONES -->
 <section class="col-middle">
+<!-- AVISO CRÍTICO DE CONEXIÓN (CARGA INICIAL) -->
+<div id="connection-preflight-notice" class="vivid-notice-card blink-glow">
+    <div class="notice-ribbon-red"></div>
+    <div class="notice-icon">⚠️</div>
+    <div class="notice-text">
+        <h3>INSTRUCCIÓN DE CONEXIÓN</h3>
+        <p>Ante errores de carga o desconexión: comprueba primero los <strong>Ajustes de Red</strong> tanto en la <strong>Tablet</strong> como en la <strong>TV/Monitor</strong>.</p>
+    </div>
+    <button class="notice-close-btn" onclick="this.parentElement.style.display='none'">✕</button>
+</div>
 <!-- CHECKLIST DE BRIEFING -->
 <div class="widget" id="brief-check">
   <div id="brief-check-explain" class="br-explain" aria-live="polite">
@@ -7302,6 +7383,15 @@ async function generateAndSendToExcel() {
 document.addEventListener('DOMContentLoaded', () => {
     // Vincular el botón una sola vez (esto evita el doble almacenamiento)
     const btnResumen = document.querySelector('header .header-controls .btn-primary');
+    const preflightNotice = document.getElementById('connection-preflight-notice');
+    
+    // El aviso sale por defecto. Podríamos ocultarlo automáticamente si el WS conecta bien
+    // Pero según tu requisito de que sea "lo primero que salga", lo mantenemos visible.
+    
+    // Opcional: Si quieres que solo salga la primera vez que se abre en el turno
+    if (localStorage.getItem('notice_closed_v1')) {
+        // preflightNotice.style.display = 'none'; // Descomenta si prefieres que se guarde el cierre
+      
     if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
 
     try { initHeaderTimer(); } catch(e){}
@@ -7328,6 +7418,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
