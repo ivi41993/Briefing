@@ -1662,8 +1662,13 @@ style="display:flex; flex-direction:column; gap:6px;"></div>
         <!-- LADO DERECHO: Incidencias Manuales (Sincronizadas) -->
         <div class="safety-column">
             <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px;">INCIDENCIAS DETECTADAS</h3>
+            <!-- Busca el form #safety-manual-form y déjalo así -->
             <form id="safety-manual-form" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
                 <input type="text" id="safety-input-title" placeholder="¿Qué ha ocurrido?" required style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">VIGENTE HASTA:</label>
+                    <input type="date" id="safety-input-expiry" style="padding:6px; border-radius:8px; border:1px solid #ddd; flex: 1;">
+                </div>
                 <button type="submit" class="btn-primary" style="padding:10px;">Reportar Incidencia</button>
             </form>
             <div id="safety-incidents-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto;">
@@ -1707,19 +1712,24 @@ style="display:flex; flex-direction:column; gap:6px;"></div>
   <!-- === NUEVO SISTEMA: ALTA MANUAL DE INCIDENTES / LECCIONES === -->
   
   <!-- Formulario de Alta -->
-  <form id="manual-inc-form" style="background:#fff5f5; padding:12px; border-radius:10px; border:1px dashed #fecaca; margin-bottom:15px;">
+  <!-- Modificar el manual-inc-form -->
+<form id="manual-inc-form" style="background:#fff5f5; padding:12px; border-radius:10px; border:1px dashed #fecaca; margin-bottom:15px;">
     <div style="display:grid; grid-template-columns: 140px 1fr auto; gap:8px; margin-bottom:8px;">
-      <select id="new-inc-type" style="padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-weight:bold;">
-        <option value="incident">🔴 Incidente</option>
-        <option value="lesson">💡 Lección</option>
-      </select>
-      <input type="text" id="new-inc-title" placeholder="Título corto..." required 
-             style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
-      <button type="submit" class="btn-primary" style="padding:8px 16px;">Añadir</button>
+        <select id="new-inc-type" style="padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-weight:bold;">
+            <option value="incident">🔴 Incidente</option>
+            <option value="lesson">💡 Lección</option>
+        </select>
+        <input type="text" id="new-inc-title" placeholder="Título corto..." required style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+        <button type="submit" class="btn-primary" style="padding:8px 16px;">Añadir</button>
     </div>
-    <textarea id="new-inc-desc" rows="2" placeholder="Descripción detallada o aprendizaje..." 
-              style="width:100%; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
-  </form>
+    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+        <textarea id="new-inc-desc" rows="2" placeholder="Descripción detallada..." style="flex: 1; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            <label style="font-size: 0.65rem; font-weight: 800; color: #991b1b;">MOSTRAR HASTA:</label>
+            <input type="date" id="new-inc-expiry" style="padding:5px; border-radius:6px; border:1px solid #e5e7eb; font-size: 0.8rem;">
+        </div>
+    </div>
+</form>
 
   <!-- Lista de Tarjetas -->
   <div id="incidents-list-container" class="ops-list" style="max-height:400px; overflow-y:auto; padding-right:4px;">
@@ -2320,6 +2330,55 @@ function initSafetyModule() {
 }
 
 async function loadSafetyIncidents() {
+    // Modificar la lógica de envío del formulario de seguridad
+document.getElementById('safety-manual-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('safety-input-title').value;
+    const expiry = document.getElementById('safety-input-expiry').value; // Nueva fecha
+
+    const taskData = {
+        task_type: 'safety_incident',
+        title: title,
+        due_date: expiry || null, // Guardamos la vigencia en due_date
+        station: STATION_CODE
+    };
+
+    await createTaskOnServer(taskData);
+    e.target.reset();
+});
+
+// Modificar la función que renderiza las tarjetas de seguridad
+window.renderSafetyIncidentCard = function(task) {
+    if (task.task_type !== 'safety_incident') return;
+
+    // --- LÓGICA DE VIGENCIA ---
+    if (task.due_date) {
+        const today = new Date().toISOString().split('T')[0];
+        if (task.due_date < today) {
+            // Si ha caducado, ni siquiera la pintamos
+            return;
+        }
+    }
+
+    const container = document.getElementById('safety-incidents-container');
+    const card = document.createElement('div');
+    card.className = 'safety-card is-incident';
+    card.id = `task-${task.id}`;
+    
+    const expiryInfo = task.due_date ? 
+        `<span style="color:var(--brand-red-600); font-weight:800;">⏲️ Vigente hasta: ${new Date(task.due_date).toLocaleDateString()}</span>` : 
+        `<span style="color:var(--text-muted);">📌 Permanente</span>`;
+
+    card.innerHTML = `
+        <div class="safety-card-title">⚠️ ${esc(task.title)}</div>
+        <div style="font-size:0.7rem; margin-top:5px; display:flex; justify-content:space-between;">
+            ${expiryInfo}
+            <button onclick="deleteTaskOnServer('${task.id}', 'safety_incident')" style="border:none; background:none; cursor:pointer;">🗑️</button>
+        </div>
+    `;
+    container.prepend(card);
+};
+    
     try {
         const res = await fetch(`api/tasks?task_type=safety_incident&station=${STATION_CODE}`);
         const tasks = await res.json();
@@ -4479,7 +4538,6 @@ console.error('loadBoardsInitial', e);
 
 
 (function initManualIncidents() {
-    // Usamos una clave consistente para que el generador de resumen la encuentre
     const KEY = 'safety_manual_incidents_v1'; 
     const listEl = document.getElementById('incidents-list-container');
     const form = document.getElementById('manual-inc-form');
@@ -4491,11 +4549,21 @@ console.error('loadBoardsInitial', e);
     
     const render = () => {
         const items = load();
-        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay incidentes registrados hoy.</div>';
-        items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+        const today = new Date().toISOString().split('T')[0];
+        
+        // --- FILTRO DE VIGENCIA ---
+        const activeItems = items.filter(item => !item.expiry || item.expiry >= today);
+        
+        listEl.innerHTML = activeItems.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay incidentes vigentes hoy.</div>';
+        
+        activeItems.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
             const card = document.createElement('div');
             const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
             const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
+            
+            const expiryWarning = item.expiry ? 
+                `<div style="font-size:0.7rem; color:#b91c1c; font-weight:800; margin-top:5px;">🕒 Expira el: ${new Date(item.expiry).toLocaleDateString()}</div>` : '';
+
             card.className = `inc-card ${typeClass}`;
             card.style.marginBottom = "10px";
             card.innerHTML = `
@@ -4506,19 +4574,18 @@ console.error('loadBoardsInitial', e);
                     </div>
                     <button type="button" class="inc-del-btn" data-id="${item.id}" style="background:none; border:none; cursor:pointer;">🗑️</button>
                 </div>
-                <div class="inc-desc" style="font-size:0.9rem; color:#4b5563; margin-top:5px; white-space:pre-wrap;">${esc(item.desc)}</div>`;
+                <div class="inc-desc" style="font-size:0.9rem; color:#4b5563; margin-top:5px; white-space:pre-wrap;">${esc(item.desc)}</div>
+                ${expiryWarning}`;
             listEl.appendChild(card);
         });
     };
 
-    // FIX: Capturar el submit correctamente
     form.addEventListener('submit', function(e) {
         e.preventDefault(); 
-        e.stopPropagation();
-
         const typeVal = document.getElementById('new-inc-type').value;
         const titleVal = document.getElementById('new-inc-title').value.trim();
         const descVal = document.getElementById('new-inc-desc').value.trim();
+        const expiryVal = document.getElementById('new-inc-expiry').value; // Captura fecha
 
         if (!titleVal) return;
 
@@ -4528,22 +4595,15 @@ console.error('loadBoardsInitial', e);
             type: typeVal, 
             title: titleVal, 
             desc: descVal, 
+            expiry: expiryVal || null, // Guardamos la vigencia
             date: new Date().toISOString() 
         });
         
         save(items);
         form.reset();
         render();
-        console.log("✅ Incidente guardado en memoria local");
     });
-
-    listEl.onclick = function(e) {
-        const btn = e.target.closest('.inc-del-btn');
-        if (btn && confirm("¿Borrar registro?")) {
-            save(load().filter(i => i.id !== btn.dataset.id));
-            render();
-        }
-    };
+    // ... resto de la función igual ...
     render();
 })();
     
