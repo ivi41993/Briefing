@@ -2441,6 +2441,19 @@ body.card-open #timer-reset {
 .blink-glow {
     animation: blink-glow 2s infinite ease-in-out;
 }
+
+#aena-notice {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease;
+}
+#aena-notice:hover {
+    transform: scale(1.01);
+}
+/* Estilo específico para resaltar el Art. */
+#aena-notice b {
+    color: var(--brand-red-600);
+}
   
 </style>
   <!-- Cargar Chart.js antes de los scripts -->
@@ -2780,6 +2793,17 @@ body.card-open #timer-reset {
     </div>
     <ul id="sec-random-list" style="margin:6px 0 0 18px; padding:0; list-style:disc;"></ul>
   </div>
+
+  <!-- AVISOS AENA (Instrucción Fija) -->
+<div class="ops-item" id="aena-notice" style="margin-bottom:12px; background: #fffdf0; border-left: 6px solid var(--vivid-amber); border-right: 1px solid var(--vivid-amber); border-bottom: 3px solid var(--vivid-amber);">
+  <div class="ops-head">
+    <div class="ops-title" style="color: #92400e; font-weight: 900;">🚩 AVISOS AENA (Normativa ZASO)</div>
+    <span class="hero-badge warn" style="box-shadow: 0 4px 10px rgba(245,158,11,0.4);">REGLAMENTO</span>
+  </div>
+  <div style="margin-top: 8px; font-size: 0.95rem; line-height: 1.4; color: #78350f; font-weight: 600;">
+    "Circular sin hacer uso de las SV. (Art. A.2.4) La circulación de vehículos y equipos dentro de la ZASO se realizará por las vías de servicio establecidas y respetando las marcas y señales; si el destino final estuviera fuera de las vías, éstas deben abandonarse lo más tarde posible."
+  </div>
+</div>
 
   <!-- 2. FORMULARIO Y TARJETAS -->
   <form id="sec-form" class="inline-form" autocomplete="off" style="margin-bottom:8px;">
