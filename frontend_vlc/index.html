@@ -1545,18 +1545,24 @@ data-placeholder="Escribe líneas sueltas (Enter para saltos)…"></div>
 
 <div class="safety-card">
 <strong>Alta manual de incidentes</strong>
-<form id="safety-form" class="incident-form" autocomplete="off">
-    <input type="text" id="safety-title" placeholder="Título / resumen del incidente" required>
-    <textarea id="safety-desc" rows="3" placeholder="Descripción breve..." required></textarea>
-    
-    <label style="font-size:0.85rem; color:var(--text-muted); display:flex; align-items:center; gap:8px; margin:5px 0;">
-        Vigente hasta:
-        <input type="date" id="safety-valid-until" style="padding:6px; border:1px solid var(--border); border-radius:8px;">
-    </label>
-
-    <div class="controls">
-        <button type="submit" class="btn">Guardar incidente</button>
-        <button type="button" class="btn" id="safety-clear">Vaciar lista</button>
+<form id="manual-inc-form" style="background:#fff5f5; padding:12px; border-radius:10px; border:1px dashed #fecaca; margin-bottom:15px;">
+    <div style="display:grid; grid-template-columns: 140px 1fr auto; gap:8px; margin-bottom:8px;">
+      <select id="new-inc-type" style="padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-weight:bold;">
+        <option value="incident">🔴 Incidente</option>
+        <option value="lesson">💡 Lección</option>
+      </select>
+      <input type="text" id="new-inc-title" placeholder="Título corto..." required 
+             style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+      <button type="submit" class="btn-primary" style="padding:8px 16px;">Añadir</button>
+    </div>
+    <div style="display:flex; gap:10px; align-items:flex-start;">
+        <textarea id="new-inc-desc" rows="2" placeholder="Descripción detallada..." 
+                  style="flex:1; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
+        <!-- NUEVO CAMPO DE FECHA PARA TARJETA 5 -->
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:150px;">
+            <label style="font-size:0.65rem; font-weight:900; color:#991b1b;">VIGENCIA HASTA:</label>
+            <input type="date" id="new-inc-expiry" style="padding:5px; border-radius:6px; border:1px solid #e5e7eb; font-size:0.8rem;">
+        </div>
     </div>
 </form>
 <div id="safety-list" class="incident-list" aria-live="polite"></div>
@@ -2078,89 +2084,65 @@ function saveIncidents(list){ saveJson(SAFETY_INC_KEY, list); }
 
 function renderIncidents(){
     const listEl = document.getElementById('safety-list');
-    const meta = document.getElementById('safety-inc-meta');
     if(!listEl) return;
     const data = loadIncidents();
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
     listEl.innerHTML = '';
     
-    data.slice().reverse().forEach((it)=>{
+    // Filtramos solo los que no han caducado
+    const activeData = data.filter(it => !it.expiry || it.expiry >= today);
+
+    activeData.slice().reverse().forEach((it)=>{
         const card = document.createElement('div');
         card.className = 'incident-item';
-        const ts = new Date(it.ts||Date.now());
-        
-        // AÑADIDO: Mostrar fecha de vigencia si existe
-        const validHtml = it.valid_until ? 
-            `<div style="color:#d97706; font-weight:700; font-size:0.85rem; margin-top:4px;">📅 Vigente hasta: ${new Date(it.valid_until).toLocaleDateString('es-ES')}</div>` 
-            : '';
+        const expiryInfo = it.expiry ? 
+            `<div style="font-size:0.7rem; color:var(--brand-red-600); font-weight:800; margin-top:4px;">⏲️ Expira: ${new Date(it.expiry).toLocaleDateString()}</div>` : '';
 
         card.innerHTML = `
            <div class="incident-head">
-             <span>${esc(it.title||'')}</span>
-             <span class="danger" data-del="${it.id}" title="Eliminar" style="cursor:pointer">🗑</span>
+             <span>${esc(it.title)}</span>
+             <span class="danger" data-del="${it.id}">🗑</span>
            </div>
-           <div class="incident-meta">${ts.toLocaleString('es-ES')} — ${esc(it.station||STATION_CODE)}</div>
-           ${validHtml}
-           <div style="margin-top:4px;">${esc(it.desc||'')}</div>
+           ${expiryInfo}
+           <div style="margin-top:4px; font-size:0.85rem;">${esc(it.desc)}</div>
          `;
         listEl.appendChild(card);
     });
-    
-    if(meta) meta.textContent = `Incidentes guardados: ${data.length}`;
 
-    listEl.querySelectorAll('[data-del]').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-            const id = btn.getAttribute('data-del');
-            const cur = loadIncidents().filter(x=>String(x.id)!==String(id));
-            saveIncidents(cur);
+    // Reasignar eventos de borrado
+    listEl.querySelectorAll('[data-del]').forEach(btn => {
+        btn.onclick = () => {
+            const id = btn.dataset.del;
+            saveIncidents(loadIncidents().filter(x => String(x.id) !== String(id)));
             renderIncidents();
-        });
+        };
     });
 }
 
 function setupSafetyIncidents(){
     const form = document.getElementById('safety-form');
-    const title = document.getElementById('safety-title');
-    const desc  = document.getElementById('safety-desc');
-    const validDate = document.getElementById('safety-valid-until'); // Referencia al nuevo input
-    const clear = document.getElementById('safety-clear');
-
-    renderIncidents();
-
     form?.addEventListener('submit', (e)=>{
         e.preventDefault();
-        const t = (title?.value||'').trim();
-        const d = (desc?.value||'').trim();
-        const v = validDate?.value || null; // Capturar valor fecha
+        const t = document.getElementById('safety-title').value.trim();
+        const d = document.getElementById('safety-desc').value.trim();
+        const exp = document.getElementById('safety-expiry').value;
 
         if(!t || !d) return;
         
         const cur = loadIncidents();
-        // Guardamos 'valid_until' en el objeto
         cur.push({ 
             id: Date.now(), 
-            title: t, 
-            desc: d, 
-            valid_until: v, 
+            title: t, desc: d, 
+            expiry: exp || null, // Guardamos fecha
             ts: Date.now(), 
             station: STATION_CODE 
         });
-        
         saveIncidents(cur);
-        
-        // Limpiar campos
-        title.value=''; 
-        desc.value=''; 
-        if(validDate) validDate.value=''; 
-        
+        form.reset();
         renderIncidents();
     });
-
-    clear?.addEventListener('click', ()=>{
-        if(!confirm('¿Vaciar todos los incidentes guardados?')) return;
-        saveIncidents([]); renderIncidents();
-    });
 }
-
 function initSafetyDailyWidget(){
 setupSafetyDaily();
 setupSafetyIncidents();
@@ -4351,6 +4333,84 @@ console.error('loadBoardsInitial', e);
 }
 }
 
+// --- LÓGICA TARJETA 5: INCIDENTES CON VIGENCIA ---
+(function initManualIncidentsVLC() {
+    const KEY = 'safety_manual_incidents_v1'; 
+    const listEl = document.getElementById('incidents-list-container');
+    const form = document.getElementById('manual-inc-form');
+    
+    if (!listEl || !form) return;
+
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } };
+    const save = (data) => { localStorage.setItem(KEY, JSON.stringify(data)); };
+    
+    const render = () => {
+        const items = load();
+        const today = new Date().toISOString().split('T')[0];
+        
+        // FILTRO: Ignorar caducados
+        const activeItems = items.filter(item => !item.expiry || item.expiry >= today);
+        
+        listEl.innerHTML = activeItems.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay incidentes vigentes.</div>';
+        
+        activeItems.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+            const card = document.createElement('div');
+            const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
+            const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
+            
+            const expiryTag = item.expiry ? 
+                `<span style="color:#b91c1c; font-weight:800; font-size:0.7rem; margin-left:10px;">🕒 Hasta: ${new Date(item.expiry).toLocaleDateString()}</span>` : '';
+
+            card.className = `inc-card ${typeClass}`;
+            card.style.marginBottom = "10px";
+            card.innerHTML = `
+                <div class="inc-header">
+                    <div>
+                        <span class="inc-badge" style="background:#eee; padding:2px 5px; border-radius:4px;">${badgeText}</span>
+                        ${expiryTag}
+                        <div class="inc-title" style="margin-top:4px; font-weight:700;">${esc(item.title)}</div>
+                    </div>
+                    <button type="button" class="inc-del-btn" data-id="${item.id}" style="background:none; border:none; cursor:pointer;">🗑️</button>
+                </div>
+                <div class="inc-desc" style="font-size:0.9rem; color:#4b5563; margin-top:5px;">${esc(item.desc)}</div>`;
+            listEl.appendChild(card);
+        });
+    };
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault(); 
+        const typeVal = document.getElementById('new-inc-type').value;
+        const titleVal = document.getElementById('new-inc-title').value.trim();
+        const descVal = document.getElementById('new-inc-desc').value.trim();
+        const expiryVal = document.getElementById('new-inc-expiry').value;
+
+        if (!titleVal) return;
+
+        const items = load();
+        items.push({ 
+            id: Date.now().toString(), 
+            type: typeVal, 
+            title: titleVal, 
+            desc: descVal, 
+            expiry: expiryVal || null, 
+            date: new Date().toISOString() 
+        });
+        
+        save(items);
+        this.reset();
+        render();
+    });
+
+    listEl.onclick = (e) => {
+        const btn = e.target.closest('.inc-del-btn');
+        if (btn && confirm("¿Borrar?")) {
+            save(load().filter(i => i.id !== btn.dataset.id));
+            render();
+        }
+    };
+    render();
+})();
+    
 function openSupportModal() {
     const modal = document.getElementById('support-modal');
     const form = document.getElementById('support-form');
