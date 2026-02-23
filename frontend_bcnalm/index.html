@@ -1628,7 +1628,8 @@ style="display:flex; flex-direction:column; gap:6px;"></div>
 
       <div style="display:flex; flex-direction:column; gap:6px;">
         <label style="font-weight:700; font-size:0.85rem;">Vigente hasta (opcional)</label>
-        <input type="date" id="ops-input-date" style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+        <!-- Busca esta línea y déjala exactamente así -->
+        <input type="date" id="safety-input-expiry" style="padding:6px; border:1px solid var(--border); border-radius:8px; flex:1;">
       </div>
 
       <div style="display:flex; gap:10px; margin-top:10px;">
@@ -2329,64 +2330,86 @@ function initSafetyModule() {
     }
 }
 
+/* =========================================================
+   MÓDULO DE SEGURIDAD (TARJETA 4) - CORREGIDO
+   ========================================================= */
+
 async function loadSafetyIncidents() {
-    // Modificar la lógica de envío del formulario de seguridad
-document.getElementById('safety-manual-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('safety-input-title').value;
-    const expiry = document.getElementById('safety-input-expiry').value; // Nueva fecha
+    const form = document.getElementById('safety-manual-form');
+    if (!form || form.dataset.initialized) return;
 
-    const taskData = {
-        task_type: 'safety_incident',
-        title: title,
-        due_date: expiry || null, // Guardamos la vigencia en due_date
-        station: STATION_CODE
-    };
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault(); // BLOQUEA LA RECARGA DE PÁGINA
+        e.stopPropagation();
 
-    await createTaskOnServer(taskData);
-    e.target.reset();
-});
+        const titleEl = document.getElementById('safety-input-title');
+        const expiryEl = document.getElementById('safety-input-expiry');
 
-// Modificar la función que renderiza las tarjetas de seguridad
-window.renderSafetyIncidentCard = function(task) {
-    if (task.task_type !== 'safety_incident') return;
+        if (!titleEl || !titleEl.value.trim()) return;
 
-    // --- LÓGICA DE VIGENCIA ---
-    if (task.due_date) {
-        const today = new Date().toISOString().split('T')[0];
-        if (task.due_date < today) {
-            // Si ha caducado, ni siquiera la pintamos
-            return;
+        const taskData = {
+            task_type: 'safety_incident',
+            title: titleEl.value.trim(),
+            due_date: expiryEl && expiryEl.value ? expiryEl.value : null,
+            station: STATION_CODE
+        };
+
+        try {
+            // Enviamos al servidor (FastAPI)
+            await createTaskOnServer(taskData);
+            form.reset(); // Limpiar formulario tras éxito
+            console.log("✅ Incidencia de seguridad sincronizada");
+        } catch (err) {
+            console.error("❌ Error al guardar:", err);
+            alert("Error de conexión con el servidor.");
         }
-    }
+    });
 
-    const container = document.getElementById('safety-incidents-container');
-    const card = document.createElement('div');
-    card.className = 'safety-card is-incident';
-    card.id = `task-${task.id}`;
-    
-    const expiryInfo = task.due_date ? 
-        `<span style="color:var(--brand-red-600); font-weight:800;">⏲️ Vigente hasta: ${new Date(task.due_date).toLocaleDateString()}</span>` : 
-        `<span style="color:var(--text-muted);">📌 Permanente</span>`;
+    form.dataset.initialized = "true";
 
-    card.innerHTML = `
-        <div class="safety-card-title">⚠️ ${esc(task.title)}</div>
-        <div style="font-size:0.7rem; margin-top:5px; display:flex; justify-content:space-between;">
-            ${expiryInfo}
-            <button onclick="deleteTaskOnServer('${task.id}', 'safety_incident')" style="border:none; background:none; cursor:pointer;">🗑️</button>
-        </div>
-    `;
-    container.prepend(card);
-};
-    
+    // Carga inicial de datos desde la base de datos
     try {
         const res = await fetch(`api/tasks?task_type=safety_incident&station=${STATION_CODE}`);
         const tasks = await res.json();
         const container = document.getElementById('safety-incidents-container');
-        container.innerHTML = tasks.length ? '' : '<div style="color:#94a3b8; font-size:0.8rem; text-align:center;">No hay incidencias reportadas hoy.</div>';
-        tasks.forEach(window.renderSafetyIncidentCard);
-    } catch (e) { console.warn("Error cargando incidencias de seguridad", e); }
+        if(container) {
+            container.innerHTML = tasks.length ? '' : '<div style="color:#94a3b8; font-size:0.8rem; text-align:center;">No hay incidencias hoy.</div>';
+            tasks.forEach(task => window.renderSafetyIncidentCard(task));
+        }
+    } catch (e) { console.warn("Error cargando incidencias iniciales", e); }
 }
+
+window.renderSafetyIncidentCard = function(data) {
+    if (data.task_type !== 'safety_incident') return;
+
+    const today = new Date().toISOString().split('T')[0];
+    if (data.due_date && data.due_date < today) return; // Ocultar si ha caducado
+
+    const container = document.getElementById('safety-incidents-container');
+    if (!container) return;
+
+    // Eliminar duplicado si existe (para actualizaciones en vivo)
+    const existing = document.getElementById(`task-${data.id}`);
+    if (existing) existing.remove();
+
+    const card = document.createElement('div');
+    card.className = 'safety-card is-incident';
+    card.id = `task-${data.id}`;
+    
+    const expiryInfo = data.due_date ? 
+        `<span style="color:#dc2626; font-weight:800;">⏲️ Hasta: ${new Date(data.due_date).toLocaleDateString()}</span>` : 
+        `<span style="color:var(--text-muted);">📌 Permanente</span>`;
+
+    card.innerHTML = `
+        <div class="safety-card-title">⚠️ ${esc(data.title)}</div>
+        <div style="font-size:0.7rem; margin-top:5px; display:flex; justify-content:space-between; align-items:center;">
+            ${expiryInfo}
+            <button onclick="deleteTaskOnServer('${data.id}', 'safety_incident')" 
+                    style="border:none; background:none; cursor:pointer; font-size:1rem;">🗑️</button>
+        </div>
+    `;
+    container.prepend(card);
+};
 
 /* Acepta tareas sin estación o con station = STATION_CODE */
 function isForThisStation(obj){
@@ -4246,85 +4269,54 @@ socket.close();
 }
 
 /* processTaskUpdate central BCN+MAD */
-function processTaskUpdate(data){
-if (!data) return;
+function processTaskUpdate(data) {
+    if (!data) return;
 
-// Filtrado por estación
-if (!isForThisStation(data)) return;
+    // 1. Filtrado por estación
+    if (!isForThisStation(data)) return;
 
-// Actualizaciones roster
-if (data.type === 'roster_update'){
-renderRoster(document.getElementById('team-list'), data.people||[], data);
-return;
-}
+    // 2. Definición del ID único para el DOM
+    const elementId = data.id ? `task-${data.id}` : null;
 
-// GW / tablas / etc
-if (data.type === 'table_ping' || data.type === 'table_state'){
-if (data.table === 'incidents'){
-loadIncidentes();
-}
-return;
-}
-
-// Dentro de processTaskUpdate(data)
-if (data.task_type === 'safety_incident') {
-    if (data.action === 'delete') {
-        document.getElementById(`task-${data.id}`)?.remove();
-    } else {
-        window.renderSafetyIncidentCard(data);
-    }
-    return;
-}
-    
-if (data.task_type === 'ops_update') {
-        if (data.action === 'delete') {
-            document.getElementById(`task-${data.id}`)?.remove();
-        } else {
-            window.renderOpsCard(data);
+    // 3. Lógica de borrado
+    if (data.action === 'delete' && data.id != null) {
+        document.getElementById(elementId)?.remove();
+        document.getElementById(`ops-${data.id}`)?.remove();
+        if (data.task_type === 'gw_task') {
+            GW_MAP.delete(data.id);
+            renderGwTop3();
         }
+        updateAllColumnCounts();
         return;
     }
 
-// KPIs (usa STATION_CODE, no hardcode MAD)
-if (data.type === 'kpi_update') {
-        const keys = Object.keys(data);
-        // Si el paquete contiene claves de BCN, las procesamos
-        if (keys.some(k => k.includes('bcn'))) {
-            keys.forEach(k => {
-                if (k.startsWith('fiix_')) updateFiixDisplay(k, data[k]);
-            });
-            return; // Detener aquí
-        }
+    // 4. Mapeo por tipo de tarea (AQUÍ ESTABA EL ERROR)
+    if (data.task_type === 'safety_incident') {
+        window.renderSafetyIncidentCard(data); // CORREGIDO: data, no task
+        return;
+    }
+    
+    if (data.task_type === 'ops_update') {
+        if (typeof window.renderOpsCard === 'function') window.renderOpsCard(data);
+        return;
     }
 
-// Delete
-if (data.action === 'delete' && data.id != null){
-const el=document.getElementById(`task-${data.id}`);
-if (el) el.remove();
-if (data.task_type === 'gw_task'){
-GW_MAP.delete(data.id);
-renderGwTop3();
-}
-updateAllColumnCounts();
-return;
-}
+    if (data.type === 'roster_update') {
+        renderRoster(document.getElementById('team-list'), data.people || [], data);
+        return;
+    }
 
-// Render según tipo
-if (data.task_type === 'gw_task'){
-GW_MAP.set(data.id, data);
-renderGwTop3();
-return;
-}
-if (data.task_type === 'kanban_rapida'){
-renderBoardCard(data, `task-${data.id}`);
-updateAllColumnCounts();
-return;
-}
-if (data.task_type === 'kaizen'){
-renderKaizenCard(data, `task-${data.id}`);
-updateAllColumnCounts();
-return;
-}
+    // 5. Render de tarjetas estándar
+    if (data.task_type === 'gw_task') {
+        GW_MAP.set(data.id, data);
+        renderGwTop3();
+    } else if (data.task_type === 'kanban_rapida') {
+        renderBoardCard(data, elementId);
+        updateAllColumnCounts();
+    } else if (data.task_type === 'kaizen') {
+        renderKaizenCard(data, elementId);
+        updateAllColumnCounts();
+    }
 }
 
 /* ==========================
