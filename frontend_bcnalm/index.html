@@ -2334,12 +2334,17 @@ function initSafetyModule() {
    MÓDULO DE SEGURIDAD (TARJETA 4) - CORREGIDO
    ========================================================= */
 
+/* =========================================================
+   MÓDULO DE SEGURIDAD (TARJETA 4) - SOLUCIÓN DEFINITIVA
+   ========================================================= */
+
 async function loadSafetyIncidents() {
     const form = document.getElementById('safety-manual-form');
+    // Evitar inicializar dos veces si se llama por error
     if (!form || form.dataset.initialized) return;
 
     form.addEventListener('submit', async (e) => {
-        e.preventDefault(); // BLOQUEA LA RECARGA DE PÁGINA
+        e.preventDefault(); // BLOQUEO TOTAL DE RECARGA
         e.stopPropagation();
 
         const titleEl = document.getElementById('safety-input-title');
@@ -2350,15 +2355,14 @@ async function loadSafetyIncidents() {
         const taskData = {
             task_type: 'safety_incident',
             title: titleEl.value.trim(),
-            due_date: expiryEl && expiryEl.value ? expiryEl.value : null,
+            due_date: (expiryEl && expiryEl.value) ? expiryEl.value : null,
             station: STATION_CODE
         };
 
         try {
-            // Enviamos al servidor (FastAPI)
             await createTaskOnServer(taskData);
-            form.reset(); // Limpiar formulario tras éxito
-            console.log("✅ Incidencia de seguridad sincronizada");
+            form.reset();
+            console.log("✅ Incidencia sincronizada");
         } catch (err) {
             console.error("❌ Error al guardar:", err);
             alert("Error de conexión con el servidor.");
@@ -2367,28 +2371,28 @@ async function loadSafetyIncidents() {
 
     form.dataset.initialized = "true";
 
-    // Carga inicial de datos desde la base de datos
+    // Carga inicial de datos
     try {
         const res = await fetch(`api/tasks?task_type=safety_incident&station=${STATION_CODE}`);
         const tasks = await res.json();
         const container = document.getElementById('safety-incidents-container');
         if(container) {
             container.innerHTML = tasks.length ? '' : '<div style="color:#94a3b8; font-size:0.8rem; text-align:center;">No hay incidencias hoy.</div>';
-            tasks.forEach(task => window.renderSafetyIncidentCard(task));
+            tasks.forEach(t => window.renderSafetyIncidentCard(t));
         }
-    } catch (e) { console.warn("Error cargando incidencias iniciales", e); }
+    } catch (e) { console.warn("Error carga inicial safety", e); }
 }
 
 window.renderSafetyIncidentCard = function(data) {
-    if (data.task_type !== 'safety_incident') return;
+    if (!data || data.task_type !== 'safety_incident') return;
 
     const today = new Date().toISOString().split('T')[0];
-    if (data.due_date && data.due_date < today) return; // Ocultar si ha caducado
+    if (data.due_date && data.due_date < today) return; // Auto-borrado visual
 
     const container = document.getElementById('safety-incidents-container');
     if (!container) return;
 
-    // Eliminar duplicado si existe (para actualizaciones en vivo)
+    // Eliminar si ya existe (para updates en tiempo real)
     const existing = document.getElementById(`task-${data.id}`);
     if (existing) existing.remove();
 
@@ -2397,7 +2401,7 @@ window.renderSafetyIncidentCard = function(data) {
     card.id = `task-${data.id}`;
     
     const expiryInfo = data.due_date ? 
-        `<span style="color:#dc2626; font-weight:800;">⏲️ Hasta: ${new Date(data.due_date).toLocaleDateString()}</span>` : 
+        `<span style="color:#dc2626; font-weight:800;">⏲️ Expira: ${new Date(data.due_date).toLocaleDateString()}</span>` : 
         `<span style="color:var(--text-muted);">📌 Permanente</span>`;
 
     card.innerHTML = `
@@ -2405,7 +2409,7 @@ window.renderSafetyIncidentCard = function(data) {
         <div style="font-size:0.7rem; margin-top:5px; display:flex; justify-content:space-between; align-items:center;">
             ${expiryInfo}
             <button onclick="deleteTaskOnServer('${data.id}', 'safety_incident')" 
-                    style="border:none; background:none; cursor:pointer; font-size:1rem;">🗑️</button>
+                    style="border:none; background:none; cursor:pointer; font-size:1rem;" title="Borrar">🗑️</button>
         </div>
     `;
     container.prepend(card);
@@ -4268,14 +4272,13 @@ socket.close();
 };
 }
 
-/* processTaskUpdate central BCN+MAD */
 function processTaskUpdate(data) {
     if (!data) return;
 
-    // 1. Filtrado por estación
+    // 1. Filtrado de seguridad por estación
     if (!isForThisStation(data)) return;
 
-    // 2. Definición del ID único para el DOM
+    // 2. Definición del ID único para el DOM (elementId declarado una sola vez)
     const elementId = data.id ? `task-${data.id}` : null;
 
     // 3. Lógica de borrado
@@ -4290,9 +4293,9 @@ function processTaskUpdate(data) {
         return;
     }
 
-    // 4. Mapeo por tipo de tarea (AQUÍ ESTABA EL ERROR)
+    // 4. Mapeo por tipo de tarea (USANDO 'data' CORRECTAMENTE)
     if (data.task_type === 'safety_incident') {
-        window.renderSafetyIncidentCard(data); // CORREGIDO: data, no task
+        window.renderSafetyIncidentCard(data); // <--- AQUÍ ESTABA EL FALLO (antes ponía task)
         return;
     }
     
