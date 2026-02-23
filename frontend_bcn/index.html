@@ -2517,61 +2517,47 @@ function initSafetyModule() {
 }
 
 async function loadSafetyIncidents() {
-    // Modificar la lógica de envío del formulario de seguridad
-document.getElementById('safety-manual-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('safety-input-title').value;
-    const expiry = document.getElementById('safety-input-expiry').value; // Nueva fecha
+    const form = document.getElementById('safety-manual-form');
+    if (!form || form.dataset.initialized) return;
 
-    const taskData = {
-        task_type: 'safety_incident',
-        title: title,
-        due_date: expiry || null, // Guardamos la vigencia en due_date
-        station: STATION_CODE
-    };
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault(); // EVITA RECARGA
+        e.stopPropagation();
 
-    await createTaskOnServer(taskData);
-    e.target.reset();
-});
+        const titleEl = document.getElementById('safety-input-title');
+        const expiryEl = document.getElementById('safety-input-expiry');
 
-// Modificar la función que renderiza las tarjetas de seguridad
-window.renderSafetyIncidentCard = function(task) {
-    if (task.task_type !== 'safety_incident') return;
+        if (!titleEl.value.trim()) return;
 
-    // --- LÓGICA DE VIGENCIA ---
-    if (task.due_date) {
-        const today = new Date().toISOString().split('T')[0];
-        if (task.due_date < today) {
-            // Si ha caducado, ni siquiera la pintamos
-            return;
+        const taskData = {
+            task_type: 'safety_incident',
+            title: titleEl.value.trim(),
+            due_date: expiryEl.value || null, // Guardamos la vigencia
+            station: STATION_CODE
+        };
+
+        try {
+            await createTaskOnServer(taskData);
+            form.reset(); // Limpia el formulario tras éxito
+            console.log("✅ Incidencia enviada con éxito");
+        } catch (err) {
+            console.error("❌ Error al guardar:", err);
+            alert("No se pudo guardar la incidencia. Revisa la conexión.");
         }
-    }
+    });
 
-    const container = document.getElementById('safety-incidents-container');
-    const card = document.createElement('div');
-    card.className = 'safety-card is-incident';
-    card.id = `task-${task.id}`;
-    
-    const expiryInfo = task.due_date ? 
-        `<span style="color:var(--brand-red-600); font-weight:800;">⏲️ Vigente hasta: ${new Date(task.due_date).toLocaleDateString()}</span>` : 
-        `<span style="color:var(--text-muted);">📌 Permanente</span>`;
+    form.dataset.initialized = "true";
 
-    card.innerHTML = `
-        <div class="safety-card-title">⚠️ ${esc(task.title)}</div>
-        <div style="font-size:0.7rem; margin-top:5px; display:flex; justify-content:space-between;">
-            ${expiryInfo}
-            <button onclick="deleteTaskOnServer('${task.id}', 'safety_incident')" style="border:none; background:none; cursor:pointer;">🗑️</button>
-        </div>
-    `;
-    container.prepend(card);
-};
+    // Cargar las existentes de la base de datos
     try {
         const res = await fetch(`api/tasks?task_type=safety_incident&station=${STATION_CODE}`);
         const tasks = await res.json();
         const container = document.getElementById('safety-incidents-container');
-        container.innerHTML = tasks.length ? '' : '<div style="color:#94a3b8; font-size:0.8rem; text-align:center;">No hay incidencias reportadas hoy.</div>';
-        tasks.forEach(window.renderSafetyIncidentCard);
-    } catch (e) { console.warn("Error cargando incidencias de seguridad", e); }
+        if(container) {
+            container.innerHTML = tasks.length ? '' : '<div style="color:#94a3b8; font-size:0.8rem; text-align:center;">No hay incidencias reportadas hoy.</div>';
+            tasks.forEach(task => window.renderSafetyIncidentCard(task));
+        }
+    } catch (e) { console.warn("Error cargando incidencias", e); }
 }
     
 function initSafetyDailyWidget(){
@@ -4379,74 +4365,35 @@ function processTaskUpdate(data) {
     // 1. Filtrado de seguridad por estación
     if (!isForThisStation(data)) return;
 
-    // 2. Definición global de IDs para esta ejecución
-    // Esto soluciona el error "elementId is not defined"
+    // 2. Definición global de IDs para esta ejecución (SOLUCIONA TU ERROR)
     const elementId = data.id ? `task-${data.id}` : null;
 
-    // 3. Lógica de borrado (Acción Global)
+    // 3. Lógica de borrado
     if (data.action === 'delete' && data.id != null) {
         const el = document.getElementById(elementId);
         if (el) el.remove();
-        
-        // Si es una actualización operativa o de seguridad, también probamos con sus prefijos
-        document.getElementById(`ops-${data.id}`)?.remove();
-        
-        if (data.task_type === 'gw_task') {
-            GW_MAP.delete(data.id);
-            renderGwTop3();
-        }
         updateAllColumnCounts();
         return;
     }
 
-    // 4. Lógica de Actualizaciones Operativas (NUEVO SISTEMA DE TARJETAS)
-    if (data.task_type === 'ops_update') {
-        if (typeof window.renderOpsCard === 'function') {
-            window.renderOpsCard(data);
-        }
-        return;
-    }
-
-    // 5. Lógica de Seguridad y Protección (NUEVO SISTEMA DE TARJETAS)
+    // 4. Lógica según el tipo de tarea
     if (data.task_type === 'safety_incident') {
-        if (typeof window.renderSafetyIncidentCard === 'function') {
-            window.renderSafetyIncidentCard(data);
-        }
+        window.renderSafetyIncidentCard(data);
+        return;
+    }
+    
+    if (data.task_type === 'ops_update') {
+        if (typeof window.renderOpsCard === 'function') window.renderOpsCard(data);
         return;
     }
 
-    // 6. Actualizaciones de Roster
     if (data.type === 'roster_update') {
         renderRoster(document.getElementById('team-list'), data.people || [], data);
         return;
     }
 
-    // 7. Actualizaciones de KPIs (Fiix / Telemetría)
-    if (data.type === 'kpi_update') {
-        const keys = Object.keys(data);
-        // Filtramos para que solo procese las llaves de ESTA estación (ej: 'bcn' o 'wfs2')
-        const stationKey = STATION_CODE.toLowerCase();
-        keys.forEach(k => {
-            if (k.includes(stationKey) && k.startsWith('fiix_')) {
-                if (typeof updateFiixDisplay === 'function') {
-                    updateFiixDisplay(k, data[k]);
-                }
-            }
-        });
-        return;
-    }
-
-    // 8. Gemba Walk / Tablas
-    if (data.type === 'table_ping' || data.type === 'table_state') {
-        if (data.table === 'incidents') loadIncidentes();
-        return;
-    }
-
-    // 9. Render de tarjetas estándar (Kanban / Kaizen)
-    if (data.task_type === 'gw_task') {
-        GW_MAP.set(data.id, data);
-        renderGwTop3();
-    } else if (data.task_type === 'kanban_rapida') {
+    // 5. Kanban y Kaizen
+    if (data.task_type === 'kanban_rapida') {
         renderBoardCard(data, elementId);
         updateAllColumnCounts();
     } else if (data.task_type === 'kaizen') {
