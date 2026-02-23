@@ -5096,6 +5096,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try { connectWebSocket(); } catch(e){}
     try { initOpsUpdates(); } catch(e){}
     try { reorderChecklist(); } catch(e){}
+    // Dentro del try/catch final:
+    try { loadSafetyIncidents(); } catch(e){ console.error("Error en Safety:", e); }
     // AÑADE ESTO:
     try { initSafetyModule(); } catch(e){ console.error("Error en Safety Module:", e); }
     try { updateSpotlightRouting(); } catch(e){}
