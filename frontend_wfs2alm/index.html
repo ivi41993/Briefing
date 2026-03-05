@@ -2534,6 +2534,30 @@ body.card-open #timer-reset {
 #aena-notice b {
     color: var(--brand-red-600);
 }
+#normativa-aduanera-widget {
+    box-shadow: 0 8px 20px rgba(139, 92, 246, 0.1);
+}
+
+#normativa-aduanera-widget b {
+    color: #5b21b6;
+    font-weight: 700;
+}
+
+#normativa-aduanera-widget p {
+    text-align: justify;
+    hyphens: auto;
+}
+
+/* Animación sutil de entrada para destacar el badge */
+#normativa-aduanera-widget .hero-badge {
+    animation: pulse-violet 3s infinite;
+}
+
+@keyframes pulse-violet {
+    0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(139, 92, 246, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+}
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -3159,6 +3183,42 @@ body.card-open #timer-reset {
        style="justify-content: center; cursor: pointer;" 
        title="Doble clic para reportar incidente (Reset a 0)">
       <div class="ehs-big" id="ehs-days">0</div>
+  </div>
+</div>
+<!-- WIDGET NORMATIVA ADUANERA (TRANSITO INTERNO) -->
+<div class="widget vivid" id="normativa-aduanera-widget" style="border-top: 4px solid #8b5cf6;">
+  <h2 class="widget-title hero" style="background: linear-gradient(135deg, #fff 0%, #f5f3ff 100%); border-bottom: 2px solid #ddd6fe;">
+    <span class="hero-ico">⚖️</span><span>Normativa Aduanera</span>
+    <span class="hero-badge" style="background: #8b5cf6; color: white;">ART. 188</span>
+  </h2>
+
+  <div class="ops-item" style="border-left: 6px solid #8b5cf6; background: #ffffff; padding: 16px; margin-top: 10px;">
+    <div style="display: flex; flex-direction: column; gap: 15px; font-size: 0.92rem; color: #1f2937; line-height: 1.5; font-weight: 500;">
+      
+      <!-- Párrafo 1 -->
+      <div style="display: flex; gap: 10px;">
+        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.1rem;">1.</span>
+        <p style="margin: 0;">
+          Cuando circulen mercancías de la Unión desde un <b>territorio fiscal especial</b> a otra parte del territorio aduanero de la Unión que no lo sea, y la circulación finalice <b>fuera del Estado miembro</b> de entrada, dichas mercancías circularán al amparo del <b>régimen de tránsito interno de la Unión (Art. 227)</b>.
+        </p>
+      </div>
+
+      <!-- Párrafo 2 -->
+      <div style="display: flex; gap: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0;">
+        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.1rem;">2.</span>
+        <p style="margin: 0;">
+          En situaciones distintas a las del apartado 1, el régimen de tránsito interno podrá utilizarse para mercancías de la Unión que circulen entre un <b>territorio fiscal especial</b> y otra parte del territorio aduanero de la Unión.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="margin-top: 12px; padding: 8px 12px; background: #f3f0ff; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 1.2rem;">📌</span>
+    <small style="color: #6d28d9; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+      Recordatorio: Verificar precintos en T2LF / T2F
+    </small>
   </div>
 </div>
 </section>
