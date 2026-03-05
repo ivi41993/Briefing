@@ -5164,13 +5164,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 4. Construir Payload
                     const payload = {
                         station: "BCN",
-                        date: (() => {
-                            const d = new Date();
-                            const day = String(d.getDate()).padStart(2, '0');
-                            const month = String(d.getMonth() + 1).padStart(2, '0');
-                            const year = d.getFullYear(); 
-                            return `${day}/${month}/${year}`;
-                        })(),
+                        // Usamos el formato internacional YYYY-MM-DD para evitar que Excel confunda días con meses
+                        date: new Date().toISOString().split('T')[0],
                         
                         briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
     
