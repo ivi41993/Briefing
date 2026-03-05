@@ -5341,9 +5341,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
     
                     // 3. Recoger Seguridad (Nuevo sistema unificado)
+                    // 3. Recoger Seguridad (Tarjeta 4 y Tarjeta 5 corregida)
                     let safetySummary = [];
-    
-                    // Recoger consignas automáticas del día
+
+                    // A. Recoger consignas automáticas de la Tarjeta 4 (Tips)
                     document.querySelectorAll('#safety-tips-container .safety-card-title').forEach(el => {
                         safetySummary.push({ 
                             title: "CONSIGNA DIARIA", 
@@ -5351,13 +5352,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     });
                     
-                    // Recoger incidencias manuales detectadas
+                    // B. Recoger incidencias de la Tarjeta 4 (Manuales de Seguridad)
+                    // Usamos el selector correcto para la T4
                     document.querySelectorAll('#safety-incidents-container .safety-card-title').forEach(el => {
                         safetySummary.push({ 
-                            title: "INCIDENCIA DETECTADA", 
+                            title: "INCIDENCIA SEGURIDAD (T4)", 
                             desc: el.innerText.replace('⚠️ ', '') 
                         });
                     });
+
+                    // C. RECOGER INCIDENTES Y APRENDIZAJES DE LA TARJETA 5 (FIX CRÍTICO)
+                    // En lugar de leer el DOM, leemos directamente el localStorage que usa la T5
+                    try {
+                        const rawT5 = localStorage.getItem('safety_manual_incidents_v1') || '[]';
+                        const itemsT5 = JSON.parse(rawT5);
+                        const today = new Date().toISOString().split('T')[0];
+
+                        itemsT5.forEach(item => {
+                            // Solo incluir si no ha caducado
+                            if (!item.expiry || item.expiry >= today) {
+                                const tipoLabel = item.type === 'incident' ? 'INCIDENTE (T5)' : 'LECCIÓN APRENDIDA (T5)';
+                                safetySummary.push({
+                                    title: tipoLabel,
+                                    desc: `${item.title}: ${item.desc}`
+                                });
+                            }
+                        });
+                    } catch (e) {
+                        console.warn("Error al recuperar datos de la Tarjeta 5 para el Excel", e);
+                    }
     
                     // 4. Construir Payload
                     const payload = {
