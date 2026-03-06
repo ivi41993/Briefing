@@ -7464,7 +7464,7 @@ async function generateAndSendToExcel() {
 
         const payload = {
             station: "ALM",
-            date: new Date().toLocaleDateString('es-ES'),
+            date: new Date().toISOString().split('T')[0],
             shift: document.getElementById('shift-badge-header')?.innerText || 'General',
             timer: document.getElementById('timer-display')?.innerText || '00:00:00',
             briefing_time: new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
