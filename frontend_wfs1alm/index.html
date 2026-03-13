@@ -2826,9 +2826,11 @@ body.card-open #timer-reset {
 </div>
 
   <!-- 2. FORMULARIO Y TARJETAS -->
-  <form id="sec-form" class="inline-form" autocomplete="off" style="margin-bottom:8px;">
-    <input type="text" id="sec-title" placeholder="Añadir riesgo / tarjeta..." required>
-    <input type="text" id="sec-owner" placeholder="Responsable">
+  <!-- 2. FORMULARIO Y TARJETAS (Tarjeta 4) -->
+  <form id="sec-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 120px 130px auto; gap:8px; margin-bottom:8px; align-items:center;">
+    <input type="text" id="sec-title" placeholder="Añadir riesgo / tarjeta..." required style="padding:8px; border:1px solid var(--border); border-radius:8px;">
+    <input type="text" id="sec-owner" placeholder="Resp." style="padding:8px; border:1px solid var(--border); border-radius:8px;">
+    <input type="date" id="sec-due" title="Vigencia (Opcional)" style="padding:8px; border:1px solid var(--border); border-radius:8px; color:var(--text-muted);">
     <button type="submit" class="btn-primary">Añadir</button>
   </form>
 
@@ -2872,18 +2874,18 @@ body.card-open #timer-reset {
   <!-- === NUEVO SISTEMA: ALTA MANUAL DE INCIDENTES / LECCIONES === -->
   
   <!-- Formulario de Alta -->
+  <!-- Formulario de Alta (Tarjeta 5) -->
   <form id="manual-inc-form" style="background:#fff5f5; padding:12px; border-radius:10px; border:1px dashed #fecaca; margin-bottom:15px;">
-    <div style="display:grid; grid-template-columns: 140px 1fr auto; gap:8px; margin-bottom:8px;">
+    <div style="display:grid; grid-template-columns: 140px 1fr 130px auto; gap:8px; margin-bottom:8px;">
       <select id="new-inc-type" style="padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-weight:bold;">
         <option value="incident">🔴 Incidente</option>
         <option value="lesson">💡 Lección</option>
       </select>
-      <input type="text" id="new-inc-title" placeholder="Título corto..." required 
-             style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+      <input type="text" id="new-inc-title" placeholder="Título corto..." required style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+      <input type="date" id="new-inc-due" title="Vigencia (Opcional)" style="padding:8px; border:1px solid #e5e7eb; border-radius:8px; color:var(--text-muted);">
       <button type="submit" class="btn-primary" style="padding:8px 16px;">Añadir</button>
     </div>
-    <textarea id="new-inc-desc" rows="2" placeholder="Descripción detallada o aprendizaje..." 
-              style="width:100%; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
+    <textarea id="new-inc-desc" rows="2" placeholder="Descripción detallada o aprendizaje..." style="width:100%; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
   </form>
 
   <!-- Lista de Tarjetas -->
@@ -5048,9 +5050,73 @@ async function loadBoardsInitial(){
   // Persistencia local
   const SEC_KEY = 'sec_cards_v1';
 
+  // Dentro de initSeguridadModule() ...
+  const dueEl = document.getElementById('sec-due'); // <--- Añadir esto
+
+  // FUNCIÓN CLAVE: Carga y limpia automáticamente lo caducado
   function loadCards(){
-    try { return JSON.parse(localStorage.getItem(SEC_KEY) || '[]'); } catch { return []; }
+    try { 
+      const arr = JSON.parse(localStorage.getItem(SEC_KEY) || '[]'); 
+      const today = new Date();
+      today.setHours(0,0,0,0); // Ignorar horas para comparar solo el día
+      
+      const validCards = arr.filter(item => {
+        if (!item.due_date) return true; // Si no tiene fecha, es permanente
+        const due = new Date(item.due_date);
+        return due >= today; // Si la fecha límite es hoy o futuro, se queda
+      });
+
+      // Si hemos borrado algo por caducidad, guardamos la versión limpia
+      if (validCards.length !== arr.length) saveCards(validCards);
+      return validCards;
+    } catch { return[]; }
   }
+
+  function renderCards(){
+    const data = loadCards().filter(isForThisStation);
+    listEl.innerHTML = '';
+    data.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'ops-item';
+      div.id = `sec-${item.id}`;
+      // Lógica visual para la fecha
+      const dueDateHtml = item.due_date 
+        ? `<span style="color:#b91c1c; font-weight:700;">⏳ Hasta: ${new Date(item.due_date).toLocaleDateString('es-ES')}</span>` 
+        : '';
+
+      div.innerHTML = `
+        <div class="ops-head">
+          <div class="ops-title">${esc(item.title)}</div>
+          <div class="ops-flags">
+            ${item.owner ? `<span class="ops-scope">@${esc(item.owner)}</span>` : ''}
+            <button type="button" class="ops-btn" data-del="${item.id}">Eliminar</button>
+          </div>
+        </div>
+        <div class="ops-meta">Alta: ${new Date(item.created_at).toLocaleString('es-ES')} ${dueDateHtml}</div>
+      `;
+      listEl.prepend(div);
+    });
+    metaEl.textContent = `${data.length} tarjetas activas`;
+  }
+
+  formEl?.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const title = (titleEl.value || '').trim();
+    if (!title) return;
+    const owner = (ownerEl.value || '').trim();
+    const dueDate = (dueEl.value || null); // <--- Capturamos la fecha
+
+    const arr = loadCards();
+    arr.push({
+      id: uid(),
+      station: (window.STATION_OVERRIDE || '').toUpperCase() || (typeof STATION_CODE!=='undefined'?STATION_CODE:''),
+      title, owner, due_date: dueDate, // <--- Guardamos la fecha
+      created_at: new Date().toISOString()
+    });
+    saveCards(arr);
+    titleEl.value = ''; ownerEl.value = ''; dueEl.value = '';
+    renderCards();
+  });
   function saveCards(arr){
     try { localStorage.setItem(SEC_KEY, JSON.stringify(arr || [])); } catch {}
   }
@@ -7251,16 +7317,36 @@ window.markOkAndNext = function(checkName, nextId) {
     
     if (!listEl || !form) return;
 
-    function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } }
+    // Limpieza pasiva de caducados
+    function load() { 
+        try { 
+            const items = JSON.parse(localStorage.getItem(KEY) || '[]'); 
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            const validItems = items.filter(item => {
+                if (!item.due_date) return true;
+                return new Date(item.due_date) >= today;
+            });
+
+            if (validItems.length !== items.length) save(validItems);
+            return validItems;
+        } catch { return[]; } 
+    }
+    
     function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
 
     function render() {
         const items = load();
-        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay registros hoy.</div>';
+        listEl.innerHTML = items.length ? '' : '<div style="text-align:center;padding:20px;color:#9ca3af;">No hay registros activos hoy.</div>';
+        
         items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
             const card = document.createElement('div');
             const typeClass = item.type === 'incident' ? 'type-incident' : 'type-lesson';
             const badgeText = item.type === 'incident' ? '🔴 INCIDENTE' : '💡 LECCIÓN';
+            
+            const dueText = item.due_date ? `<span style="font-size:0.75rem; color:#b91c1c; font-weight:700;">⏳ Hasta: ${new Date(item.due_date).toLocaleDateString('es-ES')}</span>` : '';
+
             card.className = `inc-card ${typeClass}`;
             card.innerHTML = `
                 <div class="inc-header">
@@ -7270,12 +7356,12 @@ window.markOkAndNext = function(checkName, nextId) {
                     </div>
                     <button type="button" class="inc-del-btn" data-id="${item.id}">🗑️</button>
                 </div>
-                <div class="inc-desc">${esc(item.desc)}</div>`;
+                <div class="inc-desc">${esc(item.desc)}</div>
+                <div style="margin-top:6px; text-align:right;">${dueText}</div>`;
             listEl.appendChild(card);
         });
     }
 
-    // Usamos addEventListener con preventDefault al principio de todo
     form.addEventListener('submit', function(e) {
         e.preventDefault(); 
         e.stopPropagation();
@@ -7283,6 +7369,7 @@ window.markOkAndNext = function(checkName, nextId) {
         const typeVal = document.getElementById('new-inc-type').value;
         const titleVal = document.getElementById('new-inc-title').value.trim();
         const descVal = document.getElementById('new-inc-desc').value.trim();
+        const dueVal = document.getElementById('new-inc-due').value || null; // <--- Capturamos fecha
 
         if (!titleVal) return;
 
@@ -7292,13 +7379,13 @@ window.markOkAndNext = function(checkName, nextId) {
             type: typeVal, 
             title: titleVal, 
             desc: descVal, 
+            due_date: dueVal, // <--- Guardamos fecha
             date: new Date().toISOString() 
         });
         
         save(items);
-        this.reset(); // Limpia el formulario
+        this.reset();
         render();
-        console.log("Registro añadido:", typeVal);
     });
 
     listEl.onclick = function(e) {
@@ -7454,15 +7541,28 @@ async function generateAndSendToExcel() {
         }));
 
         // D. Card 4 y 5: SEGURIDAD TOTAL (Tips + Riesgos Card 4 + Incidentes Card 5)
+        // D. Card 4 y 5: SEGURIDAD TOTAL (Tips + Riesgos Card 4 + Incidentes Card 5)
         const safetyTips = Array.from(document.querySelectorAll('#sec-random-list li')).map(li => ({
             title: "Recordatorio Diario", desc: li.innerText
         }));
-        const card4Risks = JSON.parse(localStorage.getItem('sec_cards_v1') || '[]').map(c => ({
-            title: "Riesgo Card 4", desc: `${c.title} (Resp: ${c.owner})`
-        }));
-        const card5Manual = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]').map(i => ({
-            title: i.type.toUpperCase(), desc: `${i.title}: ${i.desc}`
-        }));
+        
+        // Leemos desde el LocalStorage, el cual ya viene limpio gracias a la limpieza pasiva.
+        // Formateamos añadiendo el sufijo de [Vigencia: XXXX] si existe.
+        const card4Risks = JSON.parse(localStorage.getItem('sec_cards_v1') || '[]').map(c => {
+            const vigencia = c.due_date ? `[Vigencia hasta: ${c.due_date}]` : '';
+            return {
+                title: "Riesgo Card 4", 
+                desc: `${c.title} (Resp: ${c.owner})${vigencia}`
+            };
+        });
+        
+        const card5Manual = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]').map(i => {
+            const vigencia = i.due_date ? ` [Vigencia hasta: ${i.due_date}]` : '';
+            return {
+                title: i.type.toUpperCase(), 
+                desc: `${i.title}: ${i.desc}${vigencia}`
+            };
+        });
 
         // E. PAYLOAD EXACTO PARA BriefingSnapshot (Python)
         const payload = {
