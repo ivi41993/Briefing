@@ -2476,6 +2476,92 @@ body.card-open #timer-reset {
     70% { box-shadow: 0 0 0 10px rgba(139, 92, 246, 0); }
     100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
 }
+/* ===== Póster de Seguridad Operacional (Tarjeta 4) ===== */
+.safety-poster {
+    background: linear-gradient(180deg, #374151 0%, #111827 100%);
+    border: 4px solid #9ca3af;
+    border-radius: 12px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 10px 25px rgba(220,38,38,0.2);
+    color: #f3f4f6;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    margin-bottom: 16px;
+    position: relative;
+}
+.sp-header {
+    background: repeating-linear-gradient(45deg, #dc2626, #dc2626 10px, #b91c1c 10px, #b91c1c 20px);
+    color: white;
+    text-align: center;
+    padding: 12px 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 3px solid #111827;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.6);
+}
+.sp-subtitle {
+    display: inline-block;
+    font-size: 0.95rem;
+    background: #fff;
+    color: #dc2626;
+    padding: 2px 12px;
+    border-radius: 4px;
+    margin-top: 4px;
+    text-shadow: none;
+    letter-spacing: 0;
+}
+.sp-row {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 24px;
+    border-bottom: 2px solid #374151;
+    position: relative;
+}
+/* Efecto de remaches industriales */
+.sp-row::before, .sp-row::after {
+    content: "●";
+    position: absolute;
+    color: #6b7280;
+    font-size: 1.2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    text-shadow: 0 1px 1px rgba(255,255,255,0.2);
+}
+.sp-row::before { left: 6px; }
+.sp-row::after { right: 6px; }
+
+.sp-title {
+    display: inline-flex;
+    align-items: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    color: white;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+.sp-text { font-size: 0.95rem; line-height: 1.4; color: #e5e7eb; }
+.sp-text ul { margin: 6px 0 0 0; padding-left: 24px; list-style: none; }
+.sp-text li { margin-bottom: 4px; position: relative; font-weight: 600;}
+.sp-text li.chk::before { content: "✔️"; position: absolute; left: -24px; }
+.sp-text li.dot::before { content: "•"; position: absolute; left: -18px; font-weight: bold; color: #f3f4f6;}
+.sp-text li.cross::before { content: "❌"; position: absolute; left: -24px; }
+
+.sp-highlight {
+    display: inline-block;
+    background: #dc2626;
+    color: white;
+    padding: 4px 12px;
+    font-weight: 800;
+    border-radius: 6px;
+    margin-top: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -2800,10 +2886,7 @@ body.card-open #timer-reset {
 
 
 <div class="widget vivid" id="seguridad-widget">
-  <h2 class="widget-title hero">
-    <span class="hero-ico">🛡️</span><span>4) Safety, Security, Quality & PRL</span>
-    <span class="hero-badge warn">PRIORIDAD</span>
-  </h2>
+ https://unificado-bbqy.onrender.com/wfs1/
 
   <!-- 1. RECORDATORIOS (MOVIDO ARRIBA) -->
   <div class="ops-item" id="sec-random-tips" style="margin-bottom:12px; background:#ffffff; border-left:4px solid #f59e0b;">
