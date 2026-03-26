@@ -2405,6 +2405,92 @@ body.card-open #timer-reset {
 #aena-notice b {
     color: var(--brand-red-600);
 }
+/* ===== Póster de Seguridad Operacional (Tarjeta 4) ===== */
+.safety-poster {
+    background: linear-gradient(180deg, #374151 0%, #111827 100%);
+    border: 4px solid #9ca3af;
+    border-radius: 12px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 10px 25px rgba(220,38,38,0.2);
+    color: #f3f4f6;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    margin-bottom: 16px;
+    position: relative;
+}
+.sp-header {
+    background: repeating-linear-gradient(45deg, #dc2626, #dc2626 10px, #b91c1c 10px, #b91c1c 20px);
+    color: white;
+    text-align: center;
+    padding: 12px 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 3px solid #111827;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.6);
+}
+.sp-subtitle {
+    display: inline-block;
+    font-size: 0.95rem;
+    background: #fff;
+    color: #dc2626;
+    padding: 2px 12px;
+    border-radius: 4px;
+    margin-top: 4px;
+    text-shadow: none;
+    letter-spacing: 0;
+}
+.sp-row {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 24px;
+    border-bottom: 2px solid #374151;
+    position: relative;
+}
+/* Efecto de remaches industriales */
+.sp-row::before, .sp-row::after {
+    content: "●";
+    position: absolute;
+    color: #6b7280;
+    font-size: 1.2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    text-shadow: 0 1px 1px rgba(255,255,255,0.2);
+}
+.sp-row::before { left: 6px; }
+.sp-row::after { right: 6px; }
+
+.sp-title {
+    display: inline-flex;
+    align-items: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    color: white;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+.sp-text { font-size: 0.95rem; line-height: 1.4; color: #e5e7eb; }
+.sp-text ul { margin: 6px 0 0 0; padding-left: 24px; list-style: none; }
+.sp-text li { margin-bottom: 4px; position: relative; font-weight: 600;}
+.sp-text li.chk::before { content: "✔️"; position: absolute; left: -24px; }
+.sp-text li.dot::before { content: "•"; position: absolute; left: -18px; font-weight: bold; color: #f3f4f6;}
+.sp-text li.cross::before { content: "❌"; position: absolute; left: -24px; }
+
+.sp-highlight {
+    display: inline-block;
+    background: #dc2626;
+    color: white;
+    padding: 4px 12px;
+    font-weight: 800;
+    border-radius: 6px;
+    margin-top: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
 </style>
   <!-- Importar la librería de gráficos Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -2725,6 +2811,81 @@ body.card-open #timer-reset {
     <span class="hero-ico">🛡️</span><span>4) Safety, Security, Quality & PRL</span>
     <span class="hero-badge warn">PRIORIDAD</span>
   </h2>
+
+  <!-- PÓSTER DE SEGURIDAD CRÍTICO -->
+  <div class="safety-poster">
+      <div class="sp-header">
+          ⚠️ SEGURIDAD OPERACIONAL
+          <div class="sp-subtitle">(MENSAJE CRÍTICO)</div>
+      </div>
+      
+      <div class="sp-row">
+          <div class="sp-title" style="background:#f59e0b; color:#111827;">⚠️ RECUERDA</div>
+          <div class="sp-text">
+              <strong>Accidentes recientes en Johannesburgo y Madrid</strong><br>
+              <span style="color:#fca5a5; font-weight:700;">➡️ Esto nos puede pasar a cualquiera</span>
+          </div>
+      </div>
+
+      <div class="sp-row">
+          <div class="sp-title" style="background:#dc2626;">🛑 ANTES DE ACTUAR, PIENSA</div>
+          <div class="sp-text">
+              <ul>
+                  <li class="dot">¿Es segura la tarea?</li>
+                  <li class="dot">¿El entorno está controlado?</li>
+                  <li class="dot">¿Hay riesgos visibles?</li>
+              </ul>
+              <div class="sp-highlight">➡️ SI DUDAS: PARA</div>
+          </div>
+      </div>
+
+      <div class="sp-row">
+          <div class="sp-title" style="background:#f59e0b; color:#111827;">⚙️ REGLAS CLAVE</div>
+          <div class="sp-text">
+              <ul>
+                  <li class="chk">Respeta los procedimientos</li>
+                  <li class="chk">Atención a cargas y equipos en movimiento</li>
+                  <li class="chk">Trabaja de forma estable y controlada</li>
+                  <li class="chk">Sin prisas = Sin accidentes</li>
+              </ul>
+          </div>
+      </div>
+
+      <div class="sp-row">
+          <div class="sp-title" style="background:#2563eb;">👥 TRABAJO EN EQUIPO</div>
+          <div class="sp-text">
+              <ul>
+                  <li class="chk">Cuida de tu compañero</li>
+                  <li class="chk">Habla si ves un riesgo</li>
+                  <li class="chk">Apoya decisiones seguras</li>
+              </ul>
+              <div class="sp-highlight" style="background:#f3f4f6; color:#dc2626;">➡️ Aquí la seguridad es de todos</div>
+          </div>
+      </div>
+
+      <div class="sp-row">
+          <div class="sp-title" style="background:#dc2626;">🚫 PRIORIDAD ABSOLUTA</div>
+          <div class="sp-text">
+              <ul>
+                  <li class="cross">Ninguna mercancía es urgente</li>
+                  <li class="cross">Ningún vuelo vale un accidente</li>
+              </ul>
+              <div class="sp-highlight">➡️ Si hay riesgo ➡️ SE DETIENE LA OPERACIÓN</div>
+          </div>
+      </div>
+
+      <div class="sp-row" style="border-bottom:none; text-align:center;">
+          <div style="background:#2563eb; padding:12px; border-radius:8px; margin-bottom:10px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+              <div style="font-size:1.1rem; font-weight:800; margin-bottom:4px;">🔵 MENSAJE FINAL</div>
+              <div style="font-family:'Space Grotesk', sans-serif; font-size:1.4rem; font-weight:900; line-height:1.2;">PARAR NO ES FALLAR<br>SEGUIR CON RIESGO SÍ LO ES</div>
+          </div>
+          <div style="background:#16a34a; padding:10px; border-radius:8px; font-size:1.15rem; font-weight:800; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+              🟢 OBJETIVO ➡️ TODOS VOLVEMOS A CASA SEGUROS
+          </div>
+      </div>
+  </div>
+
+
 
   <!-- 1. RECORDATORIOS (MOVIDO ARRIBA) -->
   <div class="ops-item" id="sec-random-tips" style="margin-bottom:12px; background:#ffffff; border-left:4px solid #f59e0b;">
