@@ -4503,13 +4503,14 @@ async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/n
 function processTaskUpdate(data) {
     if (!data) return;
 
+    // --- CORRECCIÓN CRÍTICA: Definir el ID arriba del todo ---
+    const elementId = data.id ? `task-${data.id}` : null;
+
     // 1. Manejo de borrado (Global)
     if (data.action === 'delete') {
-        document.getElementById(elementId)?.remove();
+        if (elementId) document.getElementById(elementId)?.remove();
         document.getElementById(`ops-${data.id}`)?.remove(); 
-        document.getElementById(`aduanas-${data.id}`)?.remove(); // <--- Añadir esta línea
-        const el = document.getElementById(`task-${data.id}`) || document.getElementById(`ops-${data.id}`);
-        if (el) el.remove();
+        document.getElementById(`aduanas-${data.id}`)?.remove();
         if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
         return;
     }
@@ -4524,40 +4525,30 @@ function processTaskUpdate(data) {
                 window.TEAM_STATE.attendance[data.person] = !!data.present;
                 updateTeamMeta(window.TEAM_STATE);
             }
-            renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people || [], window.TEAM_STATE);
+            renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people ||[], window.TEAM_STATE);
         }
         return;
     }
 
-    // 4. KPIs (FIIX + PowerBI)
-    // Dentro de processTaskUpdate(data) en tu index.html
+    // 4. KPIs y Aduanas
     if (data.task_type === 'ops_update') {
-        if (typeof window.renderOpsCard === 'function') {
-            window.renderOpsCard(data);
-        }
+        if (typeof window.renderOpsCard === 'function') window.renderOpsCard(data);
         return;
     }
-
-    // --- AÑADIR ESTO ---
     if (data.task_type === 'aduanas_info') {
-        if (typeof window.renderAduanasCard === 'function') {
-            window.renderAduanasCard(data);
-        }
+        if (typeof window.renderAduanasCard === 'function') window.renderAduanasCard(data);
         return;
     }
-    
     if (data.metric && data.metric.startsWith('fiix_')) {
-            updateFiixDisplay(data.metric, data.value);
-            return;
-        }
+        updateFiixDisplay(data.metric, data.value);
+        return;
+    }
 
     // 5. Render de tarjetas normales
-    const elementId = `task-${data.id}`;
     switch(data.task_type) {
         case 'kanban_rapida': renderBoardCard(data, elementId); break;
         case 'kaizen': renderKaizenCard(data, elementId); break;
         case 'gw_task': GW_MAP.set(data.id, data); renderGwTop3(); break;
-        case 'ops_update': if(window.renderOpsCard) window.renderOpsCard(data); break;
     }
 }
 
@@ -4565,130 +4556,9 @@ const GRIP = '<div class="drag-handle" aria-hidden="true" title="Arrastrar"><svg
 
 
 
-(function wireOpsDialog(){
-  const btnAdd = document.getElementById('ops-add');
-  const dlg    = document.getElementById('ops-dialog');
-  const form   = document.getElementById('ops-form');
-  if (!dlg || !form) return;
-
-  function openEmpty(){
-    form.reset();
-    document.getElementById('ops-id').value = '';
-    dlg.showModal();
-  }
-  function openWith(task){
-    const idNorm = getTaskId(task || {});
-    document.getElementById('ops-id').value           = idNorm || '';
-    document.getElementById('ops-title').value        = (task?.title  || '');
-    document.getElementById('ops-impact').value       = (task?.impact || task?.priority || 'Medio');
-    document.getElementById('ops-scope-field').value  = (task?.scope  || task?.area || 'General');
-    document.getElementById('ops-owner').value        = (task?.owner  || task?.assigned_to || '');
-    document.getElementById('ops-from').value         = ((task?.from  || task?.valid_from  || task?.start_date || '').split('T')[0] || '');
-    document.getElementById('ops-to').value           = ((task?.to    || task?.valid_to    || task?.end_date   || '').split('T')[0] || '');
-    dlg.showModal();
-  }
-
-  btnAdd?.addEventListener('click', openEmpty);
-
-  // Editar (delegación en lista)
-  document.getElementById('ops-list')?.addEventListener('click', async (e)=>{
-    const b = e.target.closest('.ops-edit-btn');
-    if (!b) return;
-    const id = b.dataset.id;
-    try{
-      const r = await fetch(`/api/tasks/${id}`, { cache:'no-store' });
-      const t = await r.json();
-      openWith(t || { id });
-    }catch{
-      openWith({ id });
-    }
-  });
-
-  // Guardar
-  form.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const payload = {
-      task_type: 'ops_update',
-      title:  document.getElementById('ops-title').value.trim(),
-      impact: document.getElementById('ops-impact').value,
-      scope:  document.getElementById('ops-scope-field').value,
-      owner:  document.getElementById('ops-owner').value.trim() || null,
-      from:   document.getElementById('ops-from').value || null,
-      to:     document.getElementById('ops-to').value   || null,
-      station: (typeof STATION_CODE!=='undefined' ? STATION_CODE : (window.STATION_OVERRIDE||'MAD'))
-    };
-    if (!payload.title){ alert('Falta el título'); return; }
-
-    const id = document.getElementById('ops-id').value;
-    try{
-      if (id){
-        const up = await updateTaskOnServer(id, payload);
-        renderOpsCard(up);
-      }else{
-        const created = await createTaskOnServer(payload);
-        renderOpsCard(created);
-      }
-      dlg.close();
-    }catch(err){
-      alert('No se pudo guardar la actualización operativa.');
-      console.error(err);
-    }
-  });
-
-  // === FIX: Cerrar correctamente el diálogo ===
-  const cancelBtn = form.querySelector('button[value="cancel"]');
-  cancelBtn?.addEventListener('click', (e)=>{ e.preventDefault(); dlg.close(); });
-
-  // Cerrar con ESC
-  dlg.addEventListener('cancel', (e)=>{ e.preventDefault(); dlg.close(); });
-
-  // Cerrar clicando fuera del cuadro
-  // Cerrar clicando fuera del cuadro (CORREGIDO)
-  dlg.addEventListener('click', (e) => {
-    // 1. Si el clic viene de dentro del formulario (inputs, selects, labels), IGNORAR.
-    // Esto evita que al pulsar un desplegable se cierre el modal.
-    if (e.target.closest('#ops-form')) return;
-
-    // 2. Solo si se hace clic en el fondo gris (backdrop), verificamos coordenadas
-    const box = form.getBoundingClientRect();
-    const inside = (
-      e.clientX >= box.left && e.clientX <= box.right &&
-      e.clientY >= box.top  && e.clientY <= box.bottom
-    );
-    
-    // Si realmente fue fuera, cerramos
-    if (!inside) dlg.close();
-  });
-})();
 
 
-  (function wireOpsFilters(){
-  const q     = document.getElementById('ops-q');
-  const prio  = document.getElementById('ops-prio');
-  const scope = document.getElementById('ops-scope');
-  const list  = document.getElementById('ops-list');
-  if (!list) return;
 
-  function apply(){
-    const qt = (q?.value || '').toLowerCase();
-    const pv = (prio?.value || '');
-    const sv = (scope?.value || '');
-
-    list.querySelectorAll('.ops-item').forEach(card=>{
-      const t  = card.querySelector('.ops-title')?.textContent?.toLowerCase() || '';
-      const ip = card.querySelector('.ops-impact')?.textContent?.trim() || '';
-      const sc = card.querySelector('.ops-scope')?.textContent?.trim() || '';
-      const okText  = !qt || t.includes(qt);
-      const okPrio  = !pv || ip === pv;
-      const okScope = !sv || sc === sv;
-      card.style.display = (okText && okPrio && okScope) ? '' : 'none';
-    });
-  }
-
-  q?.addEventListener('input', apply);
-  prio?.addEventListener('change', apply);
-  scope?.addEventListener('change', apply);
-})();
 
   
 function renderBoardCard(task, elementId){
@@ -5856,343 +5726,7 @@ const msToNextMin = (60 - now.getSeconds())*1000 - now.getMilliseconds();
 setTimeout(()=>{ paintDateTimeAndShift(); setInterval(paintDateTimeAndShift, 60000); }, Math.max(0, msToNextMin));
 }
 
-/* ===== Actualizaciones Operativas (v3, limpio y unificado) ===== */
-(function(){
-  const OPS_KEY = 'ops_updates_v3';
-  const STATION = (window.STATION_CODE || 'MAD');
 
-  const $ = (id)=>document.getElementById(id);
-  const wrap = $('ops-updates-widget');
-  if (!wrap) return;
-
-  const els = {
-    list: $('ops-list'),
-    search: $('ops-search'),
-    fPrio: $('ops-filter-prio'),
-    fScope: $('ops-filter-scope'),
-    add: $('ops-add'),
-    exportTxt: $('ops-export-txt'),
-    exportCsv: $('ops-export-csv'),
-    badgePend: $('ops-badge-pend'),
-    dlg: $('ops-dialog'),
-    form: $('ops-form'),
-    id: $('ops-id'),
-    title: $('ops-title'),
-    impact: $('ops-impact'),
-    scope: $('ops-scope'),
-    assignee: $('ops-assignee'),
-    vFrom: $('ops-valid-from'),
-    vTo: $('ops-valid-to'),
-    reqAck: $('ops-require-ack'),
-    save: $('ops-save'),
-  };
-
-  const rank = {Alto:0, Medio:1, Bajo:2};
-  const defaultScopes = ['General','Isla','Dorada','Muelle Imp','Muelle Exp','Import','Export'];
-
-  function load(){ try{ return JSON.parse(localStorage.getItem(OPS_KEY)||'[]'); }catch{ return []; } }
-  function save(list){ try{ localStorage.setItem(OPS_KEY, JSON.stringify(list)); }catch{} }
-
-  // Migración simple desde claves antiguas si existieran
-  (function migrate(){
-    if (localStorage.getItem('OPS_SECTIONS_KEY')) localStorage.removeItem('OPS_SECTIONS_KEY');
-    const v2 = localStorage.getItem('ops_updates_v2');
-    if (v2 && !localStorage.getItem(OPS_KEY)) localStorage.setItem(OPS_KEY, v2);
-  })();
-
-  function uid(){ return 'op_' + Math.random().toString(36).slice(2,9); }
-  function nowISO(){ return new Date().toISOString(); }
-  function sameDay(a,b){ return a && b && a.slice(0,10) === b.slice(0,10); }
-
-  function ackProgress(it){
-    const names = (window.TEAM_STATE?.people || []).map(p => p.nombre_completo).filter(Boolean);
-    const present = names.filter(n => (window.TEAM_STATE?.attendance||{})[n] === true);
-    const universe = present.length ? present : names;
-    const acks = Object.keys(it.acks||{});
-    const count = acks.filter(n => universe.includes(n)).length;
-    const total = universe.length || 0;
-    const pct = total ? Math.round(count*100/total) : 0;
-    return {count,total,pct, universe};
-  }
-
-  function isExpired(it){
-    if (!it.valid_to) return false;
-    const d = new Date(it.valid_to);
-    return !isNaN(d) && d < new Date();
-  }
-  function isStale(it){
-    if (!it.valid_from) return false;
-    const d = new Date(it.valid_from);
-    if (isNaN(d)) return false;
-    const days = Math.floor((Date.now() - d.getTime())/86400000);
-    const done = ackProgress(it).pct === 100;
-    return days >= 7 && (!it.require_ack || done);
-  }
-
-  function normalizeText(s){ return String(s||'').toLowerCase(); }
-
-  function render(){
-    const list = load().filter(x => !x.station || x.station === STATION);
-
-    // Filtros
-    const q = normalizeText(els.search?.value||'');
-    const fImp = els.fPrio?.value || '';
-    const fScope = els.fScope?.value || '';
-    const filtered = list.filter(it => {
-      const txt = [it.title,it.scope,it.assignee].map(normalizeText).join(' ');
-      const okQ = !q || txt.includes(q);
-      const okI = !fImp || it.impact === fImp;
-      const okS = !fScope || it.scope === fScope;
-      return okQ && okI && okS;
-    });
-
-    // Orden: fijados > impacto > fecha
-    filtered.sort((a,b)=>{
-      if ((b.pinned|0) - (a.pinned|0)) return 1*((b.pinned|0)-(a.pinned|0));
-      const ri = (rank[a.impact]??9) - (rank[b.impact]??9);
-      if (ri) return ri;
-      return (new Date(b.ts||0)) - (new Date(a.ts||0));
-    });
-
-    els.list.innerHTML = '';
-    let pend = 0;
-
-    filtered.forEach(it=>{
-      const expired = isExpired(it);
-      const stale = isStale(it);
-      const ack = ackProgress(it);
-      const needs = it.require_ack && ack.pct < 100 && !expired;
-      if (needs) pend++;
-
-      const item = document.createElement('div');
-      item.className = 'ops-item' + (expired?' ops-expired': stale?' ops-stale':'');
-      item.dataset.id = it.id;
-      item.innerHTML = `
-        <div class="ops-head">
-          <div class="ops-title">${esc(it.title||'')}</div>
-          <div class="ops-flags">
-            <span class="ops-impact ${esc(it.impact||'')}">${esc(it.impact||'—')}</span>
-            <span class="ops-scope">${esc(it.scope||'General')}</span>
-          </div>
-        </div>
-        <div class="ops-meta">
-          <span>Alta: ${it.ts ? new Date(it.ts).toLocaleString('es-ES') : '—'}</span>
-          ${it.valid_from ? `<span>Vigente desde: ${new Date(it.valid_from).toLocaleDateString('es-ES')}</span>`:''}
-          ${it.valid_to   ? `<span>Hasta: ${new Date(it.valid_to).toLocaleDateString('es-ES')}</span>`:''}
-          ${it.assignee   ? `<span>Resp.: ${esc(it.assignee)}</span>`:''}
-          ${it.require_ack? `<span>Requiere acuse</span>`:''}
-        </div>
-        ${it.require_ack ? `
-        <div class="ops-ack">
-          <div class="ops-ack-bar" title="${ack.count}/${ack.total}">
-            <span style="width:${ack.pct}%;"></span>
-          </div>
-          <strong>${ack.pct}%</strong>
-          <button class="ops-btn ops-ack-manage" type="button">Gestionar acuses</button>
-        </div>`:''}
-        <div class="ops-actions">
-          <button class="ops-btn ops-edit" type="button">Editar</button>
-          <button class="ops-btn ops-pin ${it.pinned?'on':''}" type="button">${it.pinned?'Fijado':'Fijar'}</button>
-          <button class="ops-btn ops-delete" type="button" style="color:#991b1b;">Eliminar</button>
-        </div>
-      `;
-      els.list.appendChild(item);
-    });
-
-    // meta badge
-    if (els.badgePend){
-      els.badgePend.style.display = pend ? '' : 'none';
-      els.badgePend.textContent = `${pend} pendientes`;
-    }
-  }
-
-  // —— CRUD helpers —— //
-  function openDialog(edit=null){
-    if (edit){
-      els.id.value = edit.id;
-      els.title.value = edit.title || '';
-      els.impact.value = edit.impact || 'Medio';
-      els.scope.value = defaultScopes.includes(edit.scope) ? edit.scope : 'General';
-      els.assignee.value = edit.assignee || '';
-      els.vFrom.value = edit.valid_from || '';
-      els.vTo.value = edit.valid_to || '';
-      els.reqAck.checked = !!edit.require_ack;
-    } else {
-      els.id.value = '';
-      els.title.value = '';
-      els.impact.value = 'Medio';
-      els.scope.value = 'General';
-      els.assignee.value = '';
-      els.vFrom.value = '';
-      els.vTo.value = '';
-      els.reqAck.checked = false;
-    }
-    els.dlg.showModal();
-  }
-
-  function upsertFromDialog(){
-    const id = els.id.value || uid();
-    const it = {
-      id,
-      title: (els.title.value||'').trim(),
-      impact: els.impact.value,
-      scope: els.scope.value || 'General',
-      assignee: (els.assignee.value||'').trim() || null,
-      valid_from: els.vFrom.value || null,
-      valid_to: els.vTo.value || null,
-      require_ack: !!els.reqAck.checked,
-      acks: {},                     // se respeta al editar si existe
-      station: STATION,
-      ts: nowISO(),
-      pinned: false,
-    };
-    if (!it.title) return false;
-
-    const list = load();
-    const i = list.findIndex(x => x.id === id);
-    if (i >= 0){
-      // conservar acks y pin
-      it.acks = list[i].acks || {};
-      it.pinned = !!list[i].pinned;
-      list[i] = it;
-    } else {
-      list.push(it);
-    }
-    save(list);
-    return true;
-  }
-
-  // —— Eventos globales —— //
-  els.add?.addEventListener('click', ()=> openDialog());
-  els.form?.addEventListener('close', ()=> render());
-  els.save?.addEventListener('click', (e)=>{
-    e.preventDefault();
-    if (upsertFromDialog()) els.dlg.close();
-  });
-
-  // Filtros
-  [els.search, els.fPrio, els.fScope].forEach(el=>{
-    el?.addEventListener('input', render);
-    el?.addEventListener('change', render);
-  });
-
-  // Delegación de acciones en la lista
-  els.list?.addEventListener('click', (e)=>{
-    const row = e.target.closest('.ops-item'); if (!row) return;
-    const id = row.dataset.id;
-    const list = load();
-    const idx = list.findIndex(x => x.id === id);
-    if (idx < 0) return;
-
-    if (e.target.closest('.ops-edit')){
-      openDialog(list[idx]);
-      return;
-    }
-    if (e.target.closest('.ops-pin')){
-      list[idx].pinned = !list[idx].pinned;
-      save(list); render(); return;
-    }
-    if (e.target.closest('.ops-delete')){
-      if (!confirm('¿Eliminar la actualización?')) return;
-      list.splice(idx,1); save(list); render(); return;
-    }
-    if (e.target.closest('.ops-ack-manage')){
-      // panel inline de acuses
-      const it = list[idx];
-      const ackId = 'ack-panel-' + id;
-      let panel = row.querySelector('#'+ackId);
-      if (panel){ panel.remove(); return; }
-
-      const {universe} = ackProgress(it);
-      panel = document.createElement('div');
-      panel.id = ackId;
-      panel.style.cssText = 'margin-top:6px;border:1px solid var(--border);border-radius:10px;padding:8px;';
-      panel.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <strong>Acuses del turno (${universe.length})</strong>
-          <div style="display:flex;gap:6px;">
-            <button class="ops-btn ack-all" type="button">Marcar todos</button>
-            <button class="ops-btn ack-none" type="button">Quitar todos</button>
-          </div>
-        </div>
-        <div class="ack-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;max-height:220px;overflow:auto;"></div>
-      `;
-      row.appendChild(panel);
-
-      const grid = panel.querySelector('.ack-grid');
-      universe.forEach(n=>{
-        const chk = document.createElement('label');
-        chk.style.cssText = 'display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:#fff;';
-        const checked = !!(it.acks||{})[n];
-        chk.innerHTML = `<input type="checkbox" ${checked?'checked':''} data-name="${esc(n)}"> <span>${esc(n)}</span>`;
-        grid.appendChild(chk);
-      });
-
-      panel.querySelector('.ack-all')?.addEventListener('click', ()=>{
-        it.acks = {}; universe.forEach(n => it.acks[n] = true);
-        save(list); render();
-      });
-      panel.querySelector('.ack-none')?.addEventListener('click', ()=>{
-        it.acks = {}; save(list); render();
-      });
-      grid.addEventListener('change', (ev)=>{
-        const inp = ev.target.closest('input[type="checkbox"]'); if (!inp) return;
-        const name = inp.getAttribute('data-name');
-        it.acks = it.acks || {};
-        if (inp.checked) it.acks[name] = true; else delete it.acks[name];
-        save(list); render();
-      });
-
-      return;
-    }
-  });
-
-  // —— Exportaciones —— //
-  els.exportTxt?.addEventListener('click', async ()=>{
-    const list = load().filter(x => !x.station || x.station === STATION);
-    const lines = list.map(it=>{
-      const f = it.valid_from ? new Date(it.valid_from).toLocaleDateString('es-ES') : '';
-      const t = it.valid_to   ? new Date(it.valid_to).toLocaleDateString('es-ES')   : '';
-      const sign = it.impact==='Alto'?'‼️': it.impact==='Medio'?'❗':'•';
-      return `${sign} ${it.title} [${it.scope}] ${f&&t?`(${f}→${t})`:''} ${it.assignee?`• Resp: ${it.assignee}`:''}`;
-    });
-    const txt = lines.join('\n') || '—';
-    try{
-      await navigator.clipboard.writeText(txt);
-      alert('Resumen copiado al portapapeles');
-    }catch{
-      const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
-      document.execCommand('copy'); document.body.removeChild(ta);
-      alert('Resumen copiado');
-    }
-  });
-
-  els.exportCsv?.addEventListener('click', ()=>{
-    const list = load().filter(x => !x.station || x.station === STATION);
-    const header = ['id','title','impact','scope','assignee','valid_from','valid_to','require_ack','pinned','created_at','station'];
-    const rows = list.map(it => [
-      it.id, it.title, it.impact, it.scope, it.assignee||'',
-      it.valid_from||'', it.valid_to||'',
-      it.require_ack?1:0, it.pinned?1:0, it.ts||'', it.station||''
-    ]);
-    const csv = [header, ...rows].map(r=>r.map(v=>{
-      const s = String(v??'');
-      return /[",;\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-    }).join(';')).join('\n');
-
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `ops_updates_${STATION}_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  });
-
-  // Primer render y reactivo a cambios de roster (para % acuses)
-  render();
-  // Si usas WebSocket y haces update del roster, re-rendera:
-  window.addEventListener('team_roster_updated', render);
-})();
 
 
 /* ===== Seguridad: tips diarios automáticos (2/día) ===== */
@@ -6926,163 +6460,206 @@ async function renderFiixWeeklyHistory() {
 document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
 
 /* ===================== OPS UPDATES (SOLUCIÓN UNIFICADA Y CORREGIDA) ===================== */
-(function initOpsUpdates(){
-  const LIST   = document.getElementById('ops-list');
-  const DIALOG = document.getElementById('ops-dialog');
-  const FORM   = document.getElementById('ops-form');
-  const BTN_ADD= document.getElementById('ops-add');
-  const BTN_SAVE = document.getElementById('ops-save');
-  
-  // Filtros
-  const Q      = document.getElementById('ops-q');
-  const FILT_PRIO  = document.getElementById('ops-prio');
-  const FILT_SCOPE = document.getElementById('ops-scope');
+/* =========================================================
+   MÓDULO UNIFICADO: ACTUALIZACIONES OPERATIVAS
+   ========================================================= */
+(function initOpsUpdatesDefinitivo() {
+    const LIST = document.getElementById('ops-list');
+    const DIALOG = document.getElementById('ops-dialog');
+    const BTN_ADD = document.getElementById('ops-add');
+    
+    let FORM = document.getElementById('ops-form');
+    if (!LIST || !DIALOG || !FORM) return;
 
-  // IDENTIDAD DE LA ESTACIÓN (Asegúrate de que coincida con el backend)
-  const CURRENT_STATION = (window.STATION_OVERRIDE || 'WFS1ALM').toUpperCase();
+    // 1. LIMPIEZA DE EVENTOS DUPLICADOS (Clonamos el form y botones para borrar listeners viejos)
+    const newForm = FORM.cloneNode(true);
+    FORM.parentNode.replaceChild(newForm, FORM);
+    FORM = newForm;
 
-  if (!LIST || !DIALOG || !FORM) return;
-
-  async function apiAction(url, method, data=null){
-    const opts = { method, headers: {} };
-    if(data){
-        opts.headers['Content-Type'] = 'application/json';
-        opts.body = JSON.stringify(data);
+    if (BTN_ADD) {
+        const newBtnAdd = BTN_ADD.cloneNode(true);
+        BTN_ADD.parentNode.replaceChild(newBtnAdd, BTN_ADD);
     }
-    const r = await fetch(url, opts);
-    if(method === 'DELETE' && r.status === 404) return true; 
-    if(!r.ok) throw new Error(`Error ${method}`);
-    return method === 'DELETE' ? True : await r.json();
-  }
 
-  // RENDERIZADOR
-  window.renderOpsCard = function(it) {
-    if(!LIST) return;
-    // Si la tarjeta que llega no es de mi estación, la ignoro (Seguridad para WebSocket)
-    if (it.station && it.station.toUpperCase() !== CURRENT_STATION) return;
+    const Q = document.getElementById('ops-q');
+    const PRIO = document.getElementById('ops-prio');
+    const SCOPE = document.getElementById('ops-scope');
 
-    const existing = document.getElementById(`ops-${it.id}`);
-    if (existing) existing.remove();
-
-    const el = document.createElement('div');
-    el.className = 'ops-item';
-    el.id = `ops-${it.id}`;
-    el.dataset.id = it.id;
-    
-    const impact = it.impact || 'Medio';
-    const scope = it.scope || 'General';
-    const owner = it.owner || '—';
-    const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString() : '';
-    const ackPct = Number(it.ack_pct || 0);
-
-    el.innerHTML = `
-      <div class="ops-head">
-        <div class="ops-title" style="font-weight:800;">${esc(it.title)}</div>
-        <div class="ops-flags">
-          <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
-          <span class="ops-scope">${esc(scope)}</span>
-        </div>
-      </div>
-      <div class="ops-meta" style="margin-top:5px; font-size:0.85rem; color:var(--text-muted);">
-        <span>Resp: <strong>${esc(owner)}</strong></span>
-        <span style="margin-left:auto;">${dateStr}</span>
-      </div>
-      <div class="ops-actions" style="margin-top:10px; display:flex; gap:8px;">
-        <button class="ops-btn" data-action="edit" style="font-size:0.75rem; padding:4px 8px;">Editar</button>
-        <button class="ops-btn" data-action="delete" style="color:#b91c1c; font-size:0.75rem; padding:4px 8px;">Eliminar 🗑️</button>
-      </div>
-    `;
-    
-    // Insertar arriba (más reciente primero)
-    LIST.prepend(el);
-  };
-
-  // CARGA INICIAL (Solo lo que pertenece a esta nave)
-  async function loadInitial(){
-    try {
-        // Pedimos al servidor todas las tareas de tipo ops_update
-        const items = await (await fetch('api/tasks?task_type=ops_update')).json();
+    // 2. RENDERIZADOR GLOBAL (Se llama desde processTaskUpdate)
+    window.renderOpsCard = function(it) {
+        if (!LIST) return;
         
-        LIST.innerHTML = ''; 
-        
-        // Filtro estricto: solo muestro lo que sea de mi nave
-        const filtered = items.filter(it => (it.station || '').toUpperCase() === CURRENT_STATION);
+        // Ignorar si no es de esta estación
+        if (it.station && it.station.toUpperCase() !== STATION_CODE) return;
 
-        if (filtered.length === 0) {
-            LIST.innerHTML = '<div style="padding:15px;color:#888;text-align:center;">No hay actualizaciones para esta nave.</div>';
-            return;
+        // Borrar duplicado visual si ya existe
+        const existing = document.getElementById(`ops-${it.id}`);
+        if (existing) existing.remove();
+
+        const el = document.createElement('div');
+        el.className = 'ops-item';
+        el.id = `ops-${it.id}`;
+        el.dataset.id = it.id;
+        
+        const impact = it.impact || it.category || 'Medio';
+        const scope = it.scope || it.assigned_to || 'General';
+        const owner = it.owner || '—';
+        const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES');
+
+        let vigenciaHtml = '';
+        if (it.from || it.to || it.due_date) {
+            const fFinal = it.to || it.due_date;
+            vigenciaHtml = `<div style="margin-top:6px; font-size:0.75rem; color:#b91c1c; font-weight:bold;">
+                ⏳ Válido: ${it.from ? new Date(it.from).toLocaleDateString() : 'Siempre'} ➡️ ${fFinal ? new Date(fFinal).toLocaleDateString() : 'Siempre'}
+            </div>`;
         }
-        
-        // Ordenar por fecha y renderizar
-        filtered.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(window.renderOpsCard);
-        
-    } catch(e) { console.warn('Error cargando actualizaciones iniciales', e); }
-  }
 
-  // EVENTO GUARDAR
-  BTN_SAVE?.addEventListener('click', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('ops-id').value;
-    const payload = {
-      task_type: 'ops_update',
-      title: document.getElementById('ops-title').value.trim(),
-      impact: document.getElementById('ops-impact').value,
-      scope: document.getElementById('ops-scope-field').value,
-      owner: document.getElementById('ops-owner').value.trim(),
-      station: CURRENT_STATION // <--- CLAVE: Se guarda con la identidad de la nave
+        el.innerHTML = `
+          <div class="ops-head">
+            <div class="ops-title" style="font-weight:800;">${esc(it.title)}</div>
+            <div class="ops-flags">
+              <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
+              <span class="ops-scope">${esc(scope)}</span>
+            </div>
+          </div>
+          <div class="ops-meta" style="margin-top:5px; font-size:0.85rem; color:var(--text-muted); display:flex; justify-content:space-between;">
+            <span>Resp: <strong>${esc(owner)}</strong></span>
+            <span>📅 ${dateStr}</span>
+          </div>
+          ${vigenciaHtml}
+          <div class="ops-actions" style="margin-top:10px; display:flex; gap:8px;">
+            <button class="ops-btn" data-action="edit" style="font-size:0.75rem; padding:4px 8px;">Editar</button>
+            <button class="ops-btn" data-action="delete" style="color:#b91c1c; font-size:0.75rem; padding:4px 8px;">Eliminar 🗑️</button>
+          </div>
+        `;
+        
+        LIST.prepend(el);
+        applyFilters(); // Re-aplicar filtros si están activos
     };
 
-    if (!payload.title) return alert('El título es obligatorio');
-    
-    try {
-        if (id) {
-            await apiAction(`api/tasks/${id}`, 'PATCH', payload);
-        } else {
-            await apiAction('api/tasks', 'POST', payload);
+    // 3. ABRIR MODAL
+    function openDialog(data = null) {
+        FORM.reset();
+        document.getElementById('ops-id').value = data?.id || '';
+        if (data) {
+            document.getElementById('ops-title').value = data.title || '';
+            document.getElementById('ops-impact').value = data.impact || data.category || 'Medio';
+            document.getElementById('ops-scope-field').value = data.scope || data.assigned_to || 'General';
+            document.getElementById('ops-owner').value = data.owner || '';
+            document.getElementById('ops-from').value = data.from || '';
+            document.getElementById('ops-to').value = data.to || data.due_date || '';
         }
-        closeDialog();
-        loadInitial(); // Recargamos para asegurar orden y limpieza
-    } catch(err) { alert("Error al conectar con el servidor."); }
-  });
+        DIALOG.showModal();
+    }
 
-  // DELEGACIÓN (EDITAR / BORRAR)
-  LIST.addEventListener('click', async (e) => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const card = btn.closest('.ops-item');
-    const id = card.dataset.id;
+    document.getElementById('ops-add')?.addEventListener('click', () => openDialog());
 
-    if (btn.dataset.action === 'delete') {
-        if(confirm('¿Borrar actualización operativa?')){
-            await apiAction(`api/tasks/${id}`, 'DELETE');
-            card.remove();
+    FORM.querySelector('[value="cancel"]')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        DIALOG.close();
+    });
+
+    DIALOG.addEventListener('click', (e) => {
+        const rect = FORM.getBoundingClientRect();
+        const inside = (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
+        if (!inside) DIALOG.close();
+    });
+
+    // 4. GUARDAR (CONECTADO AL BACKEND DIRECTAMENTE)
+    FORM.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = FORM.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = 'Guardando...';
+
+        const id = document.getElementById('ops-id').value;
+        const payload = {
+            task_type: 'ops_update',
+            title: document.getElementById('ops-title').value.trim(),
+            impact: document.getElementById('ops-impact').value,
+            scope: document.getElementById('ops-scope-field').value,
+            owner: document.getElementById('ops-owner').value.trim() || null,
+            from: document.getElementById('ops-from').value || null,
+            to: document.getElementById('ops-to').value || null,
+            station: STATION_CODE // Garantiza que se guarde en tu estación
+        };
+
+        try {
+            if (id) {
+                await updateTaskOnServer(id, payload);
+            } else {
+                await createTaskOnServer(payload);
+            }
+            DIALOG.close();
+        } catch (err) {
+            console.error(err);
+            alert("Error al guardar la actualización operativa.");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Guardar';
         }
-    } else if (btn.dataset.action === 'edit') {
-        const title = card.querySelector('.ops-title').textContent;
-        const impact = card.querySelector('.ops-impact').textContent.trim();
-        const scope = card.querySelector('.ops-scope').textContent.trim();
-        const owner = card.querySelector('.ops-meta strong').textContent;
-        openDialog({id, title, impact, scope, owner});
+    });
+
+    // 5. DELEGACIÓN (EDITAR / BORRAR EN LISTA)
+    LIST.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        
+        const card = btn.closest('.ops-item');
+        const id = card.dataset.id;
+
+        if (btn.dataset.action === 'delete') {
+            if (confirm('¿Borrar actualización operativa de la base de datos?')) {
+                card.style.opacity = '0.5';
+                deleteTaskOnServer(id, 'ops_update').catch(() => {
+                    card.style.opacity = '1';
+                    alert('Error al borrar');
+                });
+            }
+        } else if (btn.dataset.action === 'edit') {
+            fetch(`api/tasks/${id}`)
+                .then(r => r.json())
+                .then(data => openDialog(data))
+                .catch(() => alert("No se pudo cargar la tarea para editar"));
+        }
+    });
+
+    // 6. FILTROS
+    function applyFilters() {
+        const query = (Q?.value || '').toLowerCase();
+        const prioVal = PRIO?.value || '';
+        const scopeVal = SCOPE?.value || '';
+
+        Array.from(LIST.children).forEach(card => {
+            const text = card.textContent.toLowerCase();
+            const impact = card.querySelector('.ops-impact')?.textContent || '';
+            const scope = card.querySelector('.ops-scope')?.textContent || '';
+
+            const matchQ = !query || text.includes(query);
+            const matchP = !prioVal || impact === prioVal;
+            const matchS = !scopeVal || scope === scopeVal;
+
+            card.style.display = (matchQ && matchP && matchS) ? '' : 'none';
+        });
     }
-  });
 
-  function openDialog(d){
-    FORM.reset();
-    document.getElementById('ops-id').value = d?.id || '';
-    if(d){
-        document.getElementById('ops-title').value = d.title || '';
-        document.getElementById('ops-impact').value = d.impact || 'Medio';
-        document.getElementById('ops-scope-field').value = d.scope || 'General';
-        document.getElementById('ops-owner').value = d.owner || '';
+    Q?.addEventListener('input', applyFilters);
+    PRIO?.addEventListener('change', applyFilters);
+    SCOPE?.addEventListener('change', applyFilters);
+
+    // 7. CARGA INICIAL EXCLUSIVA
+    async function forceLoadOps() {
+        try {
+            const res = await fetch(`api/tasks?task_type=ops_update&station=${STATION_CODE}`);
+            const tasks = await res.json();
+            LIST.innerHTML = '';
+            tasks.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(window.renderOpsCard);
+        } catch (e) {
+            console.warn("Error cargando OPS", e);
+        }
     }
-    DIALOG.showModal();
-  }
-  function closeDialog(){ DIALOG.close(); }
+    forceLoadOps();
 
-  BTN_ADD?.addEventListener('click', ()=>openDialog());
-  FORM.querySelector('[value="cancel"]')?.addEventListener('click', (e)=>{ e.preventDefault(); closeDialog(); });
-
-  loadInitial();
 })();
 // ... (El código anterior de initOpsUpdates y demás se mantiene igual) ...
 
