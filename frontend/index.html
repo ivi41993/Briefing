@@ -6778,20 +6778,23 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
 /* =========================================================
    MÓDULO UNIFICADO: ACTUALIZACIONES OPERATIVAS
    ========================================================= */
+/* =========================================================
+   MÓDULO UNIFICADO: ACTUALIZACIONES OPERATIVAS (CORREGIDO)
+   ========================================================= */
 (function initOpsUpdatesDefinitivo() {
     const LIST = document.getElementById('ops-list');
     const DIALOG = document.getElementById('ops-dialog');
     const BTN_ADD = document.getElementById('ops-add');
     let FORM = document.getElementById('ops-form');
-    
+
     if (!LIST || !DIALOG || !FORM) return;
 
-    // 1. Clonar formulario para eliminar eventos "fantasma" de versiones anteriores
+    // 1. Clonar formulario para eliminar eventos fantasmas
     const newForm = FORM.cloneNode(true);
     FORM.parentNode.replaceChild(newForm, FORM);
     FORM = newForm;
 
-    // 2. Renderizador Global (Pinta la tarjeta)
+    // 2. Renderizador Global
     window.renderOpsCard = function(it) {
         if (!LIST) return;
         if (it.station && it.station.toUpperCase() !== STATION_CODE) return;
@@ -6803,14 +6806,12 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
         el.className = 'ops-item';
         el.id = `ops-${it.id}`;
         el.dataset.id = it.id;
-        
-        // Mapeo defensivo de propiedades (backend usa due_date y assigned_to a veces)
+
         const impact = it.impact || it.category || 'Medio';
         const scope = it.scope || it.assigned_to || 'General';
         const owner = it.owner || '—';
         const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES');
 
-        // Lógica visual de Vigencia
         let vigenciaHtml = '';
         if (it.from || it.to || it.due_date) {
             const fFrom = it.from ? new Date(it.from).toLocaleDateString('es-ES') : 'Siempre';
@@ -6838,36 +6839,49 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
             <button class="ops-btn ops-del-btn" data-id="${it.id}" style="color:#b91c1c; font-size:0.75rem; padding:4px 8px;">Eliminar 🗑️</button>
           </div>
         `;
-        
-        LIST.prepend(el); // Lo más nuevo arriba
-        applyFilters(); // Mantiene el buscador funcionando
+
+        LIST.prepend(el);
+        applyFilters();
     };
 
-    // 3. Eventos Delegados en la lista (Para que los botones de Editar y Eliminar funcionen)
+    // 3. Eventos Delegados en la lista (Editar y Eliminar)
     LIST.addEventListener('click', async (e) => {
         const btnDel = e.target.closest('.ops-del-btn');
         const btnEdit = e.target.closest('.ops-edit-btn');
-        
+
+        // --- BORRAR ---
         if (btnDel) {
             const id = btnDel.dataset.id;
-            if (confirm('¿Borrar actualización operativa?')) {
-                document.getElementById(`ops-${id}`).style.opacity = '0.5';
+            if (confirm('¿Seguro que quieres borrar esta actualización operativa?')) {
+                const card = document.getElementById(`ops-${id}`);
+                if(card) card.style.opacity = '0.5';
+                
                 try {
-                    await deleteTaskOnServer(id, 'ops_update'); // Va a la API
+                    // Usamos fetch directo a tu API para evitar bloqueos
+                    const res = await fetch(`api/tasks/${id}`, { method: 'DELETE' });
+                    if (!res.ok && res.status !== 404) throw new Error("Error en servidor");
+                    
+                    if(card) card.remove(); // Borrado visual forzado inmediato
+                    
+                    // Notificamos al sistema central para que limpie el resto
+                    if(typeof processTaskUpdate === 'function') {
+                        processTaskUpdate({ id: id, action: 'delete', task_type: 'ops_update' });
+                    }
                 } catch (err) {
-                    alert("Error al borrar.");
-                    document.getElementById(`ops-${id}`).style.opacity = '1';
+                    alert("No se pudo borrar. Verifica la conexión.");
+                    if(card) card.style.opacity = '1'; // Restaura si falla
                 }
             }
         }
-        
+
+        // --- EDITAR ---
         if (btnEdit) {
             const id = btnEdit.dataset.id;
             try {
-                // Pedir datos completos a la API para rellenar el formulario
                 const r = await fetch(`api/tasks/${id}`);
+                if(!r.ok) throw new Error("Not found");
                 const task = await r.json();
-                
+
                 document.getElementById('ops-id').value = task.id || '';
                 document.getElementById('ops-title').value = task.title || '';
                 document.getElementById('ops-impact').value = task.impact || task.category || 'Medio';
@@ -6875,16 +6889,16 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
                 document.getElementById('ops-owner').value = task.owner || '';
                 document.getElementById('ops-from').value = task.from ? task.from.split('T')[0] : '';
                 document.getElementById('ops-to').value = (task.to || task.due_date) ? (task.to || task.due_date).split('T')[0] : '';
-                
+
                 DIALOG.showModal();
             } catch (err) {
-                alert("No se pudo cargar la tarjeta para editar.");
+                alert("Error al cargar la tarjeta para editar.");
             }
         }
     });
 
     // 4. Abrir y Cerrar Modal
-    BTN_ADD?.addEventListener('click', () => {
+    document.getElementById('ops-add')?.addEventListener('click', () => {
         FORM.reset();
         document.getElementById('ops-id').value = '';
         DIALOG.showModal();
@@ -6895,32 +6909,35 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
         DIALOG.close();
     });
 
-    // Cierra al hacer clic fuera del cuadro blanco
+    // --- SOLUCIÓN AL BUG DEL SELECT QUE CERRABA EL MODAL ---
     DIALOG.addEventListener('click', (e) => {
+        // Ignorar si el clic se originó DENTRO del formulario (ej: al abrir un <select>)
+        if (e.target.closest('#ops-form')) return; 
+
         const rect = FORM.getBoundingClientRect();
-        if (!(e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom)) {
+        const inside = (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
+        if (!inside) {
             DIALOG.close();
         }
     });
 
-    // 5. Enviar Datos (POST o PATCH a la API)
+    // 5. Enviar Datos
     FORM.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('ops-id').value;
-        
-        // Mapeo seguro cruzado (Envia impact y category igual para que la BD no falle)
+
         const payload = {
             task_type: 'ops_update',
             title: document.getElementById('ops-title').value.trim(),
             impact: document.getElementById('ops-impact').value,
-            category: document.getElementById('ops-impact').value, 
+            category: document.getElementById('ops-impact').value,
             scope: document.getElementById('ops-scope-field').value,
             assigned_to: document.getElementById('ops-scope-field').value,
             owner: document.getElementById('ops-owner').value.trim() || null,
             from: document.getElementById('ops-from').value || null,
             to: document.getElementById('ops-to').value || null,
             due_date: document.getElementById('ops-to').value || null,
-            station: STATION_CODE 
+            station: STATION_CODE
         };
 
         if (!payload.title) return;
@@ -6930,21 +6947,31 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
         btn.textContent = 'Guardando...';
 
         try {
-            if (id) {
-                await updateTaskOnServer(id, payload);
-            } else {
-                await createTaskOnServer(payload);
-            }
+            // Petición directa a la API para mayor seguridad
+            const url = id ? `api/tasks/${id}` : `api/tasks`;
+            const method = id ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error("Error API");
+            const savedTask = await res.json();
+            
+            window.renderOpsCard(savedTask); // Fuerza pintar
             DIALOG.close();
         } catch (err) {
-            alert("Error al conectar con el servidor.");
+            console.error(err);
+            alert("Error al conectar con el servidor al guardar.");
         } finally {
             btn.disabled = false;
             btn.textContent = 'Guardar';
         }
     });
 
-    // 6. Funcionalidad del Buscador/Filtros
+    // 6. Filtros
     const Q = document.getElementById('ops-q');
     const P = document.getElementById('ops-prio');
     const S = document.getElementById('ops-scope');
@@ -6958,30 +6985,32 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
             const txt = card.innerText.toLowerCase();
             const imp = card.querySelector('.ops-impact')?.textContent || '';
             const scp = card.querySelector('.ops-scope')?.textContent || '';
-            
+
             const okQ = !qt || txt.includes(qt);
             const okP = !pv || imp === pv;
             const okS = !sv || scp === sv;
-            
+
             card.style.display = (okQ && okP && okS) ? '' : 'none';
         });
     }
-    
+
     Q?.addEventListener('input', applyFilters);
     P?.addEventListener('change', applyFilters);
     S?.addEventListener('change', applyFilters);
 
-    // 7. Carga inicial (Solo las de tu estación)
-    (async function loadInitial() {
+    // 7. Carga inicial
+    async function forceLoadOps() {
         try {
             const res = await fetch(`api/tasks?task_type=ops_update&station=${STATION_CODE}`);
             const tasks = await res.json();
             LIST.innerHTML = tasks.length ? '' : '<div style="padding:15px;color:#888;text-align:center;">Sin actualizaciones activas.</div>';
             tasks.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(window.renderOpsCard);
         } catch (e) {
-            console.warn("Error OPS", e);
+            console.warn("Error cargando OPS", e);
         }
-    })();
+    }
+    forceLoadOps();
+
 })();
 // ... (El código anterior de initOpsUpdates y demás se mantiene igual) ...
 
