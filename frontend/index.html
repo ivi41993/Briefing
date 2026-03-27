@@ -3269,32 +3269,54 @@ body.card-open #timer-reset {
   </div>
 </div>
 <!-- WIDGET NORMATIVA ADUANERA (TRANSITO INTERNO) -->
-<div class="widget vivid" id="normativa-aduanera-widget" style="border-top: 4px solid #8b5cf6;">
+<!-- WIDGET NORMATIVA ADUANERA (Fija + Global Dinámica) -->
+<div class="widget vivid" id="normativa-aduanera-widget" style="border-top: 4px solid #8b5cf6; display: flex; flex-direction: column;">
   <h2 class="widget-title hero" style="background: linear-gradient(135deg, #fff 0%, #f5f3ff 100%); border-bottom: 2px solid #ddd6fe;">
     <span class="hero-ico">⚖️</span><span>Normativa Aduanera</span>
-    <span class="hero-badge" style="background: #8b5cf6; color: white; box-shadow: 0 4px 10px rgba(139,92,246,0.3);">GLOBAL</span>
+    <div style="margin-left:auto; display:flex; gap:6px;">
+        <span class="hero-badge" style="background: #8b5cf6; color: white; box-shadow: 0 4px 10px rgba(139,92,246,0.3);">ART. 188</span>
+        <span class="hero-badge" style="background: #4c1d95; color: white;">GLOBAL 🌍</span>
+    </div>
   </h2>
 
-  <!-- Formulario para añadir nuevas normativas -->
-  <form id="aduanas-form" style="display:flex; gap:8px; margin: 12px 0; align-items:center;">
-    <input type="text" id="aduanas-title" placeholder="Añadir instrucción aduanera global..." required 
-           style="flex:1; padding:10px; border:1px solid #c4b5fd; border-radius:8px; outline:none;">
-    <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(139,92,246,.3);">Añadir</button>
-  </form>
-
-  <!-- Contenedor dinámico de tarjetas -->
-  <div id="aduanas-list" style="display:flex; flex-direction:column; gap:10px; max-height: 400px; overflow-y:auto; padding-right:4px;">
-    
-    <!-- TARJETA FIJA (Base Legal) -->
-    <div class="ops-item" style="border-left: 6px solid #8b5cf6; background: #ffffff; padding: 16px;">
-      <div style="display: flex; gap: 10px; align-items: flex-start;">
-        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.2rem;">📌</span>
-        <p style="margin: 0; font-size: 0.92rem; color: #1f2937; line-height: 1.4; font-weight: 500;">
-          <b>Art. 188:</b> Tránsito interno de la Unión para mercancías circulando desde un territorio fiscal especial a otra parte del territorio aduanero. Verificar precintos en T2LF / T2F.
+  <!-- 1. INFORMACIÓN FIJA (Intacta) -->
+  <div class="ops-item" style="border-left: 6px solid #8b5cf6; background: #ffffff; padding: 16px; margin-top: 10px;">
+    <div style="display: flex; flex-direction: column; gap: 15px; font-size: 0.92rem; color: #1f2937; line-height: 1.5; font-weight: 500;">
+      <div style="display: flex; gap: 10px;">
+        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.1rem;">1.</span>
+        <p style="margin: 0;">
+          Cuando circulen mercancías de la Unión desde un <b>territorio fiscal especial</b> a otra parte del territorio aduanero de la Unión que no lo sea, y la circulación finalice <b>fuera del Estado miembro</b> de entrada, dichas mercancías circularán al amparo del <b>régimen de tránsito interno de la Unión (Art. 227)</b>.
+        </p>
+      </div>
+      <div style="display: flex; gap: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0;">
+        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.1rem;">2.</span>
+        <p style="margin: 0;">
+          En situaciones distintas a las del apartado 1, el régimen de tránsito interno podrá utilizarse para mercancías de la Unión que circulen entre un <b>territorio fiscal especial</b> y otra parte del territorio aduanero de la Unión.
         </p>
       </div>
     </div>
-    
+  </div>
+
+  <div style="margin-top: 12px; padding: 8px 12px; background: #f3f0ff; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 1.2rem;">📌</span>
+    <small style="color: #6d28d9; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+      Recordatorio: Verificar precintos en T2LF / T2F
+    </small>
+  </div>
+
+  <!-- SEPARADOR -->
+  <hr style="border:0; border-top:1px solid #ddd6fe; margin: 16px 0 12px 0;">
+
+  <!-- 2. NUEVO: FORMULARIO DE AVISOS GLOBALES -->
+  <form id="aduanas-form" style="display:flex; gap:8px; margin-bottom: 12px; align-items:center;">
+    <input type="text" id="aduanas-title" placeholder="Añadir aviso global (se verá en MAD y BCN)..." required 
+           style="flex:1; padding:10px; border:1px solid #c4b5fd; border-radius:8px; outline:none; font-size:0.9rem;">
+    <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(139,92,246,.3);">Añadir</button>
+  </form>
+
+  <!-- 3. NUEVO: LISTA DINÁMICA -->
+  <div id="aduanas-list" style="display:flex; flex-direction:column; gap:10px; max-height: 250px; overflow-y:auto; padding-right:4px;">
+    <!-- Las tarjetas globales se insertarán aquí automáticamente por JS -->
   </div>
 </div>
 </section>
@@ -4482,11 +4504,15 @@ function processTaskUpdate(data) {
     if (!data) return;
 
     // 1. Manejo de borrado (Global)
-    // 3. Lógica de borrado (Acción Global)
-    if (data.action === 'delete' && data.id != null) {
+    if (data.action === 'delete') {
         document.getElementById(elementId)?.remove();
-        document.getElementById(`ops-${data.id}`)?.remove();
-        document.getElementById(`aduanas-${data.id}`)?.remove(); // <--- AÑADIR ESTA LÍNEA
+        document.getElementById(`ops-${data.id}`)?.remove(); 
+        document.getElementById(`aduanas-${data.id}`)?.remove(); // <--- Añadir esta línea
+        const el = document.getElementById(`task-${data.id}`) || document.getElementById(`ops-${data.id}`);
+        if (el) el.remove();
+        if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
+        return;
+    }
 
     // 2. Verificar estación (MAD)
     if (!isForThisStation(data)) return;
@@ -4503,6 +4529,8 @@ function processTaskUpdate(data) {
         return;
     }
 
+    // 4. KPIs (FIIX + PowerBI)
+    // Dentro de processTaskUpdate(data) en tu index.html
     if (data.task_type === 'ops_update') {
         if (typeof window.renderOpsCard === 'function') {
             window.renderOpsCard(data);
@@ -4510,17 +4538,14 @@ function processTaskUpdate(data) {
         return;
     }
 
-    // --- AÑADIR ESTE BLOQUE NUEVO ---
+    // --- AÑADIR ESTO ---
     if (data.task_type === 'aduanas_info') {
         if (typeof window.renderAduanasCard === 'function') {
             window.renderAduanasCard(data);
         }
         return;
     }
-
-    // 4. KPIs (FIIX + PowerBI)
-    // Dentro de processTaskUpdate(data) en tu index.html
-
+    
     if (data.metric && data.metric.startsWith('fiix_')) {
             updateFiixDisplay(data.metric, data.value);
             return;
@@ -6540,7 +6565,6 @@ async function initFiixDashboard() {
     }
 }
 
-
 /* =========================================================
    MÓDULO DE ADUANAS GLOBAL (Sincronizado entre Dashboards)
    ========================================================= */
@@ -6568,19 +6592,14 @@ function initAduanasModule() {
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
                 <div>
                     <div style="font-weight: 800; color: #4c1d95; margin-bottom:4px; font-size: 0.95rem;">${esc(task.title)}</div>
-                    <div style="font-size: 0.75rem; color: #6d28d9; font-weight: 600;">📅 ${dateStr} • Notificación Global</div>
+                    <div style="font-size: 0.75rem; color: #6d28d9; font-weight: 600;">📅 ${dateStr} • Aviso Global 🌍</div>
                 </div>
                 <button onclick="deleteTaskOnServer('${task.id}', 'aduanas_info')" 
                         style="background:none; border:none; cursor:pointer; font-size:1.1rem; opacity:0.6;" title="Eliminar para todos">🗑️</button>
             </div>
         `;
         
-        // Insertamos justo debajo de la tarjeta fija del Art. 188
-        if (list.children.length > 1) {
-            list.insertBefore(card, list.children[1]);
-        } else {
-            list.appendChild(card);
-        }
+        list.prepend(card); // Al no estar mezclado con lo fijo, prepend funciona perfecto
     };
 
     // Evento de añadir nueva
@@ -6590,26 +6609,34 @@ function initAduanasModule() {
         const title = titleEl.value.trim();
         if (!title) return;
 
+        const btn = form.querySelector('button');
+        btn.disabled = true;
+        btn.textContent = '...';
+
         try {
             await createTaskOnServer({
                 task_type: 'aduanas_info',
                 title: title,
-                station: "" // <---- ¡LA MAGIA! Al ir vacío, el backend/websocket lo mandará a TODAS las naves
+                station: "" // <---- ¡LA MAGIA! Al ir vacío, se envía a todas las estaciones sin filtro
             });
             titleEl.value = '';
             console.log("✅ Normativa aduanera global enviada.");
         } catch(err) {
             alert("Error al añadir la normativa aduanera.");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Añadir';
         }
     });
 
     // Carga inicial de datos desde el backend
     (async function loadAduanas() {
         try {
-            // Pedimos todas las tareas de aduanas sin filtrar por estación
+            // Se piden sin filtrar por estación
             const res = await fetch('api/tasks?task_type=aduanas_info');
             const tasks = await res.json();
-            tasks.forEach(window.renderAduanasCard);
+            // Ordenamos para que las más antiguas se rendericen primero y las nuevas queden arriba con el prepend
+            tasks.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(window.renderAduanasCard);
         } catch (e) {
             console.warn("No se pudieron cargar las normativas de aduanas previas", e);
         }
@@ -6639,7 +6666,6 @@ document.addEventListener('DOMContentLoaded', () => {
     try { initFullscreenToggles(); } catch(e){}
     try { init5S(); } catch(e){}
     try { initAduanasModule(); } catch(e){ console.error("Error en Aduanas:", e); }
-    
     // --- ESTAS DOS LÍNEAS SON LAS QUE HACEN QUE FUNCIONE EL + Y EL CHECKLIST ---
     try { initPrevShiftSystem(); } catch(e){ console.error("Error al iniciar Highlights:", e); }
     try { if(window.updateSpotlightRouting) window.updateSpotlightRouting(); } catch(e){}
@@ -7842,7 +7868,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
 
 
 
