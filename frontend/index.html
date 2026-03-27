@@ -3272,36 +3272,29 @@ body.card-open #timer-reset {
 <div class="widget vivid" id="normativa-aduanera-widget" style="border-top: 4px solid #8b5cf6;">
   <h2 class="widget-title hero" style="background: linear-gradient(135deg, #fff 0%, #f5f3ff 100%); border-bottom: 2px solid #ddd6fe;">
     <span class="hero-ico">⚖️</span><span>Normativa Aduanera</span>
-    <span class="hero-badge" style="background: #8b5cf6; color: white;">ART. 188</span>
+    <span class="hero-badge" style="background: #8b5cf6; color: white; box-shadow: 0 4px 10px rgba(139,92,246,0.3);">GLOBAL</span>
   </h2>
 
-  <div class="ops-item" style="border-left: 6px solid #8b5cf6; background: #ffffff; padding: 16px; margin-top: 10px;">
-    <div style="display: flex; flex-direction: column; gap: 15px; font-size: 0.92rem; color: #1f2937; line-height: 1.5; font-weight: 500;">
-      
-      <!-- Párrafo 1 -->
-      <div style="display: flex; gap: 10px;">
-        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.1rem;">1.</span>
-        <p style="margin: 0;">
-          Cuando circulen mercancías de la Unión desde un <b>territorio fiscal especial</b> a otra parte del territorio aduanero de la Unión que no lo sea, y la circulación finalice <b>fuera del Estado miembro</b> de entrada, dichas mercancías circularán al amparo del <b>régimen de tránsito interno de la Unión (Art. 227)</b>.
+  <!-- Formulario para añadir nuevas normativas -->
+  <form id="aduanas-form" style="display:flex; gap:8px; margin: 12px 0; align-items:center;">
+    <input type="text" id="aduanas-title" placeholder="Añadir instrucción aduanera global..." required 
+           style="flex:1; padding:10px; border:1px solid #c4b5fd; border-radius:8px; outline:none;">
+    <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(139,92,246,.3);">Añadir</button>
+  </form>
+
+  <!-- Contenedor dinámico de tarjetas -->
+  <div id="aduanas-list" style="display:flex; flex-direction:column; gap:10px; max-height: 400px; overflow-y:auto; padding-right:4px;">
+    
+    <!-- TARJETA FIJA (Base Legal) -->
+    <div class="ops-item" style="border-left: 6px solid #8b5cf6; background: #ffffff; padding: 16px;">
+      <div style="display: flex; gap: 10px; align-items: flex-start;">
+        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.2rem;">📌</span>
+        <p style="margin: 0; font-size: 0.92rem; color: #1f2937; line-height: 1.4; font-weight: 500;">
+          <b>Art. 188:</b> Tránsito interno de la Unión para mercancías circulando desde un territorio fiscal especial a otra parte del territorio aduanero. Verificar precintos en T2LF / T2F.
         </p>
       </div>
-
-      <!-- Párrafo 2 -->
-      <div style="display: flex; gap: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0;">
-        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.1rem;">2.</span>
-        <p style="margin: 0;">
-          En situaciones distintas a las del apartado 1, el régimen de tránsito interno podrá utilizarse para mercancías de la Unión que circulen entre un <b>territorio fiscal especial</b> y otra parte del territorio aduanero de la Unión.
-        </p>
-      </div>
-
     </div>
-  </div>
-
-  <div style="margin-top: 12px; padding: 8px 12px; background: #f3f0ff; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
-    <span style="font-size: 1.2rem;">📌</span>
-    <small style="color: #6d28d9; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
-      Recordatorio: Verificar precintos en T2LF / T2F
-    </small>
+    
   </div>
 </div>
 </section>
@@ -4489,12 +4482,11 @@ function processTaskUpdate(data) {
     if (!data) return;
 
     // 1. Manejo de borrado (Global)
-    if (data.action === 'delete') {
-        const el = document.getElementById(`task-${data.id}`) || document.getElementById(`ops-${data.id}`);
-        if (el) el.remove();
-        if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
-        return;
-    }
+    // 3. Lógica de borrado (Acción Global)
+    if (data.action === 'delete' && data.id != null) {
+        document.getElementById(elementId)?.remove();
+        document.getElementById(`ops-${data.id}`)?.remove();
+        document.getElementById(`aduanas-${data.id}`)?.remove(); // <--- AÑADIR ESTA LÍNEA
 
     // 2. Verificar estación (MAD)
     if (!isForThisStation(data)) return;
@@ -4507,6 +4499,21 @@ function processTaskUpdate(data) {
                 updateTeamMeta(window.TEAM_STATE);
             }
             renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people || [], window.TEAM_STATE);
+        }
+        return;
+    }
+
+    if (data.task_type === 'ops_update') {
+        if (typeof window.renderOpsCard === 'function') {
+            window.renderOpsCard(data);
+        }
+        return;
+    }
+
+    // --- AÑADIR ESTE BLOQUE NUEVO ---
+    if (data.task_type === 'aduanas_info') {
+        if (typeof window.renderAduanasCard === 'function') {
+            window.renderAduanasCard(data);
         }
         return;
     }
@@ -6533,6 +6540,81 @@ async function initFiixDashboard() {
     }
 }
 
+
+/* =========================================================
+   MÓDULO DE ADUANAS GLOBAL (Sincronizado entre Dashboards)
+   ========================================================= */
+function initAduanasModule() {
+    const form = document.getElementById('aduanas-form');
+    const list = document.getElementById('aduanas-list');
+    if (!form || !list) return;
+
+    // Renderizador de tarjetas
+    window.renderAduanasCard = function(task) {
+        if (task.task_type !== 'aduanas_info') return;
+
+        const existing = document.getElementById(`aduanas-${task.id}`);
+        if (existing) existing.remove();
+
+        const card = document.createElement('div');
+        card.className = 'ops-item';
+        card.id = `aduanas-${task.id}`;
+        card.style.borderLeft = '6px solid #8b5cf6'; // Morado Aduanas
+        card.style.background = '#f5f3ff'; // Fondo suavizado
+        
+        const dateStr = task.created_at ? new Date(task.created_at).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES');
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                <div>
+                    <div style="font-weight: 800; color: #4c1d95; margin-bottom:4px; font-size: 0.95rem;">${esc(task.title)}</div>
+                    <div style="font-size: 0.75rem; color: #6d28d9; font-weight: 600;">📅 ${dateStr} • Notificación Global</div>
+                </div>
+                <button onclick="deleteTaskOnServer('${task.id}', 'aduanas_info')" 
+                        style="background:none; border:none; cursor:pointer; font-size:1.1rem; opacity:0.6;" title="Eliminar para todos">🗑️</button>
+            </div>
+        `;
+        
+        // Insertamos justo debajo de la tarjeta fija del Art. 188
+        if (list.children.length > 1) {
+            list.insertBefore(card, list.children[1]);
+        } else {
+            list.appendChild(card);
+        }
+    };
+
+    // Evento de añadir nueva
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const titleEl = document.getElementById('aduanas-title');
+        const title = titleEl.value.trim();
+        if (!title) return;
+
+        try {
+            await createTaskOnServer({
+                task_type: 'aduanas_info',
+                title: title,
+                station: "" // <---- ¡LA MAGIA! Al ir vacío, el backend/websocket lo mandará a TODAS las naves
+            });
+            titleEl.value = '';
+            console.log("✅ Normativa aduanera global enviada.");
+        } catch(err) {
+            alert("Error al añadir la normativa aduanera.");
+        }
+    });
+
+    // Carga inicial de datos desde el backend
+    (async function loadAduanas() {
+        try {
+            // Pedimos todas las tareas de aduanas sin filtrar por estación
+            const res = await fetch('api/tasks?task_type=aduanas_info');
+            const tasks = await res.json();
+            tasks.forEach(window.renderAduanasCard);
+        } catch (e) {
+            console.warn("No se pudieron cargar las normativas de aduanas previas", e);
+        }
+    })();
+}
   
 /* Init */
 /* =========================================================
@@ -6556,6 +6638,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try { initEhsSimple(); } catch(e){}
     try { initFullscreenToggles(); } catch(e){}
     try { init5S(); } catch(e){}
+    try { initAduanasModule(); } catch(e){ console.error("Error en Aduanas:", e); }
     
     // --- ESTAS DOS LÍNEAS SON LAS QUE HACEN QUE FUNCIONE EL + Y EL CHECKLIST ---
     try { initPrevShiftSystem(); } catch(e){ console.error("Error al iniciar Highlights:", e); }
