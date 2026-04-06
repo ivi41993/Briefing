@@ -3335,13 +3335,14 @@ body.card-open #timer-reset {
   </div>
 
   <!-- SCRIPT INTELIGENTE PARA OCULTARLOS AUTOMÁTICAMENTE -->
+  <!-- SCRIPT INTELIGENTE PARA OCULTARLOS AUTOMÁTICAMENTE -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
         const now = new Date();
         const station = (window.STATION_OVERRIDE || window.STATION_CODE || 'MAD').toUpperCase();
         
-        // Identificar grupos de estación (Las naves de Madrid empiezan por WFS)
-        const isMad = station === 'MAD' || station.startsWith('WFS');
+        // Identificar grupos de estación (Las naves de Madrid empiezan por WFS o se llaman ALM)
+        const isMad = station === 'MAD' || station === 'ALM' || station.startsWith('WFS');
         const isBcn = station === 'BCN';
 
         // 1. EVALUAR AUDITORÍA OEA
