@@ -3270,6 +3270,7 @@ body.card-open #timer-reset {
 </div>
 <!-- WIDGET NORMATIVA ADUANERA (TRANSITO INTERNO) -->
 <!-- WIDGET NORMATIVA ADUANERA (Fija + Global Dinámica) -->
+<!-- WIDGET NORMATIVA ADUANERA (Fija + Temporal Inteligente + Global Dinámica) -->
 <div class="widget vivid" id="normativa-aduanera-widget" style="border-top: 4px solid #8b5cf6; display: flex; flex-direction: column;">
   <h2 class="widget-title hero" style="background: linear-gradient(135deg, #fff 0%, #f5f3ff 100%); border-bottom: 2px solid #ddd6fe;">
     <span class="hero-ico">⚖️</span><span>Normativa Aduanera</span>
@@ -3304,19 +3305,84 @@ body.card-open #timer-reset {
     </small>
   </div>
 
+  <!-- ========================================================= -->
+  <!-- 2. AVISOS TEMPORALES INTELIGENTES (Auto-Ocultables)       -->
+  <!-- ========================================================= -->
+
+  <!-- AVISO A: Auditoría OEA (Diferente para MAD y BCN) -->
+  <div id="aviso-oea" class="ops-item" style="display:none; border-left: 6px solid #f59e0b; background: #fffdf0; padding: 16px; margin-top: 16px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <span style="font-weight: 900; color: #d97706; font-size: 1.4rem;">⚠️</span>
+        <strong style="color: #92400e; font-size: 1rem; text-transform: uppercase;">Auditoría Reactivación OEA</strong>
+      </div>
+      <p style="margin: 0; font-size: 0.95rem; color: #78350f; line-height: 1.4; font-weight: 600;">
+        Se informa a todo el personal que el próximo <b>día 10 del presente</b> tendrá lugar la auditoria de solicitud de reactivación de la autorización OEA.
+      </p>
+    </div>
+  </div>
+
+  <!-- AVISO B: Novedades Tránsito (Hasta fin de mes, Todas las bases) -->
+  <div id="aviso-transito" class="ops-item" style="display:none; border-left: 6px solid #3b82f6; background: #eff6ff; padding: 16px; margin-top: 12px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <span style="font-weight: 900; color: #2563eb; font-size: 1.4rem;">ℹ️</span>
+        <strong style="color: #1e40af; font-size: 1rem; text-transform: uppercase;">Novedades Apertura Tránsito</strong>
+      </div>
+      <p style="margin: 0; font-size: 0.95rem; color: #1e3a8a; line-height: 1.4; font-weight: 600;">
+        Se informa a todo el personal que ya se puede <b>asociar varios G4 al mismo tránsito</b> en la apertura del mismo, volviendo a poder realizarlos de la manera habitual.
+      </p>
+    </div>
+  </div>
+
+  <!-- SCRIPT INTELIGENTE PARA OCULTARLOS AUTOMÁTICAMENTE -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const now = new Date();
+        const station = (window.STATION_OVERRIDE || window.STATION_CODE || 'MAD').toUpperCase();
+        
+        // Identificar grupos de estación (Las naves de Madrid empiezan por WFS)
+        const isMad = station === 'MAD' || station.startsWith('WFS');
+        const isBcn = station === 'BCN';
+
+        // 1. EVALUAR AUDITORÍA OEA
+        const avisoOea = document.getElementById('aviso-oea');
+        if (avisoOea) {
+            // Nota: En JS los meses empiezan en 0 (Abril es el mes 3)
+            const expMad = new Date(2026, 3, 13, 14, 0, 0); // MAD expira 13 Abril 14:00h
+            const expBcn = new Date(2026, 3, 10, 14, 0, 0); // BCN expira 10 Abril 14:00h
+
+            if (isMad && now < expMad) {
+                avisoOea.style.display = 'block';
+            } else if (isBcn && now < expBcn) {
+                avisoOea.style.display = 'block';
+            }
+        }
+
+        // 2. EVALUAR NOVEDAD TRÁNSITO (Hasta final de Abril en todas partes)
+        const avisoTransito = document.getElementById('aviso-transito');
+        if (avisoTransito) {
+            const expTransito = new Date(2026, 3, 30, 23, 59, 59); // Expira 30 Abril 23:59h
+            if (now < expTransito) {
+                avisoTransito.style.display = 'block';
+            }
+        }
+    });
+  </script>
+
   <!-- SEPARADOR -->
   <hr style="border:0; border-top:1px solid #ddd6fe; margin: 16px 0 12px 0;">
 
-  <!-- 2. NUEVO: FORMULARIO DE AVISOS GLOBALES -->
+  <!-- 3. FORMULARIO DE AVISOS GLOBALES (Dinámicos) -->
   <form id="aduanas-form" style="display:flex; gap:8px; margin-bottom: 12px; align-items:center;">
     <input type="text" id="aduanas-title" placeholder="Añadir aviso global (se verá en MAD y BCN)..." required 
            style="flex:1; padding:10px; border:1px solid #c4b5fd; border-radius:8px; outline:none; font-size:0.9rem;">
     <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(139,92,246,.3);">Añadir</button>
   </form>
 
-  <!-- 3. NUEVO: LISTA DINÁMICA -->
+  <!-- 4. LISTA DINÁMICA DE AVISOS GLOBALES -->
   <div id="aduanas-list" style="display:flex; flex-direction:column; gap:10px; max-height: 250px; overflow-y:auto; padding-right:4px;">
-    <!-- Las tarjetas globales se insertarán aquí automáticamente por JS -->
+    <!-- Las tarjetas globales creadas manualmente se insertarán aquí por JS -->
   </div>
 </div>
 </section>
