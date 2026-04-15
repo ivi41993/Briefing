@@ -3630,11 +3630,14 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
         save();
     }
 
-    function reset(){
-        if(!confirm("¿Reiniciar cronómetro? Esto bloqueará el resumen hasta que vuelvas a comenzar.")) return;
+    function reset(silent = false){
+        // Si no es un reseteo silencioso (por código), preguntamos al usuario
+        if(!silent && !confirm("¿Reiniciar cronómetro? Esto bloqueará el resumen hasta que vuelvas a comenzar.")) return;
+        
         running = false; startedAt = 0; elapsed = 0;
         clearInterval(tick); tick = null;
         display.textContent = "00:00:00";
+        
         if(startBtn) {
             startBtn.style.display = 'inline-block';
             startBtn.textContent = 'Comenzar';
@@ -3642,6 +3645,13 @@ function $$(selector) { return Array.from(document.querySelectorAll(selector)); 
         updateSummaryButton(false); // Bloquear al reiniciar
         save();
     }
+
+    display?.addEventListener('click', ()=> (running ? pause() : start()));
+    resetBtn?.addEventListener('click', () => reset(false)); // Clic manual = pregunta
+    startBtn?.addEventListener('click', start);
+
+    // Permitimos que otros scripts lo reseteen directamente sin preguntar
+    window.resetFactoryTimer = () => reset(true);
 
     display?.addEventListener('click', ()=> (running ? pause() : start()));
     resetBtn?.addEventListener('click', reset);
@@ -7889,6 +7899,9 @@ async function generateAndSendToExcel() {
         if (!res.ok) throw new Error(`Error ${res.status}`);
         
         alert("✅ Resumen enviado a Excel y guardado correctamente.");
+        
+        // --- NUEVO: RESETEAR CRONÓMETRO AUTOMÁTICAMENTE ---
+        if(window.resetFactoryTimer) window.resetFactoryTimer();
         
         // --- INICIO DE CORRECCIÓN: RESETEO DEL CHECKLIST ---
         // 1. Limpiar visualmente los radios
