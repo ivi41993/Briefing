@@ -5561,7 +5561,7 @@ function setKpiValue(idValue, idMeta, valueText){
 
 
 /* Turno anterior editable */
-/* ===== Turno Anterior: Sistema de Lista por Ubicación ===== */
+/* ===== Turno Anterior: Sistema de Lista por Ubicación (CON FIRMA) ===== */
 function initPrevShiftSystem() {
     const btn = document.getElementById('prev-add-btn');
     const input = document.getElementById('prev-input');
@@ -5569,13 +5569,12 @@ function initPrevShiftSystem() {
     
     if (!btn || !input || !listEl) return;
 
-    // Llave única por ubicación para evitar mezcla de datos
+    // Llave única por ubicación
     const KEY = 'prev_highlights_' + (window.STATION_OVERRIDE || 'GENERIC') + '_v1';
 
     const loadItems = () => {
-        try {
-            return JSON.parse(localStorage.getItem(KEY) || '[]');
-        } catch (e) { return []; }
+        try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } 
+        catch (e) { return []; }
     };
 
     const saveItems = (items) => {
@@ -5592,12 +5591,26 @@ function initPrevShiftSystem() {
         }
 
         // Renderizar de más nuevo a más viejo
-        [...items].reverse().forEach((text, revIdx) => {
+        [...items].reverse().forEach((item, revIdx) => {
             const originalIdx = items.length - 1 - revIdx;
+            
+            // Retro-compatibilidad (Soporta strings antiguos y el nuevo formato de objeto)
+            const text = typeof item === 'string' ? item : item.text;
+            const author = item.author || '';
+            const time = item.ts ? new Date(item.ts).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'}) : '';
+            
+            const authorHtml = author ? 
+                `<div class="prev-author" style="font-size:0.75rem; color:#b91c1c; font-weight:700; margin-top:4px;">👤 Añadido por: ${esc(author)} ${time ? `(${time})` : ''}</div>` 
+                : '';
+
             const div = document.createElement('div');
             div.className = 'prev-item';
+            div.style.alignItems = 'flex-start'; // Mejor alineación si hay texto largo
             div.innerHTML = `
-                <div class="prev-text">${esc(text)}</div>
+                <div style="flex:1;">
+                    <div class="prev-text" style="font-size:0.95rem; font-weight:600; color:#1f2937;">${esc(text)}</div>
+                    ${authorHtml}
+                </div>
                 <div class="prev-actions">
                     <button class="prev-btn" onclick="removePrevItem(${originalIdx})">🗑️</button>
                 </div>
@@ -5611,8 +5624,24 @@ function initPrevShiftSystem() {
         const val = input.value.trim();
         if (!val) return;
         
+        // 1. Intentar capturar el nombre del campo "Supervisor" del Header
+        const supInput = document.getElementById('briefing-supervisor');
+        let authorName = supInput ? supInput.value.trim() : '';
+        
+        // 2. Si no hay nombre en el Header, se lo pedimos obligatoriamente
+        if (!authorName) {
+            authorName = prompt("Por favor, introduce tu nombre para firmar este highlight:");
+            if (!authorName) return; // Si cancela, no dejamos añadir la tarjeta
+            if (supInput) supInput.value = authorName; // Lo guardamos en el header para que no se lo vuelva a pedir
+        }
+        
         const items = loadItems();
-        items.push(val);
+        // Guardamos el objeto completo (Texto, Autor y Hora)
+        items.push({
+            text: val,
+            author: authorName,
+            ts: new Date().toISOString()
+        });
         saveItems(items);
         
         input.value = '';
@@ -5635,18 +5664,13 @@ function initPrevShiftSystem() {
     };
 
     // Exponer función de borrado globalmente
-    // Añade esto cerca de initPrevShiftSystem si no lo tienes así
     window.removePrevItem = (idx) => {
         const KEY = 'prev_highlights_' + (window.STATION_OVERRIDE || 'GENERIC') + '_v1';
         try {
             let items = JSON.parse(localStorage.getItem(KEY) || '[]');
             items.splice(idx, 1);
             localStorage.setItem(KEY, JSON.stringify(items));
-            
-            // Buscamos el initPrevShiftSystem para que repinte la lista
-            if (typeof initPrevShiftSystem === 'function') {
-                initPrevShiftSystem();
-            }
+            if (typeof initPrevShiftSystem === 'function') initPrevShiftSystem();
         } catch (e) {
             console.error("Error al borrar highlight:", e);
         }
@@ -7881,8 +7905,14 @@ async function generateAndSendToExcel() {
 
 
         // B. Card 3: Highlights Turno Anterior
-        const highlights = Array.from(document.querySelectorAll('#prev-list .prev-text'))
-                                .map(el => el.innerText).join(" | ");
+        // B. Card 3: Highlights Turno Anterior (Recogiendo texto + autor)
+        const highlights = Array.from(document.querySelectorAll('#prev-list .prev-item')).map(el => {
+            const text = el.querySelector('.prev-text')?.innerText || '';
+            const author = el.querySelector('.prev-author')?.innerText || '';
+            return author ? `${text} [${author}]` : text;
+        }).join(" | ");
+        
+        const finalPrevNote = highlights || "Sin novedades.";
 
         // C. Card 2: Actualizaciones Operativas (OPS)
         const opsData = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(node => ({
