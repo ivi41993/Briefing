@@ -5625,7 +5625,7 @@ function setKpiValue(idValue, idMeta, valueText){
 
 
 /* ===== Turno Anterior: Sistema de Lista por Ubicación ===== */
-/* ===== Turno Anterior: Sistema de Lista por Ubicación (CON FIRMA) ===== */
+/* ===== Turno Anterior: Sistema de Lista por Ubicación (CON FIRMA Y EDICIÓN) ===== */
 function initPrevShiftSystem() {
     const btn = document.getElementById('prev-add-btn');
     const input = document.getElementById('prev-input');
@@ -5675,8 +5675,9 @@ function initPrevShiftSystem() {
                     <div class="prev-text" style="font-size:0.95rem; font-weight:600; color:#1f2937;">${esc(text)}</div>
                     ${authorHtml}
                 </div>
-                <div class="prev-actions">
-                    <button class="prev-btn" onclick="removePrevItem(${originalIdx})">🗑️</button>
+                <div class="prev-actions" style="display:flex; gap:6px;">
+                    <button class="prev-btn" onclick="editPrevItem(${originalIdx})" title="Editar">✏️</button>
+                    <button class="prev-btn" onclick="removePrevItem(${originalIdx})" title="Borrar">🗑️</button>
                 </div>
             `;
             listEl.appendChild(div);
@@ -5727,19 +5728,49 @@ function initPrevShiftSystem() {
         }
     };
 
-    // Exponer función de borrado globalmente
+    // --- FUNCIONES GLOBALES (Borrar y Editar) ---
     window.removePrevItem = (idx) => {
-        const KEY = 'prev_highlights_' + (window.STATION_OVERRIDE || 'GENERIC') + '_v1';
+        if(!confirm("¿Estás seguro de que quieres borrar este highlight?")) return;
         try {
-            let items = JSON.parse(localStorage.getItem(KEY) || '[]');
+            let items = loadItems();
             items.splice(idx, 1);
-            localStorage.setItem(KEY, JSON.stringify(items));
-            if (typeof initPrevShiftSystem === 'function') initPrevShiftSystem();
+            saveItems(items);
+            render(); // Solo repintamos, ultra rápido
         } catch (e) {
             console.error("Error al borrar highlight:", e);
         }
     };
 
+    window.editPrevItem = (idx) => {
+        try {
+            let items = loadItems();
+            if (!items[idx]) return;
+
+            const currentItem = items[idx];
+            const currentText = typeof currentItem === 'string' ? currentItem : currentItem.text;
+
+            // Pedir el nuevo texto mostrando el actual
+            const newText = prompt("Edita el texto del highlight:", currentText);
+
+            // Si el usuario escribe algo, no cancela, y el texto es diferente
+            if (newText !== null && newText.trim() !== "" && newText.trim() !== currentText) {
+                if (typeof currentItem === 'string') {
+                    // Si era una tarjeta súper antigua sin firma, la actualizamos al formato nuevo
+                    items[idx] = { text: newText.trim(), author: "Desconocido", ts: new Date().toISOString() };
+                } else {
+                    // Actualizamos texto y la hora de modificación
+                    items[idx].text = newText.trim();
+                    items[idx].ts = new Date().toISOString(); 
+                }
+                saveItems(items);
+                render(); // Repintamos para ver el cambio inmediato
+            }
+        } catch (e) {
+            console.error("Error al editar highlight:", e);
+        }
+    };
+
+    // Dibujar la lista inicial
     render();
 }
 
