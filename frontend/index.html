@@ -2590,11 +2590,16 @@ body.card-open #timer-reset {
 <div class="dashboard-3col">
 <!-- HEADER -->
 <header>
-<div class="header-left">
 <h1>Factory Floor Dashboard - WFS4 MAD OPS</h1>
-<div id="now-header" role="status" aria-live="polite">—</div>
-<span id="shift-badge-header" class="shift-chip">—</span>
-</div>
+    <div id="now-header" role="status" aria-live="polite">—</div>
+    
+    <div style="display: flex; gap: 8px; margin-top: 4px;">
+        <span id="shift-badge-header" class="shift-chip">—</span>
+        <!-- NUEVO: Chip del clima con estilo Vivid UI -->
+        <span id="weather-badge" class="shift-chip" style="background:#fdf4ff; color:#701a75; border-color:#e9d5ff; font-weight:800; min-width: 65px; justify-content: center;">
+            ⏳ --°C
+        </span>
+    </div>
 
 <!-- Cronómetro Modificado -->
 <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
@@ -6609,7 +6614,63 @@ function initAduanasModule() {
         }
     })();
 }
-  
+
+
+/* =========================================================
+   MÓDULO DEL TIEMPO (API Open-Meteo - Sin API Key)
+   ========================================================= */
+async function initWeatherModule() {
+    const badge = document.getElementById('weather-badge');
+    if (!badge) return;
+
+    // Coordenadas exactas de los aeropuertos WFS
+    const coords = {
+        'MAD': { lat: 40.4719, lon: -3.5626 }, // Madrid Barajas
+        'BCN': { lat: 41.2974, lon: 2.0833 },  // Barcelona El Prat
+        'VLC': { lat: 39.4893, lon: -0.4816 }, // Valencia Manises
+        'SVQ': { lat: 37.4180, lon: -5.8931 }, // Sevilla San Pablo
+        'ALM': { lat: 40.4719, lon: -3.5626 }  // Madrid Almacén
+    };
+
+    // Detectar estación actual (Por defecto Madrid)
+    const station = (window.STATION_OVERRIDE || window.STATION_CODE || 'MAD').toUpperCase();
+    const loc = coords[station] || coords['MAD'];
+
+    try {
+        // Petición a la API gratuita de Open-Meteo
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current_weather=true`);
+        if (!res.ok) throw new Error('Fallo en la API de clima');
+        
+        const data = await res.json();
+        const temp = Math.round(data.current_weather.temperature);
+        const code = data.current_weather.weathercode;
+        
+        // Mapeo oficial de códigos WMO a Emojis visuales
+        let icon = '🌤️'; // Default
+        if (code === 0) icon = '☀️'; // Despejado
+        else if (code === 1 || code === 2) icon = '⛅'; // Parcialmente nublado
+        else if (code === 3) icon = '☁️'; // Nublado
+        else if (code >= 45 && code <= 48) icon = '🌫️'; // Niebla
+        else if (code >= 51 && code <= 67) icon = '🌧️'; // Llovizna / Lluvia
+        else if (code >= 71 && code <= 82) icon = '☔'; // Lluvia fuerte / Nieve
+        else if (code >= 95) icon = '⛈️'; // Tormenta
+        
+        // Pintar en pantalla
+        badge.innerHTML = `${icon} ${temp}°C`;
+        badge.title = `Actualizado: ${new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}`;
+        
+        // Si hace mucho calor (>32ºC) o mucho frío (<5ºC), ponemos la tarjeta roja para alertar de riesgos
+        if (temp >= 32 || temp <= 5) {
+            badge.style.background = '#fee2e2';
+            badge.style.color = '#991b1b';
+            badge.style.borderColor = '#fca5a5';
+        }
+
+    } catch (e) {
+        console.warn("⚠️ No se pudo cargar el tiempo:", e);
+        badge.innerHTML = '☁️ --°C';
+    }
+}
 /* Init */
 /* =========================================================
    4. INICIALIZACIÓN FINAL (CORREGIDA)
@@ -6638,7 +6699,14 @@ document.addEventListener('DOMContentLoaded', () => {
     try { if(window.updateSpotlightRouting) window.updateSpotlightRouting(); } catch(e){}
     
     try { initManualIncidents(); } catch(e){} 
-    try { initAutoShiftChange(); } catch(e){} 
+    try { initAutoShiftChange(); } catch(e){}
+    // INICIALIZADORES AL CARGAR LA PÁGINA
+    try { initWeatherModule(); } catch(e){}
+    
+    // Y pon esto justo debajo para que se refresque el clima cada 1 hora sin tocar nada
+    setInterval(() => {
+        try { initWeatherModule(); } catch(e){}
+    }, 3600000); // 3600000 ms = 1 hora
 
     // Voz (Simplificado)
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
