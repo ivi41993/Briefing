@@ -14,6 +14,7 @@ from main_wfs1alm import app as app_wfs1alm
 from main_wfs2alm import app as app_wfs2alm
 from main_wfs3alm import app as app_wfs3alm
 from main_bcnalm import app as app_bcnalm
+from main_uk import app as app_uk  # <--- NUEVO: IMPORTAMOS LA APP DE UK
 # Añade aquí si me he dejado alguna...
 
 # 2. Creamos la APP GIGANTE
@@ -31,6 +32,7 @@ root_app.mount("/wfs3", app_wfs3)
 root_app.mount("/wfs1alm", app_wfs1alm)
 root_app.mount("/wfs2alm", app_wfs2alm)
 root_app.mount("/wfs3alm", app_wfs3alm)
+root_app.mount("/uk", app_uk)
 
 # 4. Madrid se queda en la raíz (IMPORTANTE: Montar la raíz siempre la última)
 root_app.mount("/", app_madrid)
