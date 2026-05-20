@@ -2563,6 +2563,30 @@ body.card-open #timer-reset {
     margin-top: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.4);
 }
+/* ===== Alerta de Lluvia (Tiempo) ===== */
+@keyframes rain-alert-blink {
+    0%, 100% { 
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 4px 12px rgba(59, 130, 246, 0.2); 
+        border-color: #93c5fd; 
+        transform: scale(1.08); 
+    }
+    50% { 
+        box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.6), 0 8px 24px rgba(59, 130, 246, 0.5); 
+        border-color: #2563eb; 
+        transform: scale(1.15); /* Un pelín más grande */
+    }
+}
+
+.weather-rain-alert {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe) !important;
+    color: #1e3a8a !important;
+    border: 2px solid #3b82f6 !important;
+    animation: rain-alert-blink 1.5s infinite ease-in-out;
+    margin-left: 12px; /* Espacio para que no choque al hacerse grande */
+    font-weight: 800 !important;
+    letter-spacing: 0.5px;
+    z-index: 10;
+}
 <div class="kpi-tile" style="border-left: 6px solid #10b981; background: #f0fdf4;"> <!-- Verde Esmeralda -->
   <div class="kpi-label" style="color: #065f46;">Gasto Mto. (Mes)</div>
   <div class="kpi-value" style="color: #047857;">
@@ -2590,16 +2614,16 @@ body.card-open #timer-reset {
 <div class="dashboard-3col">
 <!-- HEADER -->
 <header>
-<h1>Factory Floor Dashboard - WFS4 MAD OPS</h1>
+<div class="header-left">
+    <h1>Factory Floor Dashboard - WFS4 MAD WH</h1>
     <div id="now-header" role="status" aria-live="polite">—</div>
     
-    <div style="display: flex; gap: 8px; margin-top: 4px;">
+    <div style="display: flex; gap: 8px; margin-top: 4px; align-items: center;">
         <span id="shift-badge-header" class="shift-chip">—</span>
-        <!-- NUEVO: Chip del clima con estilo Vivid UI -->
-        <span id="weather-badge" class="shift-chip" style="background:#fdf4ff; color:#701a75; border-color:#e9d5ff; font-weight:800; min-width: 65px; justify-content: center;">
-            ⏳ --°C
-        </span>
+        <!-- Aquí va el widget del tiempo (oculto hasta que cargue) -->
+        <span id="weather-badge" class="shift-chip" style="display:none; transition: all 0.3s ease;">⏳ --°C</span>
     </div>
+</div>
 
 <!-- Cronómetro Modificado -->
 <div class="header-timer" id="timer-widget" aria-label="Cronómetro">
@@ -6619,56 +6643,68 @@ function initAduanasModule() {
 /* =========================================================
    MÓDULO DEL TIEMPO (API Open-Meteo - Sin API Key)
    ========================================================= */
+/* =========================================================
+   MÓDULO DE PREVISIÓN Y ALERTA DE LLUVIA (Open-Meteo)
+   ========================================================= */
 async function initWeatherModule() {
     const badge = document.getElementById('weather-badge');
     if (!badge) return;
 
-    // Coordenadas exactas de los aeropuertos WFS
+    // Localizaciones
     const coords = {
-        'MAD': { lat: 40.4719, lon: -3.5626 }, // Madrid Barajas
-        'BCN': { lat: 41.2974, lon: 2.0833 },  // Barcelona El Prat
-        'VLC': { lat: 39.4893, lon: -0.4816 }, // Valencia Manises
-        'SVQ': { lat: 37.4180, lon: -5.8931 }, // Sevilla San Pablo
-        'ALM': { lat: 40.4719, lon: -3.5626 }  // Madrid Almacén
+        'MAD': { lat: 40.4719, lon: -3.5626 },
+        'BCN': { lat: 41.2974, lon: 2.0833 },
+        'VLC': { lat: 39.4893, lon: -0.4816 },
+        'SVQ': { lat: 37.4180, lon: -5.8931 }
     };
 
-    // Detectar estación actual (Por defecto Madrid)
-    const station = (window.STATION_OVERRIDE || window.STATION_CODE || 'MAD').toUpperCase();
+    // Detectar si estamos en MAD (WFS1, WFS3, WFS4, ALM, MAD) o BCN/VLC
+    let station = (window.STATION_OVERRIDE || window.STATION_CODE || 'MAD').toUpperCase();
+    if (station.includes('WFS') || station === 'ALM') station = 'MAD';
     const loc = coords[station] || coords['MAD'];
 
     try {
-        // Petición a la API gratuita de Open-Meteo
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current_weather=true`);
-        if (!res.ok) throw new Error('Fallo en la API de clima');
+        if (!res.ok) throw new Error('API error');
         
         const data = await res.json();
         const temp = Math.round(data.current_weather.temperature);
         const code = data.current_weather.weathercode;
         
-        // Mapeo oficial de códigos WMO a Emojis visuales
-        let icon = '🌤️'; // Default
+        let icon = '🌤️';
+        let isRaining = false;
+
+        // Códigos WMO de meteorología
         if (code === 0) icon = '☀️'; // Despejado
         else if (code === 1 || code === 2) icon = '⛅'; // Parcialmente nublado
         else if (code === 3) icon = '☁️'; // Nublado
         else if (code >= 45 && code <= 48) icon = '🌫️'; // Niebla
-        else if (code >= 51 && code <= 67) icon = '🌧️'; // Llovizna / Lluvia
-        else if (code >= 71 && code <= 82) icon = '☔'; // Lluvia fuerte / Nieve
-        else if (code >= 95) icon = '⛈️'; // Tormenta
+        else if (code >= 71 && code <= 77) icon = '❄️'; // Nieve
+        // CÓDIGOS DE LLUVIA (51 a 67: Llovizna/Lluvia, 80 a 82: Chubascos, 95+: Tormenta)
+        else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95) { 
+            icon = code >= 95 ? '⛈️' : '🌧️'; 
+            isRaining = true; 
+        } 
         
-        // Pintar en pantalla
-        badge.innerHTML = `${icon} ${temp}°C`;
+        badge.style.display = 'inline-flex';
         badge.title = `Actualizado: ${new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}`;
         
-        // Si hace mucho calor (>32ºC) o mucho frío (<5ºC), ponemos la tarjeta roja para alertar de riesgos
-        if (temp >= 32 || temp <= 5) {
-            badge.style.background = '#fee2e2';
-            badge.style.color = '#991b1b';
-            badge.style.borderColor = '#fca5a5';
+        // ¡LA MAGIA DE LA ALERTA!
+        if (isRaining) {
+            badge.className = 'shift-chip weather-rain-alert';
+            badge.innerHTML = `⚠️ ALERTA LLUVIA: ${icon} ${temp}°C`;
+        } else {
+            // Clima normal y discreto
+            badge.className = 'shift-chip';
+            badge.style.background = '#f8fafc';
+            badge.style.color = '#475569';
+            badge.style.borderColor = '#cbd5e1';
+            badge.innerHTML = `${icon} Previsión: ${temp}°C`;
         }
 
     } catch (e) {
-        console.warn("⚠️ No se pudo cargar el tiempo:", e);
-        badge.innerHTML = '☁️ --°C';
+        console.warn("No se pudo cargar el clima:", e);
+        badge.style.display = 'none';
     }
 }
 /* Init */
@@ -6701,12 +6737,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try { initManualIncidents(); } catch(e){} 
     try { initAutoShiftChange(); } catch(e){}
     // INICIALIZADORES AL CARGAR LA PÁGINA
-    try { initWeatherModule(); } catch(e){}
-    
-    // Y pon esto justo debajo para que se refresque el clima cada 1 hora sin tocar nada
-    setInterval(() => {
-        try { initWeatherModule(); } catch(e){}
-    }, 3600000); // 3600000 ms = 1 hora
+   try { initWeatherModule(); } catch(e){}
+    setInterval(() => { try { initWeatherModule(); } catch(e){} }, 3600000); // Actualiza cada hora
 
     // Voz (Simplificado)
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
