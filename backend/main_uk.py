@@ -405,10 +405,11 @@ async def save_briefing_summary(data: BriefingSnapshot):
 
 # --- MONTAJE ARCHIVOS ESTÁTICOS ---
 # ⚠️ CUIDADO CON LA RUTA: Apunta a "frontend/uk"
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend" / "uk"
+# Subimos un nivel desde 'backend' (parent) y buscamos 'frontend_uk'
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend_uk"
 
 if not FRONTEND_DIR.exists():
-    print(f"⚠️ ¡OJO! La carpeta frontend/uk no existe en: {FRONTEND_DIR}")
+    print(f"⚠️ ¡OJO! La carpeta frontend_uk no existe en la ruta: {FRONTEND_DIR}")
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
