@@ -1,0 +1,2931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="UTF-8" />
+<title>Dashboard - UK OPS</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{ --ui-scale: 1; }                  /* 1 = 100% */
+html{ font-size: calc(16px * var(--ui-scale)); }
+@media (min-width: 1600px){
+:root{ --ui-scale: 1.15; }             
+}
+
+:root{
+--brand-red-900:#7f1d1d; --brand-red-800:#991b1b; --brand-red-700:#b91c1c;
+--brand-red-600:#dc2626; --brand-red-500:#ef4444; --brand-red-400:#f87171;
+
+--bg-page:#f7f8fa;
+--bg-card:#ffffff;
+--border:#e6e8ec;
+--text:#1f2937;
+--text-muted:#6b7280;
+
+--cat-seg:#fee2e2;
+--cat-inc:#fff1e6;
+--cat-man:#eaf8f0;
+--cat-cal:#EE27F5;
+--cat-ser:#F5EE27;  
+}
+
+/* Base */
+html,body{ background:var(--bg-page); color:var(--text); height:100%; }
+body{ margin:0; font:14px "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+h1,h2,h3,.widget-title,.column-title .count{ font-family:"Space Grotesk", Inter, system-ui, sans-serif; letter-spacing:.2px; }
+
+/* Header */
+header{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
+header h1{ margin:0; color:var(--brand-red-600); font-weight:700; font-size: clamp(1.6rem, 1vw + 1rem, 2.2rem); }
+.header-controls{ display:flex; gap:12px; align-items:center; }
+.header-controls input{ padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:.9rem; background:#fff; }
+.btn-primary{
+background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700));
+color:#fff; border:none; border-radius:10px; padding:10px 16px;
+box-shadow:0 6px 16px rgba(220,38,38,.25);
+transition:.15s transform,.2s box-shadow,.2s filter; cursor:pointer;
+}
+.btn-primary:hover{ transform:translateY(-1px); filter:saturate(110%); }
+
+/* Layout */
+.dashboard-3col{
+min-height: 100svh;
+height: auto;
+display:grid;
+grid-template-columns: 320px 1fr 380px;  
+grid-template-rows: auto 1fr;
+gap:20px; padding:20px;
+}
+header{ grid-column: 1 / -1; }
+.col-left, .col-middle, .col-right{
+min-height:0; overflow:auto; display:flex; flex-direction:column; gap:20px;
+}
+
+/* Widgets */
+.widget,.card{
+background:var(--bg-card);
+border:1px solid var(--border);
+border-radius:12px;
+box-shadow: 0 6px 18px rgba(17,24,39,.06);
+padding:16px;
+}
+.widget-title{ font-size:1.05rem; font-weight:700; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
+.widget-title-icon{ width:16px; height:16px; color:var(--text-muted); }
+
+/* Kanban / Kaizen */
+.board-container{ display:grid; gap:12px; }
+.board-container.kanban{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+.board-container.kaizen{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+.board-container.kaizen.compact{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+
+.kanban-column{ display:flex; flex-direction:column; min-width:0; }
+.column-title{
+display:flex; justify-content:space-between; align-items:baseline;
+font-size:.85rem; font-weight:600; color:var(--text-muted);
+margin:0 0 6px; padding-bottom:8px; border-bottom:2px solid #e9ecef;
+}
+.column-title .count{ background:#eef1f4; color:var(--text-muted); padding:2px 6px; border-radius:6px; font-size:.8rem; }
+.cards-container{ min-height:120px; max-height: clamp(280px, 48svh, 70vh);
+overscroll-behavior: contain;
+-webkit-overflow-scrolling: touch; overflow:auto; padding-top:4px; }
+
+.card{
+position:relative;
+margin-bottom:8px;
+padding:10px 12px;
+display:flex; align-items:center; justify-content:space-between; gap:8px;
+cursor:grab;
+}
+.card:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.card-content{ flex:1 1 auto; min-width:0; }
+.card-title{
+font-weight:600; font-size:.95rem; margin:0 0 4px; line-height:1.25;
+overflow:hidden; max-height:2.5em; display:inline-block;
+transform:scale(1.12); transform-origin:left top;
+}
+.card-details,.card-assignee{ font-size:.8rem; color:var(--text-muted); }
+.card-assignee{ margin-top:4px; }
+.card-actions .icon{ width:14px; height:14px; }
+.delete-card-btn{ background:none; border:none; color:#9ca3af; display:none; cursor:pointer; }
+.card:hover .delete-card-btn{ display:block; }
+
+.sortable-ghost{ opacity:.4; background:#dee2e6; }
+.sortable-drag{ opacity:1 !important; transform:rotate(2deg); box-shadow:0 8px 24px rgba(0,0,0,.15); }
+
+/* Category Chips */
+.cat-chip{
+display:inline-block; margin-left:8px; font-size:.7rem; font-weight:700;
+padding:2px 6px; border-radius:999px; border:1px solid rgba(0,0,0,.08);
+vertical-align:middle; background:rgba(255,255,255,.7);
+}
+
+/* KANBAN scoped colors */
+#kanban-widget .card.cat-seguridad     { background: var(--cat-seg); }
+#kanban-widget .card.cat-incidencias   { background: var(--cat-inc); }
+#kanban-widget .card.cat-mantenimiento { background: var(--cat-man); }
+#kanban-widget .card.cat-calidad       { background: var(--cat-cal); }
+#kanban-widget .card.cat-servicio      { background: var(--cat-ser); }  
+
+/* 5S & GW */
+.checkbox-item{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.9rem; }
+.gw-task-item{
+display:flex; align-items:center; gap:8px; padding:6px 4px;
+font-size:.9rem; border-bottom:1px solid var(--border); cursor:pointer;
+}
+.gw-task-item:last-child{ border-bottom:none; }
+.gw-task-item.completed label{ color:var(--text-muted); text-decoration:line-through; }
+.gw-note{
+font-size:.85rem; width:100%; margin-top:4px; padding:6px 8px;
+border:1px solid var(--border); border-radius:6px;
+}
+.gw-note:disabled{ background:#f8f9fa; color:var(--text-muted); }
+
+/* 5S Manageable */
+.s5-compact{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.s5-pill{
+display:inline-flex; align-items:center; gap:6px;
+border:1px solid var(--border); background:#fff;
+border-radius:999px; padding:6px 10px; font-size:.8rem; line-height:1;
+cursor:pointer; user-select:none;
+transition:transform .06s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+.s5-pill:hover{ transform:translateY(-1px); }
+.s5-pill:active{ transform:translateY(0); }
+.s5-dot{ width:8px; height:8px; border-radius:50%; background:#d1d5db; }
+.s5-pill.on{
+background:linear-gradient(135deg, #ecfdf5, #ffffff);
+border-color: rgba(16,185,129,.55);
+box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+}
+.s5-pill.on .s5-dot{ background:#10b981; }
+@keyframes s5-bump{ 0%{transform:scale(1);} 50%{transform:scale(1.05);} 100%{transform:scale(1);} }
+.s5-pill.bump{ animation:s5-bump .18s ease-out; }
+#s5-meta{ margin-top:4px; font-size:.78rem; }
+
+/* EHS */
+#ehs-widget{ display:flex; flex-direction:column; gap:8px; }
+#ehs-month{ color:var(--text-muted); font-size:.95rem; }
+.ehs-controls{
+display:flex; align-items:center; gap:14px;
+border:1px solid var(--border); border-radius:12px; padding:8px 10px;
+}
+.ehs-big{ font-size: clamp(2rem, 2.2vw + .8rem, 3rem); font-weight:800; line-height:1; color:var(--brand-red-600); min-width:3ch; text-align:center; }
+
+/* KPI Costs */
+#kpi-costes .kpi-value.large{ font-size: clamp(2.1rem, 2.3vw + 1rem, 3.2rem); line-height:1; font-weight:700; }
+#kpi-total-cost{ color:var(--brand-red-600); font-weight:800; }
+.kpi-text{ color:var(--text-muted); margin:0; font-size:.9rem; }
+.kpi-currency{ font-size:1rem; font-weight:600; margin-left:4px; vertical-align:super; color:var(--brand-red-600); }
+.flash{ animation: flash-kpi 900ms ease-out; }
+@keyframes flash-kpi{ from{ background:#fff3cd; } to{ background:transparent; } }
+
+/* Tables */
+.table-scroll, .col-left, .col-middle, .col-right{
+-webkit-overflow-scrolling: touch; overscroll-behavior: contain; scroll-padding-bottom: 40px; 
+}
+#planif-table{ width:100%; border-collapse:collapse; font-size:.9rem; }
+#planif-table thead th{
+position:sticky; top:0; background:#fafafa; border-bottom:1px solid var(--border);
+text-align:left; padding:8px; z-index:1;
+}
+#planif-table tbody td{ padding:8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+
+@supports (-webkit-touch-callout: none) { input, select, textarea { font-size: 16px !important; } }
+* { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+button, .btn, .s5-pill, .ehs-btn, .presence-toggle label { touch-action: manipulation; }
+.header-controls input, .header-controls .btn-primary { min-height: 44px; }
+.col-middle { position: relative; }
+
+/* Fullscreen helpers */
+.widget, .card{ position:relative; }
+.fs-toggle{
+  position:absolute; top:10px; right:10px;
+  border:1px solid var(--border); background:rgba(255,255,255,.95);
+  border-radius:12px; padding:10px; cursor:pointer; line-height:0; opacity:.8;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition: opacity .15s, transform .15s, box-shadow .15s;
+  box-shadow:0 4px 12px rgba(0,0,0,.10); min-width:44px; min-height:44px; 
+}
+.fs-toggle:hover{ opacity:1; transform:scale(1.06); }
+.fs-toggle svg{ width:18px; height:18px; display:block; } 
+.widget:fullscreen, .card:fullscreen{ background:#fff; border-radius:0; box-shadow:none; padding:24px; }
+:fullscreen{ overflow:auto; }
+
+/* Split */
+.actions-split{ display:grid; grid-template-columns: 1.2fr 1fr; gap:20px; align-items:start; }
+@media (max-width: 1100px){ .actions-split{ grid-template-columns: 1fr; } }
+
+/* Responsive */
+@media (max-width: 1200px){ .dashboard-3col{ grid-template-columns: 280px 1fr 320px; } }
+@media (max-width: 980px){
+.dashboard-3col{ grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; }
+.col-left,.col-right{ order:2; } .col-middle{ order:1; }
+}
+@media (hover:none) and (pointer:coarse){
+.btn-primary, .ehs-btn, .btn-compact, .delete-card-btn, .s5-pill { min-width:44px; min-height:44px; }
+.new-item-form input, .new-item-form select { padding:12px; }
+}
+
+/* Drag handle */
+.card { gap:10px; }
+.drag-handle{
+    align-self:stretch; display:flex; align-items:center; justify-content:center;
+    padding: 12px; border:1px solid var(--border); border-radius:10px;
+    background:var(--bg-card); cursor:grab; opacity:.7;
+    touch-action: none; -webkit-user-select: none; user-select: none;
+}
+.card:active .drag-handle{ cursor:grabbing; opacity:1; background: #f3f4f6; }
+.drag-handle svg{ width:20px; height:20px; }
+
+/* Timer */
+.header-timer { min-height: 56px; display:flex; align-items:center; gap:12px; }
+.timer-face{ display:flex; align-items:center; gap:8px; }
+.timer-display{ font-size: clamp(1.8rem, 5vw, 5rem); font-family:"Space Grotesk", sans-serif; font-weight:800; cursor:pointer; user-select:none; }
+.timer-dot{ width:10px; height:10px; border-radius:50%; background: var(--brand-red-600); opacity:.75; }
+.timer-reset{ min-width:40px; min-height:40px; padding:6px 10px; font-weight:600; border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
+.timer-start-btn { background: #10b981; color: white; border: none; border-radius: 8px; padding: 6px 12px; font-weight: 700; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 10px rgba(16,185,129,0.3); }
+.timer-start-btn:active { transform: scale(0.98); }
+
+/* Checklist Grid */
+.check-grid{ display:grid; gap:8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.check-card{
+display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start;
+gap:10px; padding:14px 16px; min-height:84px;
+}
+.check-title{ font-weight:600; font-size:.95rem; line-height:1.25; white-space:normal; word-break:break-word; }
+.check-actions{ width:100%; display:flex; flex-wrap:wrap; gap:8px; }
+.check-actions label{ padding:6px 12px; border-radius:999px; font-size:.78rem; }
+.check-actions input:checked + label{
+background:#ecfdf5; border-color:rgba(16,185,129,.6); box-shadow: inset 0 0 0 2px rgba(16,185,129,.08);
+}
+.shift-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:#fff; font-weight:600; font-size:.85rem; }
+.shift-chip[data-shift="Morning"]{ background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
+.shift-chip[data-shift="Afternoon"]{ background:#fff7ed; color:#9a3412; border-color:#fed7aa; }
+.shift-chip[data-shift="Night"]{ background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
+
+/* Spotlight Checklist */
+#brief-check{
+position: sticky; top: 0; z-index: 5; border: 2px solid rgba(239,68,68,.45);
+box-shadow: 0 14px 36px rgba(239,68,68,.18), 0 2px 0 rgba(255,255,255,.9) inset;
+background: radial-gradient(1200px 200px at 50% -60px, rgba(239,68,68,.06), transparent), #fff;
+animation: brief-pop .25s ease-out;
+}
+#brief-check .widget-title{ font-size: 1.25rem; color: var(--brand-red-700); }
+#brief-check .check-grid{ grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+#brief-check .check-card{ border: 1px solid var(--border); box-shadow: 0 6px 16px rgba(17,24,39,.06); min-height: 96px; }
+@keyframes brief-pop { from { transform: scale(.985); opacity:.96; } to { transform: scale(1); opacity:1; } }
+
+.col-middle .widget:not(#brief-check){ filter: saturate(.92); opacity: .96; transition: filter .2s ease, opacity .2s ease, transform .2s ease; }
+.col-middle .widget:not(#brief-check):hover{ filter: none; opacity: 1; }
+
+/* Incidentes */
+#incidentes-widget .incident-remember{ margin: 6px 0 10px; padding: 10px 12px; background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700)); color: #fff; border-radius: 10px; font-weight: 800; letter-spacing: .2px; }
+#incidentes-widget .title-bullets{ list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#incidentes-widget .title-chip{ display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: .8rem; font-weight: 700; background: linear-gradient(135deg, var(--brand-red-600), var(--brand-red-700)); color: #fff; border: none; box-shadow: 0 6px 14px rgba(220,38,38,.22); }
+#incidentes-widget .title-chip:hover{ filter: saturate(110%); transform: translateY(-1px); }
+
+/* Control de presencia */
+.presence-toggle{ display:inline-flex; align-items:center; border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
+.presence-toggle input{ display:none; }
+.presence-toggle label{ padding:6px 10px; font-size:.82rem; font-weight:700; cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:6px; }
+.presence-toggle label + input + label{ border-left:1px solid var(--border); }
+.presence-toggle .yes{ color:#166534; }
+.presence-toggle .no { color:#991b1b; }
+.presence-toggle input[value="yes"]:checked + label.yes{ background:#e3f9e5; box-shadow: inset 0 0 0 2px rgba(16,185,129,.12); }
+.presence-toggle input[value="no"]:checked + label.no{ background:#ffe3e3; box-shadow: inset 0 0 0 2px rgba(239,68,68,.12); }
+
+/* Vivid Aesthetics */
+:root{
+  --vivid-pink:#ff4d8d; --vivid-orange:#ff7a18; --vivid-yellow:#ffd43b;
+  --vivid-green:#10b981; --vivid-blue:#3b82f6; --vivid-violet:#8b5cf6;
+  --vivid-red:#ef4444; --vivid-amber:#f59e0b;
+}
+.widget.vivid .widget-title.hero{
+  position: relative; display:flex; align-items:center; gap:10px;
+  padding:12px 14px; margin:-16px -16px 12px; 
+  border-radius:12px 12px 0 0; color:#0b1220;
+  background: radial-gradient(1200px 200px at 10% -140px, rgba(255,255,255,.7), transparent), linear-gradient(135deg, #fff 0%, #ffe9f2 40%, #fff5e6 100%);
+  border-bottom: 2px solid rgba(0,0,0,.05);
+}
+.widget.vivid .hero-ico{ font-size:1.15rem; transform: translateY(1px); }
+.widget.vivid .hero-badge{
+  margin-left:auto; font-size:.72rem; font-weight:900; letter-spacing:.3px;
+  padding:6px 10px; border-radius:999px;
+  background:linear-gradient(135deg, var(--vivid-blue), var(--vivid-violet));
+  color:#fff; box-shadow:0 6px 14px rgba(59,130,246,.25);
+}
+.widget.vivid .hero-badge.warn{ background:linear-gradient(135deg, var(--vivid-amber), var(--vivid-yellow)); color:#2b1800; box-shadow:0 6px 14px rgba(245,158,11,.25); }
+.widget.vivid .hero-badge.danger{ background:linear-gradient(135deg, #ff8a8a, var(--vivid-red)); color:#fff; }
+.widget.vivid{ border:1.5px solid rgba(0,0,0,.06); box-shadow: 0 10px 28px rgba(17,24,39,.10); overflow:hidden; }
+
+/* OPS items */
+#ops-updates-widget.vivid .ops-item{
+  position:relative; border:1px solid rgba(0,0,0,.06); background:#fff;
+  border-radius:14px; padding:12px 12px 10px 12px; box-shadow:0 8px 22px rgba(17,24,39,.08); overflow:hidden;
+}
+#ops-updates-widget.vivid .ops-item::before{
+  content:""; position:absolute; inset:0 0 0 auto; width:8px;
+  background: var(--ops-ribbon, linear-gradient(180deg, var(--vivid-blue), var(--vivid-violet))); opacity:.85;
+}
+#ops-updates-widget.vivid .ops-item .ops-impact{ border:0; font-weight:900; box-shadow:0 4px 10px rgba(0,0,0,.06); }
+#ops-updates-widget.vivid .ops-item .ops-impact.High{ background:linear-gradient(135deg,#ffb3b3, var(--vivid-red)); color:#611818; }
+#ops-updates-widget.vivid .ops-item .ops-impact.Medium{ background:linear-gradient(135deg,#ffe7b3, var(--vivid-amber)); color:#663a00; }
+#ops-updates-widget.vivid .ops-item .ops-impact.Low{ background:linear-gradient(135deg,#bff0da, var(--vivid-green)); color:#0b4a37; }
+#ops-updates-widget.vivid .ops-item .ops-scope{ background:#eef2ff; color:#1f2a73; border-color:#c7d2fe; font-weight:800; }
+#ops-updates-widget.vivid .ops-btn{ border:0; font-weight:800; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,.08); border-radius:999px; padding:6px 12px; }
+.ops-item{ border:1px solid var(--border); border-radius:12px; background:#fff; padding:12px; display:flex; flex-direction:column; gap:8px; }
+.ops-head{ display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.ops-title{ font-weight:800; font-size:1rem; }
+.ops-flags{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.ops-impact{ font-weight:800; font-size:.75rem; padding:4px 10px; border-radius:999px; border:2px solid transparent; }
+.ops-scope{ font-size:.75rem; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; }
+.ops-meta{ color:var(--text-muted); font-size:.82rem; display:flex; gap:10px; flex-wrap:wrap; }
+.ops-btn{ border:1px solid var(--border); background:#fff; border-radius:999px; padding:4px 10px; font-size:.8rem; cursor:pointer; }
+.ops-btn:hover{ filter:saturate(108%); transform:translateY(-1px); }
+
+/* Navigation */
+.widget-nav-bar { display: none; justify-content: space-between; align-items: center; background: #fff; padding: 10px 15px; border-bottom: 1px solid var(--border); margin: -20px -20px 20px -20px; position: sticky; top: 0; z-index: 50; }
+.widget:fullscreen .widget-nav-bar, .widget.widget--zoomed .widget-nav-bar { position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; height: 100dvh !important; z-index: 20000 !important; background: #ffffff !important; box-sizing: border-box !important; padding: 0 0 160px 0 !important; overflow-y: auto !important; overflow-x: hidden !important; margin: 0 !important; border-radius: 0 !important; border: none !important; display: block !important; }
+.widget.widget--zoomed > *:not(.widget-nav-bar) { margin-left: 20px; margin-right: 20px; }
+.widget.widget--zoomed .widget-nav-bar { margin: 0 !important; width: 100% !important; border-radius: 0 !important; border-left: none; border-right: none; border-top: none; box-sizing: border-box !important; position: sticky !important; top: 0 !important; }
+.nav-group { display: flex; gap: 10px; }
+.btn-nav { background: #f3f4f6; border: 1px solid #d1d5db; color: #374151; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+.btn-nav:hover { background: #e5e7eb; transform: translateY(-1px); }
+.btn-nav.home { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.btn-nav.home:hover { background: #fecaca; }
+.btn-nav.next-ok { background: #dcfce7; color: #166534; border-color: #86efac; }
+.btn-nav.next-ok:hover { background: #bbf7d0; }
+
+/* Shift Mode */
+.widget.shift-focus { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 9990 !important; margin: 0 !important; border-radius: 0 !important; overflow-y: auto !important; background: rgba(255, 255, 255, 0.98) !important; padding: 40px 20px 120px 20px !important; display: block !important; box-shadow: none !important; animation: zoom-in-shift 0.4s ease-out forwards; }
+@keyframes zoom-in-shift { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.widget.shift-focus .widget-title { font-size: 2rem; text-align: center; margin-bottom: 30px; color: var(--brand-red-700); }
+.widget.shift-focus .check-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important; max-width: 1200px; margin: 0 auto; }
+.widget.shift-focus .check-card { padding: 20px; border: 2px solid var(--border); }
+body.shift-active #timer-widget { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000; background: #fff; padding: 15px 40px; border-radius: 50px; box-shadow: 0 10px 40px rgba(220, 38, 38, 0.25); border: 3px solid var(--brand-red-600); display: flex !important; gap: 20px; }
+body.shift-active .timer-display { font-size: 3rem; font-variant-numeric: tabular-nums; }
+#exit-shift-mode-btn { display: none; position: fixed; top: 20px; right: 20px; z-index: 2147483647 !important; padding: 12px 24px; background: #334155; color: white; border: 2px solid #fff; border-radius: 12px; cursor: pointer; font-weight: 800; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+body.shift-active #exit-shift-mode-btn, body.shift-mode #exit-shift-mode-btn { display: block !important; }
+body.shift-mode #timer-widget { position: fixed !important; bottom: 20px !important; left: 50% !important; transform: translateX(-50%) !important; z-index: 20000 !important; display: flex !important; background: #fff !important; padding: 10px 40px !important; border-radius: 50px !important; border: 4px solid #dc2626 !important; box-shadow: 0 10px 40px rgba(0,0,0,0.4) !important; visibility: visible !important; opacity: 1 !important; width: auto !important; height: auto !important; }
+body.shift-mode #timer-display { font-size: 4rem !important; font-weight: 800 !important; color: #1f2937 !important; font-variant-numeric: tabular-nums; line-height: 1 !important; }
+body.shift-mode #timer-reset { width: 50px !important; height: 50px !important; font-size: 20px !important; }
+body.shift-mode #timer-widget, body.card-open #timer-widget { position: fixed !important; bottom: 20px !important; left: 50% !important; transform: translateX(-50%) !important; z-index: 2147483647 !important; display: flex !important; background: #ffffff !important; padding: 10px 40px !important; border-radius: 50px !important; border: 4px solid #dc2626 !important; box-shadow: 0 10px 100px rgba(0,0,0,0.5) !important; visibility: visible !important; opacity: 1 !important; width: auto !important; height: auto !important; }
+body.shift-mode #timer-display, body.card-open #timer-display { font-size: 4rem !important; font-weight: 800 !important; color: #1f2937 !important; line-height: 1 !important; font-variant-numeric: tabular-nums; }
+body.shift-mode #timer-reset, body.card-open #timer-reset { width: 50px !important; height: 50px !important; font-size: 20px !important; border-radius: 50% !important; background: #f3f4f6 !important; }
+
+/* Post Briefing Info Screen */
+#post-briefing-screen { display: none; position: fixed; inset: 0; background-color: #f8fafc; z-index: 99999; padding: 20px; flex-direction: column; }
+#post-briefing-screen.active { display: flex; }
+.pb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0; }
+.pb-title { font-size: 1.8rem; font-weight: 800; color: var(--brand-red-700); font-family: "Space Grotesk", sans-serif; }
+.pb-close-btn { background: #334155; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: background 0.2s; }
+.pb-close-btn:hover { background: #1e293b; }
+.pb-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 20px; flex: 1; overflow: hidden; }
+.pb-card { background: white; border: 1px solid #cbd5e1; border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; }
+.pb-card-title { font-size: 1.4rem; font-weight: 700; color: #475569; margin-bottom: 15px; border-bottom: 4px solid var(--brand-red-500); padding-bottom: 5px; display: inline-block; width: fit-content; }
+.pb-content { flex: 1; overflow-y: auto; font-size: 1.1rem; line-height: 1.6; }
+.pb-content ul { padding-left: 20px; margin: 0; }
+.pb-kpi-box { display: flex; justify-content: space-around; align-items: center; height: 100%; }
+.pb-kpi-item { text-align: center; padding: 20px; background: #f1f5f9; border-radius: 12px; min-width: 150px; }
+.pb-kpi-val { font-size: 3rem; font-weight: 800; color: var(--brand-red-600); display: block; }
+.pb-kpi-lbl { font-size: 1.2rem; color: #64748b; font-weight: 600; }
+@media (max-width: 1000px) { .pb-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; } #post-briefing-screen { overflow-y: auto; } }
+
+/* Incident cards */
+.inc-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.04); transition: transform 0.1s; }
+.inc-card:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+.inc-card.type-incident { border-left: 5px solid #dc2626; }
+.inc-card.type-incident .inc-badge { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.inc-card.type-lesson { border-left: 5px solid #8b5cf6; }
+.inc-card.type-lesson .inc-badge { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+.inc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.inc-badge { font-size: 0.75rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.inc-title { font-weight: 700; font-size: 0.95rem; color: #1f2937; }
+.inc-desc { font-size: 0.9rem; color: #4b5563; white-space: pre-wrap; margin-top: 4px; }
+.inc-meta { font-size: 0.75rem; color: #9ca3af; margin-top: 6px; display: flex; justify-content: space-between; align-items: center; }
+.inc-del-btn { background: none; border: none; cursor: pointer; opacity: 0.6; font-size: 1rem; }
+.inc-del-btn:hover { opacity: 1; transform: scale(1.1); }
+
+/* Notice */
+.loading-card-notice { position: relative; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 12px 15px; margin: 10px 0; display: flex; align-items: center; gap: 15px; overflow: hidden; animation: notice-pulse 2s infinite ease-in-out; }
+.notice-ribbon { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: #f59e0b; }
+.notice-content strong { display: block; color: #92400e; font-family: "Space Grotesk", sans-serif; font-size: 0.9rem; margin-bottom: 2px; }
+.notice-content p { margin: 0; font-size: 0.8rem; color: #b45309; }
+@keyframes notice-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.99); } }
+.notice-hidden { display: none !important; }
+
+/* Vivid Notice */
+.vivid-notice-card { position: relative; display: flex; align-items: center; gap: 20px; background: #ffffff; border: 2px solid #fee2e2; border-radius: 16px; padding: 18px 24px; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(220, 38, 38, 0.08); z-index: 100; }
+.notice-ribbon-red { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: linear-gradient(to bottom, #dc2626, #991b1b); border-radius: 16px 0 0 16px; }
+.notice-icon { font-size: 2rem; flex-shrink: 0; }
+.notice-text h3 { margin: 0; font-family: "Space Grotesk", sans-serif; font-size: 1rem; font-weight: 800; color: #991b1b; letter-spacing: 0.5px; }
+.notice-text p { margin: 4px 0 0 0; font-size: 0.95rem; color: #4b5563; line-height: 1.4; }
+.notice-close-btn { margin-left: auto; background: #f3f4f6; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-weight: bold; color: #6b7280; transition: all 0.2s; }
+.notice-close-btn:hover { background: #fee2e2; color: #dc2626; }
+.blink-glow { animation: blink-glow 2s infinite ease-in-out; }
+
+/* Safety Poster */
+.safety-poster { background: linear-gradient(180deg, #374151 0%, #111827 100%); border: 4px solid #9ca3af; border-radius: 12px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 10px 25px rgba(220,38,38,0.2); color: #f3f4f6; font-family: 'Inter', sans-serif; overflow: hidden; position: relative; height: 100%; }
+.sp-header { background: repeating-linear-gradient(45deg, #dc2626, #dc2626 10px, #b91c1c 10px, #b91c1c 20px); color: white; text-align: center; padding: 12px 10px; font-family: 'Space Grotesk', sans-serif; font-size: 1.3rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; border-bottom: 3px solid #111827; text-shadow: 2px 2px 4px rgba(0,0,0,0.6); }
+.sp-subtitle { display: inline-block; font-size: 0.8rem; background: #fff; color: #dc2626; padding: 2px 12px; border-radius: 4px; margin-top: 4px; text-shadow: none; letter-spacing: 0; }
+.sp-row { display: flex; flex-direction: column; padding: 10px 20px; border-bottom: 2px solid #374151; position: relative; }
+.sp-row::before, .sp-row::after { content: "●"; position: absolute; color: #6b7280; font-size: 1rem; top: 50%; transform: translateY(-50%); text-shadow: 0 1px 1px rgba(255,255,255,0.2); }
+.sp-row::before { left: 4px; }
+.sp-row::after { right: 4px; }
+.sp-title { display: inline-flex; align-items: center; font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; margin-bottom: 6px; text-transform: uppercase; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: fit-content; }
+.sp-text { font-size: 0.85rem; line-height: 1.3; color: #e5e7eb; }
+.sp-text ul { margin: 6px 0 0 0; padding-left: 20px; list-style: none; }
+.sp-text li { margin-bottom: 4px; position: relative; font-weight: 600;}
+.sp-text li.chk::before { content: "✔️"; position: absolute; left: -22px; filter: hue-rotate(100deg); }
+.sp-text li.dot::before { content: "•"; position: absolute; left: -16px; font-weight: bold; color: #f3f4f6;}
+.sp-text li.cross::before { content: "❌"; position: absolute; left: -22px; }
+.sp-highlight { display: inline-block; background: #dc2626; color: white; padding: 4px 10px; font-weight: 800; border-radius: 6px; margin-top: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
+
+.kpi-tile { border-left: 6px solid #10b981; background: #f0fdf4; }
+.kpi-label { color: #065f46; }
+.kpi-value { color: #047857; }
+
+/* Weather Alert */
+@keyframes rain-alert-blink {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 4px 12px rgba(59, 130, 246, 0.2); border-color: #93c5fd; transform: scale(1.08); }
+    50% { box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.6), 0 8px 24px rgba(59, 130, 246, 0.5); border-color: #2563eb; transform: scale(1.15); }
+}
+.weather-rain-alert {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe) !important; color: #1e3a8a !important; border: 2px solid #3b82f6 !important;
+    animation: rain-alert-blink 1.5s infinite ease-in-out; margin-left: 12px; font-weight: 800 !important; letter-spacing: 0.5px; z-index: 10;
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<button id="exit-shift-mode-btn" onclick="exitShiftMode()">Close Shift View ✖</button>
+
+
+<select id="scale-select" aria-label="Escala UI" style="display:none;">
+<option value="1">100%</option>
+<option value="1.15" selected>115%</option>
+<option value="1.3">130%</option>
+<option value="1.5">150%</option>
+</select>
+<button id="present-btn" class="btn-primary" type="button" title="Pantalla completa" style="display:none;">Present</button>
+
+<div class="dashboard-3col">
+<!-- HEADER -->
+<header>
+<div class="header-left">
+    <h1>Factory Floor Dashboard - UK</h1>
+    <div id="now-header" role="status" aria-live="polite">—</div>
+    
+    <div style="display: flex; gap: 8px; margin-top: 4px; align-items: center;">
+        <span id="shift-badge-header" class="shift-chip">—</span>
+        <!-- Weather Badge -->
+        <span id="weather-badge" class="shift-chip" style="display:none; transition: all 0.3s ease;">⏳ --°C</span>
+    </div>
+</div>
+
+<div class="header-timer" id="timer-widget" aria-label="Timer">
+    <div class="timer-face" id="timer-face">
+        <div class="timer-display" id="timer-display">00:00:00</div>
+        <span class="timer-dot" aria-hidden="true"></span>
+    </div>
+    <button type="button" id="timer-start-btn" class="timer-start-btn">Start</button>
+    <button type="button" class="timer-reset" id="timer-reset">Reset</button>
+
+<button onclick="openSupportModal()" style="border:none; background:none; color:#64748b; cursor:pointer; font-size:0.8rem; text-decoration:underline; margin-top:10px;">
+    🔧 Report Dashboard Issue
+</button>
+<dialog id="support-modal" style="border:none; border-radius:16px; padding:0; width:420px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); overflow:hidden;">
+    <div style="background:#334155; color:white; padding:15px 20px; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+        <span>🔧 TECHNICAL SUPPORT</span>
+        <button onclick="document.getElementById('support-modal').close()" style="background:none; border:none; color:white; cursor:pointer; font-size:1.2rem;">✕</button>
+    </div>
+
+    <div id="support-form" style="padding:20px;">
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:800; color:#475569; display:block; margin-bottom:5px;">REPORTED BY:*</label>
+            <input type="text" id="support-worker-name" placeholder="Enter your name" 
+                   style="width:100%; padding:10px; border-radius:8px; border:2px solid #e2e8f0; font-family:inherit; box-sizing:border-box;">
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:800; color:#475569; display:block; margin-bottom:5px;">ISSUE TYPE:</label>
+            <select id="issue-type" style="width:100%; padding:10px; border-radius:8px; border:2px solid #e2e8f0; background:white; font-family:inherit;">
+                <option>Roster not loading</option>
+                <option>KPIs not updating</option>
+                <option>Error saving summary</option>
+                <option>Fiix data error</option>
+                <option>Other technical issue</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:800; color:#475569; display:block; margin-bottom:5px;">ISSUE DESCRIPTION:*</label>
+            <textarea id="issue-details" placeholder="What exactly is happening?" 
+                      style="width:100%; height:100px; padding:10px; border-radius:8px; border:2px solid #e2e8f0; font-family:inherit; resize:none; box-sizing:border-box; outline:none;"></textarea>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button onclick="document.getElementById('support-modal').close()" style="flex:1; padding:12px; border:none; border-radius:10px; font-weight:700; background:#f1f5f9; cursor:pointer;">CANCEL</button>
+            <button onclick="sendDashboardIssue()" id="btn-submit-support" style="flex:1; padding:12px; border:none; border-radius:10px; font-weight:700; background:#334155; color:white; cursor:pointer;">SEND REPORT</button>
+        </div>
+    </div>
+
+    <div id="support-thanks" style="display:none; padding:40px 20px; text-align:center;">
+        <div style="font-size:4rem; margin-bottom:15px;">🛠️</div>
+        <h3 style="margin:0 0 10px 0; color:#1e293b;">Report Received</h3>
+        <p style="font-size:0.9rem; color:#64748b; line-height:1.5;">
+            The technical team has been notified about the issue at:<br>
+            <strong id="display-station-name" style="color:#0f172a;">—</strong>
+        </p>
+        <button onclick="document.getElementById('support-modal').close()" class="btn-primary" style="width:100%; margin-top:20px;">UNDERSTOOD</button>
+    </div>
+</dialog>
+
+</div>
+
+<div class="header-controls">
+    <input type="text" id="briefing-supervisor" placeholder="Supervisor Name" style="min-width: 140px; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+    <button type="button" class="btn-mic" data-target="briefing-supervisor" title="Dictate name">🎙️</button>
+    <button id="btn-generate-summary" class="btn-primary" type="button" disabled style="opacity: 0.5; cursor: not-allowed;">Generate Summary</button>
+</div>
+</header>
+
+
+<!-- LEFT: TEAM -->
+<section class="col-left">
+<div class="widget" id="team-widget">
+    <h2 class="widget-title">1) Team / Shift</h2>
+    <small class="kpi-text" id="team-meta">Connecting...</small>
+
+    <div id="roster-status-notice" class="loading-card-notice">
+        <div class="notice-ribbon"></div>
+        <div class="notice-content">
+            <strong>⏳ Syncing with Central Server</strong>
+            <p>If the list does not appear in 10 seconds, please <u>refresh the page</u>.</p>
+        </div>
+    </div>
+
+<form id="team-form" class="team-form" autocomplete="off" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+<input type="text" id="team-name" placeholder="Add person..." required style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;"/>
+<button type="submit" class="btn-primary" style="padding:8px 12px;">+</button>
+</form>
+
+<form id="roster-upload-form" style="display:flex; gap:8px; align-items:center; margin:8px 0;">
+  <input type="file" id="roster-file" accept=".xlsx,.xls" required
+         style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+  <button class="btn-primary" type="submit">Upload Excel</button>
+</form>
+<small id="roster-upload-result" class="kpi-text">—</small>
+
+<div id="team-list" class="team-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+</div>
+</section>
+
+<!-- CENTER: ACTIONS -->
+<section class="col-middle">
+<div id="connection-preflight-notice" class="vivid-notice-card blink-glow">
+    <div class="notice-ribbon-red"></div>
+    <div class="notice-icon">⚠️</div>
+    <div class="notice-text">
+        <h3>CONNECTION INSTRUCTION</h3>
+        <p>In case of loading errors or disconnection: check the <strong>Network Settings</strong> first on both the <strong>Tablet</strong> and the <strong>TV/Monitor</strong>.</p>
+    </div>
+    <button class="notice-close-btn" onclick="this.parentElement.style.display='none'">✕</button>
+</div>
+
+<!-- CHECKLIST -->
+<div class="widget" id="brief-check">
+  <div id="brief-check-explain" class="br-explain" aria-live="polite">
+  <span class="br-explain-ico" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+      <path d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+    </svg>
+  </span>
+  <strong class="br-explain-label">Guide</strong>
+  <span class="br-explain-text">Hover or tap each point for guidance.</span>
+</div>
+
+<h2 class="widget-title">
+<span>Checklist</span>
+</h2>
+<span id="shift-badge" class="shift-chip">—</span>
+  
+<div class="check-grid">
+  <!-- 1) Manning -->
+  <div class="check-card" tabindex="0"
+       data-help="Manning: present/absent, assigned zones and coverage; request backup if needed."
+       data-target="team-widget">
+    <span class="check-title">1) Manning and resources</span>
+    <div class="check-actions" role="group" aria-label="Block 1">
+      <input id="c1ok" type="radio" name="c1" value="OK"><label for="c1ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 2) Ops updates -->
+  <div class="check-card" tabindex="0"
+       data-help="Operational changes: review CQC or WWM"
+       data-target="ops-updates-widget">
+    <span class="check-title">2) Operational Updates</span>
+    <div class="check-actions" role="group" aria-label="Block 2">
+      <input id="c2ok" type="radio" name="c2" value="OK"><label for="c2ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 3) Prev Shift -->
+  <div class="check-card" tabindex="0"
+       data-help="Review incidents, blockers and key learnings from the previous shift."
+       data-target="prev-shift-widget">
+    <span class="check-title">3) Previous Shift Highlights</span>
+    <div class="check-actions" role="group" aria-label="Block 3">
+      <input id="c3ok" type="radio" name="c3" value="OK"><label for="c3ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 4) Safety -->
+  <div class="check-card" tabindex="0"
+       data-help="Safety: daily risks, PPE, permits, access control and safety brief."
+       data-target="seguridad-widget">
+    <span class="check-title">4) Safety, Security, Quality & EHS</span>
+    <div class="check-actions" role="group" aria-label="Block 4">
+      <input id="c4ok" type="radio" name="c4" value="OK"><label for="c4ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 5) Incidents -->
+  <div class="check-card" tabindex="0"
+       data-help="How to report incidents: channels, times, owners and emergency equipment."
+       data-target="incidentes-widget">
+    <span class="check-title">5) Incident prep/reports</span>
+    <div class="check-actions" role="group" aria-label="Block 5">
+      <input id="c5ok" type="radio" name="c5" value="OK"><label for="c5ok">OK</label>
+    </div>
+  </div>
+
+  <div class="check-card" tabindex="0"
+       data-help="Daily KPIs: Uniwing occupancy, DG Autocheck, CargoMobile; review trend vs target."
+       data-target="kpi-center">
+    <span class="check-title">6) KPIs Review</span>
+    <div class="check-actions" role="group" aria-label="Block 6">
+      <input id="c6ok" type="radio" name="c6" value="OK"><label for="c6ok">OK</label>
+    </div>
+  </div>
+
+  <!-- 7) Feedback -->
+  <div class="check-card" tabindex="0"
+       data-help="Collect team feedback and translate it into clear actions on the Kanban."
+       data-target="kanban-widget">
+    <span class="check-title">7) Feedback → Actions</span>
+    <div class="check-actions" role="group" aria-label="Block 7">
+      <input id="c7ok" type="radio" name="c7" value="OK"><label for="c7ok">OK</label>
+    </div>
+  </div>
+  
+  <!-- 8) Customs -->
+  <div class="check-card" tabindex="0"
+       data-help="Review global Customs notices and ensure compliance with Art. 188."
+       data-target="normativa-aduanera-widget">
+    <span class="check-title">8) Customs Regulations</span>
+    <div class="check-actions" role="group" aria-label="Block 8">
+      <input id="c8ok" type="radio" name="c8" value="OK"><label for="c8ok">OK</label>
+    </div>
+  </div>
+</div>
+
+<small class="kpi-text" id="brief-check-meta">—</small>
+</div>
+
+<!-- OPS UPDATES -->
+<div class="widget vivid" id="ops-updates-widget">
+  <h2 class="widget-title hero">
+    <span class="hero-ico">🚧</span><span>2) Operational Updates</span>
+    <span class="hero-badge">LIVE</span>
+  </h2>
+
+  <div class="ops-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+    <input id="ops-q" type="search" placeholder="Search..." 
+           style="flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+    <select id="ops-prio" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+      <option value="">All</option><option>High</option><option>Medium</option><option>Low</option>
+    </select>
+    <select id="ops-scope" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+      <option value="">Scope</option>
+      <option>General</option><option>Island</option><option>Warehouse</option>
+      <option>Office</option><option>Import</option><option>Export</option>
+    </select>
+    <button type="button" class="btn-compact" id="ops-add">+ New</button>
+  </div>
+
+  <div id="ops-list" class="ops-list" role="list"></div>
+
+  <dialog id="ops-dialog" style="border:1px solid var(--border);border-radius:12px;padding:12px;max-width:520px;width:clamp(280px,90vw,520px);">
+    <form method="dialog" id="ops-form" style="display:grid;gap:8px;">
+      <h3 style="margin:0;">Update</h3>
+      <input type="hidden" id="ops-id">
+      <label>Title
+        <input id="ops-title" type="text" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+      </label>
+      <label>Priority
+        <select id="ops-impact" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          <option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option>
+        </select>
+      </label>
+      <label>Scope
+        <select id="ops-scope-field" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          <option>General</option><option>Island</option><option>Warehouse</option>
+          <option>Office</option><option>Import</option><option>Export</option>
+        </select>
+      </label>
+      <label>Owner (optional)
+        <input id="ops-owner" type="text" placeholder="e.g. @john">
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <label>From <input id="ops-from" type="date"></label>
+        <label>To  <input id="ops-to"   type="date"></label>
+      </div>
+      <menu style="display:flex;gap:8px;justify-content:flex-end;margin:0;padding-top:8px;">
+  <button type="button" class="btn-compact" value="cancel" formnovalidate>Cancel</button>
+  <button type="submit"  class="btn-primary" id="ops-save" value="default">Save</button>
+</menu>
+    </form>
+  </dialog>
+</div>
+
+
+<!-- SAFETY -->
+<div class="widget vivid" id="seguridad-widget">
+  <h2 class="widget-title hero">
+    <span class="hero-ico">🛡️</span><span>4) Safety, Security, Quality & EHS</span>
+    <span class="hero-badge warn">PRIORITY</span>
+  </h2>
+
+  <!-- PÓSTER DE SEGURIDAD CRÍTICO -->
+  <div class="safety-poster">
+      <div class="sp-header">
+          ⚠️ OPERATIONAL SAFETY
+          <div class="sp-subtitle">(CRITICAL MESSAGE)</div>
+      </div>
+      
+      <div class="sp-row">
+          <div class="sp-title" style="background:#f59e0b; color:#111827;">⚠️ REMEMBER</div>
+          <div class="sp-text">
+              <strong>Recent accidents in Johannesburg and Madrid</strong><br>
+              <span style="color:#fca5a5; font-weight:700;">➡️ This can happen to anyone</span>
+          </div>
+      </div>
+
+      <div class="sp-row">
+          <div class="sp-title" style="background:#dc2626;">🛑 THINK BEFORE YOU ACT</div>
+          <div class="sp-text">
+              <ul>
+                  <li class="dot">Is the task safe?</li>
+                  <li class="dot">Is the environment controlled?</li>
+                  <li class="dot">Are there visible risks?</li>
+              </ul>
+              <div class="sp-highlight">➡️ IF IN DOUBT: STOP</div>
+          </div>
+      </div>
+
+      <div class="sp-row">
+          <div class="sp-title" style="background:#f59e0b; color:#111827;">⚙️ KEY RULES</div>
+          <div class="sp-text">
+              <ul>
+                  <li class="chk">Follow procedures</li>
+                  <li class="chk">Watch moving loads and equipment</li>
+                  <li class="chk">Work stably and controlled</li>
+                  <li class="chk">No rush = No accidents</li>
+              </ul>
+          </div>
+      </div>
+
+      <div class="sp-row">
+          <div class="sp-title" style="background:#2563eb;">👥 TEAMWORK</div>
+          <div class="sp-text">
+              <ul>
+                  <li class="chk">Look out for your colleagues</li>
+                  <li class="chk">Speak up if you see a risk</li>
+                  <li class="chk">Support safe decisions</li>
+              </ul>
+              <div class="sp-highlight" style="background:#f3f4f6; color:#dc2626;">➡️ Here safety belongs to everyone</div>
+          </div>
+      </div>
+
+      <div class="sp-row">
+          <div class="sp-title" style="background:#dc2626;">🚫 ABSOLUTE PRIORITY</div>
+          <div class="sp-text">
+              <ul>
+                  <li class="cross">No cargo is urgent</li>
+                  <li class="cross">No flight is worth an accident</li>
+              </ul>
+              <div class="sp-highlight">➡️ If there is a risk ➡️ STOP THE OPERATION</div>
+          </div>
+      </div>
+
+      <div class="sp-row" style="border-bottom:none; text-align:center; padding-bottom:12px;">
+          <div style="background:#2563eb; padding:10px; border-radius:8px; margin-bottom:8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+              <div style="font-size:0.85rem; font-weight:800; margin-bottom:2px; color:#93c5fd;">🔵 FINAL MESSAGE</div>
+              <div style="font-family:'Space Grotesk', sans-serif; font-size:1.1rem; font-weight:900; line-height:1.2; color:#fff;">STOPPING IS NOT FAILING<br>CONTINUING WITH RISK IS</div>
+          </div>
+          <div style="background:#16a34a; padding:8px; border-radius:8px; font-size:0.9rem; font-weight:800; box-shadow: 0 4px 10px rgba(0,0,0,0.3); color:#fff;">
+              🟢 GOAL ➡️ EVERYONE GOES HOME SAFE
+          </div>
+      </div>
+  </div>
+
+  <div class="ops-item" id="sec-random-tips" style="margin-bottom:12px; background:#ffffff; border-left:4px solid #f59e0b;">
+    <div class="ops-head">
+      <div class="ops-title">Daily Reminder</div>
+      <span class="ops-scope" id="sec-random-scope">Shift —</span>
+    </div>
+    <ul id="sec-random-list" style="margin:6px 0 0 18px; padding:0; list-style:disc;"></ul>
+  </div>
+
+<div class="ops-item" id="aena-notice" style="margin-bottom:12px; background: #fffdf0; border-left: 6px solid var(--vivid-amber); border-right: 1px solid var(--vivid-amber); border-bottom: 3px solid var(--vivid-amber);">
+  <div class="ops-head">
+    <div class="ops-title" style="color: #92400e; font-weight: 900;">🚩 Airport Authority Notice</div>
+    <span class="hero-badge warn" style="box-shadow: 0 4px 10px rgba(245,158,11,0.4);">REGULATIONS</span>
+  </div>
+  <div style="margin-top: 8px; font-size: 0.95rem; line-height: 1.4; color: #78350f; font-weight: 600;">
+    "Driving without using service roads (Art. A.2.4) Vehicle and equipment traffic within the airside must use established service roads, respecting markings and signs; if the final destination is outside the roads, they must be left as late as possible."
+  </div>
+</div>
+
+  <form id="sec-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 120px 130px auto; gap:8px; margin-bottom:8px; align-items:center;">
+    <input type="text" id="sec-title" placeholder="Add risk / card..." required style="padding:8px; border:1px solid var(--border); border-radius:8px;">
+    <input type="text" id="sec-owner" placeholder="Owner" style="padding:8px; border:1px solid var(--border); border-radius:8px;">
+    <input type="date" id="sec-due" title="Valid To (Optional)" style="padding:8px; border:1px solid var(--border); border-radius:8px; color:var(--text-muted);">
+    <button type="submit" class="btn-primary">Add</button>
+  </form>
+
+  <div id="sec-cards" class="sec-list" role="list"></div>
+  <small class="kpi-text" id="sec-meta">—</small>
+</div>
+
+<!-- INCIDENTES -->
+<div class="widget vivid" id="incidentes-widget">
+  <h2 class="widget-title hero">
+    <span class="hero-ico">⚠️</span><span>5) Incidents & Learning</span>
+    <span class="hero-badge danger">MANUAL</span>
+  </h2>
+
+  <div class="incident-remember">
+    REMEMBER: Report any incident immediately in ENABLON.
+  </div>
+
+  <details style="margin-bottom:15px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff;">
+    <summary style="font-weight:700; cursor:pointer; color:var(--text-muted);">📂 View Action Protocol</summary>
+    <form id="incidents-protocol-form" class="inline-form" autocomplete="off" style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;">
+      <div class="ops-item">
+        <label style="font-weight:700;">What to do if something goes wrong</label>
+        <textarea id="ip-what-to-do" rows="2" placeholder="Procedure..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;"></textarea>
+      </div>
+      <div class="ops-item">
+        <label style="font-weight:700;">Who to inform</label>
+        <input id="ip-contacts" type="text" placeholder="Contacts..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;">
+      </div>
+      <div class="meta-row">
+        <button class="btn-compact" type="submit">Save Protocol</button>
+        <small id="incidents-protocol-status" class="kpi-text">—</small>
+      </div>
+    </form>
+  </details>
+
+  <form id="manual-inc-form" style="background:#fff5f5; padding:12px; border-radius:10px; border:1px dashed #fecaca; margin-bottom:15px;">
+    <div style="display:grid; grid-template-columns: 140px 1fr 130px auto; gap:8px; margin-bottom:8px;">
+      <select id="new-inc-type" style="padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-weight:bold;">
+        <option value="incident">🔴 Incident</option>
+        <option value="lesson">💡 Lesson</option>
+      </select>
+      <input type="text" id="new-inc-title" placeholder="Short title..." required style="padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+      <input type="date" id="new-inc-due" title="Valid To (Optional)" style="padding:8px; border:1px solid #e5e7eb; border-radius:8px; color:var(--text-muted);">
+      <button type="submit" class="btn-primary" style="padding:8px 16px;">Add</button>
+    </div>
+    <textarea id="new-inc-desc" rows="2" placeholder="Detailed description or learning..." style="width:100%; padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem;"></textarea>
+  </form>
+
+  <div id="incidents-list-container" class="ops-list" style="max-height:400px; overflow-y:auto; padding-right:4px;"></div>
+</div>
+
+<!-- 6) KPIs -->
+<div class="widget kpi-widget" id="kpi-center">
+  <h2 class="widget-title">6) Operational KPIs & Maintenance</h2>
+
+  <div class="kpi-grid" style="margin-bottom: 15px;">
+    <div class="kpi-tile">
+      <div class="kpi-label">UPH (Prod)</div>
+      <div class="kpi-value" id="kpi-uph">—</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">DG Autocheck</div>
+      <div class="kpi-value" id="kpi-otif">—</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">Damage Costs</div>
+      <div class="kpi-value" style="color:var(--brand-red-600)">
+        <span id="kpi-total-cost">—</span><span class="kpi-currency">£</span>
+      </div>
+    </div>
+  </div>
+
+  <hr style="border:0; border-top:1px solid var(--border); margin: 10px 0;">
+
+  <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Maintenance (Fiix)</h3>
+  
+  <div class="kpi-grid">
+    <div class="kpi-tile" id="tile-fiix-availability" style="border-left: 6px solid #10b981;">
+        <div class="kpi-label">Fleet Availability</div>
+        <div class="kpi-value"><span id="fiix-availability">--</span>%</div>
+        <small class="kpi-text" id="fiix-broken-text">Analyzing fleet...</small>
+    </div>
+
+    <div class="kpi-tile" style="border-left: 6px solid #f59e0b;">
+        <div class="kpi-label">Reported Damages (24h)</div>
+        <div class="kpi-value" id="fiix-damage-24h">--</div>
+        <small class="kpi-text">Breakdowns/Hits</small>
+    </div>
+  </div>
+
+  <div class="widget vivid" style="grid-column: 1 / -1; margin-top:15px;">
+      <h3 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">
+          📊 Weekly Cumulative Damages
+      </h3>
+      <div style="height: 200px;"><canvas id="fiixWeeklyChart"></canvas></div>
+  </div>
+
+  <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong style="font-size:0.95rem;">5S Status</strong>
+        <small id="s5-meta" class="kpi-text">—</small>
+      </div>
+      
+      <div id="s5-strip" class="s5-compact" role="group" aria-label="5S Status" style="justify-content: center;">
+        <button type="button" class="s5-pill" data-key="seiri" title="1S · Seiri"><span class="s5-dot"></span>1S</button>
+        <button type="button" class="s5-pill" data-key="seiton" title="2S · Seiton"><span class="s5-dot"></span>2S</button>
+        <button type="button" class="s5-pill" data-key="seiso" title="3S · Seiso"><span class="s5-dot"></span>3S</button>
+        <button type="button" class="s5-pill" data-key="seiketsu" title="4S · Seiketsu"><span class="s5-dot"></span>4S</button>
+        <button type="button" class="s5-pill" data-key="shitsuke" title="5S · Shitsuke"><span class="s5-dot"></span>5S</button>
+      </div>
+    </div>
+
+    <div style="background: #fafafa; border-radius: 10px; padding: 12px; border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong style="font-size:0.95rem;">Gemba Walk (GW)</strong>
+      </div>
+      <form id="gw-upload-form" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <input type="file" id="gw-file" accept=".xlsx,.xls" style="flex:1; font-size:0.8rem; padding:4px; width:0;">
+        <button class="btn-primary" type="submit" style="padding:4px 8px; font-size:0.8rem;">Upload</button>
+      </form>
+      <small id="gw-upload-status" class="kpi-text" style="display:block; margin-bottom:6px;">—</small>
+      <div id="gw-tasks-dynamic-container"></div>
+    </div>
+  </div>
+</div>
+
+<!-- KANBAN -->
+<div class="widget" id="kanban-widget">
+<h2 class="widget-title">7) Direct Feedback</h2>
+<div class="board-container kanban">
+<div class="kanban-column">
+<h3 class="column-title"><span>Open</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Open" data-status="Open"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>In Progress</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-In-Progress" data-status="In Progress"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Closed</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Closed" data-status="Closed"></div>
+</div>
+<div class="kanban-column">
+<h3 class="column-title"><span>Overdue</span><span class="count">(0)</span></h3>
+<div class="cards-container" id="kanban_rapida-Overdue" data-status="Overdue"></div>
+</div>
+</div>
+
+<form class="new-item-form" id="new-kanban-form" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:grid; grid-template-columns: 1fr 1fr auto 1fr auto; gap:8px; align-items:center;">
+<select id="problem-category" name="category" required>
+<option value="" disabled selected>Select category...</option>
+<option value="safety">Safety</option>
+<option value="incidents">Incidents</option>
+<option value="maintenance">Maintenance</option>
+<option value="quality">Quality</option>
+<option value="service">Service</option>
+</select>
+<input type="text" name="title" placeholder="Problem type" required>
+<input type="date" name="due_date" required>
+<select name="assigned_to" required title="Support team">
+  <option value="" disabled selected>Support team...</option>
+  <option>Maintenance</option>
+  <option>IT</option>
+  <option>Quality</option>
+  <option>Procurement</option>
+  <option>CI</option>
+  <option>EHS</option>
+  <option>Ops</option>
+</select>
+<button type="submit" class="btn-primary">Add</button>
+</form>
+</div>
+
+<!-- KAIZEN -->
+<div class="widget" id="kaizen-widget" style="margin-top: 20px;">
+  <h2 class="widget-title">KAIZEN (Improvement Projects)</h2>
+  
+  <form class="new-item-form" id="new-kaizen-form" autocomplete="off" style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap:8px; align-items:center;">
+    <input type="text" name="title" placeholder="Improvement project..." required>
+    <input type="text" name="assigned_to" placeholder="Owner...">
+    <input type="date" name="due_date" aria-label="Due date">
+    <button type="submit" class="btn-primary">Add</button>
+  </form>
+
+  <div class="board-container kaizen" style="margin-top:12px;">
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Projects</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Projects" data-status="Projects"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>In Progress</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-In-Progress" data-status="In Progress"></div>
+    </div>
+    <div class="kanban-column">
+      <h3 class="column-title"><span>Done</span><span class="count">(0)</span></h3>
+      <div class="cards-container" id="kaizen-Done" data-status="Done"></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- RIGHT -->
+<section class="col-right">
+
+<div class="widget" id="prev-shift-widget">
+  <h2 class="widget-title">3) Previous Shift</h2>
+  <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <input type="text" id="prev-input" placeholder="Add highlight..." 
+             style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">
+      <button id="prev-add-btn" class="btn-primary" style="padding:0 12px;">+</button>
+      <button type="button" class="btn-mic" data-target="prev-input">🎙️</button>
+  </div>
+  <div id="prev-list" style="display:flex; flex-direction:column; gap:8px; max-height:400px; overflow-y:auto;"></div>
+</div>
+
+<div class="widget" id="ehs-widget">
+  <h2 class="widget-title">Days without accidents at work</h2>
+  <div class="ehs-month" id="ehs-month">—</div>
+  <div id="ehs-spin" class="ehs-controls" role="spinbutton" 
+       style="justify-content: center; cursor: pointer;" 
+       title="Double click to report incident (Reset to 0)">
+      <div class="ehs-big" id="ehs-days">0</div>
+  </div>
+</div>
+
+<!-- CUSTOMS -->
+<div class="widget vivid" id="normativa-aduanera-widget" style="border-top: 4px solid #8b5cf6; display: flex; flex-direction: column;">
+  <h2 class="widget-title hero" style="background: linear-gradient(135deg, #fff 0%, #f5f3ff 100%); border-bottom: 2px solid #ddd6fe;">
+    <span class="hero-ico">⚖️</span><span>Customs Regulations</span>
+    <div style="margin-left:auto; display:flex; gap:6px;">
+        <span class="hero-badge" style="background: #8b5cf6; color: white; box-shadow: 0 4px 10px rgba(139,92,246,0.3);">ART. 188</span>
+        <span class="hero-badge" style="background: #4c1d95; color: white;">GLOBAL 🌍</span>
+    </div>
+  </h2>
+
+  <!-- INFO FIJA -->
+  <div class="ops-item" style="border-left: 6px solid #8b5cf6; background: #ffffff; padding: 16px; margin-top: 10px;">
+    <div style="display: flex; flex-direction: column; gap: 15px; font-size: 0.92rem; color: #1f2937; line-height: 1.5; font-weight: 500;">
+      <div style="display: flex; gap: 10px;">
+        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.1rem;">1.</span>
+        <p style="margin: 0;">
+          When Union goods move from a <b>special fiscal territory</b> to another part of the customs territory of the Union that is not, and the movement ends <b>outside the Member State</b> of entry, such goods shall move under the <b>internal Union transit procedure (Art. 227)</b>.
+        </p>
+      </div>
+      <div style="display: flex; gap: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0;">
+        <span style="font-weight: 900; color: #8b5cf6; font-size: 1.1rem;">2.</span>
+        <p style="margin: 0;">
+          In situations other than those in paragraph 1, the internal transit procedure may be used for Union goods moving between a <b>special fiscal territory</b> and another part of the customs territory of the Union.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 12px; padding: 8px 12px; background: #f3f0ff; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 1.2rem;">📌</span>
+    <small style="color: #6d28d9; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+      Reminder: Verify seals on T2LF / T2F
+    </small>
+  </div>
+
+  <!-- AVISOS TEMPORALES -->
+  <div id="aviso-oea" class="ops-item" style="display:none; border-left: 6px solid #f59e0b; background: #fffdf0; padding: 16px; margin-top: 16px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <span style="font-weight: 900; color: #d97706; font-size: 1.4rem;">⚠️</span>
+        <strong style="color: #92400e; font-size: 1rem; text-transform: uppercase;">AEO Reactivation Audit</strong>
+      </div>
+      <p style="margin: 0; font-size: 0.95rem; color: #78350f; line-height: 1.4; font-weight: 600;">
+        All personnel are informed that the AEO authorization reactivation audit will take place on the <b>10th of this month</b>.
+      </p>
+    </div>
+  </div>
+
+  <div id="aviso-transito" class="ops-item" style="display:none; border-left: 6px solid #3b82f6; background: #eff6ff; padding: 16px; margin-top: 12px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <span style="font-weight: 900; color: #2563eb; font-size: 1.4rem;">ℹ️</span>
+        <strong style="color: #1e40af; font-size: 1rem; text-transform: uppercase;">Transit Opening Updates</strong>
+      </div>
+      <p style="margin: 0; font-size: 0.95rem; color: #1e3a8a; line-height: 1.4; font-weight: 600;">
+        All personnel are informed that multiple G4s can now be <b>associated with the same transit</b> when opening it, returning to the usual procedure.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const now = new Date();
+        const station = (window.STATION_OVERRIDE || window.STATION_CODE || 'UK').toUpperCase();
+        
+        const isMad = station === 'MAD' || station === 'ALM' || station.startsWith('WFS');
+        const isBcn = station === 'BCN';
+        const isUK  = station === 'UK';
+
+        const avisoOea = document.getElementById('aviso-oea');
+        if (avisoOea) {
+            const expMad = new Date(2026, 3, 13, 14, 0, 0); 
+            const expBcn = new Date(2026, 3, 10, 14, 0, 0); 
+            const expUK  = new Date(2026, 3, 10, 14, 0, 0); 
+
+            if (isMad && now < expMad) avisoOea.style.display = 'block';
+            else if (isBcn && now < expBcn) avisoOea.style.display = 'block';
+            else if (isUK && now < expUK) avisoOea.style.display = 'block';
+        }
+
+        const avisoTransito = document.getElementById('aviso-transito');
+        if (avisoTransito) {
+            const expTransito = new Date(2026, 3, 30, 23, 59, 59); 
+            if (now < expTransito) avisoTransito.style.display = 'block';
+        }
+    });
+  </script>
+
+  <hr style="border:0; border-top:1px solid #ddd6fe; margin: 16px 0 12px 0;">
+
+  <!-- AVISOS GLOBALES -->
+  <form id="aduanas-form" style="display:flex; gap:8px; margin-bottom: 12px; align-items:center;">
+    <input type="text" id="aduanas-title" placeholder="Add global notice..." required 
+           style="flex:1; padding:10px; border:1px solid #c4b5fd; border-radius:8px; outline:none; font-size:0.9rem;">
+    <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(139,92,246,.3);">Add</button>
+  </form>
+
+  <div id="aduanas-list" style="display:flex; flex-direction:column; gap:10px; max-height: 250px; overflow-y:auto; padding-right:4px;"></div>
+</div>
+</section>
+</div>
+
+<!-- POST-BRIEFING -->
+<div id="post-briefing-screen">
+    <div class="pb-header">
+        <div class="pb-title">🚀 ACTIVE INFORMATION</div>
+        <button class="pb-close-btn" onclick="closePostBriefingMode()">✖ Back to Dashboard</button>
+    </div>
+
+    <div class="pb-grid">
+        <div class="pb-card">
+            <div class="pb-card-title">↩️ Previous Shift Highlights</div>
+            <div id="pb-prev-content" class="pb-content"></div>
+        </div>
+        <div class="pb-card">
+            <div class="pb-card-title">🚧 Operational Updates</div>
+            <div id="pb-ops-content" class="pb-content"></div>
+        </div>
+        <div class="pb-card">
+            <div class="pb-card-title">📊 Shift KPIs</div>
+            <div id="pb-kpi-content" class="pb-content">
+                <div class="pb-kpi-box">
+                    <div class="pb-kpi-item">
+                        <span class="pb-kpi-lbl">UPH</span>
+                        <span id="pb-val-uph" class="pb-kpi-val">-</span>
+                    </div>
+                    <div class="pb-kpi-item">
+                        <span class="pb-kpi-lbl">Costs</span>
+                        <span id="pb-val-cost" class="pb-kpi-val">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="pb-card">
+            <div class="pb-card-title">🛡️ Safety and Risks</div>
+            <div id="pb-sec-content" class="pb-content"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+  window.STATION_OVERRIDE = 'UK';
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+<script>
+(function() {
+    let path = window.location.pathname;
+    if (!path.endsWith('/')) path += '/';
+    const BASE_PATH = path; 
+
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+        if (typeof url === 'string' && (url.startsWith('api/') || url.startsWith('/api/'))) {
+            const cleanUrl = url.startsWith('/') ? url.substring(1) : url;
+            url = BASE_PATH + cleanUrl;
+        }
+        return originalFetch(url, options);
+    };
+
+    const OriginalWebSocket = window.WebSocket;
+    window.WebSocket = function(url) {
+        if (url.includes('/ws') && !url.includes(BASE_PATH)) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            url = `${protocol}//${window.location.host}${BASE_PATH}ws`;
+        }
+        return new OriginalWebSocket(url);
+    };
+})();
+
+function esc(s){ 
+return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;"); 
+}
+function getTaskId(obj){
+  if(!obj) return null;
+  const raw = obj.id ?? obj.task_id ?? obj._id ?? null;
+  if (raw === null || raw === undefined || raw === '') {
+    return `client-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+  }
+  return String(raw);
+}
+
+(function initGwUpload(){
+  const form   = document.getElementById('gw-upload-form');
+  const input  = document.getElementById('gw-file');
+  const status = document.getElementById('gw-upload-status');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const f = input.files?.[0];
+    if (!f){
+      status.textContent = 'Select a GW Excel file';
+      return;
+    }
+    const fd = new FormData();
+    fd.append('file', f);
+    status.textContent = 'Uploading...';
+    try{
+      const res  = await fetch('/api/gw/import-xlsx', { method: 'POST', body: fd });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText || 'Upload Error');
+      status.textContent = `OK: ${data.inserted || 0} Gemba Walks loaded`;
+      GW_MAP.clear();
+      await loadAllTasks();
+    }catch(err){
+      status.textContent = `Error: ${err.message || err}`;
+    }finally{
+      input.value = '';
+    }
+  });
+})();
+
+(function initRosterUpload(){
+const form   = document.getElementById('roster-upload-form');
+const input  = document.getElementById('roster-file');
+const status = document.getElementById('roster-upload-result');
+if (!form) return;
+
+form.addEventListener('submit', async (e)=>{
+e.preventDefault();
+const f = input.files?.[0];
+if (!f) { status.textContent = 'Select a .xlsx/.xls file'; return; }
+const fd = new FormData();
+fd.append('file', f); 
+status.textContent = 'Uploading...';
+try {
+const res = await fetch('/api/roster/upload', { method:'POST', body: fd });
+if (!res.ok) {
+const err = await res.json().catch(()=>({detail: res.statusText}));
+throw new Error(err.detail || 'Upload error');
+}
+const data = await res.json();
+status.textContent = `OK: ${data.people_count} people loaded • Sheet: ${data.sheet_loaded || '—'} • Date: ${data.sheet_date || '—'}`;
+try {
+const r   = await fetch('/api/roster/current', { cache:'no-store' });
+const cur = await r.json();
+const listEl = document.getElementById('team-list');
+renderRoster(listEl, cur.people || [], cur);
+} catch (e) {}
+} catch (err) {
+status.textContent = `Error: ${err.message || err}`;
+} finally {
+input.value = '';
+}
+});
+})();
+
+const STATIONS_KNOWN = ['MAD','BCN','VLC','SVQ','UK'];
+const STATION_CODE = (window.STATION_OVERRIDE || new URLSearchParams(location.search).get('station') || '').toUpperCase() || 'UK';
+
+function isForThisStation(obj){
+const st = (obj && obj.station ? String(obj.station) : '').toUpperCase();
+return !st || st === STATION_CODE;
+}
+
+try {
+const h1 = document.querySelector('header h1');
+if (h1 && !h1.textContent.toUpperCase().includes(STATION_CODE)) {
+h1.textContent = h1.textContent.replace(/(MAD|BCN|VLC|SVQ|UK)/i, STATION_CODE);
+}
+} catch {}
+
+function $$(selector) { return Array.from(document.querySelectorAll(selector)); }
+
+/* Timer */
+(function(){
+    const KEY = 'header_big_timer_v1';
+    let running = false, startedAt = 0, elapsed = 0, tick = null;
+    const display = document.getElementById('timer-display');
+    const resetBtn = document.getElementById('timer-reset');
+    const startBtn = document.getElementById('timer-start-btn');
+    const summaryBtn = document.getElementById('btn-generate-summary'); 
+
+    function fmt(ms){
+        const t = Math.floor(ms/1000);
+        const h = Math.floor(t/3600);
+        const m = Math.floor((t%3600)/60);
+        const s = t%60;
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function updateSummaryButton(hasTime) {
+        if (!summaryBtn) return;
+        if (hasTime) {
+            summaryBtn.disabled = false;
+            summaryBtn.style.opacity = "1";
+            summaryBtn.style.cursor = "pointer";
+        } else {
+            summaryBtn.disabled = true;
+            summaryBtn.style.opacity = "0.5";
+            summaryBtn.style.cursor = "not-allowed";
+        }
+    }
+
+    function paint(){
+        const currentTime = running ? Date.now() - startedAt : elapsed;
+        display.textContent = fmt(currentTime);
+        if (currentTime > 0) updateSummaryButton(true);
+    }
+
+    function save(){ try{ localStorage.setItem(KEY, JSON.stringify({running, startedAt, elapsed})); }catch(e){} }
+    
+    function load(){
+        try{
+            const s = JSON.parse(localStorage.getItem(KEY)||'null');
+            if(!s) return;
+            running = !!s.running;
+            elapsed = Number(s.elapsed)||0;
+            startedAt = Number(s.startedAt)||0;
+            if (running){
+                const now=Date.now();
+                elapsed = Math.max(elapsed, now-startedAt);
+                startedAt = now - elapsed;
+            }
+            if (elapsed > 0 || running) updateSummaryButton(true);
+        }catch(e){}
+    }
+
+    function start(){
+        if (running) return;
+        running = true;
+        startedAt = Date.now() - elapsed;
+        tick = setInterval(paint, 250);
+        if(startBtn) startBtn.style.display = 'none';
+        updateSummaryButton(true); 
+        save();
+    }
+
+    function pause(){
+        if (!running) return;
+        running = false;
+        elapsed = Date.now() - startedAt;
+        clearInterval(tick); tick=null;
+        if(startBtn) {
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = 'Continue';
+        }
+        save();
+    }
+
+    function reset(silent = false){
+        if(!silent && !confirm("Reset timer? This will block the summary until you start again.")) return;
+        running = false; startedAt = 0; elapsed = 0;
+        clearInterval(tick); tick = null;
+        display.textContent = "00:00:00";
+        if(startBtn) {
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = 'Start';
+        }
+        updateSummaryButton(false); 
+        save();
+    }
+
+    display?.addEventListener('click', ()=> (running ? pause() : start()));
+    resetBtn?.addEventListener('click', () => reset(false)); 
+    startBtn?.addEventListener('click', start);
+    window.resetFactoryTimer = () => reset(true); 
+
+    window.initHeaderTimer = function(){
+        load(); paint();
+        if (running) {
+            tick = setInterval(paint, 250);
+            if(startBtn) startBtn.style.display = 'none';
+        }
+    };
+})();
+
+const UI_SCALE_KEY='ui_scale_v1';
+function applyScale(v){ document.documentElement.style.setProperty('--ui-scale', v); }
+(function initUIScaling(){
+const UI_SCALE_KEY='ui_scale_v1';
+function applyScale(v){ document.documentElement.style.setProperty('--ui-scale', v); }
+function initScale(){
+const sel = document.getElementById('scale-select');
+if (!sel) return;
+const saved = localStorage.getItem(UI_SCALE_KEY) || sel.value || '1.15';
+applyScale(saved);
+sel.value = saved;
+sel.addEventListener('change', e => {
+const v = e.target.value;
+localStorage.setItem(UI_SCALE_KEY, v);
+applyScale(v);
+});
+}
+initScale();
+})();
+
+function isTouch(){ return window.matchMedia('(pointer:coarse)').matches; }
+
+/* GW */
+const GW_MAP = new Map();
+function gwGetDate(t){
+const cand = t.gw_date || t.last_date || t.last_done_at || t.updated_at || t.due_date || t.created_at || t.date;
+const d = cand ? new Date(cand) : null;
+return (d && !isNaN(d)) ? d.getTime() : -Infinity;
+}
+function gwUrgency(t){
+  if (t.ap1_days_left != null && !isNaN(t.ap1_days_left)) return Number(t.ap1_days_left);
+  if (t.days_left != null && !isNaN(t.days_left)) return Number(t.days_left);
+  const cand = t.gw_date || t.due_date;
+  if (cand){
+    const d = new Date(cand);
+    if (!isNaN(d)) return Math.round((d - new Date()) / 86400000);
+  }
+  return 99999;
+}
+function renderGwTop3(){
+  const cont = document.getElementById('gw-tasks-dynamic-container');
+  if (!cont) return;
+  cont.innerHTML = '';
+  const all = [...GW_MAP.values()].filter(isForThisStation);
+  all.sort((a,b) => gwUrgency(a) - gwUrgency(b));
+  const top = all.slice(0, 3);
+  top.forEach(t => renderGwTask(t, `task-${t.id}`));
+}
+
+/* Fullscreen helpers */
+const FS_ICONS = {
+on:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9H5V5"/><path d="M15 9h4V5"/><path d="M9 15H5v4"/><path d="M15 15h4v4"/></svg>',
+off: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>'
+};
+function ensureFullscreenBtn(host){
+if (!host || host.querySelector('.fs-toggle')) return;
+const btn = document.createElement('button');
+btn.className = 'fs-toggle'; btn.type = 'button';
+btn.setAttribute('aria-label','Full screen view');
+btn.title = 'Full screen'; btn.innerHTML = FS_ICONS.off;
+btn.addEventListener('mousedown', e => e.stopPropagation(), true);
+btn.addEventListener('click', async (e) => {
+e.preventDefault(); e.stopPropagation();
+try {
+if (document.fullscreenElement === host) { await document.exitFullscreen?.(); }
+else { await (host.requestFullscreen?.({ navigationUI:'hide' }) ?? host.requestFullscreen?.()); }
+} catch (err) {}
+});
+host.appendChild(btn);
+}
+function initFullscreenToggles(){
+document.querySelectorAll('.widget, .card').forEach(ensureFullscreenBtn);
+document.addEventListener('fullscreenchange', () => {
+const current = document.fullscreenElement;
+document.querySelectorAll('.fs-toggle').forEach(btn => {
+const owner = btn.closest('.widget, .card');
+const isOn  = current === owner;
+btn.innerHTML = isOn ? FS_ICONS.on : FS_ICONS.off;
+btn.setAttribute('aria-label', isOn ? 'Exit full screen' : 'Full screen view');
+btn.title = isOn ? 'Exit full screen' : 'Full screen';
+});
+document.documentElement.classList.toggle('fs-zoom', !!current);
+});
+document.getElementById('present-btn')?.addEventListener('click', async ()=>{
+  const host = document.querySelector('.dashboard-3col') || document.body;
+  try { await (host.requestFullscreen?.({navigationUI:'hide'}) ?? host.requestFullscreen?.()); }catch(e){}
+});
+}
+
+function openWidgetFromChecklist(targetId){
+  if (window.navTo) {
+      window.navTo(targetId);
+  } else {
+      const el = document.getElementById(targetId);
+      if(el) el.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+}
+
+function formatEuro(n){ if (n==null || Number.isNaN(n)) return '—'; return new Intl.NumberFormat('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n); }
+function updateKpiTotalCost(value, ts){
+const v=document.getElementById('kpi-total-cost'); const m=document.getElementById('kpi-costes-meta'); const c=document.getElementById('kpi-costes');
+if(!v || !c) return; v.textContent = formatEuro(value); if(m){ const t=ts?new Date(ts).toLocaleString('en-GB'):''; m.textContent = t?`Updated: ${t}`:''; }
+c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
+}
+function hydrateKpiTotalCost(){
+try{ const cached = JSON.parse(localStorage.getItem('kpi_total_cost')||'null'); if(cached && Number.isFinite(cached.value)){ updateKpiTotalCost(cached.value, cached.timestamp); } }catch{}
+}
+
+function initEhsSimple(){
+    const daysEl = document.getElementById('ehs-days');
+    const monthEl = document.getElementById('ehs-month');
+    const container = document.getElementById('ehs-spin');
+    if (!daysEl) return;
+    const now = new Date();
+    if(monthEl) monthEl.textContent = now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    const KEY_LAST_INCIDENT = 'ehs_last_incident_date_uk_v1';
+    function render() {
+        const lastDateStr = localStorage.getItem(KEY_LAST_INCIDENT);
+        let lastDate = lastDateStr ? new Date(lastDateStr) : new Date();
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        lastDate.setHours(0,0,0,0);
+        const diffTime = today - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        daysEl.textContent = Math.max(0, diffDays);
+    }
+    container.addEventListener('dblclick', () => {
+        if(confirm("Report incident today? The counter will reset to 0.")) {
+            localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+            render();
+        }
+    });
+    if(!localStorage.getItem(KEY_LAST_INCIDENT)){
+        localStorage.setItem(KEY_LAST_INCIDENT, new Date().toISOString());
+    }
+    render();
+}
+
+window.TEAM_STATE = window.TEAM_STATE || { attendance: {}, zones: {}, allPeopleRaw: [], people: [], shift: "Loading...", sheet_date: new Date().toISOString().slice(0,10) };
+function countPresent(att){ return Object.values(att||{}).filter(Boolean).length; }
+
+async function fetchTasksBootstrap(){
+  let items = await (await fetch('/api/tasks?fresh_only=true')).json();
+  if (!items || items.length === 0) items = await (await fetch('/api/tasks')).json();
+  return items;
+}
+async function createCard(card) {
+  const res = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      task_type: card.task_type || 'kanban_rapida',
+      title: card.title,
+      status: card.status || 'todo', 
+      assigned_to: card.assigned_to || null,
+      due_date: card.due_date || null,
+      category: card.category || null
+    })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+async function editCard(id, partial) {
+  const res = await fetch(`/api/tasks/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(partial) 
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+async function moveCard(id, newStatus) { return await editCard(id, { status: newStatus }); }
+async function deleteCard(id) {
+  const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204) throw new Error(await res.text());
+}
+
+function updateTeamMeta(state){
+const meta = document.getElementById('team-meta');
+if(!meta || !state) return;
+const total = (state.people||[]).length;
+const present = countPresent(state.attendance||{});
+const shift = state.shift || '—';
+const win = state.window ? `${state.window.from}–${state.window.to}` : '—';
+meta.textContent = `${shift} • ${win} • Present ${present}/${total}`;
+}
+
+async function updatePresenceOnServer(person, present){
+try{ await fetch('/api/roster/presence', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ person, present, date: TEAM_STATE?.sheet_date || null, shift: TEAM_STATE?.shift || null }) });
+}catch(e){}
+}
+async function updateZoneOnServer(person, zone){
+try{ await fetch('/api/roster/zone', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ person, zone, date: TEAM_STATE?.sheet_date || null, shift: TEAM_STATE?.shift || null }) });
+}catch(e){}
+}
+
+function renderRoster(listEl, people, state) {
+    if (!listEl) return;
+    const notice = document.getElementById('roster-status-notice');
+    if (people && people.length > 0) {
+        if (notice) notice.classList.add('notice-hidden');
+    } else {
+        if (notice) notice.classList.remove('notice-hidden');
+    }
+
+    if (!window.TEAM_STATE) window.TEAM_STATE = {};
+    if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
+    if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
+    if (!window.TEAM_STATE.allPeopleRaw) window.TEAM_STATE.allPeopleRaw = [];
+
+    if (people && Array.isArray(people) && people.length > 0) {
+        people.forEach(p => {
+            const existe = window.TEAM_STATE.allPeopleRaw.some(x => x.nombre_completo === p.nombre_completo);
+            if (!existe) window.TEAM_STATE.allPeopleRaw.push(p);
+        });
+    }
+
+    if (state && state.shift) window.TEAM_STATE.shift = state.shift;
+
+    const masterList = window.TEAM_STATE.allPeopleRaw;
+
+    if (masterList.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No staff loaded...</div>';
+        return;
+    }
+
+    const groups = { "SUPERVISORS": [], "LEAD AGENT": [], "OPS OPERATORS": [], "COUNTER": [] };
+
+    masterList.forEach(p => {
+        const grupo = (p.grupo || "").toUpperCase();
+        if (grupo.includes("SUPERVISOR")) groups["SUPERVISORS"].push(p);
+        else if (grupo.includes("LEAD")) groups["LEAD AGENT"].push(p);
+        else if (grupo.includes("COUNTER") || grupo.includes("MOSTRADOR")) groups["COUNTER"].push(p);
+        else groups["OPS OPERATORS"].push(p);
+    });
+
+    listEl.innerHTML = '';
+    const ZONES = ['Ops', 'Counter', 'DGR'];
+
+    Object.keys(groups).forEach(groupName => {
+        const groupPeople = groups[groupName];
+        if (groupPeople.length === 0) return;
+
+        const header = document.createElement('div');
+        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
+        header.textContent = `${groupName} (${groupPeople.length})`;
+        listEl.appendChild(header);
+
+        groupPeople.forEach((p) => {
+            const name = p.nombre_completo;
+            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g, ""); 
+            const currentAtt = window.TEAM_STATE.attendance[name]; 
+            const currentZone = window.TEAM_STATE.zones[name] || '';
+
+            let borderColor = "#3b82f6"; 
+            if (groupName.includes("SUPERVISOR")) borderColor = "#fbbf24"; 
+            if (groupName.includes("LEAD")) borderColor = "#8b5cf6"; 
+
+            const card = document.createElement('div');
+            card.className = 'team-row';
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${borderColor}; background:#fff;`;
+
+            card.innerHTML = `
+                <div>
+                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${esc(name)}</div>
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
+                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800;">${esc(p.grupo || 'MANUAL')}</span>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
+                    <div class="presence-toggle">
+                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">➖</label>
+                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">✅</label>
+                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">❌</label>
+                    </div>
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
+                        <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONE...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+            card.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.onchange = (e) => {
+                    const val = e.target.value;
+                    let finalVal = undefined;
+                    if (val === "yes") finalVal = true;
+                    if (val === "no") finalVal = false;
+                    window.TEAM_STATE.attendance[name] = finalVal;
+                    if (finalVal !== undefined) updatePresenceOnServer(name, finalVal);
+                    updateTeamMeta(window.TEAM_STATE);
+                };
+            });
+            card.querySelector('.zone-select').onchange = (e) => {
+                const zone = e.target.value;
+                window.TEAM_STATE.zones[name] = zone;
+                if (typeof updateZoneOnServer === 'function') updateZoneOnServer(name, zone);
+            };
+            listEl.appendChild(card);
+        });
+    });
+    updateTeamMeta(window.TEAM_STATE);
+}
+
+async function initTeamRoster(){
+    const listEl = document.getElementById('team-list');
+    if(!listEl) return;
+    const data = await fetchServerRoster();
+    if (data && data.people) renderRoster(listEl, data.people, data);
+}
+
+async function syncServerAdd(name){
+    const payload = { person: name, station: STATION_CODE, date: TEAM_STATE?.sheet_date || null, shift: TEAM_STATE?.shift || computeShift().name };
+    const res = await fetch('api/roster/add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (res.ok) {
+        const cur = await fetchServerRoster();
+        if (cur) renderRoster(document.getElementById('team-list'), cur.people||[], cur);
+        return true;
+    }
+    return false;
+}
+
+(function removeHeaderStaticDate(){
+  document.querySelectorAll('.header-controls .date-picker').forEach(el => el.remove());
+})();
+
+(function checklistPerShift(){
+  const PREFIX = 'brief_check_v1';
+  const LASTKEY = 'brief_check_lastkey_v1';
+  function guessShift(){
+    const h = new Date().getHours();
+    if (h >= 6 && h < 14) return 'Morning';
+    if (h >= 14 && h < 22) return 'Afternoon';
+    return 'Night';
+  }
+  function currentKey(){
+    const station = (typeof STATION_CODE !== 'undefined' ? STATION_CODE : (window.STATION_OVERRIDE||'UK')).toUpperCase();
+    const date = (window.TEAM_STATE?.sheet_date) || new Date().toISOString().slice(0,10);
+    const shift = (window.TEAM_STATE?.shift) || guessShift();
+    return `${PREFIX}:${station}:${date}:${shift}`;
+  }
+  const host = document.getElementById('brief-check');
+  if (!host) return;
+  const radios = Array.from(host.querySelectorAll('.check-actions input[type="radio"]'));
+  if (!radios.length) return;
+
+  function saveState(){
+    const key = currentKey();
+    const state = {};
+    radios.forEach(r => { if (r.checked) state[r.name] = r.value; });
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(LASTKEY, key); } catch {}
+  }
+  function loadState(){
+    const key = currentKey();
+    let state = null;
+    try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
+    radios.forEach(r => r.checked = false);
+    if (state && typeof state === 'object'){
+      radios.forEach(r => { if (state[r.name] && state[r.name] === r.value) r.checked = true; });
+    }
+  }
+  function clearForNewKey(){ radios.forEach(r => { r.checked = false; }); saveState(); }
+  function ensureFreshness(){
+    const key = currentKey();
+    const last = localStorage.getItem(LASTKEY);
+    if (last && last !== key) clearForNewKey(); else loadState();
+    try { localStorage.setItem(LASTKEY, key); } catch {}
+  }
+
+  radios.forEach(r => r.addEventListener('change', saveState));
+  ensureFreshness();
+  const _renderRoster = window.renderRoster;
+  window.renderRoster = function(listEl, people, state){
+    const res = _renderRoster ? _renderRoster(listEl, people, state) : undefined;
+    ensureFreshness();
+    return res;
+  };
+  const _processTaskUpdate = window.processTaskUpdate;
+  window.processTaskUpdate = function(data){
+    const out = _processTaskUpdate ? _processTaskUpdate(data) : undefined;
+    if (data && data.type === 'roster_update') ensureFreshness();
+    return out;
+  };
+  setInterval(() => {
+    const key = currentKey();
+    const last = localStorage.getItem(LASTKEY);
+    if (last !== key) ensureFreshness();
+  }, 30 * 1000); 
+})();
+
+function makeColumnsSortable(){
+    const common = {
+        animation: 150, ghostClass: 'sortable-ghost', dragClass: 'sortable-drag', handle: '.drag-handle',
+        forceFallback: true, delay: 0, fallbackTolerance: 3, touchStartThreshold: 3,
+        onEnd: handleDragEnd
+    };
+    document.querySelectorAll('#kanban-widget .cards-container').forEach(c => new Sortable(c, { group:'kanban-board', ...common }));
+    document.querySelectorAll('#kaizen-widget .cards-container').forEach(c => new Sortable(c, { group:'kaizen-board', ...common }));
+}
+async function handleDragEnd({item,to,from,oldIndex}){
+if(to===from){ updateAllColumnCounts(); return; }
+const id=item.id.replace('task-','');
+const st=to.dataset.status;
+try{
+await updateTaskOnServer(id,{status:st});
+}catch(e){
+from.insertBefore(item, from.children[oldIndex] || null);
+alert('Could not update status on server.');
+}finally{
+updateAllColumnCounts();
+}
+}
+
+(function initTeamManualAdd(){
+  const form = document.getElementById('team-form');
+  const input = document.getElementById('team-name');
+  const listEl = document.getElementById('team-list');
+  if (!form || !input || !listEl) return;
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const name = (input.value || '').trim();
+    if (!name) return;
+    const newPerson = { nombre_completo: name, horario: 'Manual', grupo: 'MANUAL', is_incidencia: false };
+    renderRoster(listEl, [newPerson], window.TEAM_STATE);
+    input.value = '';
+  });
+})();
+
+function setupEventListeners() {
+    document.getElementById('new-kanban-form')?.addEventListener('submit', handleKanbanSubmit);
+    document.getElementById('new-kaizen-form')?.addEventListener('submit', handleKaizenSubmit);
+    document.addEventListener('click', handleDeleteClick);
+    document.addEventListener('change', (e) => {
+        if (typeof handleGwTick === 'function') handleGwTick(e);
+    });
+    document.addEventListener('keydown', (e) => {
+        const note = e.target.closest('.gw-note') ? e.target : null;
+        if (!note) return;
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const id = note.id.replace('gw-note-', '');
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, note.value).catch(console.error);
+            note.blur();
+        }
+        if (e.key === 'Escape') { e.preventDefault(); note.blur(); }
+    });
+    document.addEventListener('blur', (e) => {
+        if (e.target.classList && e.target.classList.contains('gw-note')) {
+            const id = e.target.id.replace('gw-note-', '');
+            if(typeof updateTaskNote === 'function') updateTaskNote(id, e.target.value).catch(console.error);
+        }
+    }, true); 
+}
+
+async function handleKanbanSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const taskData = {
+    task_type: 'kanban_rapida',
+    status: 'Open',
+    category: (f.elements.category?.value || '').trim().toLowerCase(),
+    title: (f.elements.title?.value || '').trim(),
+    due_date: f.elements.due_date?.value || null,
+    assigned_to: (f.elements.assigned_to?.value || '').trim() || null,
+    station: STATION_CODE
+  };
+  if (!taskData.category || !taskData.title || !taskData.due_date) return;
+  try {
+    await createTaskOnServer(taskData);
+    f.reset();
+    document.getElementById('problem-category').selectedIndex = 0;
+    updateAllColumnCounts();
+  } catch (err) { alert('Error: Could not create card.'); }
+}
+
+function handleDeleteClick(e){
+  const btn = e.target.closest('.ops-delete-btn, .delete-card-btn');
+  if (!btn) return;
+  const host = btn.closest('.ops-item, .card');
+  if (!host) return;
+  let id = btn.dataset.id || host.dataset.id;
+  if (!id && host.id) id = host.id.replace(/^(task-|ops-|sec-|client-)/, ''); 
+  if (!id) return;
+  const ttype = host.dataset.taskType || btn.dataset.taskType || (host.classList.contains('ops-item') ? 'ops_update' : host.classList.contains('card') ? 'kanban_rapida' : 'ops_update');
+  if (!confirm('Are you sure you want to delete this card?')) return;
+  host.style.opacity = '0.5';
+  deleteTaskOnServer(id, ttype).then(()=>{ host.remove(); updateAllColumnCounts?.(); }).catch((err)=>{ host.style.opacity = '1'; alert('Error: Could not delete card.'); });
+}
+
+function handleGwTick(e){
+if(e.target.type==='checkbox' && e.target.closest('.gw-task-item')){
+const item=e.target.closest('.gw-task-item'); const id=item.id.replace('task-',''); const done=e.target.checked;
+const note=item.querySelector('.gw-note'); if(note) note.disabled=!done;
+updateTaskCompletion(id,done).catch(err=>{ e.target.checked=!done; });
+item.classList.toggle('completed',done);
+}
+}
+async function handleKaizenSubmit(e){
+e.preventDefault();
+const f=e.target;
+const taskData={ task_type:'kaizen', status:'Projects', title:f.elements.title.value.trim(), assigned_to:f.elements.assigned_to.value.trim(), due_date:f.elements.due_date.value||null };
+if(!taskData.title) return;
+createTaskOnServer(taskData).then(()=>{ f.reset(); updateAllColumnCounts(); }).catch(()=> alert('Could not create KAIZEN.'));
+}
+
+async function fetchServerRoster(){
+try {
+const r = await fetch('/api/roster/current', { cache: 'no-store', headers: {'Accept': 'application/json'} });
+if (!r.ok) return null;
+return await r.json();
+} catch (e) { return null; }
+}
+
+async function createTaskOnServer(data){
+const r = await fetch('/api/tasks',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+if(!r.ok) throw new Error('create failed');
+const task = await r.json();
+processTaskUpdate(task);            
+return task;
+}
+
+async function updateTaskOnServer(id, data){
+  const r = await fetch(`/api/tasks/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+  if (!r.ok) throw new Error('update failed');
+  const task = await r.json();
+  processTaskUpdate(task);
+  return task;
+}
+
+async function updateTaskCompletion(id, done){ const r=await fetch(`/api/tasks/${id}/complete`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_completed:done})}); }
+async function updateTaskNote(id, note){ const r=await fetch(`/api/tasks/${id}/note`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note??''})}); }
+
+function processTaskUpdate(data) {
+    if (!data) return;
+    const elementId = data.id ? `task-${data.id}` : null;
+    if (data.action === 'delete') {
+        if (elementId) document.getElementById(elementId)?.remove();
+        document.getElementById(`ops-${data.id}`)?.remove(); 
+        document.getElementById(`aduanas-${data.id}`)?.remove();
+        if (typeof updateAllColumnCounts === 'function') updateAllColumnCounts();
+        return;
+    }
+    if (!isForThisStation(data)) return;
+    if (data.type === 'presence_update' || data.type === 'zone_update') {
+        if (window.TEAM_STATE && window.TEAM_STATE.sheet_date === data.sheet_date) {
+            if (data.type === 'presence_update') {
+                window.TEAM_STATE.attendance[data.person] = !!data.present;
+                updateTeamMeta(window.TEAM_STATE);
+            }
+            renderRoster(document.getElementById('team-list'), window.TEAM_STATE.people ||[], window.TEAM_STATE);
+        }
+        return;
+    }
+    if (data.task_type === 'ops_update') {
+        if (typeof window.renderOpsCard === 'function') window.renderOpsCard(data);
+        return;
+    }
+    if (data.task_type === 'aduanas_info') {
+        if (typeof window.renderAduanasCard === 'function') window.renderAduanasCard(data);
+        return;
+    }
+    if (data.metric && data.metric.startsWith('fiix_')) {
+        updateFiixDisplay(data.metric, data.value);
+        return;
+    }
+    switch(data.task_type) {
+        case 'kanban_rapida': renderBoardCard(data, elementId); break;
+        case 'kaizen': renderKaizenCard(data, elementId); break;
+        case 'gw_task': GW_MAP.set(data.id, data); renderGwTop3(); break;
+    }
+}
+
+function renderBoardCard(task, elementId){
+  const safeStatus = (task.status || 'Open').replace(/\s+/g,'-');
+  const columnId   = `${task.task_type}-${safeStatus}`;
+  const column     = document.getElementById(columnId);
+  if (!column) return;
+
+  const createdAt   = task.created_at ? new Date(task.created_at) : null;
+  const creationDate= (createdAt && !isNaN(createdAt)) ? createdAt.toLocaleDateString('en-GB') : '—';
+  const dueISO      = task.due_date || null;
+  const dueDate     = dueISO ? new Date(dueISO) : null;
+  const dueHuman    = (dueDate && !isNaN(dueDate)) ? dueDate.toLocaleDateString('en-GB') : '';
+
+  let card = document.getElementById(elementId);
+  if (!card){ card = document.createElement('div'); card.id = elementId; }
+  card.className = 'card';
+  card.dataset.id = task.id; 
+  card.dataset.status = safeStatus;
+  card.dataset.taskType = 'kanban_rapida';
+
+  const catKey = String(task.category || '').toLowerCase();
+  card.classList.remove('cat-seguridad','cat-incidencias','cat-mantenimiento','cat-calidad','cat-servicio');
+  if (['safety','incidents','maintenance','quality','service'].includes(catKey)){
+    let esClass = catKey;
+    if(catKey === 'safety') esClass = 'seguridad';
+    if(catKey === 'incidents') esClass = 'incidencias';
+    if(catKey === 'maintenance') esClass = 'mantenimiento';
+    if(catKey === 'quality') esClass = 'calidad';
+    if(catKey === 'service') esClass = 'servicio';
+    card.classList.add(`cat-${esClass}`);
+  }
+  const CAT_LABELS = { safety: 'Safety', incidents: 'Incidents', maintenance: 'Maintenance', quality: 'Quality', service: 'Service' };
+  const catLabel = CAT_LABELS[catKey] || 'General';
+
+  card.innerHTML = `
+    <div class="drag-handle" aria-hidden="true" title="Drag"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>
+    <div class="card-content">
+      <div class="card-title" data-edit="title" title="Tap to edit">${esc(task.title || '')}</div>
+      <div class="card-details">
+        Created: ${creationDate} • Due:
+        <button class="btn-compact" data-edit="due">${dueHuman || '—'}</button>
+      </div>
+      <div class="card-assignee">Owner:
+        <span class="assignee" data-edit="assigned_to" title="Tap to edit">${esc(task.assigned_to || 'Unassigned')}</span>
+      </div>
+      <div style="margin-top:6px;">
+        <button class="btn-compact" data-edit="category">${catLabel}</button>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Delete">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+      </button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+  if (card.parentElement !== column) column.prepend(card);
+
+  const id = task.id;
+  card.querySelector('[data-edit="title"]')?.addEventListener('click', async ()=>{
+    const prev = card.querySelector('[data-edit="title"]').textContent.trim();
+    const next = (prompt('New title', prev) || '').trim();
+    if (next && next !== prev){
+      try { await updateTaskOnServer(id, { title: next }); } catch { alert('Could not update title'); }
+    }
+  });
+  card.querySelector('[data-edit="assigned_to"]')?.addEventListener('click', async ()=>{
+    const prev = card.querySelector('[data-edit="assigned_to"]').textContent.trim();
+    const next = (prompt('Owner', prev === 'Unassigned' ? '' : prev) || '').trim();
+    if (next !== prev){
+      try { await updateTaskOnServer(id, { assigned_to: next || null }); } catch { alert('Could not update owner'); }
+    }
+  });
+  card.querySelector('[data-edit="due"]')?.addEventListener('click', async ()=>{
+    const input = document.createElement('input'); input.type = 'date'; input.value = dueISO || ''; input.style.position='fixed'; input.style.opacity='0'; document.body.appendChild(input);
+    input.addEventListener('change', async ()=>{
+      const newISO = input.value || null; document.body.removeChild(input);
+      if ((newISO||'') !== (dueISO||'')){
+        try { await updateTaskOnServer(id, { due_date: newISO }); } catch { alert('Could not update date'); }
+      }
+    }, { once:true });
+    input.click();
+  });
+  card.querySelector('[data-edit="category"]')?.addEventListener('click', async ()=>{
+    const opts = ['Safety','Incidents','Maintenance','Quality','Service','General'];
+    const prev = catLabel;
+    const next = prompt(`Category (${opts.join(' / ')})`, prev) || prev;
+    const map = { Safety:'safety', Incidents:'incidents', Maintenance:'maintenance', Quality:'quality', Service:'service', General:'' };
+    const val = map[next] ?? map[prev];
+    if (val !== (task.category||'')){
+      try { await updateTaskOnServer(id, { category: val }); } catch { alert('Could not update category'); }
+    }
+  });
+}
+
+function renderKaizenCard(task, elementId){
+  const safeStatus=(task.status||'Projects').replace(/\s+/g,'-');
+  const columnId=`kaizen-${safeStatus}`;
+  const column=document.getElementById(columnId); if(!column) return;
+  let card=document.getElementById(elementId);
+  if(!card){ card=document.createElement('div'); card.id=elementId; }
+  card.className='card'; 
+  card.dataset.id = task.id; 
+  card.dataset.status=safeStatus; card.dataset.taskType='kaizen';  
+  if(card.parentElement!==column) column.prepend(card);
+  let dueHuman=''; 
+  if(task.due_date){ const d=new Date(task.due_date); if(!isNaN(d)) dueHuman=d.toLocaleDateString('en-GB'); }
+  card.innerHTML=`
+    <div class="drag-handle" aria-hidden="true" title="Drag"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="1.5"/><circle cx="7" cy="12" r="1.5"/><circle cx="7" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg></div>
+    <div class="card-content">
+      <div class="card-title" data-edit="title">${esc(task.title || '')}</div>
+      <div class="card-details">
+        ${task.assigned_to ? `Owner: ${esc(task.assigned_to)}` : 'Owner: —'}
+        ${dueHuman ? ` • Max Date: ${dueHuman}` : ''}
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="delete-card-btn" title="Delete">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+      </button>
+    </div>
+  `;
+  ensureFullscreenBtn(card);
+  const id = task.id;
+  card.querySelector('[data-edit="title"]')?.addEventListener('click', async ()=>{
+    const prev = card.querySelector('[data-edit="title"]').textContent.trim();
+    const next = (prompt('New title', prev) || '').trim();
+    if (next && next !== prev){
+      try { await updateTaskOnServer(id, { title: next }); } catch { alert('Could not update title'); }
+    }
+  });
+}
+
+function renderGwTask(task, elementId){
+  const container = document.getElementById('gw-tasks-dynamic-container');
+  if (!container) return;
+  let el = document.getElementById(elementId);
+  if (!el){ el = document.createElement('div'); el.id = elementId; container.appendChild(el); }
+  const days = gwUrgency(task);
+  const due  = task.gw_date || task.due_date || '';
+  const dueTxt = due ? new Date(due).toLocaleDateString('en-GB') : '—';
+  let labelDays;
+  if (days === 99999) labelDays = 'No date';
+  else if (days === 0) labelDays = 'TODAY';
+  else if (days > 0) labelDays = `${days} days left`;
+  else labelDays = `${Math.abs(days)} days overdue`;
+  const note = task.note || '';
+  el.className = 'gw-task-item';
+  el.innerHTML = `
+    <div class="ops-head">
+      <div class="ops-title">${esc(task.title || 'Gemba Walk')}</div>
+      <span class="badge">${esc(labelDays)}</span>
+    </div>
+    <div class="meta-row">Date: ${esc(dueTxt)}</div>
+    <label class="checkbox-item">
+      <input type="checkbox" class="gw-done" ${task.is_completed ? 'checked' : ''}> Completed
+    </label>
+    <textarea id="gw-note-${task.id}" class="gw-note" ${task.is_completed ? '' : 'disabled'}>${esc(note)}</textarea>
+  `;
+}
+
+function updateAllColumnCounts(){
+document.querySelectorAll('#kanban-widget .kanban-column').forEach(col=>{
+const c=col.querySelector('.column-title .count'); const cards=col.querySelector('.cards-container'); if(c&&cards) c.textContent=`(${cards.children.length})`;
+});
+document.querySelectorAll('#kaizen-widget .kanban-column').forEach(col=>{
+const c=col.querySelector('.column-title .count'); const cards=col.querySelector('.cards-container'); if(c&&cards) c.textContent=`(${cards.children.length})`;
+});
+}
+
+async function loadAllTasks(){
+try{
+const r = await fetch('/api/tasks?task_type=gw_task&station=' + encodeURIComponent(STATION_CODE), { cache:'no-store' });
+if(!r.ok) throw new Error('GET /api/tasks failed');
+const tasks = await r.json();
+const list = Array.isArray(tasks) ? tasks.filter(isForThisStation) : [];
+list.forEach(t => { t.task_type === 'gw_task' && GW_MAP.set(t.id, t); });
+renderGwTop3();
+}catch(e){}
+}
+
+async function loadBoardsInitial(){
+  try{
+    const qsStation = 'station=' + encodeURIComponent(STATION_CODE);
+    const [kanRes, kaiRes, gwRes, opsRes] = await Promise.all([
+      fetch('/api/tasks?task_type=kanban_rapida&'+qsStation, {cache:'no-store'}),
+      fetch('/api/tasks?task_type=kaizen&'+qsStation, {cache:'no-store'}),
+      fetch('/api/tasks?task_type=gw_task&'+qsStation,   {cache:'no-store'}),
+      fetch('/api/tasks?task_type=ops_update&'+qsStation,{cache:'no-store'}),
+    ]);
+    const [kan, kai, gw, ops] = await Promise.all([
+      kanRes.json(), kaiRes.json(), gwRes.json(), opsRes.json()
+    ]);
+    (Array.isArray(kan)?kan:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
+    (Array.isArray(kai)?kai:[]).filter(isForThisStation).forEach(t=>processTaskUpdate(t));
+    (Array.isArray(ops)?ops:[]).filter(isForThisStation).forEach(t=>processTaskUpdate({...t, task_type:'ops_update'}));
+    (Array.isArray(gw)?gw:[]).filter(isForThisStation).forEach(t=>{ if (t.task_type==='gw_task') GW_MAP.set(t.id, t); });
+    renderGwTop3();
+    updateAllColumnCounts();
+  }catch(e){}
+}
+
+// Security Tips English
+const SECURITY_TIPS = [
+  "Current security topics (news, social media, threat level changes, etc.).",
+  "Incidents or non-conformities in your station or others.",
+  "Audit results (airlines, authorities, self-audits).",
+  "Upcoming audits or visits.",
+  "Keep doors closed when not in use.",
+  "Report suspicious behavior.",
+  "Challenge people without ID or escort.",
+  "Escort all visitors at all times.",
+  "Wear high-visibility vest in warehouse and airside.",
+  "Know where emergency contacts are.",
+  "Segregate secure and insecure cargo.",
+  "Check for signs of tampering on packages.",
+  "Wear ID visibly at all times.",
+  "Do not take backpacks or bags into secure areas.",
+  "Store tape, seals, and security items securely.",
+  "Do not allow access to unauthorized persons.",
+  "Ask if you do not know a procedure.",
+  "Do not give security information to outsiders.",
+  "Do not allow unauthorized persons near secure cargo.",
+  "Do not skip procedures.",
+  "If cargo is not secure, do not load it and check it.",
+  "Read all security notices and ask for clarifications.",
+  "If you see something, say something.",
+  "Report if rules are not practical or safe.",
+  "Escalate security errors or risks to management.",
+  "Keep sensitive information secure.",
+  "Always comply with safety and security procedures.",
+  "Do not follow instructions that compromise security.",
+  "Do not load cargo with stop or hold labels.",
+  "Encourage colleagues to comply with rules.",
+  "Check ID validity and warn if expiring.",
+  "If you don't know, ask; if you know, teach.",
+  "Think about the consequences of not following rules.",
+  "Identify the person you are talking to.",
+  "Compare ID photo with the person.",
+  "Log visitor entry and exit.",
+  "If you see drivers wandering, direct them to the designated area.",
+  "Keep airside doors closed.",
+  "Do not interfere with security checks.",
+  "When checking, focus on the task.",
+  "Reject or inspect damaged cargo.",
+  "Do not accept cargo without ID or documentation.",
+  "Check that trucks are sealed.",
+  "Check the ID of whoever picks up the cargo.",
+  "Count all pieces of a shipment.",
+  "Compare visitor name with the log.",
+  "Check validity in official databases.",
+  "Verify subcontractor agreements.",
+  "Do not lend IDs.",
+  "Report lost IDs immediately.",
+  "Check ID and status on every occasion.",
+  "Do not allow unauthorized access to restricted areas.",
+  "Attend and pay attention to the shift briefing.",
+  "Present ID at proximity readers.",
+  "Report errors to supervisors.",
+  "Everyone can press the emergency stop button for safety.",
+  "Better safe than sorry.",
+  "Cooperate in security checks.",
+  "Report if something does not look right.",
+  "Do not manipulate or compromise security systems.",
+  "Be suspicious of different seals on packages.",
+  "Deadlines do not justify skipping security.",
+  "Let security dogs work.",
+  "Ensure cargo has been checked.",
+  "Security is everyone's responsibility.",
+  "Report damaged doors, windows, or fences.",
+  "Challenge strangers in the warehouse.",
+  "Help screeners scan shipments.",
+  "Use security tape to close inspected packages.",
+  "Use correct seals to indicate security status.",
+  "Call the police if necessary.",
+  "Read security bulletins and ask for clarifications.",
+  "Help new employees comply with rules.",
+  "Report damage to cargo, doors, windows, signage.",
+  "Transfer secure cargo immediately to the secure area.",
+  "Store valuable cargo in designated areas under CCTV.",
+  "Ensure visitors return their IDs.",
+  "Leave personal belongings in the locker.",
+  "Do not hand cargo to unauthorized drivers.",
+  "Check that security checks are logged.",
+  "Ensure flight files are complete.",
+  "Check that each shipment has the correct CSD.",
+  "Security is to protect everyone, including your loved ones.",
+  "Everyone must be trained according to their role.",
+  "Adapt procedures to security, not vice versa.",
+  "Do not take photos in secure areas.",
+  "Do not post security information on social media.",
+  "Do not let clients decide the screening method.",
+  "Do not let clients/drivers use restrooms unescorted.",
+  "Keep restricted area doors locked.",
+  "Always report damaged cargo.",
+  "Report tampered cargo or possible theft.",
+  "Report strange behavior by colleagues.",
+  "Know the whistleblower poster.",
+  "Insider threat awareness.",
+  "Do not take unnecessary security risks.",
+  "Do not leave secure cargo unattended outside the facility.",
+  "Always stay alert.",
+  "Do not leave doors open unattended.",
+  "Do not share industry security processes.",
+  "Security is your responsibility."
+];
+
+function hashDateSeed(dateStr){
+  let h = 2166136261; 
+  for (let i=0;i<dateStr.length;i++){
+    h ^= dateStr.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function getDailySecurityTips(n=2, d=new Date()){
+  const dateStr = d.toISOString().slice(0,10); 
+  const seed = hashDateSeed(dateStr);
+  const L = SECURITY_TIPS.length;
+  if (L === 0) return [];
+  const i1 = seed % L;
+  let i2 = (seed * 1103515245 + 12345) % L;  
+  if (i2 === i1) i2 = (i2 + 1) % L;
+  const picks = [SECURITY_TIPS[i1], SECURITY_TIPS[i2]];
+  return picks.slice(0, Math.min(n, picks.length));
+}
+
+function renderDailySecurityTips(){
+  const host = document.getElementById('sec-daily-tips');
+  if (!host) return;
+  const tips = getDailySecurityTips(2, new Date());
+  if (!tips.length){ host.innerHTML = ''; return; }
+  host.innerHTML = `
+    <div class="sec-item" role="note" aria-label="Daily Security Reminders">
+      <div style="font-weight:700">Daily Security Reminder</div>
+      <ul style="margin:0; padding-left:18px;">
+        ${tips.map(t => `<li>${t}</li>`).join('')}
+      </ul>
+      <div class="meta-row"><span class="badge">Date: ${new Date().toLocaleDateString('en-GB')}</span></div>
+    </div>
+  `;
+}
+
+function updateSpotlightRouting(){
+  const readC = (name) => { const sel = document.querySelector(`#brief-check input[name="${name}"]:checked`); return sel ? sel.value : null; };
+  const rosterComplete = () => {
+    const total = (TEAM_STATE?.people || []).length;
+    if (!total) return false;
+    const att = TEAM_STATE?.attendance || {};
+    return TEAM_STATE.people.every(p => { const k = p.nombre_completo || '—'; return att[k] === true || att[k] === false; });
+  };
+  const setSpotlight = (ids) => {
+    const ALL = ['team-widget','prev-shift-widget','ops-updates-widget','seguridad-widget','incidentes-widget','kpi-center','kanban-widget','normativa-aduanera-widget'];
+    ALL.forEach(id=>{
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('spotlight-blink', ids.includes(id));
+    });
+  };
+
+  if (!rosterComplete()) return setSpotlight(['team-widget']);
+  if (readC('c1') !== 'OK') return setSpotlight(['team-widget']); 
+  if (readC('c2') !== 'OK') return setSpotlight(['ops-updates-widget']);
+  if (readC('c3') !== 'OK') return setSpotlight(['prev-shift-widget']);
+  if (readC('c4') !== 'OK') return setSpotlight(['seguridad-widget']);
+  if (readC('c5') !== 'OK') return setSpotlight(['incidentes-widget']);
+  if (readC('c6') !== 'OK') return setSpotlight(['kpi-center']);
+  if (readC('c7') !== 'OK') return setSpotlight(['kanban-widget']);
+  if (readC('c8') !== 'OK') return setSpotlight(['normativa-aduanera-widget']);
+  
+  setSpotlight([]);
+}
+window.updateSpotlightRouting = updateSpotlightRouting;
+
+(function initBriefExplain(){
+  const host   = document.getElementById('brief-check');
+  if (!host) return;
+  const targetText = host.querySelector('#brief-check-explain .br-explain-text');
+  const DEFAULT_MSG = 'Hover or tap each point for guidance.';
+  const setText = (t)=> { if (targetText) targetText.textContent = t || DEFAULT_MSG; };
+
+  host.querySelectorAll('.check-card').forEach(card => {
+    const msg = card.getAttribute('data-help') || card.querySelector('.check-title')?.textContent || '';
+    const targetId = card.getAttribute('data-target') || card.getAttribute('data-targer') || '';
+    card.addEventListener('mouseenter', ()=> setText(msg));
+    card.addEventListener('mouseleave', ()=> setText());
+    card.addEventListener('focusin',    ()=> setText(msg));
+    card.addEventListener('focusout',   ()=> setText());
+    card.addEventListener('click', (e)=>{
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+      if (targetId) { e.preventDefault(); openWidgetFromChecklist(targetId); }
+    });
+    card.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (targetId) { e.preventDefault(); openWidgetFromChecklist(targetId); }
+      }
+    });
+  });
+  setText();
+})();
+
+function computeShift(d = new Date()){
+  const m = d.getHours()*60 + d.getMinutes();
+  if (m >= 360 && m < 840)   return { name:'Morning', from:'06:00', to:'14:00' };
+  if (m >= 840 && m < 1320)  return { name:'Afternoon',  from:'14:00', to:'22:00' };
+  return { name:'Night', from:'22:00', to:'06:00' };
+}
+
+function paintNowAndShift(){
+  const nowEl   = document.getElementById('now-header');
+  const badgeEl = document.getElementById('shift-badge') || document.getElementById('shift-badge-header');
+  const now = new Date();
+  const sh  = computeShift(now);
+  if (nowEl)   nowEl.textContent = now.toLocaleString('en-GB', { dateStyle:'full', timeStyle:'short' });
+  if (badgeEl){
+    badgeEl.textContent = sh.name;
+    badgeEl.setAttribute('data-shift', sh.name);
+  }
+}
+
+function initNowTicker(){
+  paintNowAndShift();
+  setInterval(paintNowAndShift, 60_000);
+}
+
+// Weather Module
+async function initWeatherModule() {
+    const badge = document.getElementById('weather-badge');
+    if (!badge) return;
+
+    const coords = {
+        'MAD': { lat: 40.4719, lon: -3.5626 },
+        'BCN': { lat: 41.2974, lon: 2.0833 },
+        'VLC': { lat: 39.4893, lon: -0.4816 },
+        'SVQ': { lat: 37.4180, lon: -5.8931 },
+        'UK':  { lat: 51.4700, lon: -0.4543 }
+    };
+
+    let station = (window.STATION_OVERRIDE || window.STATION_CODE || 'UK').toUpperCase();
+    if (station.includes('WFS') || station === 'ALM') station = 'MAD';
+    const loc = coords[station] || coords['UK'];
+
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('API error');
+        
+        const data = await res.json();
+        
+        const currentTemp = Math.round(data.current_weather.temperature);
+        const currentCode = data.current_weather.weathercode;
+        const maxTemp = Math.round(data.daily.temperature_2m_max[0]);
+        const minTemp = Math.round(data.daily.temperature_2m_min[0]);
+        const probRain = data.daily.precipitation_probability_max[0];
+        const dailyCode = data.daily.weathercode[0];
+        
+        const getIcon = (code) => {
+            if (code === 0) return '☀️'; 
+            if (code === 1 || code === 2) return '⛅'; 
+            if (code === 3) return '☁️'; 
+            if (code >= 45 && code <= 48) return '🌫️'; 
+            if (code >= 71 && code <= 77) return '❄️'; 
+            if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return '🌧️'; 
+            if (code >= 95) return '⛈️'; 
+            return '🌤️';
+        };
+
+        const currentIcon = getIcon(currentCode);
+        const dailyIcon = getIcon(dailyCode);
+
+        const rainCodes = [51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99];
+        const isRainingNow = rainCodes.includes(currentCode);
+        const isRainingLater = rainCodes.includes(dailyCode) || probRain >= 40;
+
+        badge.style.display = 'inline-flex';
+        badge.title = `Forecast today. Updated: ${new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})}`;
+        
+        if (isRainingNow || isRainingLater) {
+            badge.className = 'shift-chip weather-rain-alert';
+            const alertMsg = isRainingNow ? '⚠️ RAINING' : `⚠️ RAIN ALERT TODAY (${probRain}% prob.)`;
+            badge.innerHTML = `${alertMsg} | Now: ${currentTemp}°C (Max ${maxTemp}° / Min ${minTemp}°)`;
+        } else {
+            badge.className = 'shift-chip';
+            badge.style.background = '#f8fafc';
+            badge.style.color = '#475569';
+            badge.style.borderColor = '#cbd5e1';
+            badge.innerHTML = `${currentIcon} Now: ${currentTemp}°C | ${dailyIcon} Today: Max ${maxTemp}° / Min ${minTemp}°`;
+        }
+
+    } catch (e) {
+        badge.style.display = 'none';
+    }
+}
+
+// Main initializers
+document.addEventListener('DOMContentLoaded', () => {
+  initNowTicker();
+  try { initWeatherModule(); } catch(e){}
+  setInterval(() => { try { initWeatherModule(); } catch(e){} }, 3600000); 
+
+  try { initHeaderTimer?.(); } catch(e){}
+  try { initFullscreenToggles?.(); } catch(e){}
+  try { initTeamRoster?.(); } catch(e){}
+  try { makeColumnsSortable?.(); } catch(e){}
+  try { setupEventListeners?.(); } catch(e){}
+  try { loadBoardsInitial?.(); } catch(e){}
+  try { hydrateKpiTotalCost?.(); } catch(e){}
+  try { initEhsSimple?.(); } catch(e){}
+  
+  const btnResumen = document.querySelector('header .header-controls .btn-primary');
+  if (btnResumen) btnResumen.onclick = generateAndSendToExcel;
+  
+  renderDailySecurityTips();
+  document.addEventListener('TEAM_SHIFT_READY', ()=> renderDailySecurityTips());
+  
+  try { initPrevShiftSystem(); } catch(e){}
+  try { updateSpotlightRouting(); } catch(e){}
+  try { initManualIncidents(); } catch(e){} 
+  try { initAduanasModule(); } catch(e){}
+});
+
+/* ===== OPS UPDATES (LOCAL) ===== */
+(function initOpsUpdatesDefinitivo() {
+    const KEY = `ops_updates_local_${STATION_CODE}_v2`;
+    const LIST = document.getElementById('ops-list');
+    const DIALOG = document.getElementById('ops-dialog');
+    const BTN_ADD = document.getElementById('ops-add');
+    let FORM = document.getElementById('ops-form');
+
+    if (!LIST || !DIALOG || !FORM) return;
+
+    const newForm = FORM.cloneNode(true);
+    FORM.parentNode.replaceChild(newForm, FORM);
+    FORM = newForm;
+
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return[]; } };
+    const save = (data) => { localStorage.setItem(KEY, JSON.stringify(data)); };
+
+    window.renderOpsCard = function() {
+        const items = load();
+        LIST.innerHTML = items.length ? '' : '<div style="padding:15px;color:#888;text-align:center;">No active updates.</div>';
+
+        items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).forEach(it => {
+            const el = document.createElement('div');
+            el.className = 'ops-item';
+            el.id = `ops-${it.id}`;
+            el.dataset.id = it.id;
+
+            const impact = it.impact || 'Medium';
+            const scope = it.scope || 'General';
+            const owner = it.owner || '—';
+            const dateStr = it.created_at ? new Date(it.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
+
+            let vigenciaHtml = '';
+            if (it.from || it.to) {
+                const fFrom = it.from ? new Date(it.from).toLocaleDateString('en-GB') : 'Always';
+                const fTo = it.to ? new Date(it.to).toLocaleDateString('en-GB') : 'Indefinite';
+                vigenciaHtml = `<div style="margin-top:6px; font-size:0.75rem; color:#b91c1c; font-weight:700;">
+                    ⏳ Valid: ${fFrom} ➡️ ${fTo}
+                </div>`;
+            }
+
+            el.innerHTML = `
+              <div class="ops-head">
+                <div class="ops-title" style="font-weight:800;">${esc(it.title)}</div>
+                <div class="ops-flags">
+                  <span class="ops-impact ${esc(impact)}">${esc(impact)}</span>
+                  <span class="ops-scope">${esc(scope)}</span>
+                </div>
+              </div>
+              <div class="ops-meta" style="margin-top:5px; font-size:0.85rem; color:var(--text-muted); display:flex; justify-content:space-between;">
+                <span>Owner: <strong>${esc(owner)}</strong></span>
+                <span>📅 ${dateStr}</span>
+              </div>
+              ${vigenciaHtml}
+              <div class="ops-actions" style="margin-top:10px; display:flex; gap:8px;">
+                <button type="button" class="ops-btn ops-edit-btn" data-id="${it.id}" style="font-size:0.75rem; padding:4px 8px;">Edit</button>
+                <button type="button" class="ops-btn ops-del-btn" data-id="${it.id}" style="color:#b91c1c; font-size:0.75rem; padding:4px 8px;">Delete 🗑️</button>
+              </div>
+            `;
+            LIST.prepend(el); 
+        });
+        applyFilters();
+    };
+
+    LIST.addEventListener('click', (e) => {
+        const btnDel = e.target.closest('.ops-del-btn');
+        const btnEdit = e.target.closest('.ops-edit-btn');
+        if (btnDel) {
+            const id = btnDel.dataset.id;
+            if (confirm('Are you sure you want to delete this operational update?')) {
+                const items = load().filter(x => x.id !== id);
+                save(items);
+                window.renderOpsCard(); 
+            }
+        }
+        if (btnEdit) {
+            const id = btnEdit.dataset.id;
+            const items = load();
+            const task = items.find(x => x.id === id);
+            if (task) {
+                document.getElementById('ops-id').value = task.id || '';
+                document.getElementById('ops-title').value = task.title || '';
+                document.getElementById('ops-impact').value = task.impact || 'Medium';
+                document.getElementById('ops-scope-field').value = task.scope || 'General';
+                document.getElementById('ops-owner').value = task.owner || '';
+                document.getElementById('ops-from').value = task.from || '';
+                document.getElementById('ops-to').value = task.to || '';
+                DIALOG.showModal();
+            }
+        }
+    });
+
+    BTN_ADD?.addEventListener('click', () => {
+        FORM.reset();
+        document.getElementById('ops-id').value = '';
+        DIALOG.showModal();
+    });
+
+    FORM.querySelector('[value="cancel"]')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        DIALOG.close();
+    });
+
+    DIALOG.addEventListener('click', (e) => {
+        if (e.target.closest('#ops-form')) return; 
+        const rect = FORM.getBoundingClientRect();
+        const inside = (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
+        if (!inside) DIALOG.close();
+    });
+
+    FORM.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = document.getElementById('ops-id').value;
+        const items = load();
+        const payload = {
+            id: id || 'OPS-' + Date.now(), 
+            title: document.getElementById('ops-title').value.trim(),
+            impact: document.getElementById('ops-impact').value,
+            scope: document.getElementById('ops-scope-field').value,
+            owner: document.getElementById('ops-owner').value.trim() || null,
+            from: document.getElementById('ops-from').value || null,
+            to: document.getElementById('ops-to').value || null,
+            created_at: id ? items.find(x=>x.id===id)?.created_at : new Date().toISOString()
+        };
+        if (!payload.title) return;
+
+        if (id) {
+            const idx = items.findIndex(x => x.id === id);
+            if (idx > -1) items[idx] = { ...items[idx], ...payload };
+        } else {
+            items.push(payload);
+        }
+        save(items);
+        window.renderOpsCard();
+        DIALOG.close();
+    });
+
+    const Q = document.getElementById('ops-q');
+    const P = document.getElementById('ops-prio');
+    const S = document.getElementById('ops-scope');
+    function applyFilters() {
+        const qt = (Q?.value || '').toLowerCase();
+        const pv = P?.value || '';
+        const sv = S?.value || '';
+        Array.from(LIST.children).forEach(card => {
+            const txt = card.innerText.toLowerCase();
+            const imp = card.querySelector('.ops-impact')?.textContent || '';
+            const scp = card.querySelector('.ops-scope')?.textContent || '';
+            const okQ = !qt || txt.includes(qt);
+            const okP = !pv || imp === pv;
+            const okS = !sv || scp === sv;
+            card.style.display = (okQ && okP && okS) ? '' : 'none';
+        });
+    }
+    Q?.addEventListener('input', applyFilters);
+    P?.addEventListener('change', applyFilters);
+    S?.addEventListener('change', applyFilters);
+
+    window.renderOpsCard();
+})();
+
+/* ===== CUSTOMS (Global) ===== */
+function initAduanasModule() {
+    const form = document.getElementById('aduanas-form');
+    const list = document.getElementById('aduanas-list');
+    if (!form || !list) return;
+
+    const NAVES_ENDPOINTS =['bcn', 'wfs1', 'wfs3', 'wfs4', 'uk'];
+
+    window.renderAduanasCard = function(task) {
+        if (task.task_type !== 'aduanas_info') return;
+        const existing = document.getElementById(`aduanas-${task.id}`);
+        if (existing) existing.remove();
+
+        const card = document.createElement('div');
+        card.className = 'ops-item';
+        card.id = `aduanas-${task.id}`;
+        card.style.borderLeft = '6px solid #8b5cf6'; 
+        card.style.background = '#f5f3ff'; 
+        
+        const dateStr = task.created_at ? new Date(task.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                <div>
+                    <div class="aduanas-card-title" style="font-weight: 800; color: #4c1d95; margin-bottom:4px; font-size: 0.95rem;">${esc(task.title)}</div>
+                    <div style="font-size: 0.75rem; color: #6d28d9; font-weight: 600;">📅 ${dateStr} • Global Notice 🌍</div>
+                </div>
+                <button onclick="deleteGlobalAduanas('${task.id}')" 
+                        style="background:none; border:none; cursor:pointer; font-size:1.1rem; opacity:0.6;" title="Delete for all">🗑️</button>
+            </div>
+        `;
+        list.prepend(card);
+    };
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const titleEl = document.getElementById('aduanas-title');
+        const title = titleEl.value.trim();
+        if (!title) return;
+
+        const btn = form.querySelector('button');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+
+        try {
+            const origin = window.location.origin; 
+            await Promise.all(NAVES_ENDPOINTS.map(nave => {
+                return fetch(`${origin}/${nave}/api/tasks`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ task_type: 'aduanas_info', title: title, station: nave.toUpperCase() })
+                }).catch(err => console.warn(`Station ${nave} unavailable`, err));
+            }));
+            titleEl.value = '';
+        } catch(err) {
+            alert("Global sync error.");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Add';
+        }
+    });
+
+    window.deleteGlobalAduanas = async function(myTaskId) {
+        if (!confirm("Are you sure you want to delete this notice from ALL stations?")) return;
+        const card = document.getElementById(`aduanas-${myTaskId}`);
+        if (!card) return;
+        const titleEl = card.querySelector('.aduanas-card-title');
+        const titleText = titleEl ? titleEl.textContent.trim() : '';
+        card.style.opacity = '0.3';
+        card.style.pointerEvents = 'none';
+
+        const origin = window.location.origin;
+        await Promise.all(NAVES_ENDPOINTS.map(async (nave) => {
+            try {
+                const baseUrl = `${origin}/${nave}/api/tasks`;
+                const res = await fetch(`${baseUrl}?task_type=aduanas_info`);
+                const tasks = await res.json();
+                const target = tasks.find(t => t.title === titleText);
+                if (target) {
+                    await fetch(`${baseUrl}/${target.id}`, { method: 'DELETE' });
+                }
+            } catch(e) {}
+        }));
+    };
+
+    (async function loadAduanas() {
+        try {
+            const res = await fetch('api/tasks?task_type=aduanas_info');
+            const tasks = await res.json();
+            tasks.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(window.renderAduanasCard);
+        } catch (e) {}
+    })();
+}
+
+async function generateAndSendToExcel() {
+    const timerText = document.getElementById('timer-display').textContent;
+    if (timerText === "00:00:00") {
+        alert("⚠️ You must start the timer (Start button) before generating the summary.");
+        return;
+    }
+
+    const btn = document.getElementById('btn-generate-summary');
+    const supInput = document.getElementById('briefing-supervisor');
+    if (!supInput || !supInput.value.trim()) {
+        alert("⚠️ The 'Supervisor' field is mandatory.");
+        supInput.focus();
+        return;
+    }
+
+    btn.textContent = 'Sending...';
+    btn.disabled = true;
+
+    try {
+        const team = window.TEAM_STATE || {};
+        const peopleList = team.people && team.people.length > 0 ? team.people : (team.allPeopleRaw || []);
+        const attendance = team.attendance || {};
+        let rosterDetails = "";
+
+        if (peopleList.length > 0) {
+            rosterDetails = peopleList.map(p => {
+                const name = p.nombre_completo;
+                const status = attendance[name];
+                let icon = "➖"; 
+                if (status === true || status === "yes") icon = "✅";
+                if (status === false || status === "no") icon = "❌";
+                return `${name} (${icon})`;
+            }).join(", ");
+        } else {
+            const namesInDom = Array.from(document.querySelectorAll('.team-row div[style*="font-weight:800"]'));
+            if (namesInDom.length > 0) {
+                rosterDetails = namesInDom.map(el => {
+                    const name = el.innerText.replace('⚠️ ', '');
+                    const row = el.closest('.team-row');
+                    const isOk = row.querySelector('input[value="yes"]:checked');
+                    const isNo = row.querySelector('input[value="no"]:checked');
+                    let icon = "➖";
+                    if (isOk) icon = "✅";
+                    if (isNo) icon = "❌";
+                    return `${name} (${icon})`;
+                }).join(", ");
+            }
+        }
+        if (!rosterDetails) rosterDetails = "No staff logged in the Roster";
+
+        const highlights = Array.from(document.querySelectorAll('#prev-list .prev-item')).map(el => {
+            const text = el.querySelector('.prev-text')?.innerText || '';
+            const author = el.querySelector('.prev-author')?.innerText || '';
+            return author ? `${text} [${author}]` : text;
+        }).join(" | ");
+        const finalPrevNote = highlights || "No news.";
+
+        const opsData = Array.from(document.querySelectorAll('#ops-list .ops-item')).map(node => ({
+            title: node.querySelector('.ops-title')?.innerText || '',
+            impact: node.querySelector('.ops-impact')?.innerText || 'Medium',
+            scope: node.querySelector('.ops-scope')?.innerText || 'General'
+        }));
+
+        const safetyTips = Array.from(document.querySelectorAll('#sec-random-list li')).map(li => ({
+            title: "Daily Reminder", desc: li.innerText
+        }));
+        safetyTips.unshift({
+            title: "Safety Instruction", 
+            desc: "Critical Message reviewed: Stopping is not failing, continuing with risk is. Everyone goes home safe."
+        });
+        
+        const card5Manual = JSON.parse(localStorage.getItem('incidents_manual_entries_v1') || '[]').map(i => {
+            const vigencia = i.due_date ? ` [Valid until: ${i.due_date}]` : '';
+            return { title: i.type.toUpperCase(), desc: `${i.title}: ${i.desc}${vigencia}` };
+        });
+        
+        const payload = {
+            station: "UK OPS",
+            date: new Date().toISOString().split('T')[0],
+            shift: document.getElementById('shift-badge-header')?.innerText || 'General',
+            timer: document.getElementById('timer-display')?.innerText || '00:00:00',
+            briefing_time: new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'}),
+            supervisor: supInput.value.trim(),
+            checklist: {}, 
+            kpis: {
+                "UPH": document.getElementById('kpi-uph')?.innerText || "-",
+                "Costs": document.getElementById('kpi-total-cost')?.innerText || "-",
+                "Backlog": document.getElementById('fiix-backlog')?.innerText || "-"
+            },
+            roster_details: rosterDetails, 
+            prev_shift_note: finalPrevNote,  
+            ops_updates: opsData,
+            safety_incidents: [...safetyTips, ...card5Manual] 
+        };
+
+        const res = await fetch('api/briefing/summary', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        alert("✅ Summary sent to Excel and saved correctly.");
+        if(window.resetFactoryTimer) window.resetFactoryTimer();
+        document.querySelectorAll('#brief-check input[type="radio"]').forEach(r => r.checked = false);
+        const station = STATION_CODE;
+        const date = new Date().toISOString().slice(0,10);
+        const shift = document.getElementById('shift-badge-header')?.innerText.split(' ')[0] || 'General';
+        localStorage.removeItem(`brief_check_v1:${station}:${date}:${shift}`);
+        localStorage.removeItem('brief_check_v1'); 
+        if(window.updateSpotlightRouting) window.updateSpotlightRouting();
+        if(window.openPostBriefingMode) window.openPostBriefingMode();
+
+    } catch (err) {
+        alert("❌ Server error. Check your data.");
+    } finally {
+        btn.textContent = 'Generate Summary';
+        btn.disabled = false;
+    }
+}
+</script>
+</body>
+</html>
