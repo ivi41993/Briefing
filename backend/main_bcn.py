@@ -38,6 +38,12 @@ TAG_NAVE = "BCN"         # Filtro para activos y órdenes
 ID_PREVENTIVO = 531546
 ID_URGENTE = 278571
 FIIX_CACHE_FILE = "./data/fiix_cache_bcn.json"
+# --- CONFIGURACIÓN WATCHDOG BCN OPS ---
+STATION_NAME = "BARCELONA - OPERACIONES"
+# Esta variable la crearemos en Render con el correo de los jefes de BCN Ops
+EMAILS_ALERTA = os.getenv("BCN_OPS_EMAILS", "") 
+WEBHOOK_ALERTA_BRIEFING = os.getenv("WEBHOOK_ALERTA_BRIEFING", "")
+alertas_briefing_enviadas = set()
 
 def save_fiix_cache_to_disk(data):
     try:
@@ -1895,6 +1901,66 @@ async def update_task_completion(task_id: str, update_data: TaskCompletionUpdate
     await manager.broadcast(sanitized)
     return Task(**sanitized)
 
+async def briefing_watchdog():
+    """Vigila que BCN OPS haga su resumen a tiempo."""
+    print(f"👁️ Watchdog iniciado para {STATION_NAME}...")
+
+    # Horarios límite para BCN
+    DEADLINES = {
+        "Mañana": (8, 00),   
+        "Tarde": (16, 00),   
+        "Noche": (23, 59)    
+    }
+
+    while True:
+        try:
+            ahora = datetime.now(ZoneInfo(ROSTER_TZ))
+            # 1. Identificar turno
+            if 6 <= ahora.hour < 14: turno_actual = "Mañana"
+            elif 14 <= ahora.hour < 22: turno_actual = "Tarde"
+            else: turno_actual = "Noche"
+
+            # 2. Fecha operativa
+            fecha_ops = ahora.date()
+            if turno_actual == "Noche" and ahora.hour < 6:
+                fecha_ops = fecha_ops - timedelta(days=1)
+
+            clave_alerta = f"{fecha_ops.isoformat()}_{turno_actual}"
+
+            # 3. Evaluar si pasó la hora
+            limite_h, limite_m = DEADLINES[turno_actual]
+            ya_paso = (ahora.hour > limite_h) or (ahora.hour == limite_h and ahora.minute >= limite_m)
+
+            if ya_paso and clave_alerta not in alertas_briefing_enviadas:
+                # 4. Mirar en la base de datos SQL si existe el resumen
+                db = SessionLocal()
+                try:
+                    exists = db.query(BriefingDB).filter(
+                        BriefingDB.date == fecha_ops.isoformat(),
+                        BriefingDB.shift == turno_actual
+                    ).first()
+                    
+                    if not exists:
+                        print(f"🚨 ALERTA: Briefing {STATION_NAME} NO realizado. Avisando a {EMAILS_ALERTA}")
+                        if WEBHOOK_ALERTA_BRIEFING and EMAILS_ALERTA:
+                            payload = {
+                                "estacion": STATION_NAME,
+                                "turno": turno_actual,
+                                "hora_limite": f"{limite_h:02d}:{limite_m:02d}",
+                                "emails_destino": EMAILS_ALERTA
+                            }
+                            async with httpx.AsyncClient() as client:
+                                await client.post(WEBHOOK_ALERTA_BRIEFING, json=payload, timeout=10.0)
+                    
+                    alertas_briefing_enviadas.add(clave_alerta)
+                finally:
+                    db.close()
+
+        except Exception as e:
+            print(f"⚠️ Error Watchdog {STATION_NAME}: {e}")
+
+        await asyncio.sleep(60) # Revisar cada minuto
+
 @app.get("/api/fiix/audit-damages")
 async def audit_bcn_damages():
     """
@@ -2198,10 +2264,14 @@ async def _startup_ext():
     app.state._roster = asyncio.create_task(_roster_watcher())
     app.state._ext = ExternalConnector()
     app.state._poller = asyncio.create_task(app.state._ext.run())
+    # 👇 AÑADE ESTO:
+    app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
+    app.state._watchdog = asyncio.create_task(briefing_watchdog())
 
 @app.on_event("shutdown")
 async def _shutdown_ext():
-    for key in ("_poller","_roster"):
+    # Añadimos _watchdog y _fiix_task a la lista de limpieza
+    for key in ("_poller","_roster", "_watchdog", "_fiix_task"):
         task: asyncio.Task = getattr(app.state, key, None)
         if task and not task.done():
             task.cancel()
