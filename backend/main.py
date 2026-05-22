@@ -3294,6 +3294,83 @@ FIIX_POLL_SECONDS = int(os.getenv("FIIX_POLL_SECONDS", "300"))
 FIIX_CYCLE_SECONDS = 4 * 3600    
 
 
+# --- SISTEMA WATCHDOG DE ALERTAS DE BRIEFING ---
+WEBHOOK_ALERTA_BRIEFING = os.getenv("WEBHOOK_ALERTA_BRIEFING", "")
+alertas_briefing_enviadas = set() # Memoria para no enviar el correo 20 veces
+
+async def briefing_watchdog():
+    """
+    Vigila si el briefing se ha hecho a la hora límite de cada turno.
+    Si no se ha hecho, avisa a los jefes vía Power Automate.
+    """
+    print("👁️ Watchdog de Briefing iniciado...")
+
+    # CONFIGURACIÓN: Hora y minuto límite para cada turno (Ajusta a tus necesidades)
+    DEADLINES = {
+        "Mañana": (8, 00),   # Tienen hasta las 06:45 para darle a "Generar Resumen"
+        "Tarde": (16, 00),   # Tienen hasta las 14:45
+        "Noche": (24, 00)    # Tienen hasta las 22:45
+    }
+
+    while True:
+        try:
+            ahora = datetime.now(ZoneInfo(ROSTER_TZ))
+            hora = ahora.hour
+            minuto = ahora.minute
+
+            # Identificar qué turno está corriendo ahora
+            if 6 <= hora < 14: turno_actual = "Mañana"
+            elif 14 <= hora < 22: turno_actual = "Tarde"
+            else: turno_actual = "Noche"
+
+            # Fecha operativa (La madrugada de Noche pertenece al día anterior)
+            fecha_ops = ahora.date()
+            if turno_actual == "Noche" and hora < 6:
+                fecha_ops = fecha_ops - timedelta(days=1)
+
+            # Clave única para hoy y este turno (ej: "2026-05-21_Mañana")
+            clave_alerta = f"{fecha_ops.isoformat()}_{turno_actual}"
+
+            # Evaluar si acabamos de rebasar la hora límite
+            limite_h, limite_m = DEADLINES[turno_actual]
+            ya_paso_limite = (hora > limite_h) or (hora == limite_h and minuto >= limite_m)
+
+            if ya_paso_limite and clave_alerta not in alertas_briefing_enviadas:
+                
+                # 1. Comprobar si existe el Resumen en el sistema
+                resumenes = _list_summaries()  # Llama a tu función nativa que lee los resúmenes
+                briefing_hecho = False
+                
+                if resumenes:
+                    ultimo = resumenes[-1]
+                    # Comparamos si el último resumen generado es de este turno y fecha
+                    if ultimo.get("date") == fecha_ops.isoformat() and ultimo.get("shift") == turno_actual:
+                        briefing_hecho = True
+
+                # 2. Si no se ha hecho, DISPARAMOS EL WEBHOOK
+                if not briefing_hecho:
+                    print(f"🚨 ALERTA: Briefing de {turno_actual} NO realizado a las {limite_h:02d}:{limite_m:02d}. Disparando correo...")
+                    
+                    if WEBHOOK_ALERTA_BRIEFING:
+                        payload = {
+                            # Toma la estación de tu variable global del servidor
+                            "estacion": os.getenv("STATION_CODE", "WFS Terminal"), 
+                            "turno": turno_actual,
+                            "hora_limite": f"{limite_h:02d}:{limite_m:02d}"
+                        }
+                        async with httpx.AsyncClient() as client:
+                            await client.post(WEBHOOK_ALERTA_BRIEFING, json=payload, timeout=10.0)
+                
+                # Registramos que ya pasó la hora límite, tanto si lo hizo (OK) como si no (Alerta enviada),
+                # para que no vuelva a molestar hasta el siguiente turno.
+                alertas_briefing_enviadas.add(clave_alerta)
+
+        except Exception as e:
+            print(f"⚠️ Error en Watchdog de Briefing: {e}")
+
+        # Comprueba el reloj cada 1 minuto (muy ligero, sin impacto en la CPU)
+        await asyncio.sleep(60)
+
 # Al final del archivo, REEMPLAZA por:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -3317,10 +3394,12 @@ async def lifespan(app: FastAPI):
     app.state._fiix_task = asyncio.create_task(fiix_auto_worker())
     yield
     app.state._fiix_task.cancel()
+    app.state._watchdog_task = asyncio.create_task(briefing_watchdog())
 
 
     print("🛑 [SISTEMA] Deteniendo servidor...")
     app.state._hb.cancel()
+    app.state._watchdog_task.cancel() # <-- Ciérrala aquí también
 
     # --------------------------------
 
