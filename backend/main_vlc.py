@@ -691,22 +691,20 @@ async def _build_roster_state(force=False) -> dict:
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
 
-    # --- 👇 NUEVO: INYECTAR PERSONAS MANUALES ---
+    # --- 👇 ESTO ES LO QUE FALTA PARA QUE EL BOTÓN "+" FUNCIONE ---
     iso_date = sdate.isoformat()
-    # Buscamos en el almacén manual personas que coincidan con la fecha y turno actuales
+    # Buscamos en la memoria manual personas de Valencia para hoy y este turno
     manual_ones = [
         p for p in manual_persons_store.values() 
         if p.get("fecha") == iso_date and p.get("turno") == shift
     ]
     
-    if manual_ones:
-        print(f"➕ Sumando {len(manual_ones)} personas añadidas manualmente.")
-        # Evitar duplicados por nombre si ya vinieran en la API (opcional)
-        existing_names = {p['nombre_completo'] for p in people}
-        for m in manual_ones:
-            if m['nombre_completo'] not in existing_names:
-                people.append(m)
-    # --- 👆 FIN INYECCIÓN ---
+    # Añadimos los manuales a la lista final si no están ya por nombre
+    nombres_en_lista = {p['nombre_completo'] for p in people}
+    for m in manual_ones:
+        if m['nombre_completo'] not in nombres_en_lista:
+            people.append(m)
+    # --- 👆 FIN DEL ARREGLO ---
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
