@@ -676,29 +676,42 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Intentamos API primero
+    # 1. Intentar API
     raw_api_data = await fetch_vlc_roster_from_api()
-    
+    people = []
+    source = "excel"
+
     if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
         people = filter_api_people_by_shift(raw_api_data, shift)
         source = "api"
     else:
-        # Fallback a Excel si la API falla o viene vacía
-        print("ℹ️ Usando Excel de respaldo para VLC.")
+        # 2. Fallback a Excel
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
-        source = "excel"
+
+    # --- 👇 NUEVO: INYECTAR PERSONAS MANUALES ---
+    iso_date = sdate.isoformat()
+    # Buscamos en el almacén manual personas que coincidan con la fecha y turno actuales
+    manual_ones = [
+        p for p in manual_persons_store.values() 
+        if p.get("fecha") == iso_date and p.get("turno") == shift
+    ]
+    
+    if manual_ones:
+        print(f"➕ Sumando {len(manual_ones)} personas añadidas manualmente.")
+        # Evitar duplicados por nombre si ya vinieran en la API (opcional)
+        existing_names = {p['nombre_completo'] for p in people}
+        for m in manual_ones:
+            if m['nombre_completo'] not in existing_names:
+                people.append(m)
+    # --- 👆 FIN INYECCIÓN ---
 
     roster_cache.update({
-        "sheet_date": sdate,
-        "shift": shift,
-        "people": people,
+        "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end},
-        "source": source
+        "window": {"from": start, "to": end}, "source": source
     })
     
-    # Broadcast inmediato para que el Dashboard se refresque sin F5
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 
