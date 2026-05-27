@@ -678,8 +678,8 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # 1. Intentar API
-    raw_api_data = await fetch_vlc_roster_from_api()
+    # Intentar obtener gente de la API o Excel (como ya haces)
+    raw_api_data = await fetch_bcn_roster_from_api() # (Aunque se llame BCN, es tu función de VLC)
     people = []
     source = "excel"
 
@@ -687,24 +687,19 @@ async def _build_roster_state(force=False) -> dict:
         people = filter_api_people_by_shift(raw_api_data, shift)
         source = "api"
     else:
-        # 2. Fallback a Excel
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
 
-    # --- 👇 ESTO ES LO QUE FALTA PARA QUE EL BOTÓN "+" FUNCIONE ---
-    iso_date = sdate.isoformat()
-    # Buscamos en la memoria manual personas de Valencia para hoy y este turno
-    manual_ones = [
-        p for p in manual_persons_store.values() 
-        if p.get("fecha") == iso_date and p.get("turno") == shift
-    ]
-    
-    # Añadimos los manuales a la lista final si no están ya por nombre
-    nombres_en_lista = {p['nombre_completo'] for p in people}
-    for m in manual_ones:
-        if m['nombre_completo'] not in nombres_en_lista:
-            people.append(m)
-    # --- 👆 FIN DEL ARREGLO ---
+    # --- 👇 ESTA ES LA PARTE QUE TIENES QUE AÑADIR ---
+    # Cogemos a los que has añadido con el botón "+" y los metemos en la lista
+    iso_hoy = sdate.isoformat()
+    for p_manual in manual_persons_store.values():
+        # Si la persona manual es para este día y este turno, la añadimos
+        if p_manual.get("fecha") == iso_hoy and p_manual.get("turno") == shift:
+            # Evitamos duplicados por si acaso
+            if not any(p['nombre_completo'] == p_manual['nombre_completo'] for p in people):
+                people.append(p_manual)
+    # --- 👆 FIN DE LA PARTE NUEVA ---
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
