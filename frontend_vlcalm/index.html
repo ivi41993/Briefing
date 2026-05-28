@@ -2878,92 +2878,7 @@ function attachRosterEvents(listEl) {
 
 
 
-async function syncServerAdd(name){
-    const payload = {
-        person: name,
-        station: STATION_CODE,
-        date: TEAM_STATE?.sheet_date || null,
-        shift: TEAM_STATE?.shift || computeShift().name
-    };
-    const res = await fetch('api/roster/add', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-    });
-    if (res.ok) {
-        const cur = await fetchServerRoster();
-        if (cur) renderRoster(document.getElementById('team-list'), cur.people||[], cur);
-        return true;
-    }
-    return false;
-}
 
-
-    // 2. Lógica para el formulario de alta manual (siempre activa por si falta alguien)
-    // 2. Lógica para el formulario de alta manual (Actualización Optimista Blindada)
-    const form = document.getElementById('team-form');
-    if(form) {
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const nameInput = document.getElementById('team-name');
-            const listEl = document.getElementById('team-list');
-            const name = nameInput.value.trim();
-            if(!name) return;
-
-            if(!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
-
-            // 1. Inyectamos a la persona localmente con marcas CLARAS
-            const newPerson = { 
-                nombre_completo: name, 
-                horario: 'Manual', 
-                observaciones: 'ALTA MANUAL',
-                grupo: 'MANUAL',
-                source: 'manual' 
-            };
-
-            // Evitar duplicados si spamean el botón
-            if (!window.TEAM_STATE.allPeopleRaw.some(p => p.nombre_completo === name)) {
-                window.TEAM_STATE.allPeopleRaw.push(newPerson);
-                window.TEAM_STATE.attendance[name] = true;
-            }
-
-            // 2. Renderizamos al instante para que el usuario lo vea y la memoria lo ancle
-            renderRoster(listEl, window.TEAM_STATE.allPeopleRaw, window.TEAM_STATE);
-            nameInput.value = '';
-
-            // 3. Sincronizamos en segundo plano
-            syncServerAdd(name).catch(err => console.warn("Sincronización manual fallida:", err));
-        });
-    }
-
-
-/* Upload roster Excel */
-(function initRosterUpload(){
-const form=document.getElementById('roster-upload-form');
-const input=document.getElementById('roster-file');
-const status=document.getElementById('roster-upload-result');
-if (!form) return;
-form.addEventListener('submit', async e=>{
-e.preventDefault();
-const f=input.files?.[0];
-if(!f){ status.textContent='Selecciona un .xlsx/.xls'; return; }
-const fd=new FormData();
-fd.append('file', f);
-status.textContent='Subiendo…';
-try{
-const res=await fetch('api/roster/upload',{method:'POST',body:fd});
-const data=await res.json().catch(()=>({}));
-if(!res.ok) throw new Error(data.detail||'Error al subir');
-status.textContent = `OK: ${data.people_count||'-'} personas • Hoja: ${data.sheet_loaded||'—'} • Fecha: ${data.sheet_date||'—'}`;
-const cur = await fetchServerRoster();
-if (cur) renderRoster(document.getElementById('team-list'), cur.people||[], cur);
-}catch(err){
-status.textContent=`Error: ${err.message||err}`;
-}finally{
-input.value='';
-}
-});
-})();
 
 
 
@@ -4960,7 +4875,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // Disparo de emergencia por si el DOM se carga tarde
 if (document.readyState === "complete" || document.readyState === "interactive") {
     forceLoadFiix();
-}
 }
     
 </script>
