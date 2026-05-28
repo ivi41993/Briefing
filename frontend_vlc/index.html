@@ -2818,6 +2818,7 @@ async function renderFiixWeeklyHistory() {
 document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
     
 function renderRoster(listEl, people, state) {
+    function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
     // 1. Inicialización de Estado Global
@@ -2825,7 +2826,22 @@ function renderRoster(listEl, people, state) {
         window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     }
     
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+    // --- LA CLAVE: Rescatar los añadidos manuales antes de que el servidor los borre ---
+    const manualesLocales = window.TEAM_STATE.allPeopleRaw.filter(p => p.source === 'manual');
+    
+    // Si el servidor nos manda gente, actualizamos
+    if (people && people.length > 0) {
+        window.TEAM_STATE.allPeopleRaw = people;
+    }
+    
+    // Reinyectamos a los manuales si el servidor aún no nos los ha devuelto en la lista
+    manualesLocales.forEach(manual => {
+        const yaEstaEnElServer = window.TEAM_STATE.allPeopleRaw.some(p => p.nombre_completo === manual.nombre_completo);
+        if (!yaEstaEnElServer) {
+            window.TEAM_STATE.allPeopleRaw.push(manual);
+        }
+    });
+
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
     if (!masterList || masterList.length === 0) {
@@ -2834,10 +2850,11 @@ function renderRoster(listEl, people, state) {
     }
 
     // --- 2. LÓGICA DE TURNO ÚNICO (VALENCIA) ---
-    // En Valencia siempre es "Mañana". 
-    // Si quieres que el dashboard solo sea visible a partir de las 07:00 (2h antes de las 09:00):
+    // (A partir de aquí dejas el resto de tu función renderRoster exactamente igual que como la tenías)
     const hNow = new Date().getHours();
-    const isVisibleWindow = (hNow >= 7 && hNow < 18); // Visible de 07:00 a 18:00
+    const isVisibleWindow = (hNow >= 7 && hNow < 18);
+    // ... resto de tu código ...
+    
 
     if (!isVisibleWindow) {
         listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Fuera de horario operativo (Turno Mañana VLC).</div>';
