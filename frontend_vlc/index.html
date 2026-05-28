@@ -2855,22 +2855,23 @@ function renderRoster(listEl, people, state) {
     const CATEGORIAS_VLC = ["LEAD", "AGENTE"];
 
     const filteredPeople = masterList.filter(p => {
-        // --- MODIFICACIÓN AQUÍ ---
-        const isManual = p.source === 'manual' || (p.observaciones && p.observaciones.includes('manual'));
+        // --- BLOQUE CORREGIDO ---
+        const obs = (p.observaciones || p.grupo || "").toUpperCase();
+        const isManual = p.source === 'manual' || obs.includes('MANUAL');
         
         // A. Filtro Categoría
-        const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
-        const cumpleCategoria = CATEGORIAS_VLC.some(cat => infoCategoria.includes(cat));
+        const cumpleCategoria = ["LEAD", "AGENTE"].some(cat => obs.includes(cat));
         
-        // Si no es de la API (LEAD/AGENTE) y tampoco es manual, lo echamos
-        if (!cumpleCategoria && !isManual) return false;
+        // SI NO ES CATEGORÍA DE API Y TAMPOCO ES MANUAL, FUERA.
+        if (!cumpleCategoria && !isManual) return false; 
 
-        // B. Filtro Horario (Valencia Morning)
-        const hours = extractHours(p.horario);
-        if (hours.length === 0 || isManual) return true; // Los manuales siempre pasan el filtro de hora
+        // B. Filtro Horario
+        if (isManual) return true; // Los manuales no necesitan check de hora
         
-        const hInicio = hours[0];
-        return (hInicio >= 7 && hInicio <= 12);
+        const times = (p.horario || "").match(/(\d{1,2}):(\d{2})/g);
+        if (!times) return true; 
+        const hInicio = parseInt(times[0].split(':')[0]);
+        return (hInicio >= 4 && hInicio <= 12);
     });
 
     window.TEAM_STATE.people = filteredPeople;
@@ -2883,13 +2884,11 @@ function renderRoster(listEl, people, state) {
 
     // --- MODIFICACIÓN EN LA CLASIFICACIÓN ---
     filteredPeople.forEach(p => {
-        const cat = (p.observaciones || p.grupo || "").toUpperCase();
-        const isManual = p.source === 'manual' || cat.includes('MANUAL');
-
-        if (cat.includes("LEAD")) {
+        const obs = (p.observaciones || p.grupo || "").toUpperCase();
+        // Si es manual, lo metemos en AGENTES si no es LEAD
+        if (obs.includes("LEAD")) {
             groups["LEAD AGENT"].push(p);
-        } else if (cat.includes("AGENTE") || cat.includes("OPS") || isManual) {
-            // Metemos a los manuales en el grupo de AGENTES
+        } else {
             groups["AGENTES"].push(p);
         } 
     });
@@ -3012,6 +3011,8 @@ async function syncServerAdd(name) {
     const payload = {
         apellidos: name,
         nombre: "",
+        source: "manual", // <--- Marca clave
+        observaciones: "MANUAL", // <--- Marca clave
         fecha: window.TEAM_STATE?.sheet_date || new Date().toISOString().split('T')[0],
         turno: window.TEAM_STATE?.shift || "Mañana"
     };
@@ -3019,16 +3020,11 @@ async function syncServerAdd(name) {
     try {
         const res = await fetch('api/roster/persons', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'x-api-key': 'tu_clave_aqui' // <--- DEBE SER LA MISMA QUE EN EL .ENV
-            },
+            headers: { 'Content-Type': 'application/json', 'x-api-key': 'tu_api_key' },
             body: JSON.stringify(payload)
         });
         return res.ok;
-    } catch (e) {
-        return false;
-    }
+    } catch (e) { return false; }
 }
 
 
