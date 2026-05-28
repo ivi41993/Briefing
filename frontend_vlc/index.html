@@ -5189,6 +5189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("Dashboard VLC inicializado correctamente.");
    // Lógica para el botón "+" del equipo
     // Lógica unificada para el botón "+" del equipo (Actualización Optimista)
+   // Lógica para el botón "+" del equipo (Actualización Optimista Segura)
    const teamForm = document.getElementById('team-form');
    if (teamForm) {
        teamForm.addEventListener('submit', async (e) => {
@@ -5198,39 +5199,31 @@ document.addEventListener('DOMContentLoaded', () => {
            const name = nameInput.value.trim();
            if (!name) return;
 
-           // 1. ACTUALIZACIÓN OPTIMISTA (Local e inmediata)
            if (!window.TEAM_STATE) {
                window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
            }
            
-           // Creamos el objeto con las marcas exactas para que pase los filtros de VLC
+           // Inyectamos a la persona localmente
            const newPerson = { 
                nombre_completo: name, 
                horario: 'Manual', 
                observaciones: 'ALTA MANUAL',
                grupo: 'MANUAL',
-               source: 'manual' 
+               source: 'manual' // <- Etiqueta vital para que renderRoster la memorice
            };
            
-           // Se inyecta en la lista maestra y se marca como presente por defecto
-           window.TEAM_STATE.allPeopleRaw.push(newPerson);
-           window.TEAM_STATE.attendance[name] = true; 
+           // Evitamos duplicados locales
+           if(!window.TEAM_STATE.allPeopleRaw.some(p => p.nombre_completo === name)) {
+               window.TEAM_STATE.allPeopleRaw.push(newPerson);
+               window.TEAM_STATE.attendance[name] = true; // Presente por defecto
+           }
            
-           // Renderizamos inmediatamente
-           renderRoster(listEl, window.TEAM_STATE.allPeopleRaw, window.TEAM_STATE);
+           // Renderizamos enviando "null" para no sobrescribir la lista que acabamos de engordar
+           renderRoster(listEl, null, window.TEAM_STATE); 
            nameInput.value = '';
 
-           // 2. SINCRONIZACIÓN EN SEGUNDO PLANO
-           const ok = await syncServerAdd(name);
-           if (!ok) {
-               console.warn(`Aviso: No se pudo sincronizar a ${name} con el servidor, pero se mantiene temporalmente en la vista actual.`);
-           } else {
-               // Si se guardó correctamente, actualizamos con el Roster real para obtener IDs
-               const data = await fetchServerRoster();
-               if (data) {
-                   renderRoster(listEl, data.people, data);
-               }
-           }
+           // Sincronizamos en segundo plano sin esperar ni forzar la recarga
+           syncServerAdd(name).catch(err => console.warn("Aviso de sincronización:", err));
        });
    }
 });
