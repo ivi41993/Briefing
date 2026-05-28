@@ -2855,17 +2855,21 @@ function renderRoster(listEl, people, state) {
     const CATEGORIAS_VLC = ["LEAD", "AGENTE"];
 
     const filteredPeople = masterList.filter(p => {
+        // --- MODIFICACIÓN AQUÍ ---
+        const isManual = p.source === 'manual' || (p.observaciones && p.observaciones.includes('manual'));
+        
         // A. Filtro Categoría
         const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
         const cumpleCategoria = CATEGORIAS_VLC.some(cat => infoCategoria.includes(cat));
-        if (!cumpleCategoria) return false;
+        
+        // Si no es de la API (LEAD/AGENTE) y tampoco es manual, lo echamos
+        if (!cumpleCategoria && !isManual) return false;
 
-        // B. Filtro Horario (Valencia Morning: entradas entre 07:00 y 11:00)
+        // B. Filtro Horario (Valencia Morning)
         const hours = extractHours(p.horario);
-        if (hours.length === 0) return true; 
+        if (hours.length === 0 || isManual) return true; // Los manuales siempre pasan el filtro de hora
         
         const hInicio = hours[0];
-        // Solo mostramos gente que entre por la mañana
         return (hInicio >= 7 && hInicio <= 12);
     });
 
@@ -2877,11 +2881,15 @@ function renderRoster(listEl, people, state) {
         "AGENTES": []
     };
 
+    // --- MODIFICACIÓN EN LA CLASIFICACIÓN ---
     filteredPeople.forEach(p => {
         const cat = (p.observaciones || p.grupo || "").toUpperCase();
+        const isManual = p.source === 'manual' || cat.includes('MANUAL');
+
         if (cat.includes("LEAD")) {
             groups["LEAD AGENT"].push(p);
-        } else if (cat.includes("AGENTE") || cat.includes("OPS")) {
+        } else if (cat.includes("AGENTE") || cat.includes("OPS") || isManual) {
+            // Metemos a los manuales en el grupo de AGENTES
             groups["AGENTES"].push(p);
         } 
     });
@@ -2999,38 +3007,28 @@ function attachRosterEvents(listEl) {
 
 
 
+// Asegúrate de que esta función esté así
 async function syncServerAdd(name) {
-    // 1. Preparar los datos
     const payload = {
-        apellidos: name, // Ponemos el nombre en apellidos para simplificar
+        apellidos: name,
         nombre: "",
-        // IMPORTANTE: Estos campos deben coincidir con lo que espera _build_roster_state
         fecha: window.TEAM_STATE?.sheet_date || new Date().toISOString().split('T')[0],
         turno: window.TEAM_STATE?.shift || "Mañana"
     };
 
-    console.log("📤 Enviando persona manual:", payload);
-
     try {
         const res = await fetch('api/roster/persons', {
-            method: 'POST', // <--- El método que daba error
+            method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'x-api-key': 'tu_valor_de_api_key_aqui' // <--- PON TU API KEY REAL AQUÍ
+                'x-api-key': 'tu_clave_aqui' // <--- DEBE SER LA MISMA QUE EN EL .ENV
             },
             body: JSON.stringify(payload)
         });
-        
-        if (res.ok) {
-            return true;
-        } else {
-            const errorData = await res.text();
-            console.error("❌ Error del servidor:", errorData);
-        }
+        return res.ok;
     } catch (e) {
-        console.error("❌ Error de red:", e);
+        return false;
     }
-    return false;
 }
 
 
