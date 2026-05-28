@@ -116,6 +116,9 @@ ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 # 🧱 NUEVA CAPA DE DATOS SQL (COPIAR Y PEGAR)
 # ==========================================
 # --- FUNCIONES DE UTILIDAD PARA NOMBRES ---
+# --- ALMACÉN TEMPORAL PARA PERSONAS MANUALES ---
+manual_persons_store: Dict[str, Any] = {}
+
 def _norm(s: str) -> str:
     """Limpia espacios extra"""
     return re.sub(r"\s+", " ", (s or "").strip())
@@ -1205,7 +1208,31 @@ def _person_defaults(d: dict) -> dict:
     if not d.get("id"):
         d["id"] = str(uuid.uuid4())
     return d
+PERSONS_DB = "./data/roster_persons_vlc.json"
 
+def save_persons_to_disk():
+    try:
+        payload = list(manual_persons_store.values())
+        os.makedirs(os.path.dirname(PERSONS_DB), exist_ok=True)
+        with open(PERSONS_DB, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+    except Exception as e:
+        print("⚠️ Error guardando personas VLC:", e)
+
+def load_persons_from_disk():
+    try:
+        p = Path(PERSONS_DB)
+        if not p.exists(): return
+        with p.open("r", encoding="utf-8") as f:
+            arr = json.load(f) or []
+        manual_persons_store.clear()
+        for raw in arr:
+            # Usamos el ID de la persona como llave del diccionario
+            if "id" in raw:
+                manual_persons_store[raw["id"]] = raw
+        print(f"🗂️ Cargadas {len(manual_persons_store)} personas manuales en VLC")
+    except Exception as e:
+        print("⚠️ Error leyendo personas VLC:", e)
 @app.get("/api/roster/persons")
 def list_persons(date: Optional[str] = None, shift: Optional[str] = None):
     vals = list(manual_persons_store.values())
