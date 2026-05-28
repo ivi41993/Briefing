@@ -2980,25 +2980,47 @@ async function syncServerAdd(name){
 
 
     // 2. Lógica para el formulario de alta manual (siempre activa por si falta alguien)
+    // Lógica para el botón "+" del equipo (Actualización Optimista Corregida)
     const form = document.getElementById('team-form');
     if(form) {
-        form.onsubmit = async (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const nameInput = document.getElementById('team-name');
+            const listEl = document.getElementById('team-list'); // <--- AQUÍ ESTÁ EL FIX DEL ERROR 2
             const name = nameInput.value.trim();
             if(!name) return;
 
-            // Enviar al servidor para que sea persistente
-            const ok = await syncServerAdd(name);
-            if(!ok) {
-                // Si el servidor falla, al menos lo añadimos local para no bloquear
-                if(!window.TEAM_STATE) window.TEAM_STATE = { people: [], attendance: {} };
-                window.TEAM_STATE.people.push({ nombre_completo: name, horario: 'Manual', observaciones: 'ALTA MANUAL' });
-                window.TEAM_STATE.attendance[name] = true;
-                renderRoster(list, window.TEAM_STATE.people, window.TEAM_STATE);
+            // Preparamos el estado si no existe
+            if(!window.TEAM_STATE) {
+                window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
             }
+
+            // Inyectamos a la persona localmente para que se vea al instante
+            const newPerson = { 
+                nombre_completo: name, 
+                horario: 'Manual', 
+                observaciones: 'ALTA MANUAL',
+                grupo: 'MANUAL',
+                source: 'manual' 
+            };
+
+            if (!window.TEAM_STATE.allPeopleRaw.some(p => p.nombre_completo === name)) {
+                window.TEAM_STATE.allPeopleRaw.push(newPerson);
+                window.TEAM_STATE.attendance[name] = true;
+            }
+
+            // Pasamos 'listEl' en lugar del 'list' que daba error
+            renderRoster(listEl, window.TEAM_STATE.allPeopleRaw, window.TEAM_STATE);
             nameInput.value = '';
-        };
+
+            // Sincronizamos con el backend (Si da error 405, debes revisar tu API)
+            try {
+                const ok = await syncServerAdd(name);
+                if (!ok) console.warn("El servidor rechazó el alta, pero se mantiene en pantalla.");
+            } catch (err) {
+                console.error("Fallo de red al añadir persona:", err);
+            }
+        });
     }
 
 
