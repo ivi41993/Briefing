@@ -2999,22 +2999,36 @@ function attachRosterEvents(listEl) {
 
 
 
-async function syncServerAdd(name){
+async function syncServerAdd(name) {
+    // Dividimos el nombre por si ponen "Apellido Nombre"
+    const parts = name.split(",");
+    const apellidos = parts[0].trim();
+    const nombre = parts[1] ? parts[1].trim() : "";
+
     const payload = {
-        person: name,
-        station: STATION_CODE,
-        date: TEAM_STATE?.sheet_date || null,
-        shift: TEAM_STATE?.shift || computeShift().name
+        apellidos: apellidos,
+        nombre: nombre,
+        // Usamos la fecha y turno que el dashboard tiene cargados
+        fecha: window.TEAM_STATE?.sheet_date || new Date().toISOString().split('T')[0],
+        turno: window.TEAM_STATE?.shift || "Mañana"
     };
-    const res = await fetch('api/roster/add', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-    });
-    if (res.ok) {
-        const cur = await fetchServerRoster();
-        if (cur) renderRoster(document.getElementById('team-list'), cur.people||[], cur);
-        return true;
+
+    try {
+        const res = await fetch('api/roster/persons', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-api-key': 'tu_api_key_aqui' // <--- ASEGÚRATE DE QUE COINCIDA CON TU .ENV
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) {
+            console.log("✅ Persona añadida al servidor");
+            return true;
+        }
+    } catch (e) {
+        console.error("❌ Error al añadir persona:", e);
     }
     return false;
 }
@@ -5162,7 +5176,30 @@ document.addEventListener('DOMContentLoaded', () => {
     try { updateSpotlightRouting(); } catch(e){}
     
     console.log("Dashboard VLC inicializado correctamente.");
-    
+   // Lógica para el botón "+" del equipo
+    const teamForm = document.getElementById('team-form');
+    if (teamForm) {
+        teamForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('team-name');
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            // 1. Enviar al servidor
+            const ok = await syncServerAdd(name);
+            
+            if (ok) {
+                // 2. Si el servidor aceptó, pedimos la lista actualizada
+                const data = await fetchServerRoster();
+                if (data) {
+                    renderRoster(document.getElementById('team-list'), data.people, data);
+                }
+                nameInput.value = '';
+            } else {
+                alert("Error al añadir persona. Revisa la consola.");
+            }
+        };
+    } 
 });
 </script>
 </body>
