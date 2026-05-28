@@ -708,43 +708,30 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # 1. Intentar API (En tu archivo VLC la función se llama fetch_bcn_roster_from_api aunque sea VLC)
-    try:
-        raw_api_data = await fetch_bcn_roster_from_api()
-    except Exception as e:
-        print(f"⚠️ Error llamando a API VLC: {e}")
-        raw_api_data = None
-
+    # 1. Gente de la API/Excel
+    raw_api_data = await fetch_vlc_roster_from_api() 
     people = []
-    source = "excel"
-
-    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
+    if raw_api_data and isinstance(raw_api_data, list):
         people = filter_api_people_by_shift(raw_api_data, shift)
-        source = "api"
-    else:
-        # 2. Fallback a Excel
-        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
 
-    # --- 👇 ESTO ARREGLA QUE APAREZCAN AL PULSAR EL + ---
-    iso_date = sdate.isoformat()
-    # Extraemos las personas manuales de la memoria
-    manual_ones = [
-        p for p in manual_persons_store.values() 
-        if p.get("fecha") == iso_date and p.get("turno") == shift
-    ]
-    
-    # Mezclamos sin duplicar nombres
-    nombres_en_lista = {p['nombre_completo'] for p in people}
-    for m in manual_ones:
-        if m['nombre_completo'] not in nombres_en_lista:
-            people.append(m)
-    # --- 👆 FIN DEL ARREGLO ---
+    # 2. SUMAR GENTE MANUAL (La que viene del botón +)
+    iso_hoy = sdate.isoformat()
+    for p_manual in manual_persons_store.values():
+        if p_manual.get("fecha") == iso_hoy and p_manual.get("turno") == shift:
+            # Forzamos que lleve la marca 'manual' y una categoría aceptable
+            p_manual["source"] = "manual"
+            # Si no tiene observaciones, le ponemos 'MANUAL' para que pase el filtro JS
+            if not p_manual.get("observaciones"):
+                p_manual["observaciones"] = "ALTA MANUAL"
+            
+            # Añadir si no está ya
+            if not any(p['nombre_completo'] == p_manual['nombre_completo'] for p in people):
+                people.append(p_manual)
 
     roster_cache.update({
         "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, "source": source
+        "window": {"from": start, "to": end}
     })
     
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
