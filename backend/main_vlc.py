@@ -115,6 +115,33 @@ ROSTER_API_KEY = os.getenv("ROSTER_API_KEY")
 # ==========================================
 # 🧱 NUEVA CAPA DE DATOS SQL (COPIAR Y PEGAR)
 # ==========================================
+# --- FUNCIONES DE UTILIDAD PARA NOMBRES ---
+def _norm(s: str) -> str:
+    """Limpia espacios extra"""
+    return re.sub(r"\s+", " ", (s or "").strip())
+
+def _titlecase(s: str) -> str:
+    """Pone la primera letra de cada palabra en Mayúscula"""
+    return " ".join(w.capitalize() for w in _norm(s).split(" "))
+def _person_defaults(d: dict) -> dict:
+    d = dict(d)
+    # Usar datos del cache del dashboard si no vienen en la petición
+    d["turno"] = d.get("turno") or roster_cache.get("shift") or "Mañana"
+    d["fecha"] = d.get("fecha") or (roster_cache.get("sheet_date").isoformat() if roster_cache.get("sheet_date") else datetime.now().strftime("%Y-%m-%d"))
+    
+    # Aquí es donde fallaba porque no encontraba _titlecase
+    d["apellidos"] = _titlecase(d.get("apellidos",""))
+    d["nombre"]    = d.get("nombre") or ""
+    d["nombre_completo"] = d.get("nombre_completo") or (f"{d['apellidos']}, {d['nombre']}".strip(", "))
+    
+    d["horario"] = d.get("horario") or "Manual"
+    d["observaciones"] = d.get("observaciones") or "Alta Manual"
+    d["source"] = "manual"
+    
+    if not d.get("id"):
+        d["id"] = str(uuid.uuid4())
+    return d
+
 
 # 1. TAREAS (Tasks)
 def load_tasks_from_disk():
