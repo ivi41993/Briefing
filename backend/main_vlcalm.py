@@ -343,6 +343,14 @@ class PresenceUpdate(BaseModel):
     date: Optional[str] = None
     shift: Optional[str] = None
 
+class ManualPersonAdd(BaseModel):
+    person: str
+    station: Optional[str] = "VLC"
+    date: Optional[str] = None
+    shift: Optional[str] = None
+# -----------------------------------
+# Almacenes
+# -----------------------------------
 # -----------------------------------
 # Almacenes
 # -----------------------------------
@@ -351,6 +359,9 @@ latest_incidents_table: Dict[str, Any] = {"columns": [], "rows": [], "fetched_at
 attendance_store: dict[str, dict[str, bool]] = {}
 roster_store: dict[str, dict] = {}
 _last_briefing_cache: dict[str, Any] = {}
+
+# --- AÑADE ESTO ---
+manual_persons_store: dict[str, dict] = {}
 
 roster_cache: dict[str, Any] = {
     "file_mtime": None, "sheet_date": None, "shift": None, "people": [], "updated_at": None, "window": None, "sheet": None,
@@ -1136,7 +1147,29 @@ class DashboardIssue(BaseModel):
     supervisor: str
     tipo_fallo: str
     detalles: str
-
+@app.post("/api/roster/add")
+async def add_manual_person(data: ManualPersonAdd):
+    person_id = str(uuid.uuid4())
+    
+    # Lo guardamos con la estructura exacta que espera tu Dashboard VLC
+    manual_persons_store[person_id] = {
+        "nombre_completo": data.person,
+        "horario": "Manual",
+        "observaciones": "ALTA MANUAL",
+        "grupo": "MANUAL",
+        "source": "manual",
+        "fecha": data.date,
+        "turno": data.shift,
+        "station": data.station
+    }
+    
+    print(f"👤 [VLC] Persona añadida manualmente: {data.person} en turno {data.shift}")
+    
+    # Forzamos que se reconstruya el estado del Roster para que incluya a este nuevo manual
+    await _build_roster_state(force=True)
+    
+    return {"ok": True, "message": "Persona añadida correctamente"}
+    
 @app.post("/api/report-dashboard-issue")
 async def report_dashboard_issue(data: DashboardIssue):
     # La URL en Render debe ir entre comillas: "https://..."
