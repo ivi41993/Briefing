@@ -2766,8 +2766,19 @@ function renderRoster(listEl, people, state) {
     if (!window.TEAM_STATE) {
         window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     }
+
+    // --- RESCATAMOS A LOS MANUALES LOCALES ---
+    const manualesLocales = window.TEAM_STATE.allPeopleRaw.filter(p => p.source === 'manual' || p.horario === 'Manual');
     
     if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
+
+    // Los reinyectamos si el servidor nos mandó una lista limpia sin ellos
+    manualesLocales.forEach(manual => {
+        if (!window.TEAM_STATE.allPeopleRaw.some(p => p.nombre_completo === manual.nombre_completo)) {
+            window.TEAM_STATE.allPeopleRaw.push(manual);
+        }
+    });
+
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
     if (!masterList || masterList.length === 0) {
@@ -2775,9 +2786,6 @@ function renderRoster(listEl, people, state) {
         return;
     }
 
-    // --- 2. LÓGICA DE TURNO ÚNICO (VALENCIA) ---
-    // En Valencia siempre es "Mañana". 
-    // Si quieres que el dashboard solo sea visible a partir de las 07:00 (2h antes de las 09:00):
     const hNow = new Date().getHours();
     const isVisibleWindow = (hNow >= 7 && hNow < 18); // Visible de 07:00 a 18:00
 
@@ -2792,28 +2800,27 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // --- 3. FILTRADO POR CATEGORÍAS VLC Y HORARIO ---
-    // Ajustado a Agentes, Leads y Especialistas
     const CATEGORIAS_VLC = ["CAPATACES", "SUPERVISORES", "ESPECIALISTAS"];
 
     const filteredPeople = masterList.filter(p => {
-        // A. Filtro Categoría
         const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
+        
+        // --- EL FILTRO DEBE DEJAR PASAR A LOS MANUALES SIEMPRE ---
+        const isManual = p.source === 'manual' || infoCategoria.includes('MANUAL') || p.horario === 'Manual';
+        if (isManual) return true;
+
         const cumpleCategoria = CATEGORIAS_VLC.some(cat => infoCategoria.includes(cat));
         if (!cumpleCategoria) return false;
 
-        // B. Filtro Horario (Valencia Morning: entradas entre 07:00 y 11:00)
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true; 
         
         const hInicio = hours[0];
-        // Solo mostramos gente que entre por la mañana
         return (hInicio >= 7 && hInicio <= 12);
     });
 
     window.TEAM_STATE.people = filteredPeople;
 
-    // --- 4. SECCIONAMIENTO POR JERARQUÍA VALENCIA ---
     const groups = {
         "SUPERVISORES": [],
         "CAPATACES": [],
@@ -2827,86 +2834,13 @@ function renderRoster(listEl, people, state) {
         } else if (cat.includes("CAPATACES") || cat.includes("OPS")) {
             groups["CAPATACES"].push(p);
         } else {
+            // Especialistas y Manuales caen en este grupo visual
             groups["ESPECIALISTAS"].push(p);
         }
     });
 
     listEl.innerHTML = '';
-    // Zonas simplificadas para Valencia
-    const ZONES = ['Muelle', 'Oficina', 'Cámara Fría', 'X-Ray', 'Rampa'];
-
-    // --- 5. RENDERIZADO VISUAL ---
-    Object.keys(groups).forEach(groupName => {
-        const groupPeople = groups[groupName];
-        if (groupPeople.length === 0) return;
-
-        const header = document.createElement('div');
-        header.style.cssText = "background:#f1f5f9; padding:10px 14px; margin:18px 0 10px 0; font-weight:700; font-size:0.85rem; color:#334155; border-radius:8px; text-transform:uppercase; border-bottom:3px solid #cbd5e1;";
-        header.textContent = `${groupName} (${groupPeople.length})`;
-        listEl.appendChild(header);
-
-        groupPeople.forEach((p) => {
-            const name = p.nombre_completo;
-            const isIncidencia = p.is_incidencia === true;
-            const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
-            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/=/g, ""); 
-
-            let currentAtt = window.TEAM_STATE.attendance[name]; 
-            if (currentAtt === undefined) currentAtt = "undefined";
-
-            const currentZone = window.TEAM_STATE.zones[name] || '';
-
-            // Colores Vivid Valencia
-            let colorVivid = "#3b82f6"; // Azul para Agentes
-            if (groupName === "SUPERVISORES") colorVivid = "#fbbf24"; // Oro
-            if (groupName === "ESPECIALISTAS") colorVivid = "#8b5cf6"; // Púrpura
-
-            const row = document.createElement('div');
-            row.className = 'team-row';
-            row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid ${isIncidencia ? '#ef4444' : '#e2e8f0'}; border-left:6px solid ${colorVivid}; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.04);`;
-
-            row.innerHTML = `
-                <div>
-                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
-                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones || "VLC")}</span>
-                    </div>
-                </div>
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
-                    <div class="presence-toggle">
-                        <input type="radio" name="att_${safeId}" id="u_${safeId}" value="undefined" ${currentAtt === "undefined" ? 'checked' : ''}>
-                        <label for="u_${safeId}" style="padding:4px 10px; font-size:0.75rem;">➖</label>
-                        <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes" style="padding:4px 10px; font-size:0.75rem;">✅</label>
-                        <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no" style="padding:4px 10px; font-size:0.75rem;">❌</label>
-                    </div>
-                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
-                        <option value="" disabled ${!currentZone ? 'selected' : ''}>Zona...</option>
-                        ${ZONES.map(z => `<option value="${esc(z)}" ${z === currentZone ? 'selected' : ''}>${esc(z)}</option>`).join('')}
-                    </select>
-                </div>
-            `;
-
-            // Listeners
-            row.querySelectorAll('input[type="radio"]').forEach(r => {
-                r.addEventListener('change', (e) => {
-                    const val = e.target.value;
-                    let finalVal = (val === "yes") ? true : (val === "no" ? false : undefined);
-                    window.TEAM_STATE.attendance[name] = finalVal;
-                    if (typeof updatePresenceOnServer === 'function' && finalVal !== undefined) {
-                        updatePresenceOnServer(name, finalVal);
-                    }
-                    updateTeamMeta(window.TEAM_STATE);
-                });
-            });
-
-            listEl.appendChild(row);
-        });
-    });
-    if (typeof updateTeamMeta === 'function') updateTeamMeta(window.TEAM_STATE);
-}
+    // (A partir de aquí tu código sigue normal con "const ZONES = ...")
 
 async function initTeamRoster(){
     const listEl = document.getElementById('team-list');
@@ -2966,25 +2900,40 @@ async function syncServerAdd(name){
 
 
     // 2. Lógica para el formulario de alta manual (siempre activa por si falta alguien)
+    // 2. Lógica para el formulario de alta manual (Actualización Optimista Blindada)
     const form = document.getElementById('team-form');
     if(form) {
-        form.onsubmit = async (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const nameInput = document.getElementById('team-name');
+            const listEl = document.getElementById('team-list');
             const name = nameInput.value.trim();
             if(!name) return;
 
-            // Enviar al servidor para que sea persistente
-            const ok = await syncServerAdd(name);
-            if(!ok) {
-                // Si el servidor falla, al menos lo añadimos local para no bloquear
-                if(!window.TEAM_STATE) window.TEAM_STATE = { people: [], attendance: {} };
-                window.TEAM_STATE.people.push({ nombre_completo: name, horario: 'Manual', observaciones: 'ALTA MANUAL' });
+            if(!window.TEAM_STATE) window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
+
+            // 1. Inyectamos a la persona localmente con marcas CLARAS
+            const newPerson = { 
+                nombre_completo: name, 
+                horario: 'Manual', 
+                observaciones: 'ALTA MANUAL',
+                grupo: 'MANUAL',
+                source: 'manual' 
+            };
+
+            // Evitar duplicados si spamean el botón
+            if (!window.TEAM_STATE.allPeopleRaw.some(p => p.nombre_completo === name)) {
+                window.TEAM_STATE.allPeopleRaw.push(newPerson);
                 window.TEAM_STATE.attendance[name] = true;
-                renderRoster(list, window.TEAM_STATE.people, window.TEAM_STATE);
             }
+
+            // 2. Renderizamos al instante para que el usuario lo vea y la memoria lo ancle
+            renderRoster(listEl, window.TEAM_STATE.allPeopleRaw, window.TEAM_STATE);
             nameInput.value = '';
-        };
+
+            // 3. Sincronizamos en segundo plano
+            syncServerAdd(name).catch(err => console.warn("Sincronización manual fallida:", err));
+        });
     }
 
 
