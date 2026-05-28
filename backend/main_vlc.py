@@ -1162,31 +1162,22 @@ async def report_dashboard_issue(data: DashboardIssue):
         return {"status": "success"}
 # --- REEMPLAZA LOS ENDPOINTS DE PERSONAS POR ESTOS ---
 
-@app.post("/api/roster/persons")
-async def add_persons(request: Request, x_api_key: Optional[str] = Header(None)):
-    # 1. Validar API KEY
-    if API_KEY and x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+def _person_defaults(d: dict) -> dict:
+    d = dict(d)
+    # Si viene del botón +, usamos los datos actuales del cache para que el filtro lo encuentre
+    d["turno"] = d.get("turno") or roster_cache.get("shift") or "Mañana"
+    d["fecha"] = d.get("fecha") or (roster_cache.get("sheet_date").isoformat() if roster_cache.get("sheet_date") else datetime.now().strftime("%Y-%m-%d"))
     
-    # 2. Leer el cuerpo de la petición
-    try:
-        payload = await request.json()
-    except:
-        raise HTTPException(status_code=400, detail="JSON inválido")
-
-    # 3. Procesar (acepta objeto único o lista)
-    items = payload if isinstance(payload, list) else [payload]
+    d["apellidos"] = _titlecase(d.get("apellidos",""))
+    d["nombre"]    = d.get("nombre") or ""
+    d["nombre_completo"] = d.get("nombre_completo") or (f"{d['apellidos']}, {d['nombre']}".strip(", "))
+    d["horario"] = d.get("horario") or "Manual"
+    d["observaciones"] = d.get("observaciones") or "Alta Manual"
+    d["source"] = "manual"
     
-    for it in items:
-        # Usamos la función que ya tienes para poner valores por defecto
-        d = _person_defaults(it or {})
-        manual_persons_store[d["id"]] = d
-    
-    # 4. Guardar en disco y refrescar el estado del Roster
-    save_persons_to_disk()
-    await _build_roster_state(force=True) 
-    
-    return {"ok": True, "count": len(items)}
+    if not d.get("id"):
+        d["id"] = str(uuid.uuid4())
+    return d
 
 @app.get("/api/roster/persons")
 def list_persons(date: Optional[str] = None, shift: Optional[str] = None):
@@ -1196,7 +1187,32 @@ def list_persons(date: Optional[str] = None, shift: Optional[str] = None):
     if shift:
         vals = [p for p in vals if p.get("turno") == shift]
     return vals
-    
+@app.post("/api/roster/persons")
+async def add_persons(request: Request, x_api_key: Optional[str] = Header(None)):
+    # 1. Validar API KEY (Opcional si en local no la usas, pero Render la pide)
+    if API_KEY and x_api_key != API_KEY:
+        print(f"⚠️ API Key incorrecta: {x_api_key}")
+        # raise HTTPException(status_code=401, detail="Invalid API Key")
+
+    try:
+        payload = await request.json()
+        print(f"📥 Recibido en backend: {payload}")
+        
+        items = payload if isinstance(payload, list) else [payload]
+        for it in items:
+            # Procesamos con los valores por defecto (ID, Fecha, Turno)
+            d = _person_defaults(it)
+            manual_persons_store[d["id"]] = d
+        
+        save_persons_to_disk()
+        # 🚨 Refrescamos el estado para que se envíe por WebSocket
+        await _build_roster_state(force=True) 
+        
+        return {"ok": True}
+    except Exception as e:
+        print(f"💥 Error 500 en add_persons: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.put("/api/roster/presence")
 async def put_roster_presence(upd: PresenceUpdate):
     state = await _build_roster_state(force=False)
