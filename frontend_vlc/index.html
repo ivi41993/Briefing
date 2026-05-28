@@ -3000,35 +3000,35 @@ function attachRosterEvents(listEl) {
 
 
 async function syncServerAdd(name) {
-    // Dividimos el nombre por si ponen "Apellido Nombre"
-    const parts = name.split(",");
-    const apellidos = parts[0].trim();
-    const nombre = parts[1] ? parts[1].trim() : "";
-
+    // 1. Preparar los datos
     const payload = {
-        apellidos: apellidos,
-        nombre: nombre,
-        // Usamos la fecha y turno que el dashboard tiene cargados
+        apellidos: name, // Ponemos el nombre en apellidos para simplificar
+        nombre: "",
+        // IMPORTANTE: Estos campos deben coincidir con lo que espera _build_roster_state
         fecha: window.TEAM_STATE?.sheet_date || new Date().toISOString().split('T')[0],
         turno: window.TEAM_STATE?.shift || "Mañana"
     };
 
+    console.log("📤 Enviando persona manual:", payload);
+
     try {
         const res = await fetch('api/roster/persons', {
-            method: 'POST',
+            method: 'POST', // <--- El método que daba error
             headers: { 
                 'Content-Type': 'application/json',
-                'x-api-key': 'tu_api_key_aqui' // <--- ASEGÚRATE DE QUE COINCIDA CON TU .ENV
+                'x-api-key': 'tu_valor_de_api_key_aqui' // <--- PON TU API KEY REAL AQUÍ
             },
             body: JSON.stringify(payload)
         });
         
         if (res.ok) {
-            console.log("✅ Persona añadida al servidor");
             return true;
+        } else {
+            const errorData = await res.text();
+            console.error("❌ Error del servidor:", errorData);
         }
     } catch (e) {
-        console.error("❌ Error al añadir persona:", e);
+        console.error("❌ Error de red:", e);
     }
     return false;
 }
