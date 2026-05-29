@@ -3382,7 +3382,7 @@ async def lifespan(app: FastAPI):
     load_roster_from_disk()
     
 
-    app.state._roster_task = asyncio.create_task(_roster_watcher())
+    # app.state._roster = asyncio.create_task(_roster_watcher())
    
     app.state._ena = EnablonConnector()
     app.state._ena_task = asyncio.create_task(app.state._ena.run())
@@ -4956,33 +4956,24 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Si no es forzado y ya tenemos gente en cache para este turno, no llamamos a la API lenta
-    if not force and roster_cache.get("shift") == shift and roster_cache.get("people"):
-        return roster_cache
-
-    print(f"📡 Llamando a la API externa de Roster para turno {shift}...")
     raw_api_data = await fetch_mad_roster_from_api()
     people = []
 
     if raw_api_data and isinstance(raw_api_data, list):
+        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
         people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
         source = "api"
     else:
-        # Fallback a Excel si la API falla
         sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
         people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
         source = "excel"
 
     roster_cache.update({
-        "sheet_date": sdate, 
-        "shift": shift, 
-        "people": people,
+        "sheet_date": sdate, "shift": shift, "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end}, 
-        "source": source
+        "window": {"from": start, "to": end}, "source": source
     })
     
-    # Avisar a los navegadores conectados por WebSocket
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 @app.get("/api/fiix/get-ids-by-code")
@@ -5172,41 +5163,19 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    """Worker de fondo que mantiene el roster actualizado antes de que lleguen los usuarios"""
-    print("🕵️ Worker de Roster iniciado (Pre-carga activa)")
-    
-    while True:
-        try:
-            now = _now_local()
-            # Calculamos si estamos cerca de un cambio de turno (ej: 15 mins antes)
-            # o simplemente refrescamos cada X tiempo.
-            
-            print(f"🔄 Refrescando Roster de forma proactiva... ({now.strftime('%H:%M:%S')})")
-            
-            # Forzamos la carga de la API
-            state = await _build_roster_state(force=True)
-            
-            # Guardamos en el almacén persistente para que sobreviva a reinicios
-            d_iso = state.get("sheet_date").isoformat()
-            shift = state.get("shift")
-            
-            if d_iso and shift:
-                roster_store[d_iso] = {
-                    "raw": state.get("people", []),
-                    "by_shift": {
-                        shift: state.get("people", [])
-                    },
-                    "sheet": "API_AUTO_LOAD",
-                    "saved_at": datetime.utcnow().isoformat() + "Z"
-                }
-                save_roster_to_disk()
-                print(f"✅ Roster pre-cargado con éxito para el turno: {shift}")
+    # primera carga
+    try:
+        await _build_roster_state(force=True)
+    except Exception as e:
+        print("⚠️ Roster initial load error:", repr(e))
 
+    # refresco periódico (por si cambia la hora/turno o reemplazas el archivo)
+    while True:
+        await asyncio.sleep(max(15, ROSTER_POLL_SECONDS))
+        try:
+            await _build_roster_state(force=False)
         except Exception as e:
-            print(f"⚠️ Error en el Worker de Roster: {e}")
-        
-        # Esperar 10 minutos antes de la siguiente comprobación
-        await asyncio.sleep(600)
+            print("⚠️ Roster watcher error:", repr(e))
 
 
 
@@ -5339,7 +5308,6 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
 
 
 
