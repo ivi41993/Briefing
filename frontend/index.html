@@ -4042,124 +4042,136 @@ console.error('PUT /api/roster/zone falló', e);
 function renderRoster(listEl, people, state) {
     if (!listEl) return;
     
-    // 1. Inicialización y guardado de estado
-    if (!window.TEAM_STATE) {
-        window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
+    const notice = document.getElementById('roster-status-notice');
+
+    // Si hay personas en la lista, ocultamos el aviso de "espera"
+    if (people && people.length > 0) {
+        if (notice) notice.classList.add('notice-hidden');
+    } else {
+        // Si la lista está vacía, nos aseguramos de que el aviso sea visible
+        if (notice) notice.classList.remove('notice-hidden');
     }
-    
-    // Actualizamos el estado con lo que viene del servidor
-    if (people && people.length > 0) window.TEAM_STATE.allPeopleRaw = people;
-    if (state && state.attendance) window.TEAM_STATE.attendance = state.attendance;
-    if (state && state.sheet_date) window.TEAM_STATE.sheet_date = state.sheet_date;
+
+    // --- BLOQUE DE DEFENSA DE MEMORIA (Evita el error de Cristina Pimentel) ---
+    if (!window.TEAM_STATE) window.TEAM_STATE = {};
+    if (!window.TEAM_STATE.attendance) window.TEAM_STATE.attendance = {};
+    if (!window.TEAM_STATE.zones) window.TEAM_STATE.zones = {};
+    if (!window.TEAM_STATE.allPeopleRaw) window.TEAM_STATE.allPeopleRaw = [];
+
+    // Fusión inteligente: Añadir gente nueva de la API a la lista global sin duplicados
+    if (people && Array.isArray(people) && people.length > 0) {
+        people.forEach(p => {
+            const existe = window.TEAM_STATE.allPeopleRaw.some(x => x.nombre_completo === p.nombre_completo);
+            if (!existe) window.TEAM_STATE.allPeopleRaw.push(p);
+        });
+    }
+
     if (state && state.shift) window.TEAM_STATE.shift = state.shift;
 
     const masterList = window.TEAM_STATE.allPeopleRaw;
 
-    if (!masterList || masterList.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Cargando personal...</div>';
+    if (masterList.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No hay personal cargado...</div>';
         return;
     }
 
-    // --- 2. FILTRADO (CORREGIDO PARA ADMITIR MANUALES) ---
-    const CATEGORIAS_VLC = ["LEAD", "AGENTE"];
-
-    const filteredPeople = masterList.filter(p => {
-        // ¿Es una persona añadida con el botón +?
-        const isManual = p.source === 'manual' || (p.observaciones && p.observaciones.toUpperCase().includes('MANUAL'));
-        
-        // A. Filtro Categoría (API)
-        const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
-        const cumpleCategoria = CATEGORIAS_VLC.some(cat => infoCategoria.includes(cat));
-        
-        // Si no cumple categoría de la API Y no es manual, lo excluimos
-        if (!cumpleCategoria && !isManual) return false;
-
-        // B. Filtro Horario (Evitar que se mezclen turnos en el Excel)
-        if (isManual) return true; // Los manuales siempre pasan el filtro de hora
-        
-        const times = (p.horario || "").match(/(\d{1,2}):(\d{2})/g);
-        if (!times) return true;
-        const hInicio = parseInt(times[0].split(':')[0]);
-        return (hInicio >= 4 && hInicio <= 12); // Rango de mañana Valencia
-    });
-
-    window.TEAM_STATE.people = filteredPeople;
-
-    // --- 3. CLASIFICACIÓN POR GRUPOS ---
+    // 1. Clasificación por categorías
     const groups = {
+        "SUPERVISIÓN MAD N4": [],
         "LEAD AGENT": [],
-        "AGENTES": []
+        "OPERARIOS OPS": [],
+        "MOSTRADOR": []
     };
 
-    filteredPeople.forEach(p => {
-        const cat = (p.observaciones || p.grupo || "").toUpperCase();
-        const isManual = p.source === 'manual' || cat.includes('MANUAL');
-
-        if (cat.includes("LEAD")) {
-            groups["LEAD AGENT"].push(p);
-        } else {
-            // Todos los demás (Agentes y Manuales) van a AGENTES
-            groups["AGENTES"].push(p);
-        } 
+    masterList.forEach(p => {
+        const grupo = (p.grupo || "").toUpperCase();
+        if (grupo.includes("01-SUPERVISORES-OPS")) groups["SUPERVISIÓN MAD N4"].push(p);
+        else if (grupo.includes("LEAD AGENT")) groups["LEAD AGENT"].push(p);
+        else if (grupo.includes("MOSTRADOR")) groups["MOSTRADOR"].push(p);
+        else groups["OPERARIOS OPS"].push(p);
     });
 
-    // --- 4. RENDERIZADO VISUAL ---
     listEl.innerHTML = '';
-    const ZONES = ['Muelle', 'Oficina', 'Cámara Fría', 'X-Ray', 'Rampa'];
+    const ZONES = ['Operaciones', 'Mostrador', 'DGR', 'Aduanas'];
 
+    // 2. Renderizado por Grupos
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
         const header = document.createElement('div');
-        header.style.cssText = "background:#f1f5f9; padding:10px 14px; margin:18px 0 10px 0; font-weight:700; font-size:0.85rem; color:#334155; border-radius:8px; text-transform:uppercase; border-bottom:3px solid #cbd5e1;";
+        header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.8rem; color:#475569; border-radius:8px; border-bottom:2px solid #cbd5e1; text-transform:uppercase;";
         header.textContent = `${groupName} (${groupPeople.length})`;
         listEl.appendChild(header);
 
         groupPeople.forEach((p) => {
             const name = p.nombre_completo;
+            // Generar ID seguro para HTML
             const safeId = btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g, ""); 
-            const currentAtt = window.TEAM_STATE.attendance[name];
-            const isManual = p.source === 'manual';
+            
+            // ACCESO SEGURO AL ESTADO
+            const currentAtt = window.TEAM_STATE.attendance[name]; // Puede ser true, false o undefined
+            const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            const row = document.createElement('div');
-            row.className = 'team-row';
-            row.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${groupName === 'LEAD AGENT' ? '#fbbf24' : '#3b82f6'}; background:${isManual ? '#fffcf0' : '#fff'};`;
+            let borderColor = "#3b82f6"; // Azul
+            if (groupName.includes("SUPERVISIÓN")) borderColor = "#fbbf24"; // Oro
+            if (groupName.includes("LEAD")) borderColor = "#8b5cf6"; // Púrpura
 
-            row.innerHTML = `
+            const card = document.createElement('div');
+            card.className = 'team-row';
+            card.style.cssText = `display:flex; flex-direction:column; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #e2e8f0; border-left:6px solid ${borderColor}; background:#fff;`;
+
+            card.innerHTML = `
                 <div>
-                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isManual ? '👤 ' : ''}${esc(name)}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario)}</span>
-                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${isManual ? 'ALTA MANUAL' : esc(p.observaciones)}</span>
+                    <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${esc(name)}</div>
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(p.horario || '—')}</span>
+                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800;">${esc(p.grupo || 'MANUAL')}</span>
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
                     <div class="presence-toggle">
                         <input type="radio" name="att_${safeId}" id="u_${safeId}" value="und" ${currentAtt === undefined ? 'checked' : ''}>
-                        <label for="u_${safeId}">➖</label>
+                        <label for="u_${safeId}" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">➖</label>
+
                         <input type="radio" name="att_${safeId}" id="y_${safeId}" value="yes" ${currentAtt === true ? 'checked' : ''}>
-                        <label for="y_${safeId}" class="yes">✅</label>
+                        <label for="y_${safeId}" class="yes" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">✅</label>
+                        
                         <input type="radio" name="att_${safeId}" id="n_${safeId}" value="no" ${currentAtt === false ? 'checked' : ''}>
-                        <label for="n_${safeId}" class="no">❌</label>
+                        <label for="n_${safeId}" class="no" style="padding:4px 8px; font-size:0.75rem; cursor:pointer;">❌</label>
                     </div>
+                    <select class="zone-select" style="flex:1; padding:6px; border-radius:8px; border:1px solid #cbd5e1; font-size:0.8rem; font-weight:700; background:#fff;">
+                        <option value="" disabled ${!currentZone ? 'selected' : ''}>ZONA...</option>
+                        ${ZONES.map(z => `<option value="${z}" ${currentZone === z ? 'selected' : ''}>${z}</option>`).join('')}
+                    </select>
                 </div>
             `;
 
-            // Listeners para asistencia
-            row.querySelectorAll('input[type="radio"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
+            // EVENTO DE CAMBIO DE ASISTENCIA
+            card.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.onchange = (e) => {
                     const val = e.target.value;
-                    const finalVal = val === "yes" ? true : (val === "no" ? false : undefined);
+                    let finalVal = undefined;
+                    if (val === "yes") finalVal = true;
+                    if (val === "no") finalVal = false;
+
                     window.TEAM_STATE.attendance[name] = finalVal;
-                    updatePresenceOnServer(name, finalVal);
+                    if (finalVal !== undefined) updatePresenceOnServer(name, finalVal);
                     updateTeamMeta(window.TEAM_STATE);
-                });
+                };
             });
 
-            listEl.appendChild(row);
+            // EVENTO DE CAMBIO DE ZONA
+            card.querySelector('.zone-select').onchange = (e) => {
+                const zone = e.target.value;
+                window.TEAM_STATE.zones[name] = zone;
+                if (typeof updateZoneOnServer === 'function') updateZoneOnServer(name, zone);
+            };
+
+            listEl.appendChild(card);
         });
     });
+    updateTeamMeta(window.TEAM_STATE);
 }
 /* ===== Equipo: Inicialización con DATOS DE PRUEBA FIJOS ===== */
 /* ===== Equipo: Inicialización MODO MANUAL (Sin datos de prueba) ===== */
@@ -7991,7 +8003,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
 
 
 
