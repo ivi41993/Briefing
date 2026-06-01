@@ -2800,7 +2800,7 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    const CATEGORIAS_VLC = ["CAPATACES", "SUPERVISORES", "ESPECIALISTAS","OPERARIOS"];
+    const CATEGORIAS_VLC = ["CAPATACES", "SUPERVISORES", "ESPECIALISTAS", "OPERARIOS"];
 
     const filteredPeople = masterList.filter(p => {
         const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
@@ -2834,7 +2834,10 @@ function renderRoster(listEl, people, state) {
             groups["SUPERVISORES"].push(p);
         } else if (cat.includes("CAPATACES") || cat.includes("OPS")) {
             groups["CAPATACES"].push(p);
-        } else {
+        } else if (cat.includes("OPERARIOS")) {
+            groups["OPERARIOS"].push(p);
+        }
+        else {
             // Especialistas y Manuales caen en este grupo visual
             groups["OPERARIOS"].push(p);
         }
