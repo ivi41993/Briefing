@@ -3434,15 +3434,12 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
     
     const notice = document.getElementById('roster-status-notice');
 
-    // Si hay personas en la lista, ocultamos el aviso de "espera"
     if (people && people.length > 0) {
         if (notice) notice.classList.add('notice-hidden');
     } else {
-        // Si la lista está vacía, nos aseguramos de que el aviso sea visible
         if (notice) notice.classList.remove('notice-hidden');
     }
     
-    // 1. Inicialización de Estado Global
     if (!window.TEAM_STATE) {
         window.TEAM_STATE = { attendance: {}, zones: {}, allPeopleRaw: [], people: [] };
     }
@@ -3455,16 +3452,13 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
         return;
     }
 
-    // --- 2. LÓGICA DE TURNOS CORREGIDA (Anticipación 2h) ---
+    // --- 2. LÓGICA DE TURNOS MEJORADA ---
     const hNow = new Date().getHours();
     let currentShiftLabel = "Noche";
 
-    if (hNow >= 4 && hNow < 12) {
-        currentShiftLabel = "Mañana";
-    } 
-    else if (hNow >= 12 && hNow < 20) {
-        currentShiftLabel = "Tarde";
-    }
+    // Mantenemos tu anticipación de 2h
+    if (hNow >= 4 && hNow < 12) currentShiftLabel = "Mañana";
+    else if (hNow >= 12 && hNow < 20) currentShiftLabel = "Tarde";
 
     const extractHours = (str) => {
         const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
@@ -3472,17 +3466,21 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    // --- 3. FILTRADO MEJORADO (Añadido LEADS) ---
-    const CATEGORIAS_OPS = ["OPS", "DGR", "01-SUPERVISORES-OPS", "AF/KL", "US Carriers", "USC", "LEADS"];
+    // --- 3. FILTRADO MÁS FLEXIBLE ---
+    // Añadimos variaciones comunes para evitar que gente se quede fuera
+    const CATEGORIAS_OPS = ["OPS", "DGR", "SUPERVISOR", "AF/KL", "US Carriers", "USC", "LEADS", "COORDINADOR", "OPERARIO"];
 
     const filteredPeople = masterList.filter(p => {
         const nombreUpper = (p.nombre_completo || "").toUpperCase();
+        // Exclusion crítica
         if (nombreUpper.includes("CUSTOMER/TRACING OPS")) return false;
 
         const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
-        // Verifica si alguna de las palabras clave permitidas está en el string de categoría
-        const cumpleCategoria = CATEGORIAS_OPS.some(cat => infoCategoria.includes(cat));
-        if (!cumpleCategoria) return false;
+        const cumpleCategoria = CATEGORIAS_OPS.some(cat => infoCategoria.includes(cat.toUpperCase()));
+        
+        // Si no cumple categoría, podrías querer verlos igual para no perder gente
+        // Descomenta la siguiente línea si quieres ver a TODOS los que no sean Tracing:
+        // if (!cumpleCategoria) return false; 
 
         const hours = extractHours(p.horario);
         if (hours.length === 0) return true; 
@@ -3490,52 +3488,49 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
         const hInicio = hours[0];
         const hFin = hours.length > 1 ? hours[1] : hInicio;
         
-        if (currentShiftLabel === "Mañana") return (hInicio >= 6 && hInicio < 14) || (hFin > 6 && hFin <= 14);
-        if (currentShiftLabel === "Tarde")  return (hInicio >= 14 && hInicio < 22) || (hFin > 14 && hFin <= 22);
-        if (currentShiftLabel === "Noche")  return (hInicio >= 22 || hInicio < 6) || (hFin >= 22 || hFin <= 6);
+        // AMPLIAMOS RANGOS: (Ej: Mañana acepta desde las 04:00 hasta las 15:00 para capturar solapes)
+        if (currentShiftLabel === "Mañana") {
+            return (hInicio >= 4 && hInicio < 14) || (hFin > 6 && hFin <= 15);
+        }
+        if (currentShiftLabel === "Tarde") {
+            return (hInicio >= 12 && hInicio < 22) || (hFin > 14 && hFin <= 23);
+        }
+        if (currentShiftLabel === "Noche") {
+            return (hInicio >= 20 || hInicio < 6) || (hFin >= 21 || hFin <= 7);
+        }
         return false;
     });
 
     window.TEAM_STATE.people = filteredPeople;
 
-    // --- 4. SECCIONAMIENTO VISUAL (Categorización Vivid con LEADS y Cuentas) ---
+    // --- 4. CLASIFICACIÓN ---
     const groups = {
         "SUPERVISIÓN OPS": [],
-        "LEADS / COORDINACIÓN": [], // Nueva categoría para visibilidad
+        "LEADS / COORDINACIÓN": [],
         "DGR / ESPECIALISTAS": [],
-        "EQUIPOS DE CUENTA (AF/KL - US)": [], // Nueva categoría para cuentas
+        "EQUIPOS DE CUENTA (AF/KL - US)": [],
         "OPERARIOS": []
     };
 
     filteredPeople.forEach(p => {
         const cat = (p.observaciones || p.grupo || "").toUpperCase();
         
-        if (cat.includes("01-SUPERVISORES-OPS")) {
-            groups["SUPERVISIÓN OPS"].push(p);
-        } else if (cat.includes("LEADS")) {
-            groups["LEADS / COORDINACIÓN"].push(p);
-        } else if (cat.includes("DGR")) {
-            groups["DGR / ESPECIALISTAS"].push(p);
-        } else if (cat.includes("AF/KL")){
-            groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
-        }  else if (cat.includes("US Carriers")){
-            groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
-        } else if (cat.includes("USC")){
-            groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
-        } 
-        else {
-            groups["OPERARIOS"].push(p);
-        }
+        if (cat.includes("SUPERVISOR")) groups["SUPERVISIÓN OPS"].push(p);
+        else if (cat.includes("LEAD") || cat.includes("COORDINADOR")) groups["LEADS / COORDINACIÓN"].push(p);
+        else if (cat.includes("DGR")) groups["DGR / ESPECIALISTAS"].push(p);
+        else if (cat.includes("AF/KL") || cat.includes("US CARRIERS") || cat.includes("USC")) groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
+        else groups["OPERARIOS"].push(p);
     });
 
     listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
-    // --- 5. RENDERIZADO POR BLOQUES ---
+    // --- 5. RENDERIZADO ---
     Object.keys(groups).forEach(groupName => {
         const groupPeople = groups[groupName];
         if (groupPeople.length === 0) return;
 
+        // Header de grupo
         const header = document.createElement('div');
         header.style.cssText = "background:#f1f5f9; padding:8px 12px; margin:15px 0 8px 0; font-weight:700; font-size:0.85rem; color:#475569; border-radius:8px; text-transform:uppercase; border-bottom:2px solid #cbd5e1;";
         header.textContent = `${groupName} (${groupPeople.length})`;
@@ -3545,18 +3540,18 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
             const name = p.nombre_completo;
             const isIncidencia = p.is_incidencia === true;
             const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
-            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/=/g, ""); // ID seguro basado en nombre
+            // Generar safeId evitando caracteres especiales que btoa a veces malinterpreta
+            const safeId = btoa(encodeURIComponent(name)).replace(/[^a-zA-Z0-9]/g, "");
 
             let currentAtt = window.TEAM_STATE.attendance[name]; 
             if (currentAtt === undefined) currentAtt = "undefined";
 
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            // Lógica de colores Vivid UI por grupo
-            let colorVivid = "#3b82f6"; // Azul por defecto (Operarios)
-            if (groupName === "SUPERVISIÓN OPS") colorVivid = "#fbbf24"; // Oro/Amarillo
-            if (groupName === "LEADS / COORDINACIÓN") colorVivid = "#8b5cf6"; // Púrpura (Coordinación)
-            if (groupName === "EQUIPOS DE CUENTA (AF/KL - US)") colorVivid = "#10b981"; // Verde (Cuentas Premium)
+            let colorVivid = "#3b82f6"; 
+            if (groupName === "SUPERVISIÓN OPS") colorVivid = "#fbbf24"; 
+            if (groupName === "LEADS / COORDINACIÓN") colorVivid = "#8b5cf6"; 
+            if (groupName === "EQUIPOS DE CUENTA (AF/KL - US)") colorVivid = "#10b981"; 
 
             const row = document.createElement('div');
             row.className = 'team-row';
@@ -3566,7 +3561,7 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
                 <div>
                     <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual || 'Horario API')}</span>
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual || p.horario || 'Horario API')}</span>
                         <span style="font-size:0.65rem; background:${colorVivid}20; color:${colorVivid}; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones || p.grupo || "OPERACIONES")}</span>
                     </div>
                 </div>
@@ -3586,10 +3581,10 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
                 </div>
             `;
 
-            // Listeners para actualizar estado
-            row.querySelectorAll('input[type="radio"]').forEach(r => {
-                r.addEventListener('click', () => {
-                    let val = (r.value === 'yes') ? true : (r.value === 'no' ? false : undefined);
+            // Event Listeners
+            row.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.addEventListener('click', () => {
+                    let val = (radio.value === 'yes') ? true : (radio.value === 'no' ? false : undefined);
                     window.TEAM_STATE.attendance[name] = val;
                     if (typeof updatePresenceOnServer === 'function') updatePresenceOnServer(name, val);
                     updateTeamMeta(window.TEAM_STATE);
