@@ -3516,13 +3516,15 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
             groups["LEADS / COORDINACIÓN"].push(p);
         } else if (cat.includes("DGR")) {
             groups["DGR / ESPECIALISTAS"].push(p);
-        } else if (cat.includes("AF/KL") || cat.includes("US Carriers")) {
+        } else if (cat.includes("AF/KL")){
             groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
         } else {
             groups["OPERARIOS"].push(p);
+        }else if (cat.includes("US Carriers")){
+            groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
         }
     });
-
+cat.includes("US Carriers"))
     listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
