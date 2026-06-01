@@ -19,7 +19,7 @@
                 // Si el código intenta ir a la raíz (/api), lo redirigimos a la carpeta (/bcn/api)
                 if (url.startsWith('/api/')) {
                     url = BASE_PATH + url.substring(1); // quita la primera barra
-                } else if (url.startsWith('api/')) {
+                } else if (url.startsWith('api/')) { 
                     url = BASE_PATH + url;
                 }
             }
@@ -3516,7 +3516,7 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
             groups["LEADS / COORDINACIÓN"].push(p);
         } else if (cat.includes("DGR")) {
             groups["DGR / ESPECIALISTAS"].push(p);
-        } else if (cat.includes("AF/KL") || cat.includes("US CARRIERS")) {
+        } else if (cat.includes("AF/KL") || cat.includes("US Carriers")) {
             groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
         } else {
             groups["OPERARIOS"].push(p);
