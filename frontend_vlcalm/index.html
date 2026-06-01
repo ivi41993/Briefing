@@ -2786,13 +2786,7 @@ function renderRoster(listEl, people, state) {
         return;
     }
 
-    const hNow = new Date().getHours();
-    const isVisibleWindow = (hNow >= 7 && hNow < 18); // Visible de 07:00 a 18:00
-
-    if (!isVisibleWindow) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Fuera de horario operativo (Turno Mañana VLC).</div>';
-        return;
-    }
+    // --- ELIMINADO: Restricción de isVisibleWindow para que se vea TODO EL DÍA ---
 
     const extractHours = (str) => {
         const times = (str || "").match(/(\d{1,2}):(\d{2})/g);
@@ -2800,23 +2794,22 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    const CATEGORIAS_VLC = ["CAPATACES", "SUPERVISORES", "ESPECIALISTAS", "OPERARIOS"];
+    const CATEGORIAS_VLC = ["CAPATACES", "SUPERVISORES", "ESPECIALISTAS", "OPERARIOS", "OPS"];
 
     const filteredPeople = masterList.filter(p => {
-        const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
+        const infoCategoria = (p.observaciones || p.grupo || p.nombreGrupoTrabajo || "").toUpperCase();
         
         // --- EL FILTRO DEBE DEJAR PASAR A LOS MANUALES SIEMPRE ---
         const isManual = p.source === 'manual' || infoCategoria.includes('MANUAL') || p.horario === 'Manual';
         if (isManual) return true;
 
+        // Comprobar si pertenece a las categorías de VLC
         const cumpleCategoria = CATEGORIAS_VLC.some(cat => infoCategoria.includes(cat));
         if (!cumpleCategoria) return false;
 
-        const hours = extractHours(p.horario);
-        if (hours.length === 0) return true; 
-        
-        const hInicio = hours[0];
-        return (hInicio >= 7 && hInicio <= 12);
+        // --- MODIFICADO: Eliminado el filtro de (hInicio >= 7 && hInicio <= 12) ---
+        // Ahora permitimos cualquier hora de inicio para que aparezcan turnos de tarde/noche (como el de las 18:30)
+        return true; 
     });
 
     window.TEAM_STATE.people = filteredPeople;
@@ -2825,20 +2818,19 @@ function renderRoster(listEl, people, state) {
         "SUPERVISORES": [],
         "CAPATACES": [],
         "ESPECIALISTAS": [],
-        "OPERARIOS":[]
+        "OPERARIOS": []
     };
 
     filteredPeople.forEach(p => {
-        const cat = (p.observaciones || p.grupo || "").toUpperCase();
-        if (cat.includes("SUPERVISORES")) {
+        const cat = (p.observaciones || p.grupo || p.nombreGrupoTrabajo || "").toUpperCase();
+        if (cat.includes("SUPERVISOR")) {
             groups["SUPERVISORES"].push(p);
-        } else if (cat.includes("CAPATACES") || cat.includes("OPS")) {
+        } else if (cat.includes("CAPATAZ") || cat.includes("OPS")) {
             groups["CAPATACES"].push(p);
-        } else if (cat.includes("OPERARIOS")) {
-            groups["OPERARIOS"].push(p);
-        }
-        else {
-            // Especialistas y Manuales caen en este grupo visual
+        } else if (cat.includes("ESPECIALISTA")) {
+            groups["ESPECIALISTAS"].push(p);
+        } else {
+            // Operarios, Manuales y otros
             groups["OPERARIOS"].push(p);
         }
     });
@@ -2856,19 +2848,28 @@ function renderRoster(listEl, people, state) {
         listEl.appendChild(header);
 
         groupPeople.forEach((p) => {
-            const name = p.nombre_completo;
-            const isIncidencia = p.is_incidencia === true;
-            const hVisual = (p.horario.match(/(\d{1,2}):(\d{2})/g) || []).join(' - ');
-            const safeId = btoa(unescape(encodeURIComponent(name))).replace(/=/g, ""); 
+            const name = p.nombre_completo || p.nombreApellidos;
+            const isIncidencia = p.is_incidencia === true || (p.lsIncidencias && p.lsIncidencias.length > 0);
+            
+            // Formatear horario visualmente
+            let hVisual = p.horario;
+            if (!hVisual && p.horaInicio && p.horaFin) {
+                const start = p.horaInicio.split(' ')[1] || "";
+                const end = p.horaFin.split(' ')[1] || "";
+                hVisual = `${start} - ${end}`;
+            }
+
+            const safeId = btoa(encodeURIComponent(name)).replace(/[^a-zA-Z0-9]/g, ""); 
 
             let currentAtt = window.TEAM_STATE.attendance[name]; 
             if (currentAtt === undefined) currentAtt = "undefined";
 
             const currentZone = window.TEAM_STATE.zones[name] || '';
 
-            let colorVivid = "#3b82f6"; // Azul para Agentes
+            let colorVivid = "#3b82f6"; // Azul para Operarios
             if (groupName === "SUPERVISORES") colorVivid = "#fbbf24"; // Oro
             if (groupName === "ESPECIALISTAS") colorVivid = "#8b5cf6"; // Púrpura
+            if (groupName === "CAPATACES") colorVivid = "#10b981"; // Verde
 
             const row = document.createElement('div');
             row.className = 'team-row';
@@ -2878,8 +2879,8 @@ function renderRoster(listEl, people, state) {
                 <div>
                     <div style="font-weight:800; font-size:0.95rem; color:#1e293b;">${isIncidencia ? '⚠️ ' : ''}${esc(name)}</div>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual)}</span>
-                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones || "VLC")}</span>
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:700;">🕒 ${esc(hVisual || "Manual")}</span>
+                        <span style="font-size:0.65rem; background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:4px; font-weight:800; text-transform:uppercase;">${esc(p.observaciones || p.nombreGrupoTrabajo || "VLC")}</span>
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #f1f5f9;">
@@ -2904,20 +2905,17 @@ function renderRoster(listEl, people, state) {
                     const val = e.target.value;
                     let finalVal = (val === "yes") ? true : (val === "no" ? false : undefined);
                     window.TEAM_STATE.attendance[name] = finalVal;
-                    if (typeof updatePresenceOnServer === 'function' && finalVal !== undefined) {
+                    if (typeof updatePresenceOnServer === 'function') {
                         updatePresenceOnServer(name, finalVal);
                     }
                     if (typeof updateTeamMeta === 'function') updateTeamMeta(window.TEAM_STATE);
                 });
             });
 
-            row.querySelectorAll('.zone-select').forEach(sel => {
-                sel.addEventListener('change', (e) => {
-                    const zone = e.target.value;
-                    window.TEAM_STATE.zones[name] = zone;
-                    if (typeof updateZoneOnServer === 'function') updateZoneOnServer(name, zone);
-                    if (typeof updateTeamMeta === 'function') updateTeamMeta(window.TEAM_STATE);
-                });
+            row.querySelector('.zone-select').addEventListener('change', (e) => {
+                const zone = e.target.value;
+                window.TEAM_STATE.zones[name] = zone;
+                if (typeof updateZoneOnServer === 'function') updateZoneOnServer(name, zone);
             });
 
             listEl.appendChild(row);
