@@ -5136,7 +5136,15 @@ async def _roster_watcher():
                     "people": roster_store[d_iso]["by_shift"].get(current_shift, [])
                 })
                 
-                print(f"✅ Worker: Datos de TODO EL DÍA grabados en disco ({d_iso})."
+                print(f"✅ Worker: Datos de TODO EL DÍA grabados en disco ({d_iso}).")
+            else:
+                print("⚠️ Worker: La API de Madrid no respondió, se mantienen datos previos.")
+
+        except Exception as e:
+            print(f"❌ Error en Worker ALM: {e}")
+        
+        # Esperar 15 minutos para la siguiente comprobación
+        await asyncio.sleep(900)
 
 
 
