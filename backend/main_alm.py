@@ -723,37 +723,35 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # 1. Preparar fecha para la API (DD/MM/YYYY)
-    api_date_str = sdate.strftime("%d/%m/%Y")
-    
-    # 2. Obtener datos de Madrid
-    raw_api_data = await fetch_roster_api_data("MAD", api_date_str)
-    
-    people = []
-    source = "excel"
+    # Si no se fuerza y ya tenemos datos en memoria para este turno, no llamar a la API
+    if not force and roster_cache.get("shift") == shift and roster_cache.get("people"):
+        return roster_cache
 
-    if raw_api_data and isinstance(raw_api_data, list) and len(raw_api_data) > 0:
-        # 3. Filtrar por N4 y Turno actual
+    print(f"📡 Llamando a la API de CRC para el turno de {shift}...")
+    raw_api_data = await fetch_mad_roster_from_api()
+    people = []
+
+    if raw_api_data and isinstance(raw_api_data, list):
+        # Filtramos por Nave 4 (tu lógica actual)
         people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
         source = "api"
     else:
-        # Fallback a Excel si la API no está disponible
-        sheet_real, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
-        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet_real, shift) if sheet_real else []
+        # Si la API falla, intentamos leer el Excel local como backup
+        sheet, _ = _find_sheet_for_date(ROSTER_XLSX_PATH, sdate)
+        people = _read_sheet_people(ROSTER_XLSX_PATH, sheet, shift) if sheet else []
+        source = "excel"
 
-    # 4. Actualizar el caché global
     roster_cache.update({
-        "sheet_date": sdate,
-        "shift": shift,
+        "sheet_date": sdate, 
+        "shift": shift, 
         "people": people,
         "updated_at": datetime.utcnow().isoformat() + "Z",
-        "window": {"from": start, "to": end},
+        "window": {"from": start, "to": end}, 
         "source": source
     })
     
-    # 5. Notificar a todos los navegadores abiertos
+    # Enviamos actualización por WebSocket a cualquier dashboard que esté abierto
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
-    
     return roster_cache
 
 
@@ -3444,7 +3442,7 @@ async def lifespan(app: FastAPI):
     load_roster_from_disk()
     
 
-    # app.state._roster = asyncio.create_task(_roster_watcher())
+    app.state._roster = asyncio.create_task(_roster_watcher())
    
     app.state._ena = EnablonConnector()
     app.state._ena_task = asyncio.create_task(app.state._ena.run())
@@ -4855,19 +4853,40 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    # primera carga
-    try:
-        await _build_roster_state(force=True)
-    except Exception as e:
-        print("⚠️ Roster initial load error:", repr(e))
-
-    # refresco periódico (por si cambia la hora/turno o reemplazas el archivo)
+    """Este proceso corre siempre en el servidor, sin necesidad de que haya usuarios conectados"""
+    print("🕵️ Worker de Roster proactivo iniciado.")
+    
     while True:
-        await asyncio.sleep(max(15, ROSTER_POLL_SECONDS))
         try:
-            await _build_roster_state(force=False)
+            now = _now_local()
+            print(f"🔄 Refrescando Roster de forma proactiva... ({now.strftime('%H:%M:%S')})")
+            
+            # Forzamos la carga desde la API de CRC
+            state = await _build_roster_state(force=True)
+            
+            # Si hemos obtenido gente, lo guardamos en la persistencia de disco/SQL
+            # para que el endpoint de la web lo devuelva instantáneamente
+            d_iso = state.get("sheet_date").isoformat()
+            shift = state.get("shift")
+            
+            if state.get("people"):
+                # Actualizamos el almacén persistente
+                roster_store[d_iso] = {
+                    "raw": state.get("people"),
+                    "by_shift": {
+                        shift: state.get("people")
+                    },
+                    "sheet": "API_AUTO_LOAD",
+                    "saved_at": datetime.utcnow().isoformat() + "Z",
+                }
+                save_roster_to_disk()
+                print(f"✅ Datos de {shift} guardados y listos para el Dashboard.")
+
         except Exception as e:
-            print("⚠️ Roster watcher error:", repr(e))
+            print(f"⚠️ Error en carga automática de Roster: {e}")
+        
+        # Esperar 15 minutos (900 segundos) para la siguiente actualización
+        await asyncio.sleep(900)
 
 
 
