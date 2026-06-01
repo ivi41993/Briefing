@@ -3473,7 +3473,7 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
     };
 
     // --- 3. FILTRADO MEJORADO (Añadido LEADS) ---
-    const CATEGORIAS_OPS = ["OPS", "DGR", "01-SUPERVISORES-OPS", "AF/KL", "US Carriers", "LEADS"];
+    const CATEGORIAS_OPS = ["OPS", "DGR", "01-SUPERVISORES-OPS", "AF/KL", "US Carriers", "USC", "LEADS"];
 
     const filteredPeople = masterList.filter(p => {
         const nombreUpper = (p.nombre_completo || "").toUpperCase();
@@ -3518,13 +3518,16 @@ document.addEventListener('DOMContentLoaded', renderFiixWeeklyHistory);
             groups["DGR / ESPECIALISTAS"].push(p);
         } else if (cat.includes("AF/KL")){
             groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
-        } else {
-            groups["OPERARIOS"].push(p);
-        }else if (cat.includes("US Carriers")){
+        }  else if (cat.includes("US Carriers")){
             groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
+        } else if (cat.includes("USC")){
+            groups["EQUIPOS DE CUENTA (AF/KL - US)"].push(p);
+        } 
+        else {
+            groups["OPERARIOS"].push(p);
         }
     });
-cat.includes("US Carriers"))
+
     listEl.innerHTML = '';
     const ZONES = ['Isla', 'Dorada', 'Muelle Imp', 'Muelle Exp', 'Import', 'Export'];
 
