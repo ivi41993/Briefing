@@ -2800,7 +2800,7 @@ function renderRoster(listEl, people, state) {
         return times.map(t => parseInt(t.split(':')[0]));
     };
 
-    const CATEGORIAS_VLC = ["CAPATACES", "SUPERVISORES", "ESPECIALISTAS","OPERARIOS];
+    const CATEGORIAS_VLC = ["CAPATACES", "SUPERVISORES", "ESPECIALISTAS","OPERARIOS"];
 
     const filteredPeople = masterList.filter(p => {
         const infoCategoria = (p.observaciones || p.grupo || "").toUpperCase();
