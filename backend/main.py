@@ -4964,7 +4964,7 @@ async def get_roster_current():
     shift, sdate, _, _ = _current_shift_info(now)
     d_iso = sdate.isoformat()
 
-    # 1. Mirar si el Worker ya dejó los datos en el almacén persistente
+    # 1. Intentar leer del almacén persistente (el archivo roster.json)
     if d_iso in roster_store:
         rec = roster_store[d_iso]
         people = rec.get("by_shift", {}).get(shift, [])
@@ -4973,16 +4973,20 @@ async def get_roster_current():
                 "shift": shift,
                 "sheet_date": d_iso,
                 "people": people,
-                "source": "background_worker",
+                "source": "database_disk",
                 "updated_at": rec.get("saved_at")
             }
 
-    # 2. Si es una instalación limpia y no hay nada, devuelve lista vacía 
-    # pero el Worker lo llenará en unos segundos y aparecerá por WebSocket
+    # 2. Si es un día nuevo y el worker aún no ha escrito nada (muy raro)
+    # devolvemos lo que haya en la RAM por si acaso
+    if roster_cache.get("people"):
+        return {**roster_cache, "source": "ram_fallback"}
+
     return {
         "shift": shift,
         "people": [],
-        "source": "waiting_for_worker"
+        "source": "not_loaded_yet",
+        "message": "Esperando a que el servidor complete la primera descarga del día..."
     }
 @app.get("/api/roster/persisted")
 def api_roster_persisted():
@@ -5090,41 +5094,49 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    """Worker proactivo: Llama a la API lenta para que el usuario no tenga que hacerlo"""
-    print("🚀 MAD: Worker de Roster proactivo iniciado.")
+    """Worker de fondo: Mantiene el archivo roster.json siempre lleno"""
+    print("🚀 MAD ALM: Worker de persistencia iniciado.")
+    
     while True:
         try:
             now = _now_local()
-            shift, sdate, _, _ = _current_shift_info(now)
+            # La madrugada de 'Noche' (00:00 - 05:00) pertenece operativamente al día anterior
+            if now.hour < 5:
+                fecha_consulta = (now - timedelta(days=1)).strftime("%d/%m/%Y")
+                sdate = now - timedelta(days=1)
+            else:
+                fecha_consulta = now.strftime("%d/%m/%Y")
+                sdate = now
             
-            print(f"📡 Actualizando Roster desde API CRC para turno {shift}...")
-            raw_api_data = await fetch_mad_roster_from_api()
+            print(f"📡 Worker: Consultando API de Madrid para fecha {fecha_consulta}...")
+            raw_api_data = await fetch_roster_api_data(STATION_CODE_API, fecha_consulta)
             
             if raw_api_data:
-                people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
+                # Procesamos los 3 turnos de golpe para tenerlos listos en el disco
+                d_iso = sdate.date().isoformat()
                 
-                # Guardar en el diccionario global y en el disco
-                d_iso = sdate.isoformat()
-                roster_store[d_iso] = {
-                    "raw": people,
-                    "by_shift": { shift: people },
-                    "sheet": "API_MAD_AUTO",
-                    "saved_at": datetime.utcnow().isoformat() + "Z"
-                }
+                # Creamos la estructura en el almacén persistente
+                if d_iso not in roster_store:
+                    roster_store[d_iso] = {"by_shift": {}, "sheet": "API_AUTO", "saved_at": ""}
+
+                for shift_name in ["Mañana", "Tarde", "Noche"]:
+                    people = filter_mad_people_by_shift_and_nave(raw_api_data, shift_name, "N4")
+                    roster_store[d_iso]["by_shift"][shift_name] = people
+                
+                roster_store[d_iso]["saved_at"] = datetime.utcnow().isoformat() + "Z"
+                
+                # GUARDADO FÍSICO (Esto es lo que leerá la tablet al instante)
                 save_roster_to_disk()
                 
-                # Esto "empuja" los datos a los navegadores que estén abiertos
-                await manager.broadcast({
-                    "type": "roster_update", 
-                    "shift": shift, 
-                    "people": people, 
-                    "sheet_date": d_iso
+                # Actualizar también el caché de RAM para respuesta inmediata
+                current_shift, _, _, _ = _current_shift_info(now)
+                roster_cache.update({
+                    "sheet_date": sdate.date(),
+                    "shift": current_shift,
+                    "people": roster_store[d_iso]["by_shift"].get(current_shift, [])
                 })
-                print(f"✅ Roster MAD listo. {len(people)} personas encontradas.")
-        except Exception as e:
-            print(f"❌ Error en Worker MAD: {e}")
-        
-        await asyncio.sleep(600) # Reintentar cada 10 minutos
+                
+                print(f"✅ Worker: Datos de TODO EL DÍA grabados en disco ({d_iso})."
 
 
 
