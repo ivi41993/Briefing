@@ -3305,7 +3305,7 @@ async def lifespan(app: FastAPI):
     load_roster_from_disk()
     
 
-    app.state._roster = asyncio.create_task(_roster_watcher())
+    app.state._roster_task = asyncio.create_task(_roster_watcher())
    
     app.state._ena = EnablonConnector()
     app.state._ena_task = asyncio.create_task(app.state._ena.run())
@@ -4877,12 +4877,14 @@ async def _build_roster_state(force=False) -> dict:
     now = _now_local()
     shift, sdate, start, end = _current_shift_info(now)
     
-    # Si no se fuerza y ya tenemos datos en memoria para este turno, no llamar a la API
+    # SI NO ES FORZADO y ya tenemos gente en la memoria rápida, NO llamamos a la API lenta
     if not force and roster_cache.get("shift") == shift and roster_cache.get("people"):
         return roster_cache
 
-    print(f"📡 Llamando a la API de CRC para el turno de {shift}...")
+    # Solo llegamos aquí si el Worker de fondo decide que toca actualizar
+    print(f"📡 Llamando a la API lenta de CRC para el turno de {shift}...")
     raw_api_data = await fetch_mad_roster_from_api()
+    
     people = []
 
     if raw_api_data and isinstance(raw_api_data, list):
@@ -5094,39 +5096,34 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    """Este proceso corre siempre en el servidor, sin necesidad de que haya usuarios conectados"""
-    print("🕵️ Worker de Roster proactivo iniciado.")
+    """Este proceso corre SIEMPRE en el servidor en segundo plano"""
+    print("🕵️ Worker de Roster proactivo iniciado (Eliminando esperas).")
     
     while True:
         try:
-            now = _now_local()
-            print(f"🔄 Refrescando Roster de forma proactiva... ({now.strftime('%H:%M:%S')})")
-            
-            # Forzamos la carga desde la API de CRC
+            # Forzamos al servidor a llamar a la API lenta de CRC cada 15 min
+            print("🔄 Descargando Roster de forma proactiva para tenerlo listo...")
             state = await _build_roster_state(force=True)
             
-            # Si hemos obtenido gente, lo guardamos en la persistencia de disco/SQL
-            # para que el endpoint de la web lo devuelva instantáneamente
+            # Guardamos el resultado en el almacén persistente (disco/json)
+            # Esto asegura que si el servidor se reinicia, los nombres sigan ahí.
             d_iso = state.get("sheet_date").isoformat()
             shift = state.get("shift")
             
             if state.get("people"):
-                # Actualizamos el almacén persistente
                 roster_store[d_iso] = {
                     "raw": state.get("people"),
-                    "by_shift": {
-                        shift: state.get("people")
-                    },
-                    "sheet": "API_AUTO_LOAD",
+                    "by_shift": { shift: state.get("people") },
+                    "sheet": "AUTO_LOAD",
                     "saved_at": datetime.utcnow().isoformat() + "Z",
                 }
                 save_roster_to_disk()
-                print(f"✅ Datos de {shift} guardados y listos para el Dashboard.")
+                print(f"✅ Roster de {shift} listo en memoria rápida.")
 
         except Exception as e:
-            print(f"⚠️ Error en carga automática de Roster: {e}")
+            print(f"⚠️ Error en carga automática: {e}")
         
-        # Esperar 15 minutos (900 segundos) para la siguiente actualización
+        # Espera 15 minutos para la siguiente descarga
         await asyncio.sleep(900)
 
 
