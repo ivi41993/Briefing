@@ -47,7 +47,72 @@ except ImportError:
 
 
 # Inicializar DB al arrancar
+async def get_seconds_until_next_sync():
+    """Calcula cuántos segundos faltan para las 05:30, 13:30 o 21:30"""
+    now = datetime.now(ZoneInfo(ROSTER_TZ))
+    targets = ["05:30", "13:30", "21:30"]
+    
+    wait_times = []
+    for t in targets:
+        h, m = map(int, t.split(':'))
+        target_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        
+        # Si la hora ya pasó hoy, calculamos para mañana
+        if target_time <= now:
+            target_time += timedelta(days=1)
+            
+        diff = (target_time - now).total_seconds()
+        wait_times.append(diff)
+    
+    return min(wait_times)
 
+async def _roster_watcher():
+    """Worker que descarga datos solo a las 05:30, 13:30 y 21:30"""
+    print("🚀 MAD N4: Cargador programado (05:30, 13:30, 21:30) iniciado.")
+    
+    # 1. Carga inicial al encender el servidor (para que no esté vacío al arrancar)
+    await _perform_mad_n4_sync()
+
+    while True:
+        try:
+            seconds_to_wait = await get_seconds_until_next_sync()
+            proxima_cita = (datetime.now(ZoneInfo(ROSTER_TZ)) + timedelta(seconds=seconds_to_wait)).strftime("%H:%M")
+            print(f"😴 MAD N4: Durmiendo {int(seconds_to_wait/60)} minutos. Próxima descarga: {proxima_cita}")
+            
+            await asyncio.sleep(seconds_to_wait)
+            
+            # 2. Ejecutar la descarga programada
+            await _perform_mad_n4_sync()
+            
+        except Exception as e:
+            print(f"❌ MAD N4: Error en ciclo worker: {e}")
+            await asyncio.sleep(60) # Esperar un minuto antes de reintentar si falla
+
+async def _perform_mad_n4_sync():
+    """Lógica interna de descarga y filtrado"""
+    print(f"📡 MAD N4: Sincronizando con API de Madrid...")
+    try:
+        fecha_hoy = datetime.now(ZoneInfo(ROSTER_TZ)).strftime("%d/%m/%Y")
+        payload = {"escala": "MAD", "fecha": fecha_hoy}
+        headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
+        
+        async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
+            resp = await client.post(ROSTER_API_URL, headers=headers, data=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Filtrar y guardar en la memoria para todos los turnos
+                for s in ["Mañana", "Tarde", "Noche"]:
+                    mad_n4_roster_storage[s] = filter_mad_n4_only(data, s)
+                
+                mad_n4_roster_storage["last_sync"] = datetime.now().strftime("%H:%M:%S")
+                print(f"✅ MAD N4: Datos listos para todos los turnos.")
+                
+                # Opcional: Avisar vía WebSocket
+                await manager.broadcast({"type": "roster_update", "status": "ready"})
+            else:
+                print(f"⚠️ MAD N4: Error API {resp.status_code}")
+    except Exception as e:
+        print(f"❌ MAD N4: Fallo en descarga API: {e}")
 
 async def send_to_excel_online(data: BriefingSnapshot):
     url = os.getenv("MAIN_WEBHOOK")
@@ -4948,35 +5013,17 @@ async def map_fiix_assets():
     
 @app.get("/api/roster/current")
 async def get_roster_current():
-    state = await _build_roster_state(force=False)
-
-    # Si hay persistencia para esa fecha/turno, sirve desde ahí
-    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    sh = state.get("shift")
-    if d_iso and sh and d_iso in roster_store:
-        rec = roster_store[d_iso]
-        people = rec.get("by_shift", {}).get(sh, [])
-        return {
-            "shift": sh,
-            "sheet": rec.get("sheet"),
-            "sheet_date": d_iso,
-            "window": state.get("window"),
-            "people": people,
-            "updated_at": rec.get("saved_at") or state.get("updated_at"),
-            "attendance": state.get("attendance", {}),
-            "source": "store"
-        }
-
-    # Fallback al Excel/cálculo en caliente
+    """Este endpoint es instantáneo porque los datos ya se bajaron a las 05:30, 13:30 o 21:30"""
+    now = datetime.now(ZoneInfo(ROSTER_TZ))
+    shift, _, _, _ = _current_shift_info(now)
+    
+    people = mad_n4_roster_storage.get(shift, [])
+    
     return {
-        "shift": state.get("shift"),
-        "sheet": state.get("sheet"),
-        "sheet_date": state.get("sheet_date").isoformat() if state.get("sheet_date") else None,
-        "window": state.get("window"),
-        "people": state.get("people", []),
-        "updated_at": state.get("updated_at"),
-        "attendance": state.get("attendance", {}),
-        "source": "excel"
+        "shift": shift,
+        "people": people,
+        "source": "scheduled_api_memory",
+        "last_sync": mad_n4_roster_storage["last_sync"]
     }
 @app.get("/api/roster/persisted")
 def api_roster_persisted():
