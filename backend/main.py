@@ -45,7 +45,32 @@ except ImportError:
     # Si falla, intenta importar asumiendo que 'backend' es un paquete (funciona en Render desde raíz)
     from backend.database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
+# Archivo donde guardaremos los datos para que no se borren en los deploys
+MAD_N4_FILE = "./data/roster_mad_n4.json"
+mad_n4_roster_storage = {"Mañana": [], "Tarde": [], "Noche": [], "last_sync": "Nunca"}
 
+def save_mad_n4_to_disk():
+    """Guarda la memoria actual en un archivo JSON"""
+    try:
+        os.makedirs("./data", exist_ok=True)
+        with open(MAD_N4_FILE, "w", encoding="utf-8") as f:
+            json.dump(mad_n4_roster_storage, f, ensure_ascii=False, indent=4)
+        print("💾 MAD N4: Datos guardados en disco.")
+    except Exception as e:
+        print(f"⚠️ Error guardando disco: {e}")
+
+def load_mad_n4_from_disk():
+    """Carga los datos del archivo al arrancar el servidor"""
+    global mad_n4_roster_storage
+    if os.path.exists(MAD_N4_FILE):
+        try:
+            with open(MAD_N4_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                mad_n4_roster_storage.update(data)
+            print(f"📂 MAD N4: Datos recuperados del disco (Sincro anterior: {mad_n4_roster_storage['last_sync']})")
+        except Exception as e:
+            print(f"⚠️ Error cargando disco: {e}")
+            
 # Inicializar DB al arrancar
 async def get_seconds_until_next_sync():
     """Calcula cuántos segundos faltan para las 05:30, 13:30 o 21:30"""
@@ -67,30 +92,31 @@ async def get_seconds_until_next_sync():
     return min(wait_times)
 
 async def _roster_watcher():
-    """Worker que descarga datos solo a las 05:30, 13:30 y 21:30"""
-    print("🚀 MAD N4: Cargador programado (05:30, 13:30, 21:30) iniciado.")
+    """Ciclo de vida del cargador de Madrid N4"""
+    print("🚀 MAD N4: Worker iniciado.")
     
-    # 1. Carga inicial al encender el servidor (para que no esté vacío al arrancar)
-    await _perform_mad_n4_sync()
+    # 1. Intentar recuperar lo que había antes del deploy
+    load_mad_n4_from_disk()
+
+    # 2. Si después de cargar del disco sigue vacío, forzamos una descarga YA
+    if not mad_n4_roster_storage["Mañana"] and not mad_n4_roster_storage["Tarde"]:
+        print("📡 MAD N4: Memoria vacía tras deploy. Forzando descarga inmediata...")
+        await _perform_mad_n4_sync()
 
     while True:
         try:
             seconds_to_wait = await get_seconds_until_next_sync()
-            proxima_cita = (datetime.now(ZoneInfo(ROSTER_TZ)) + timedelta(seconds=seconds_to_wait)).strftime("%H:%M")
-            print(f"😴 MAD N4: Durmiendo {int(seconds_to_wait/60)} minutos. Próxima descarga: {proxima_cita}")
+            print(f"😴 MAD N4: Próxima actualización programada en {int(seconds_to_wait/60)} min.")
             
             await asyncio.sleep(seconds_to_wait)
-            
-            # 2. Ejecutar la descarga programada
             await _perform_mad_n4_sync()
             
         except Exception as e:
-            print(f"❌ MAD N4: Error en ciclo worker: {e}")
-            await asyncio.sleep(60) # Esperar un minuto antes de reintentar si falla
+            print(f"❌ MAD N4: Error en worker: {e}")
+            await asyncio.sleep(60)
 
 async def _perform_mad_n4_sync():
-    """Lógica interna de descarga y filtrado"""
-    print(f"📡 MAD N4: Sincronizando con API de Madrid...")
+    """La función que realmente llama a la API"""
     try:
         fecha_hoy = datetime.now(ZoneInfo(ROSTER_TZ)).strftime("%d/%m/%Y")
         payload = {"escala": "MAD", "fecha": fecha_hoy}
@@ -100,19 +126,20 @@ async def _perform_mad_n4_sync():
             resp = await client.post(ROSTER_API_URL, headers=headers, data=payload)
             if resp.status_code == 200:
                 data = resp.json()
-                # Filtrar y guardar en la memoria para todos los turnos
                 for s in ["Mañana", "Tarde", "Noche"]:
                     mad_n4_roster_storage[s] = filter_mad_n4_only(data, s)
                 
-                mad_n4_roster_storage["last_sync"] = datetime.now().strftime("%H:%M:%S")
-                print(f"✅ MAD N4: Datos listos para todos los turnos.")
+                mad_n4_roster_storage["last_sync"] = datetime.now(ZoneInfo(ROSTER_TZ)).strftime("%H:%M:%S")
                 
-                # Opcional: Avisar vía WebSocket
+                # GUARDAR EN DISCO INMEDIATAMENTE TRAS DESCARGAR
+                save_mad_n4_to_disk()
+                
                 await manager.broadcast({"type": "roster_update", "status": "ready"})
+                print(f"✅ MAD N4: Sincronización exitosa.")
             else:
                 print(f"⚠️ MAD N4: Error API {resp.status_code}")
     except Exception as e:
-        print(f"❌ MAD N4: Fallo en descarga API: {e}")
+        print(f"❌ MAD N4: Fallo conexión API: {e}")
 
 async def send_to_excel_online(data: BriefingSnapshot):
     url = os.getenv("MAIN_WEBHOOK")
