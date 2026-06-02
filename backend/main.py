@@ -4955,7 +4955,7 @@ async def get_roster_current():
     shift, sdate, _, _ = _current_shift_info(now)
     d_iso = sdate.isoformat()
 
-    # 1. ¿Está en el archivo persistente (Disco)?
+    # 1. ¿Está en el disco? (Carga ultra-rápida para la tablet)
     if d_iso in roster_store:
         rec = roster_store[d_iso]
         people = rec.get("by_shift", {}).get(shift, [])
@@ -4964,20 +4964,19 @@ async def get_roster_current():
                 "shift": shift,
                 "sheet_date": d_iso,
                 "people": people,
-                "source": "database_disk",
-                "updated_at": rec.get("saved_at")
+                "source": "disk_ready"
             }
 
-    # 2. Si no hay nada en disco, devolvemos lo que haya en RAM
-    if roster_cache.get("people"):
+    # 2. Si no hay nada de hoy, intentamos dar lo que haya en la RAM del último éxito
+    if roster_cache.get("people") and roster_cache.get("shift") == shift:
         return {**roster_cache, "source": "ram_cache"}
 
-    # 3. Si es la primera vez que se abre el día y el worker no ha terminado
+    # 3. Solo si es un día totalmente nuevo y el worker está trabajando ahora mismo:
     return {
         "shift": shift,
         "people": [],
         "source": "waiting_for_worker",
-        "message": "Descargando datos de Madrid en segundo plano..."
+        "message": "Sincronizando con Madrid... espera 30 segundos."
     }
 @app.get("/api/roster/persisted")
 def api_roster_persisted():
@@ -5085,51 +5084,52 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    """Worker de fondo: Mantiene el Roster siempre listo en el disco"""
-    print("🚀 MAD: Worker de Roster proactivo iniciado.")
+    print("🚀 [WORKER MAD] Iniciando proceso de fondo...")
     
     while True:
         try:
             now = _now_local()
             shift, sdate, _, _ = _current_shift_info(now)
+            d_iso = sdate.isoformat()
             fecha_api = sdate.strftime("%d/%m/%Y")
             
-            print(f"📡 Worker: Descargando datos de Madrid para el turno de {shift}...")
+            print(f"📡 [WORKER MAD] Consultando API de Madrid para: {fecha_api} | Turno: {shift}")
+            
+            # Llamada a la API
             raw_api_data = await fetch_roster_api_data(STATION_CODE_API, fecha_api)
             
-            if raw_api_data:
+            if raw_api_data and len(raw_api_data) > 0:
                 people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
                 
-                # Guardamos en disco (roster.json)
-                d_iso = sdate.isoformat()
-                roster_store[d_iso] = {
-                    "raw": people,
-                    "by_shift": { shift: people },
-                    "sheet": "API_AUTO",
-                    "saved_at": datetime.utcnow().isoformat() + "Z"
-                }
-                save_roster_to_disk()
+                # Actualizar el almacén global
+                if d_iso not in roster_store:
+                    roster_store[d_iso] = {"by_shift": {}, "sheet": "API_AUTO", "saved_at": ""}
                 
-                # Actualizar caché de RAM
+                roster_store[d_iso]["by_shift"][shift] = people
+                roster_store[d_iso]["saved_at"] = datetime.utcnow().isoformat() + "Z"
+                
+                # Actualizar el caché de RAM
                 roster_cache.update({"sheet_date": sdate, "shift": shift, "people": people})
                 
-                # ENVIAR POR WEBSOCKET (Para que aparezca solo en la tablet)
+                # Guardar a disco
+                save_roster_to_disk()
+                
+                # Emitir por WebSocket
                 await manager.broadcast({
                     "type": "roster_update", 
                     "shift": shift, 
                     "people": people, 
                     "sheet_date": d_iso
                 })
-                print(f"✅ Worker: Datos listos y enviados a los Dashboards.")
+                print(f"💾 [WORKER MAD] Datos guardados. Tablet debería actualizarse ahora.")
             else:
-                print("⚠️ Worker: API no disponible, reintentando en breve.")
+                print("❌ [WORKER MAD] La API no devolvió datos o la respuesta fue vacía.")
 
         except Exception as e:
-            print(f"❌ Error en Worker: {e}")
+            print(f"💥 [WORKER MAD] Error crítico: {e}")
         
-        # Esperar 10 minutos para la siguiente actualización
+        # Esperar 10 minutos
         await asyncio.sleep(600)
-
 
 
 from pathlib import Path
