@@ -3302,8 +3302,11 @@ async def lifespan(app: FastAPI):
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
-    load_roster_from_disk()
     
+    load_roster_from_disk() # Importante cargar lo que ya hay en disco primero
+    
+    # Arrancar el proceso de fondo
+    app.state._roster_task = asyncio.create_task(_roster_watcher()) 
 
     # app.state._roster = asyncio.create_task(_roster_watcher())
    
@@ -5082,46 +5085,50 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    """Mantiene el Roster actualizado en segundo plano para evitar esperas al usuario"""
+    """Worker de fondo: Mantiene el Roster siempre listo en el disco"""
     print("🚀 MAD: Worker de Roster proactivo iniciado.")
+    
     while True:
         try:
             now = _now_local()
             shift, sdate, _, _ = _current_shift_info(now)
             fecha_api = sdate.strftime("%d/%m/%Y")
             
-            print(f"📡 Worker: Consultando API lenta para turno {shift} ({fecha_api})...")
-            # Usamos la función de conexión con gran timeout que ya tienes definida
+            print(f"📡 Worker: Descargando datos de Madrid para el turno de {shift}...")
             raw_api_data = await fetch_roster_api_data(STATION_CODE_API, fecha_api)
             
             if raw_api_data:
                 people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
                 
-                # Guardar en RAM y en Disco (roster.json)
+                # Guardamos en disco (roster.json)
                 d_iso = sdate.isoformat()
                 roster_store[d_iso] = {
                     "raw": people,
                     "by_shift": { shift: people },
-                    "sheet": "API_MAD_AUTO",
+                    "sheet": "API_AUTO",
                     "saved_at": datetime.utcnow().isoformat() + "Z"
                 }
                 save_roster_to_disk()
                 
-                # Actualizar el caché de respuesta inmediata
+                # Actualizar caché de RAM
                 roster_cache.update({"sheet_date": sdate, "shift": shift, "people": people})
                 
-                # Avisar a los Dashboard abiertos vía WebSocket
+                # ENVIAR POR WEBSOCKET (Para que aparezca solo en la tablet)
                 await manager.broadcast({
                     "type": "roster_update", 
                     "shift": shift, 
                     "people": people, 
                     "sheet_date": d_iso
                 })
-                print(f"✅ Roster MAD preparado: {len(people)} personas.")
+                print(f"✅ Worker: Datos listos y enviados a los Dashboards.")
+            else:
+                print("⚠️ Worker: API no disponible, reintentando en breve.")
+
         except Exception as e:
-            print(f"❌ Error en Worker MAD: {e}")
+            print(f"❌ Error en Worker: {e}")
         
-        await asyncio.sleep(600) # Se ejecuta cada 10 minutos
+        # Esperar 10 minutos para la siguiente actualización
+        await asyncio.sleep(600)
 
 
 
