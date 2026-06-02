@@ -45,101 +45,9 @@ except ImportError:
     # Si falla, intenta importar asumiendo que 'backend' es un paquete (funciona en Render desde raíz)
     from backend.database import init_db, SessionLocal, TaskDB, IncidentDB, AttendanceDB, BriefingDB
 
-# Archivo donde guardaremos los datos para que no se borren en los deploys
-MAD_N4_FILE = "./data/roster_mad_n4.json"
-mad_n4_roster_storage = {"Mañana": [], "Tarde": [], "Noche": [], "last_sync": "Nunca"}
 
-def save_mad_n4_to_disk():
-    """Guarda la memoria actual en un archivo JSON"""
-    try:
-        os.makedirs("./data", exist_ok=True)
-        with open(MAD_N4_FILE, "w", encoding="utf-8") as f:
-            json.dump(mad_n4_roster_storage, f, ensure_ascii=False, indent=4)
-        print("💾 MAD N4: Datos guardados en disco.")
-    except Exception as e:
-        print(f"⚠️ Error guardando disco: {e}")
-
-def load_mad_n4_from_disk():
-    """Carga los datos del archivo al arrancar el servidor"""
-    global mad_n4_roster_storage
-    if os.path.exists(MAD_N4_FILE):
-        try:
-            with open(MAD_N4_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                mad_n4_roster_storage.update(data)
-            print(f"📂 MAD N4: Datos recuperados del disco (Sincro anterior: {mad_n4_roster_storage['last_sync']})")
-        except Exception as e:
-            print(f"⚠️ Error cargando disco: {e}")
-            
 # Inicializar DB al arrancar
-async def get_seconds_until_next_sync():
-    """Calcula cuántos segundos faltan para las 05:30, 13:30 o 21:30"""
-    now = datetime.now(ZoneInfo(ROSTER_TZ))
-    targets = ["05:30", "13:30", "21:30"]
-    
-    wait_times = []
-    for t in targets:
-        h, m = map(int, t.split(':'))
-        target_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
-        
-        # Si la hora ya pasó hoy, calculamos para mañana
-        if target_time <= now:
-            target_time += timedelta(days=1)
-            
-        diff = (target_time - now).total_seconds()
-        wait_times.append(diff)
-    
-    return min(wait_times)
 
-async def _roster_watcher():
-    """Ciclo de vida del cargador de Madrid N4"""
-    print("🚀 MAD N4: Worker iniciado.")
-    
-    # 1. Intentar recuperar lo que había antes del deploy
-    load_mad_n4_from_disk()
-
-    # 2. Si después de cargar del disco sigue vacío, forzamos una descarga YA
-    if not mad_n4_roster_storage["Mañana"] and not mad_n4_roster_storage["Tarde"]:
-        print("📡 MAD N4: Memoria vacía tras deploy. Forzando descarga inmediata...")
-        await _perform_mad_n4_sync()
-
-    while True:
-        try:
-            seconds_to_wait = await get_seconds_until_next_sync()
-            print(f"😴 MAD N4: Próxima actualización programada en {int(seconds_to_wait/60)} min.")
-            
-            await asyncio.sleep(seconds_to_wait)
-            await _perform_mad_n4_sync()
-            
-        except Exception as e:
-            print(f"❌ MAD N4: Error en worker: {e}")
-            await asyncio.sleep(60)
-
-async def _perform_mad_n4_sync():
-    """La función que realmente llama a la API"""
-    try:
-        fecha_hoy = datetime.now(ZoneInfo(ROSTER_TZ)).strftime("%d/%m/%Y")
-        payload = {"escala": "MAD", "fecha": fecha_hoy}
-        headers = {"api-key": ROSTER_API_KEY, "Accept": "application/json"}
-        
-        async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
-            resp = await client.post(ROSTER_API_URL, headers=headers, data=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                for s in ["Mañana", "Tarde", "Noche"]:
-                    mad_n4_roster_storage[s] = filter_mad_n4_only(data, s)
-                
-                mad_n4_roster_storage["last_sync"] = datetime.now(ZoneInfo(ROSTER_TZ)).strftime("%H:%M:%S")
-                
-                # GUARDAR EN DISCO INMEDIATAMENTE TRAS DESCARGAR
-                save_mad_n4_to_disk()
-                
-                await manager.broadcast({"type": "roster_update", "status": "ready"})
-                print(f"✅ MAD N4: Sincronización exitosa.")
-            else:
-                print(f"⚠️ MAD N4: Error API {resp.status_code}")
-    except Exception as e:
-        print(f"❌ MAD N4: Fallo conexión API: {e}")
 
 async def send_to_excel_online(data: BriefingSnapshot):
     url = os.getenv("MAIN_WEBHOOK")
@@ -276,8 +184,7 @@ ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "t
 
 SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 
-# --- AÑADE ESTA LÍNEA AQUÍ (Cerca del principio del archivo) ---
-mad_n4_roster_storage = {"Mañana": [], "Tarde": [], "Noche": [], "last_sync": "Nunca"}
+
 
 
 # === SharePoint memory cache / TTL ===
@@ -5041,17 +4948,35 @@ async def map_fiix_assets():
     
 @app.get("/api/roster/current")
 async def get_roster_current():
-    """Este endpoint es instantáneo porque los datos ya se bajaron a las 05:30, 13:30 o 21:30"""
-    now = datetime.now(ZoneInfo(ROSTER_TZ))
-    shift, _, _, _ = _current_shift_info(now)
-    
-    people = mad_n4_roster_storage.get(shift, [])
-    
+    state = await _build_roster_state(force=False)
+
+    # Si hay persistencia para esa fecha/turno, sirve desde ahí
+    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
+    sh = state.get("shift")
+    if d_iso and sh and d_iso in roster_store:
+        rec = roster_store[d_iso]
+        people = rec.get("by_shift", {}).get(sh, [])
+        return {
+            "shift": sh,
+            "sheet": rec.get("sheet"),
+            "sheet_date": d_iso,
+            "window": state.get("window"),
+            "people": people,
+            "updated_at": rec.get("saved_at") or state.get("updated_at"),
+            "attendance": state.get("attendance", {}),
+            "source": "store"
+        }
+
+    # Fallback al Excel/cálculo en caliente
     return {
-        "shift": shift,
-        "people": people,
-        "source": "scheduled_api_memory",
-        "last_sync": mad_n4_roster_storage["last_sync"]
+        "shift": state.get("shift"),
+        "sheet": state.get("sheet"),
+        "sheet_date": state.get("sheet_date").isoformat() if state.get("sheet_date") else None,
+        "window": state.get("window"),
+        "people": state.get("people", []),
+        "updated_at": state.get("updated_at"),
+        "attendance": state.get("attendance", {}),
+        "source": "excel"
     }
 @app.get("/api/roster/persisted")
 def api_roster_persisted():
