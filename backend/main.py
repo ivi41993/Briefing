@@ -249,7 +249,8 @@ ROSTER_NIGHT_PREV_DAY = os.getenv("ROSTER_NIGHT_PREV_DAY", "true").lower() == "t
 
 SPANISH_DAY = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 
-
+# --- AÑADE ESTA LÍNEA AQUÍ (Cerca del principio del archivo) ---
+mad_n4_roster_storage = {"Mañana": [], "Tarde": [], "Noche": [], "last_sync": "Nunca"}
 
 
 # === SharePoint memory cache / TTL ===
