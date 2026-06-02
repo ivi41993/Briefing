@@ -4955,28 +4955,34 @@ async def get_roster_current():
     shift, sdate, _, _ = _current_shift_info(now)
     d_iso = sdate.isoformat()
 
-    # 1. ¿Está en el disco? (Carga ultra-rápida para la tablet)
+    # 1. Intentar hoy
     if d_iso in roster_store:
-        rec = roster_store[d_iso]
-        people = rec.get("by_shift", {}).get(shift, [])
+        people = roster_store[d_iso].get("by_shift", {}).get(shift, [])
         if people:
-            return {
-                "shift": shift,
-                "sheet_date": d_iso,
-                "people": people,
-                "source": "disk_ready"
-            }
+            return {"shift": shift, "people": people, "source": "today_disk"}
 
-    # 2. Si no hay nada de hoy, intentamos dar lo que haya en la RAM del último éxito
-    if roster_cache.get("people") and roster_cache.get("shift") == shift:
-        return {**roster_cache, "source": "ram_cache"}
+    # 2. SI ESTÁ VACÍO: Buscar el ÚLTIMO registro que tengamos en el historial (de ayer o antes)
+    if roster_store:
+        # Ordenamos las fechas y pillamos la más reciente
+        last_date = sorted(roster_store.keys())[-1]
+        last_people = roster_store[last_date].get("by_shift", {}).get(shift, [])
+        if not last_people: # Si ese turno no existe ayer, pillamos cualquiera
+            for s in ["Mañana", "Tarde", "Noche"]:
+                last_people = roster_store[last_date].get("by_shift", {}).get(s, [])
+                if last_people: break
+        
+        return {
+            "shift": shift,
+            "people": last_people,
+            "source": "historical_fallback",
+            "message": f"Mostrando datos previos ({last_date}). Sincronizando nuevos..."
+        }
 
-    # 3. Solo si es un día totalmente nuevo y el worker está trabajando ahora mismo:
     return {
         "shift": shift,
         "people": [],
         "source": "waiting_for_worker",
-        "message": "Sincronizando con Madrid... espera 30 segundos."
+        "message": "Sin datos previos. Conectando con Madrid por primera vez..."
     }
 @app.get("/api/roster/persisted")
 def api_roster_persisted():
@@ -5084,52 +5090,40 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    print("🚀 [WORKER MAD] Iniciando proceso de fondo...")
+    print("🚀 [WORKER MAD] Iniciando cargador automático...")
     
     while True:
         try:
             now = _now_local()
             shift, sdate, _, _ = _current_shift_info(now)
-            d_iso = sdate.isoformat()
             fecha_api = sdate.strftime("%d/%m/%Y")
             
-            print(f"📡 [WORKER MAD] Consultando API de Madrid para: {fecha_api} | Turno: {shift}")
-            
-            # Llamada a la API
+            # Intentar descarga
             raw_api_data = await fetch_roster_api_data(STATION_CODE_API, fecha_api)
             
-            if raw_api_data and len(raw_api_data) > 0:
+            if raw_api_data:
+                # Procesamos y guardamos de inmediato
                 people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
                 
-                # Actualizar el almacén global
-                if d_iso not in roster_store:
-                    roster_store[d_iso] = {"by_shift": {}, "sheet": "API_AUTO", "saved_at": ""}
+                d_iso = sdate.isoformat()
+                if d_iso not in roster_store: roster_store[d_iso] = {"by_shift": {}}
                 
                 roster_store[d_iso]["by_shift"][shift] = people
-                roster_store[d_iso]["saved_at"] = datetime.utcnow().isoformat() + "Z"
-                
-                # Actualizar el caché de RAM
-                roster_cache.update({"sheet_date": sdate, "shift": shift, "people": people})
-                
-                # Guardar a disco
                 save_roster_to_disk()
                 
-                # Emitir por WebSocket
-                await manager.broadcast({
-                    "type": "roster_update", 
-                    "shift": shift, 
-                    "people": people, 
-                    "sheet_date": d_iso
-                })
-                print(f"💾 [WORKER MAD] Datos guardados. Tablet debería actualizarse ahora.")
+                # Avisar a la tablet
+                await manager.broadcast({"type": "roster_update", "shift": shift, "people": people, "sheet_date": d_iso})
+                print(f"✅ [WORKER MAD] ¡ÉXITO! {len(people)} personas listas.")
+                
+                # Si tuvo éxito, esperamos 10 minutos para la siguiente
+                await asyncio.sleep(600)
             else:
-                print("❌ [WORKER MAD] La API no devolvió datos o la respuesta fue vacía.")
+                print("⚠️ [WORKER MAD] Madrid no responde. Reintentando en 30 segundos...")
+                await asyncio.sleep(30) # REINTENTO RÁPIDO SI FALLA
 
         except Exception as e:
-            print(f"💥 [WORKER MAD] Error crítico: {e}")
-        
-        # Esperar 10 minutos
-        await asyncio.sleep(600)
+            print(f"❌ [WORKER MAD] Error: {e}. Reintentando en 30s...")
+            await asyncio.sleep(30)
 
 
 from pathlib import Path
