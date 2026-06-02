@@ -4948,35 +4948,33 @@ async def map_fiix_assets():
     
 @app.get("/api/roster/current")
 async def get_roster_current():
-    state = await _build_roster_state(force=False)
+    now = _now_local()
+    shift, sdate, _, _ = _current_shift_info(now)
+    d_iso = sdate.isoformat()
 
-    # Si hay persistencia para esa fecha/turno, sirve desde ahí
-    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
-    sh = state.get("shift")
-    if d_iso and sh and d_iso in roster_store:
+    # 1. ¿Está en el archivo persistente (Disco)?
+    if d_iso in roster_store:
         rec = roster_store[d_iso]
-        people = rec.get("by_shift", {}).get(sh, [])
-        return {
-            "shift": sh,
-            "sheet": rec.get("sheet"),
-            "sheet_date": d_iso,
-            "window": state.get("window"),
-            "people": people,
-            "updated_at": rec.get("saved_at") or state.get("updated_at"),
-            "attendance": state.get("attendance", {}),
-            "source": "store"
-        }
+        people = rec.get("by_shift", {}).get(shift, [])
+        if people:
+            return {
+                "shift": shift,
+                "sheet_date": d_iso,
+                "people": people,
+                "source": "database_disk",
+                "updated_at": rec.get("saved_at")
+            }
 
-    # Fallback al Excel/cálculo en caliente
+    # 2. Si no hay nada en disco, devolvemos lo que haya en RAM
+    if roster_cache.get("people"):
+        return {**roster_cache, "source": "ram_cache"}
+
+    # 3. Si es la primera vez que se abre el día y el worker no ha terminado
     return {
-        "shift": state.get("shift"),
-        "sheet": state.get("sheet"),
-        "sheet_date": state.get("sheet_date").isoformat() if state.get("sheet_date") else None,
-        "window": state.get("window"),
-        "people": state.get("people", []),
-        "updated_at": state.get("updated_at"),
-        "attendance": state.get("attendance", {}),
-        "source": "excel"
+        "shift": shift,
+        "people": [],
+        "source": "waiting_for_worker",
+        "message": "Descargando datos de Madrid en segundo plano..."
     }
 @app.get("/api/roster/persisted")
 def api_roster_persisted():
@@ -5084,19 +5082,46 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    # primera carga
-    try:
-        await _build_roster_state(force=True)
-    except Exception as e:
-        print("⚠️ Roster initial load error:", repr(e))
-
-    # refresco periódico (por si cambia la hora/turno o reemplazas el archivo)
+    """Mantiene el Roster actualizado en segundo plano para evitar esperas al usuario"""
+    print("🚀 MAD: Worker de Roster proactivo iniciado.")
     while True:
-        await asyncio.sleep(max(15, ROSTER_POLL_SECONDS))
         try:
-            await _build_roster_state(force=False)
+            now = _now_local()
+            shift, sdate, _, _ = _current_shift_info(now)
+            fecha_api = sdate.strftime("%d/%m/%Y")
+            
+            print(f"📡 Worker: Consultando API lenta para turno {shift} ({fecha_api})...")
+            # Usamos la función de conexión con gran timeout que ya tienes definida
+            raw_api_data = await fetch_roster_api_data(STATION_CODE_API, fecha_api)
+            
+            if raw_api_data:
+                people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
+                
+                # Guardar en RAM y en Disco (roster.json)
+                d_iso = sdate.isoformat()
+                roster_store[d_iso] = {
+                    "raw": people,
+                    "by_shift": { shift: people },
+                    "sheet": "API_MAD_AUTO",
+                    "saved_at": datetime.utcnow().isoformat() + "Z"
+                }
+                save_roster_to_disk()
+                
+                # Actualizar el caché de respuesta inmediata
+                roster_cache.update({"sheet_date": sdate, "shift": shift, "people": people})
+                
+                # Avisar a los Dashboard abiertos vía WebSocket
+                await manager.broadcast({
+                    "type": "roster_update", 
+                    "shift": shift, 
+                    "people": people, 
+                    "sheet_date": d_iso
+                })
+                print(f"✅ Roster MAD preparado: {len(people)} personas.")
         except Exception as e:
-            print("⚠️ Roster watcher error:", repr(e))
+            print(f"❌ Error en Worker MAD: {e}")
+        
+        await asyncio.sleep(600) # Se ejecuta cada 10 minutos
 
 
 
