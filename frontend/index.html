@@ -4044,12 +4044,15 @@ function renderRoster(listEl, people, state) {
     
     const notice = document.getElementById('roster-status-notice');
 
-    // Si hay personas en la lista, ocultamos el aviso de "espera"
+    // 1. Manejo del aviso de carga
     if (people && people.length > 0) {
         if (notice) notice.classList.add('notice-hidden');
     } else {
-        // Si la lista está vacía, nos aseguramos de que el aviso sea visible
-        if (notice) notice.classList.remove('notice-hidden');
+        // Si source es waiting_for_worker, mostramos el aviso visual
+        if (state && state.source === "waiting_for_worker") {
+            listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">🔄 Sincronizando con Madrid... apareará solo en unos segundos.</div>';
+            return;
+        }
     }
 
     // --- BLOQUE DE DEFENSA DE MEMORIA (Evita el error de Cristina Pimentel) ---
