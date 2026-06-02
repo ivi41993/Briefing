@@ -3302,11 +3302,8 @@ async def lifespan(app: FastAPI):
     load_tasks_from_disk()
     load_attendance_from_disk()
     load_incidents_from_disk()
+    load_roster_from_disk()
     
-    load_roster_from_disk() # Importante cargar lo que ya hay en disco primero
-    
-    # Arrancar el proceso de fondo
-    app.state._roster_task = asyncio.create_task(_roster_watcher()) 
 
     # app.state._roster = asyncio.create_task(_roster_watcher())
    
@@ -4951,38 +4948,35 @@ async def map_fiix_assets():
     
 @app.get("/api/roster/current")
 async def get_roster_current():
-    now = _now_local()
-    shift, sdate, _, _ = _current_shift_info(now)
-    d_iso = sdate.isoformat()
+    state = await _build_roster_state(force=False)
 
-    # 1. Intentar hoy
-    if d_iso in roster_store:
-        people = roster_store[d_iso].get("by_shift", {}).get(shift, [])
-        if people:
-            return {"shift": shift, "people": people, "source": "today_disk"}
-
-    # 2. SI ESTÁ VACÍO: Buscar el ÚLTIMO registro que tengamos en el historial (de ayer o antes)
-    if roster_store:
-        # Ordenamos las fechas y pillamos la más reciente
-        last_date = sorted(roster_store.keys())[-1]
-        last_people = roster_store[last_date].get("by_shift", {}).get(shift, [])
-        if not last_people: # Si ese turno no existe ayer, pillamos cualquiera
-            for s in ["Mañana", "Tarde", "Noche"]:
-                last_people = roster_store[last_date].get("by_shift", {}).get(s, [])
-                if last_people: break
-        
+    # Si hay persistencia para esa fecha/turno, sirve desde ahí
+    d_iso = state.get("sheet_date").isoformat() if state.get("sheet_date") else None
+    sh = state.get("shift")
+    if d_iso and sh and d_iso in roster_store:
+        rec = roster_store[d_iso]
+        people = rec.get("by_shift", {}).get(sh, [])
         return {
-            "shift": shift,
-            "people": last_people,
-            "source": "historical_fallback",
-            "message": f"Mostrando datos previos ({last_date}). Sincronizando nuevos..."
+            "shift": sh,
+            "sheet": rec.get("sheet"),
+            "sheet_date": d_iso,
+            "window": state.get("window"),
+            "people": people,
+            "updated_at": rec.get("saved_at") or state.get("updated_at"),
+            "attendance": state.get("attendance", {}),
+            "source": "store"
         }
 
+    # Fallback al Excel/cálculo en caliente
     return {
-        "shift": shift,
-        "people": [],
-        "source": "waiting_for_worker",
-        "message": "Sin datos previos. Conectando con Madrid por primera vez..."
+        "shift": state.get("shift"),
+        "sheet": state.get("sheet"),
+        "sheet_date": state.get("sheet_date").isoformat() if state.get("sheet_date") else None,
+        "window": state.get("window"),
+        "people": state.get("people", []),
+        "updated_at": state.get("updated_at"),
+        "attendance": state.get("attendance", {}),
+        "source": "excel"
     }
 @app.get("/api/roster/persisted")
 def api_roster_persisted():
@@ -5090,40 +5084,20 @@ async def api_enablon_candidates():
 
 
 async def _roster_watcher():
-    print("🚀 [WORKER MAD] Iniciando cargador automático...")
-    
-    while True:
-        try:
-            now = _now_local()
-            shift, sdate, _, _ = _current_shift_info(now)
-            fecha_api = sdate.strftime("%d/%m/%Y")
-            
-            # Intentar descarga
-            raw_api_data = await fetch_roster_api_data(STATION_CODE_API, fecha_api)
-            
-            if raw_api_data:
-                # Procesamos y guardamos de inmediato
-                people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
-                
-                d_iso = sdate.isoformat()
-                if d_iso not in roster_store: roster_store[d_iso] = {"by_shift": {}}
-                
-                roster_store[d_iso]["by_shift"][shift] = people
-                save_roster_to_disk()
-                
-                # Avisar a la tablet
-                await manager.broadcast({"type": "roster_update", "shift": shift, "people": people, "sheet_date": d_iso})
-                print(f"✅ [WORKER MAD] ¡ÉXITO! {len(people)} personas listas.")
-                
-                # Si tuvo éxito, esperamos 10 minutos para la siguiente
-                await asyncio.sleep(600)
-            else:
-                print("⚠️ [WORKER MAD] Madrid no responde. Reintentando en 30 segundos...")
-                await asyncio.sleep(30) # REINTENTO RÁPIDO SI FALLA
+    # primera carga
+    try:
+        await _build_roster_state(force=True)
+    except Exception as e:
+        print("⚠️ Roster initial load error:", repr(e))
 
+    # refresco periódico (por si cambia la hora/turno o reemplazas el archivo)
+    while True:
+        await asyncio.sleep(max(15, ROSTER_POLL_SECONDS))
+        try:
+            await _build_roster_state(force=False)
         except Exception as e:
-            print(f"❌ [WORKER MAD] Error: {e}. Reintentando en 30s...")
-            await asyncio.sleep(30)
+            print("⚠️ Roster watcher error:", repr(e))
+
 
 
 from pathlib import Path
@@ -5255,5 +5229,4 @@ app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
 
