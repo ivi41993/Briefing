@@ -4873,15 +4873,23 @@ def filter_mad_people_by_shift_and_nave(api_data: Any, current_shift: str, targe
             
     return normalized
 # Modificación del constructor de estado
+# Modificación del constructor de estado (CON ADELANTO AUTOMÁTICO DE 30 MIN)
 async def _build_roster_state(force=False) -> dict:
     now = _now_local()
-    shift, sdate, start, end = _current_shift_info(now)
     
+    # ✨ TRUCO: Le sumamos 30 minutos a la hora actual SOLO para calcular el turno.
+    # Así, el bucle automático del servidor, a las 05:30 creerá que son las 06:00 
+    # y descargará y guardará en caché a toda la gente del turno de Mañana.
+    future_now = now + timedelta(minutes=30)
+    
+    shift, sdate, start, end = _current_shift_info(future_now)
+    
+    # Aquí hace la llamada a tu API externa automáticamente
     raw_api_data = await fetch_mad_roster_from_api()
     people = []
 
     if raw_api_data and isinstance(raw_api_data, list):
-        # AQUÍ ES DONDE FILTRAMOS POR NAVE 4
+        # Filtramos por Nave 4 y el turno adelantado
         people = filter_mad_people_by_shift_and_nave(raw_api_data, shift, "N4")
         source = "api"
     else:
@@ -4895,6 +4903,7 @@ async def _build_roster_state(force=False) -> dict:
         "window": {"from": start, "to": end}, "source": source
     })
     
+    # Avisa silenciosamente a cualquier tablet conectada de que hay datos nuevos
     await manager.broadcast({"type": "roster_update", **roster_cache, "sheet_date": sdate.isoformat()})
     return roster_cache
 @app.get("/api/fiix/get-ids-by-code")
